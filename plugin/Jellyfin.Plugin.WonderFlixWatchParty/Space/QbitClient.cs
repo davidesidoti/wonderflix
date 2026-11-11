@@ -1,6 +1,9 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Space;
@@ -28,6 +31,12 @@ public sealed class QbitClient(
 
     /// <summary>Attesa massima; i test la accorciano.</summary>
     internal TimeSpan Timeout { get; init; } = DefaultTimeout;
+
+    /// <summary>Quanto si aspetta che un <c>.torrent</c> aggiunto compaia; i test la accorciano.</summary>
+    internal TimeSpan AddWait { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Ogni quanto si guarda se è comparso; i test la azzerano.</summary>
+    internal TimeSpan AddPoll { get; init; } = TimeSpan.FromSeconds(1);
 
     public async Task<IReadOnlyList<QbitTorrent>> GetTorrentsAsync(CancellationToken cancellationToken) =>
         await SendAsync(HttpMethod.Get, "torrents/info", null, ReadListAsync<QbitTorrent>, cancellationToken).ConfigureAwait(false);
@@ -57,6 +66,153 @@ public sealed class QbitClient(
                 (_, _) => Task.FromResult(true),
                 cancellationToken);
 
+    public async Task<string> AddAsync(string link, string category, CancellationToken cancellationToken)
+    {
+        // Un tag unico ritrova il torrent quando l'hash non si legge dal magnet.
+        var tag = "wf-" + RandomNumberGenerator.GetHexString(8, lowercase: true);
+        byte[]? torrent = null;
+        if (!link.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase))
+        {
+            (link, torrent) = await FetchTorrentAsync(link, cancellationToken).ConfigureAwait(false);
+        }
+
+        var form = new Dictionary<string, string> { ["category"] = category, ["tags"] = "wonderflix," + tag };
+        if (torrent is null)
+        {
+            form["urls"] = link;
+        }
+
+        await SendAsync(HttpMethod.Post, "torrents/add", form, ReadAddedAsync, cancellationToken, torrent).ConfigureAwait(false);
+        return (torrent is null ? HashOfMagnet(link) : null) ?? await FindByTagAsync(tag, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>L'hash (40 cifre esadecimali, minuscolo) di un magnet <c>xt=urn:btih:</c>, anche in base32; null se non c'è.</summary>
+    internal static string? HashOfMagnet(string magnet)
+    {
+        const string Prefix = "urn:btih:";
+        var start = magnet.IndexOf(Prefix, StringComparison.OrdinalIgnoreCase);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        var value = magnet[(start + Prefix.Length)..].Split('&')[0];
+        if (value.Length == 40 && value.All(Uri.IsHexDigit))
+        {
+            return value.ToLowerInvariant();
+        }
+
+        if (value.Length != 32)
+        {
+            return null;
+        }
+
+        // Base32 (RFC 4648): 32 caratteri da 5 bit sono i 20 byte dell'hash.
+        var bytes = new byte[20];
+        var (buffer, bits, index) = (0, 0, 0);
+        foreach (var c in value.ToUpperInvariant())
+        {
+            var digit = c is >= 'A' and <= 'Z' ? c - 'A' : c is >= '2' and <= '7' ? c - '2' + 26 : -1;
+            if (digit < 0)
+            {
+                return null;
+            }
+
+            buffer = ((buffer << 5) | digit) & 0xFFF;
+            bits += 5;
+            if (bits >= 8)
+            {
+                bits -= 8;
+                bytes[index++] = (byte)(buffer >> bits);
+            }
+        }
+
+        return Convert.ToHexStringLower(bytes);
+    }
+
+    // qBittorrent risponde 200 anche quando non aggiunge: "Fails.".
+    private static async Task<bool> ReadAddedAsync(HttpResponseMessage response, CancellationToken cancellationToken) =>
+        (await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)).Trim() != "Fails."
+            ? true
+            : throw new QbitException(QbitError.Unreachable);
+
+    /// <summary>
+    /// Scarica il <c>.torrent</c> (da Prowlarr): un redirect a un magnet dà il magnet, altrimenti i byte. Mai il link nel
+    /// registro: contiene la chiave di Prowlarr.
+    /// </summary>
+    private async Task<(string Link, byte[]? Torrent)> FetchTorrentAsync(string url, CancellationToken cancellationToken)
+    {
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(Timeout);
+        try
+        {
+            // Pochi redirect a mano: il client non li segue (e non seguirebbe mai un magnet).
+            for (var hop = 0; hop < 4; hop++)
+            {
+                using var response = await httpClientFactory.CreateClient(ArrClient.HttpClientName)
+                    .GetAsync(url, timeoutSource.Token)
+                    .ConfigureAwait(false);
+                if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } location)
+                {
+                    var next = location.IsAbsoluteUri ? location : new Uri(new Uri(url), location);
+                    if (string.Equals(next.Scheme, "magnet", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (next.OriginalString, null);
+                    }
+
+                    url = next.AbsoluteUri;
+                    continue;
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger.LogWarning("Download del .torrent non riuscito: {Status}", (int)response.StatusCode);
+                    throw new QbitException(QbitError.Unreachable);
+                }
+
+                return (url, await response.Content.ReadAsByteArrayAsync(timeoutSource.Token).ConfigureAwait(false));
+            }
+
+            logger.LogWarning("Download del .torrent non riuscito: troppi redirect");
+            throw new QbitException(QbitError.Unreachable);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Download del .torrent: nessuna risposta in {Timeout}", Timeout);
+            throw new QbitException(QbitError.Unreachable);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or FormatException)
+        {
+            // Solo il tipo: il messaggio può contenere l'indirizzo.
+            logger.LogWarning("Download del .torrent non riuscito: {Error}", ex.GetType().Name);
+            throw new QbitException(QbitError.Unreachable, ex);
+        }
+    }
+
+    /// <summary>Il torrent aggiunto col tag unico, appena compare; <see cref="QbitError.NotFound"/> se non compare entro <see cref="AddWait"/>.</summary>
+    private async Task<string> FindByTagAsync(string tag, CancellationToken cancellationToken)
+    {
+        var watch = Stopwatch.StartNew();
+        while (true)
+        {
+            var found = await SendAsync(
+                HttpMethod.Get, "torrents/info?tag=" + Uri.EscapeDataString(tag), null, ReadListAsync<QbitTorrent>, cancellationToken)
+                .ConfigureAwait(false);
+            if (found.FirstOrDefault(t => !string.IsNullOrEmpty(t.Hash)) is { } torrent)
+            {
+                return torrent.Hash!.ToLowerInvariant();
+            }
+
+            if (watch.Elapsed >= AddWait)
+            {
+                logger.LogWarning("qBittorrent: il torrent aggiunto non è comparso in {Wait}", AddWait);
+                throw new QbitException(QbitError.NotFound);
+            }
+
+            await Task.Delay(AddPoll, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
     private static async Task<IReadOnlyList<T>> ReadListAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken) =>
         await response.Content.ReadFromJsonAsync<List<T>>(JsonOptions, cancellationToken).ConfigureAwait(false)
         ?? throw new JsonException("risposta vuota");
@@ -67,7 +223,8 @@ public sealed class QbitClient(
         string path,
         Dictionary<string, string>? form,
         Func<HttpResponseMessage, CancellationToken, Task<T>> read,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        byte[]? torrent = null)
     {
         var baseUrl = settings.QbitUrl?.Trim().TrimEnd('/');
         if (string.IsNullOrEmpty(baseUrl))
@@ -95,7 +252,19 @@ public sealed class QbitClient(
 
                 using var request = new HttpRequestMessage(method, $"{baseUrl}/api/v2/{path}");
                 request.Headers.TryAddWithoutValidation("Cookie", "SID=" + sid);
-                if (form is not null)
+                if (torrent is not null)
+                {
+                    // Un .torrent viaggia come file "torrents" in un multipart, con gli altri campi accanto.
+                    var multipart = new MultipartFormDataContent();
+                    foreach (var (name, value) in form ?? new Dictionary<string, string>())
+                    {
+                        multipart.Add(new StringContent(value), name);
+                    }
+
+                    multipart.Add(new ByteArrayContent(torrent), "torrents", "wonderflix.torrent");
+                    request.Content = multipart;
+                }
+                else if (form is not null)
                 {
                     request.Content = new FormUrlEncodedContent(form);
                 }

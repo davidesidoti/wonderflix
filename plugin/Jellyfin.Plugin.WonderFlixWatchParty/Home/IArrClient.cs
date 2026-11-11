@@ -90,6 +90,9 @@ public interface IArrClient
     /// <summary>Gli indexer, con la priorità (numero più basso = preferito) (spec T §2).</summary>
     Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken);
 
+    /// <summary>I client di download: da qBittorrent la categoria del servizio.</summary>
+    Task<IReadOnlyList<ArrDownloadClient?>> GetDownloadClientsAsync(ArrKind kind, CancellationToken cancellationToken);
+
     /// <summary>I file di un download come li vede la schermata di import manuale, anche già importati (decisione 9).</summary>
     Task<IReadOnlyList<ArrManualImportItem?>> GetManualImportAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken);
 

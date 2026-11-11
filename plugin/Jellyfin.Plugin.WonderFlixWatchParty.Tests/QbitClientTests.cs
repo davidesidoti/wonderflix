@@ -292,4 +292,107 @@ public class QbitClientTests
             Assert.DoesNotContain("0123456789abcdef", message, StringComparison.Ordinal);
         }
     }
+
+    // ---- AddAsync ----
+
+    private static string Tag(string body) => System.Text.RegularExpressions.Regex.Match(body, "wonderflix,(wf-[0-9a-f]{8})").Groups[1].Value;
+
+    [Theory]
+    [InlineData("magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=Show", "0123456789abcdef0123456789abcdef01234567")]
+    [InlineData("magnet:?dn=Show&xt=urn:btih:AERUKZ4JVPG66AJDIVTYTK6N54ASGRLH", "0123456789abcdef0123456789abcdef01234567")]
+    public async Task QbitAddUsesMagnetHash(string magnet, string hash)
+    {
+        Script(new()
+        {
+            ["/api/v2/auth/login"] = Seq(() => Login()),
+            ["/api/v2/torrents/add"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Ok.") }),
+        });
+
+        Assert.Equal(hash, await Client().AddAsync(magnet, "series", CancellationToken.None));
+
+        var add = _http.Requests.Single(r => r.Uri.AbsolutePath == "/api/v2/torrents/add");
+        Assert.Equal(HttpMethod.Post, add.Method);
+        var form = System.Web.HttpUtility.ParseQueryString(add.Body!);
+        Assert.Equal(magnet, form["urls"]);
+        Assert.Equal("series", form["category"]);
+        Assert.Matches("^wonderflix,wf-[0-9a-f]{8}$", form["tags"]);
+        Assert.DoesNotContain(_http.Requests, r => r.Uri.AbsolutePath == "/api/v2/torrents/info");
+    }
+
+    [Fact]
+    public async Task QbitAddTorrentFileFindsNewHash()
+    {
+        string? tag = null;
+        Script(new()
+        {
+            ["/api/v2/auth/login"] = Seq(() => Login()),
+            ["/prowlarr/11/download"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent("d8:announce0:e"u8.ToArray()) }),
+            ["/api/v2/torrents/add"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Ok.") }),
+            ["/api/v2/torrents/info"] = Seq(() => JsonOk("[]"), () => JsonOk("""[{"hash":"ABCDEF0123456789ABCDEF0123456789ABCDEF01"}]""")),
+        });
+        var client = new QbitClient(_http, _settings, _logger) { AddPoll = TimeSpan.Zero };
+
+        var hash = await client.AddAsync("http://prowlarr.example/prowlarr/11/download?apikey=k3y&link=x", "radarr", CancellationToken.None);
+
+        Assert.Equal("abcdef0123456789abcdef0123456789abcdef01", hash);
+        var download = _http.Requests.Single(r => r.Uri.AbsolutePath == "/prowlarr/11/download");
+        Assert.Equal(HttpMethod.Get, download.Method);
+        var add = _http.Requests.Single(r => r.Uri.AbsolutePath == "/api/v2/torrents/add");
+        Assert.Contains("name=torrents", add.Body);
+        Assert.Contains("d8:announce0:e", add.Body);
+        Assert.Contains("radarr", add.Body);
+        tag = Tag(add.Body!);
+        Assert.NotEmpty(tag);
+        Assert.All(_http.Requests.Where(r => r.Uri.AbsolutePath == "/api/v2/torrents/info"), r => Assert.Equal("?tag=" + tag, r.Uri.Query));
+
+        // Mai il link (ha la chiave di Prowlarr) nel registro.
+        Assert.DoesNotContain(_logger.Entries.Select(e => e.Message), m => m.Contains("k3y", StringComparison.Ordinal) || m.Contains("prowlarr.example", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task QbitAddFollowsARedirectToAMagnet()
+    {
+        Script(new()
+        {
+            ["/api/v2/auth/login"] = Seq(() => Login()),
+            ["/dl"] = Seq(() =>
+            {
+                var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+                redirect.Headers.Location = new Uri("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567");
+                return redirect;
+            }),
+            ["/api/v2/torrents/add"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Ok.") }),
+        });
+
+        Assert.Equal("0123456789abcdef0123456789abcdef01234567", await Client().AddAsync("http://prowlarr.example/dl", "series", CancellationToken.None));
+        var form = System.Web.HttpUtility.ParseQueryString(_http.Requests.Single(r => r.Uri.AbsolutePath == "/api/v2/torrents/add").Body!);
+        Assert.Equal("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", form["urls"]);
+    }
+
+    [Fact]
+    public async Task QbitAddRefusedThrows()
+    {
+        Script(new()
+        {
+            ["/api/v2/auth/login"] = Seq(() => Login()),
+            ["/api/v2/torrents/add"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Fails.") }),
+        });
+
+        await Assert.ThrowsAsync<QbitException>(() => Client().AddAsync("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567", "series", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task QbitAddTorrentThatNeverAppearsThrows()
+    {
+        Script(new()
+        {
+            ["/api/v2/auth/login"] = Seq(() => Login()),
+            ["/dl"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) }),
+            ["/api/v2/torrents/add"] = Seq(() => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("Ok.") }),
+            ["/api/v2/torrents/info"] = Seq(() => JsonOk("[]")),
+        });
+        var client = new QbitClient(_http, _settings, _logger) { AddPoll = TimeSpan.FromMilliseconds(10), AddWait = TimeSpan.FromMilliseconds(50) };
+
+        await Assert.ThrowsAsync<QbitException>(() => client.AddAsync("http://prowlarr.example/dl", "series", CancellationToken.None));
+    }
 }

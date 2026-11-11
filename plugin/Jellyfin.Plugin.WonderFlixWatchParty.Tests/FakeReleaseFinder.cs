@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
+using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Tests;
 
@@ -22,5 +23,20 @@ internal sealed class FakeReleaseFinder : IReleaseFinder
         }
 
         return Search(key, engine);
+    }
+
+    public Func<ArrKind, ArrRelease, bool, Task<GrabResult>> Grab { get; set; } =
+        (_, _, _) => Task.FromResult(new GrabResult(GrabKind.Grabbed, null, null));
+
+    public List<(ArrKind Service, ArrRelease Release, bool Intentional)> GrabCalls { get; } = [];
+
+    public Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            GrabCalls.Add((service, release, intentional));
+        }
+
+        return Grab(service, release, intentional);
     }
 }

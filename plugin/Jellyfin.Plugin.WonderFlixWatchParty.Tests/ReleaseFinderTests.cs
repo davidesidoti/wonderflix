@@ -15,7 +15,9 @@ public class ReleaseFinderTests
 
     private static DownloadKey Season => new(DownloadKinds.Season, 5, 1);
 
-    private ReleaseFinder Finder() => new(_arr, _prowlarr, _settings, _logger);
+    private readonly FakeQbitClient _qbit = new();
+
+    private ReleaseFinder Finder() => new(_arr, _prowlarr, _settings, _logger, _qbit);
 
     private static ArrIndexer Indexer(int id, int? prowlarrId, bool interactive = true, int[]? categories = null, int[]? anime = null)
     {
@@ -288,5 +290,133 @@ public class ReleaseFinderTests
         Assert.All(_arr.ParseCalls, c => Assert.Equal(ArrKind.Radarr, c.Kind));
         Assert.Equal("movie", _prowlarr.SearchCalls[0].Type);
         Assert.Single(result.Releases);
+    }
+
+    // ---- GrabAsync ----
+
+    private const string Magnet = "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567&dn=Show";
+
+    private static ArrRelease Pushed(string? downloadUrl = null, string? magnet = Magnet) => new()
+    {
+        Guid = "g",
+        IndexerId = 4,
+        Title = "Show S01 1080p",
+        Size = 123,
+        Seeders = 9,
+        Source = ReleaseSource.Prowlarr,
+        DownloadUrl = downloadUrl,
+        MagnetUrl = magnet,
+        Protocol = "torrent",
+        PublishDate = new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.Zero),
+    };
+
+    private void Rejects(params string[] reasons) =>
+        _arr.Push = (_, _) => Task.FromResult(new ArrPushResult { Rejected = true, Rejections = [.. reasons] });
+
+    [Fact]
+    public async Task ArrReleaseIsGrabbedByGuid()
+    {
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, new ArrRelease { Guid = "g", IndexerId = 3 }, false, CancellationToken.None);
+
+        Assert.Equal(new GrabResult(GrabKind.Grabbed, null, null), result);
+        Assert.Equal((ArrKind.Sonarr, "g", 3), Assert.Single(_arr.GrabCalls));
+        Assert.Empty(_arr.PushCalls);
+    }
+
+    [Fact]
+    public async Task PushApprovedIsGrabbed()
+    {
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed("http://prowlarr/dl?apikey=k"), false, CancellationToken.None);
+
+        Assert.Equal(GrabKind.Grabbed, result.Kind);
+        Assert.Empty(_arr.GrabCalls);
+        var (kind, push) = Assert.Single(_arr.PushCalls);
+        Assert.Equal(ArrKind.Sonarr, kind);
+        Assert.Equal(
+            ("Show S01 1080p", "http://prowlarr/dl?apikey=k", Magnet, "torrent", 123L, 4, 9),
+            (push.Title, push.DownloadUrl, push.MagnetUrl, push.Protocol, push.Size, push.IndexerId, push.Seeders));
+        Assert.Equal(new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.Zero), push.PublishDate);
+    }
+
+    [Fact]
+    public async Task PushTemporarilyRejectedIsPending()
+    {
+        _arr.Push = (_, _) => Task.FromResult(new ArrPushResult { TemporarilyRejected = true, Rejections = ["Waiting for better quality"] });
+
+        Assert.Equal(GrabKind.Pending, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None)).Kind);
+    }
+
+    [Fact]
+    public async Task IntentionalNotUpgradeGoesDirect()
+    {
+        Rejects("Existing file on disk is of equal or higher preference: Bluray-1080p", "Not an upgrade for existing episode file(s)");
+        _qbit.AddedHash = "0123456789abcdef0123456789abcdef01234567";
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None);
+
+        Assert.Equal(new GrabResult(GrabKind.Direct, null, "0123456789abcdef0123456789abcdef01234567"), result);
+        Assert.Equal((Magnet, "series"), Assert.Single(_qbit.Added));
+    }
+
+    [Fact]
+    public async Task DirectWithoutMagnetAddsTheTorrentLinkInRadarrCategory()
+    {
+        Rejects("movie is not monitored");
+
+        var result = await Finder().GrabAsync(ArrKind.Radarr, Pushed("http://prowlarr/dl", magnet: null), true, CancellationToken.None);
+
+        Assert.Equal(GrabKind.Direct, result.Kind);
+        Assert.Equal(("http://prowlarr/dl", "radarr"), Assert.Single(_qbit.Added));
+    }
+
+    [Fact]
+    public async Task NotIntentionalNotUpgradeIsRuleRefused()
+    {
+        Rejects("Not an upgrade for existing episode file(s)");
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None);
+
+        Assert.Equal(new GrabResult(GrabKind.RuleRefused, "Not an upgrade for existing episode file(s)", null), result);
+        Assert.Empty(_qbit.Added);
+    }
+
+    [Fact]
+    public async Task MixedRejectionsAreRuleRefused()
+    {
+        Rejects("Release in queue already meets cutoff", "Quality not wanted");
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None);
+
+        Assert.Equal(new GrabResult(GrabKind.RuleRefused, "Release in queue already meets cutoff", null), result);
+        Assert.Empty(_qbit.Added);
+    }
+
+    [Fact]
+    public async Task UnableToParseIsRuleRefused()
+    {
+        _arr.Push = (_, _) => Task.FromException<ArrPushResult>(new ArrException(ArrError.Unreachable, status: 400));
+
+        var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None);
+
+        Assert.Equal(new GrabResult(GrabKind.RuleRefused, "Unable to parse", null), result);
+    }
+
+    [Fact]
+    public async Task ServerErrorOnPushPasses()
+    {
+        _arr.Push = (_, _) => Task.FromException<ArrPushResult>(new ArrException(ArrError.Unreachable, status: 500));
+
+        var error = await Assert.ThrowsAsync<ArrException>(() => Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None));
+        Assert.Equal(500, error.Status);
+    }
+
+    [Fact]
+    public async Task DirectWithoutQbitCategoryFails()
+    {
+        Rejects("Not an upgrade for existing episode file(s)");
+        _arr.DownloadClients = _ => Task.FromResult<IReadOnlyList<ArrDownloadClient?>>([new ArrDownloadClient { Enable = true, Implementation = "Transmission" }]);
+
+        await Assert.ThrowsAsync<Space.QbitException>(() => Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None));
+        Assert.Empty(_qbit.Added);
     }
 }

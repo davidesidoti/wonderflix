@@ -15,6 +15,23 @@ public enum SearchEngine
 /// </summary>
 public sealed record FinderResult(IReadOnlyList<ArrRelease?> Releases, IReadOnlyList<ArrRelease> WrongTitle, SearchEngine Engine);
 
+/// <summary>
+/// Com'è andato un grab: preso (<see cref="Grabbed"/>), preso ma in attesa per un ritardo del profilo (<see cref="Pending"/>),
+/// scartato dalle regole di Sonarr/Radarr (<see cref="RuleRefused"/>), rifiutato dal client (<see cref="ClientRefused"/>), o
+/// messo direttamente in qBittorrent (<see cref="Direct"/>).
+/// </summary>
+public enum GrabKind
+{
+    Grabbed,
+    Pending,
+    RuleRefused,
+    ClientRefused,
+    Direct,
+}
+
+/// <summary>L'esito di un grab: per <see cref="GrabKind.RuleRefused"/> il primo motivo, per <see cref="GrabKind.Direct"/> l'hash del torrent.</summary>
+public sealed record GrabResult(GrabKind Kind, string? Reason, string? Hash);
+
 /// <summary>La ricerca delle release per un titolo da scaricare.</summary>
 public interface IReleaseFinder
 {
@@ -26,4 +43,11 @@ public interface IReleaseFinder
     /// usa la ricerca di Sonarr/Radarr (con <paramref name="arrTimeout"/>); gli errori sono <see cref="ArrException"/>.
     /// </summary>
     Task<FinderResult> SearchAsync(DownloadKey key, SearchEngine engine, CancellationToken cancellationToken, TimeSpan? arrTimeout = null);
+
+    /// <summary>
+    /// Scarica la release: per guid come sempre se viene dalla ricerca di Sonarr/Radarr, con il push se viene da Prowlarr. Un
+    /// download <paramref name="intentional"/> che il push scarta solo per file, coda o monitoraggio va direttamente in qBittorrent.
+    /// Gli <see cref="ArrException"/> di Sonarr/Radarr (5xx = rifiuto del client) e i <see cref="Space.QbitException"/> passano.
+    /// </summary>
+    Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken);
 }

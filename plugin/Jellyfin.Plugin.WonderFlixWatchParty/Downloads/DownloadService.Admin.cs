@@ -418,33 +418,17 @@ public sealed partial class DownloadService
                 return (BlockedOutcome.Unavailable, null);
             }
 
-            if (torrent is not { Progress: >= 1, ContentPath: { Length: > 0 } folder })
+            if (torrent is not { Progress: >= 1, ContentPath: { Length: > 0 } })
             {
                 return (BlockedOutcome.Changed, null);
             }
 
-            var service = ServiceOf(parsed.Kind);
-
             // Prima del comando: un file importato subito risulta più nuovo del segno di "Alleggerisci".
             var lightenedAt = time.GetUtcNow();
-            List<ArrManualImportItem> files;
-            try
+            var (imported, error) = await ImportFolderAsync(parsed, torrent).ConfigureAwait(false);
+            if (imported is not { } files)
             {
-                files = OnePerTitle(
-                    service,
-                    [.. (await arr.GetManualImportByFolderAsync(service, folder, CancellationToken.None).ConfigureAwait(false))
-                        .OfType<ArrManualImportItem>().Where(i => Importable(service, i) && IsOfTitle(parsed, i))]);
-                if (files.Count == 0)
-                {
-                    return (BlockedOutcome.Failed, "NoFiles");
-                }
-
-                // Token mai annullato: il lavoro deve finire anche se l'app si chiude. Copia: il torrent deve restare a seminare.
-                await arr.ManualImportAsync(service, files, CancellationToken.None, copy: true).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                return (BlockedOutcome.Failed, ErrorOf(ex));
+                return (BlockedOutcome.Failed, error);
             }
 
             var episodes = files
@@ -522,6 +506,34 @@ public sealed partial class DownloadService
 
         Nudge();
         return (BlockedOutcome.Ok, null);
+    }
+
+    /// <summary>
+    /// Importa in copia (il torrent resta a seminare) i file del titolo dalla cartella di un torrent finito, anche dove Sonarr li
+    /// giudica peggiori di quelli in libreria. Null e il motivo ("NoFiles" o il codice dell'errore) se non riesce.
+    /// </summary>
+    private async Task<(List<ArrManualImportItem>? Files, string? Error)> ImportFolderAsync(DownloadKey key, QbitTorrent torrent)
+    {
+        var service = ServiceOf(key.Kind);
+        try
+        {
+            var files = OnePerTitle(
+                service,
+                [.. (await arr.GetManualImportByFolderAsync(service, torrent.ContentPath!, CancellationToken.None).ConfigureAwait(false))
+                    .OfType<ArrManualImportItem>().Where(i => Importable(service, i) && IsOfTitle(key, i))]);
+            if (files.Count == 0)
+            {
+                return (null, "NoFiles");
+            }
+
+            // Token mai annullato: il lavoro deve finire anche se l'app si chiude. Copia: il torrent deve restare a seminare.
+            await arr.ManualImportAsync(service, files, CancellationToken.None, copy: true).ConfigureAwait(false);
+            return (files, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, ErrorOf(ex));
+        }
     }
 
     // Un file del titolo della chiave: il film; l'episodio tra quelli del file; la serie e la stagione.
@@ -1000,12 +1012,21 @@ public sealed partial class DownloadService
     }
 
     // Per DownloadId i download senza titolo e fermi all'import. Togliendone uno si cancellano i file: se anche un solo elemento
-    // dello stesso torrent è legato a un titolo, o non è fermo, il download non è di questi.
-    private static IEnumerable<IGrouping<string, ArrQueueItem>> UnknownDownloads(IEnumerable<ArrQueueItem?> queue) =>
-        queue.OfType<ArrQueueItem>()
-            .Where(q => !string.IsNullOrEmpty(q.DownloadId))
+    // dello stesso torrent è legato a un titolo, o non è fermo, il download non è di questi. Nemmeno i torrent messi da noi in
+    // qBittorrent (DirectGrabs): per Sonarr/Radarr sono senza titolo, ma li importa il giro.
+    private IEnumerable<IGrouping<string, ArrQueueItem>> UnknownDownloads(IEnumerable<ArrQueueItem?> queue)
+    {
+        HashSet<string> direct;
+        lock (_lock)
+        {
+            direct = new(Book.DirectGrabs.Keys, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return queue.OfType<ArrQueueItem>()
+            .Where(q => !string.IsNullOrEmpty(q.DownloadId) && !direct.Contains(q.DownloadId))
             .GroupBy(q => q.DownloadId!)
             .Where(d => d.All(q => q.Id > 0 && !HasTitle(q) && IsImportBlocked(q)));
+    }
 
     private static bool HasTitle(ArrQueueItem item) => item.SeriesId > 0 || item.EpisodeId > 0 || item.MovieId > 0;
 

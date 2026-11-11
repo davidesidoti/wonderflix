@@ -129,6 +129,9 @@ public sealed class DownloadEntry
 
     /// <summary>Il messaggio di Sonarr/Radarr per un import bloccato, così com'è.</summary>
     public string? BlockedMessage { get; set; }
+
+    /// <summary>Il torrent messo da noi direttamente in qBittorrent (hash minuscolo): il giro lo importa per cartella quando finisce. Null senza.</summary>
+    public string? DirectHash { get; set; }
 }
 
 /// <summary>Il tipo di tappabuchi di una voce (<c>DownloadEntry.Stopgap</c>).</summary>
@@ -259,6 +262,9 @@ public sealed class DownloadFile
 
     /// <summary>I grab di "Alleggerisci" (spec U, piano 30d), per chiave, con il loro momento; manca nei file vecchi.</summary>
     public Dictionary<string, DateTimeOffset> Lightened { get; set; } = [];
+
+    /// <summary>I torrent messi da noi in qBittorrent: hash minuscolo → chiave del titolo; manca nei file vecchi.</summary>
+    public Dictionary<string, string> DirectGrabs { get; set; } = [];
 }
 
 /// <summary>
@@ -329,6 +335,9 @@ public sealed class DownloadBook
     /// <summary>True se la chiave c'era.</summary>
     public bool ForgetLightened(string key) => _lightened.Remove(key);
 
+    /// <summary>I torrent messi da noi in qBittorrent: hash minuscolo → chiave del titolo. Una voce resta finché il torrent esiste.</summary>
+    public Dictionary<string, string> DirectGrabs { get; private set; } = [];
+
     /// <summary>Legge il file; <see cref="FormatException"/> per una versione diversa da 1, un elenco null o una voce null.</summary>
     public static DownloadBook FromFile(DownloadFile file)
     {
@@ -365,6 +374,9 @@ public sealed class DownloadBook
             book._lightened[key] = at;
         }
 
+        // Come "Lightened": il campo manca nei file vecchi.
+        book.DirectGrabs = new(file.DirectGrabs ?? []);
+
         return book;
     }
 
@@ -377,6 +389,7 @@ public sealed class DownloadBook
         Accepted = [.. _accepted],
         SplitSeasons = [.. _split],
         Lightened = new(_lightened),
+        DirectGrabs = new(DirectGrabs),
     };
 
     private static List<T> Required<T>(List<T>? list) =>

@@ -270,6 +270,24 @@ internal sealed class FakeArrClient : IArrClient
     public Func<ArrKind, Task<IReadOnlyList<ArrIndexer?>>> Indexers { get; set; } =
         _ => Task.FromResult<IReadOnlyList<ArrIndexer?>>([]);
 
+    /// <summary>Di base un qBittorrent con la categoria di sempre: <c>series</c> per Sonarr, <c>radarr</c> per Radarr.</summary>
+    public Func<ArrKind, Task<IReadOnlyList<ArrDownloadClient?>>> DownloadClients { get; set; } =
+        kind => Task.FromResult<IReadOnlyList<ArrDownloadClient?>>(
+        [
+            new ArrDownloadClient
+            {
+                Enable = true,
+                Implementation = "QBittorrent",
+                Fields = [new ArrField
+                {
+                    Name = kind == ArrKind.Sonarr ? "tvCategory" : "movieCategory",
+                    Value = System.Text.Json.JsonSerializer.SerializeToElement(kind == ArrKind.Sonarr ? "series" : "radarr"),
+                }],
+            },
+        ]);
+
+    public Task<IReadOnlyList<ArrDownloadClient?>> GetDownloadClientsAsync(ArrKind kind, CancellationToken cancellationToken) => DownloadClients(kind);
+
     public List<(ArrKind Kind, string Query)> SearchReleaseCalls { get; } = [];
 
     /// <summary>Il token dell'ultima ricerca di release.</summary>

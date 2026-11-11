@@ -136,15 +136,20 @@ public sealed partial class DownloadService(
         var enabled = settings.Enabled;
         var radarr = await ReadAsync(ArrKind.Radarr, ReadRadarrAsync, cancellationToken).ConfigureAwait(false);
         var sonarr = await ReadAsync(ArrKind.Sonarr, ReadSonarrAsync, cancellationToken).ConfigureAwait(false);
+        var torrents = await ReadDirectTorrentsAsync(cancellationToken).ConfigureAwait(false);
 
         var now = time.GetUtcNow();
         var stalled = new List<(ArrKind Kind, int QueueId, string Key)>();
         var checks = new List<UpgradeCheck>();
         var imports = new List<ManualImport>();
         var views = new Dictionary<ArrKind, ArrView>();
+        List<(string Key, string Hash, QbitTorrent Torrent)> finished;
         bool rushedRows;
         lock (_lock)
         {
+            // Prima di Apply: una voce il cui torrent è sparito torna da cercare come le altre.
+            finished = ApplyDirect(torrents, now);
+
             if (radarr.Value is { } movies)
             {
                 Apply(ArrKind.Radarr, movies, now, enabled, stalled, checks, imports);
@@ -178,6 +183,11 @@ public sealed partial class DownloadService(
             foreach (var import in imports)
             {
                 await ImportByHandAsync(import, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var (key, hash, torrent) in finished)
+            {
+                await ImportDirectAsync(key, hash, torrent).ConfigureAwait(false);
             }
 
             foreach (var check in checks)
@@ -370,8 +380,8 @@ public sealed partial class DownloadService(
             }
         }
 
-        // 4-5. Download finiti e titoli da non seguire più.
-        foreach (var entry in Book.Entries.Where(e => ServiceOf(e.Kind) == kind && !view.Queue.ContainsKey(e.Key)))
+        // 4-5. Download finiti e titoli da non seguire più. Un torrent nostro non è in coda: lo segue ApplyDirect.
+        foreach (var entry in Book.Entries.Where(e => ServiceOf(e.Kind) == kind && !view.Queue.ContainsKey(e.Key) && e.DirectHash is null))
         {
             var title = view.Titles.GetValueOrDefault(entry.Key);
 
@@ -417,6 +427,97 @@ public sealed partial class DownloadService(
                 // Un episodio col file non è tra i mancanti: si segue fino a UpgradeUntil.
                 Book.Remove(entry.Key);
             }
+        }
+    }
+
+    // I torrent di qBittorrent, solo se ce n'è uno nostro da seguire; null senza qBittorrent o se non risponde (le voci restano come sono).
+    private async Task<IReadOnlyList<QbitTorrent>?> ReadDirectTorrentsAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            if (qbit is null || Book.DirectGrabs.Count == 0)
+            {
+                return null;
+            }
+        }
+
+        try
+        {
+            return await qbit.GetTorrentsAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (QbitException ex)
+        {
+            logger.LogWarning("Download automatici: qBittorrent non ha risposto ({Error}), i torrent diretti restano come sono", ex.Error);
+            return null;
+        }
+    }
+
+    // Solo sotto _lock. I torrent messi da noi in qBittorrent: uno sparito si dimentica e la sua voce torna da cercare come un
+    // download sparito; uno finito si importa (ImportDirectAsync). Restituisce i finiti.
+    private List<(string Key, string Hash, QbitTorrent Torrent)> ApplyDirect(IReadOnlyList<QbitTorrent>? torrents, DateTimeOffset now)
+    {
+        var finished = new List<(string, string, QbitTorrent)>();
+        if (torrents is null)
+        {
+            return finished;
+        }
+
+        var byHash = ByKey(torrents.Where(t => !string.IsNullOrEmpty(t.Hash)), t => t.Hash!.ToLowerInvariant());
+        foreach (var (hash, key) in Book.DirectGrabs.ToList())
+        {
+            var entry = Book.Get(key) is { } found && found.DirectHash == hash ? found : null;
+            if (!byHash.TryGetValue(hash, out var torrent))
+            {
+                Book.DirectGrabs.Remove(hash);
+                if (entry is not null)
+                {
+                    logger.LogInformation("Download automatici: {Key}, il torrent diretto non c'è più in qBittorrent", key);
+                    entry.DirectHash = null;
+                    BackToWaiting(entry, now);
+                }
+            }
+            else if (entry is not null && torrent is { Progress: >= 1, ContentPath.Length: > 0 })
+            {
+                finished.Add((key, hash, torrent));
+            }
+        }
+
+        return finished;
+    }
+
+    // Un torrent diretto finito: l'import per cartella, poi la voce resta "in download" come dopo un grab finché il file non c'è.
+    // Se Sonarr/Radarr non rispondono si riprova al giro dopo.
+    private async Task ImportDirectAsync(string key, string hash, QbitTorrent torrent)
+    {
+        if (!DownloadKey.TryParse(key, out var parsed))
+        {
+            return;
+        }
+
+        var (files, error) = await ImportFolderAsync(parsed, torrent).ConfigureAwait(false);
+        if (files is null && error != "NoFiles")
+        {
+            logger.LogWarning("Download automatici: {Key}, import del torrent diretto non riuscito ({Error}): si riprova", key, error);
+            return;
+        }
+
+        lock (_lock)
+        {
+            if (Book.Get(key) is { } entry && entry.DirectHash == hash)
+            {
+                entry.DirectHash = null;
+                entry.LastSearchAt = time.GetUtcNow();
+            }
+        }
+
+        if (files is null)
+        {
+            // Nessun file del titolo nel torrent: senza file la voce torna da cercare dopo un giro, come un download sparito.
+            logger.LogWarning("Download automatici: {Key}, nel torrent diretto non c'è nessun file del titolo", key);
+        }
+        else
+        {
+            logger.LogInformation("Download automatici: {Key} importato dal torrent diretto, {Files} file", key, files.Count);
         }
     }
 

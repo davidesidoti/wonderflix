@@ -79,6 +79,19 @@ internal sealed class FakeQbitClient : IQbitClient
         return Task.CompletedTask;
     }
 
+    /// <summary>Le aggiunte, una per chiamata: link e categoria.</summary>
+    public List<(string Link, string Category)> Added { get; } = [];
+
+    /// <summary>L'hash che <see cref="AddAsync"/> restituisce.</summary>
+    public string AddedHash { get; set; } = "0123456789abcdef0123456789abcdef01234567";
+
+    public Task<string> AddAsync(string link, string category, CancellationToken cancellationToken)
+    {
+        Check();
+        Added.Add((link, category));
+        return Task.FromResult(AddedHash);
+    }
+
     private void Check()
     {
         if (Fail is { } error)

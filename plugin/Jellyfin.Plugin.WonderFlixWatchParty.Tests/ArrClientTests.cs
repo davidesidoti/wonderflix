@@ -856,6 +856,25 @@ public class ArrClientTests
     }
 
     [Fact]
+    public async Task DownloadClientsGiveTheQbitCategory()
+    {
+        Answer(
+            HttpStatusCode.OK,
+            """
+            [{"id":1,"enable":true,"implementation":"QBittorrent","fields":[{"name":"host","value":"x"},{"name":"tvCategory","value":"series"}]},
+             {"id":2,"enable":true,"implementation":"QBittorrent","fields":[{"name":"movieCategory","value":"radarr"}]},
+             {"id":3,"enable":false,"implementation":"Transmission","fields":null}]
+            """);
+
+        var clients = await Client().GetDownloadClientsAsync(ArrKind.Sonarr, CancellationToken.None);
+
+        Assert.Equal("https://arr.example/sonarr/api/v3/downloadclient", Assert.Single(_http.Requests).Uri.OriginalString);
+        Assert.Equal(("QBittorrent", true, "series"), (clients[0]!.Implementation, clients[0]!.Enable, clients[0]!.Category));
+        Assert.Equal("radarr", clients[1]!.Category);
+        Assert.Null(clients[2]!.Category);
+    }
+
+    [Fact]
     public async Task RemovingFromTheQueueCanBlocklistAndKeepTheDownload()
     {
         Answer(HttpStatusCode.OK, "{}");

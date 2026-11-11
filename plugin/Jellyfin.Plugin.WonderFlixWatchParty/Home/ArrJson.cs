@@ -512,6 +512,22 @@ public sealed class ArrIndexer
             : [];
 }
 
+/// <summary>Un client di download; per qBittorrent la categoria è il campo <c>tvCategory</c> (Sonarr) o <c>movieCategory</c> (Radarr).</summary>
+public sealed class ArrDownloadClient
+{
+    public bool Enable { get; set; }
+
+    public string? Implementation { get; set; }
+
+    public List<ArrField?>? Fields { get; set; }
+
+    [JsonIgnore]
+    public string? Category =>
+        Fields?.OfType<ArrField>().FirstOrDefault(f => f.Name is "tvCategory" or "movieCategory")?.Value is { ValueKind: JsonValueKind.String } value
+            ? value.GetString()
+            : null;
+}
+
 /// <summary>Un campo di un indexer: nome e valore (numero, testo o lista, quindi JSON).</summary>
 public sealed class ArrField
 {

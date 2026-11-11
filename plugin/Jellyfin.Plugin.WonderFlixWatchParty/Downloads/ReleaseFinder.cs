@@ -1,14 +1,28 @@
 using System.Globalization;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
+using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
 /// <summary>La ricerca di sempre per l'<see cref="SearchEngine.Arr"/>, e per Prowlarr: query per titolo, parse con Sonarr/Radarr.</summary>
-public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArrSettings settings, ILogger<ReleaseFinder> logger) : IReleaseFinder
+public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArrSettings settings, ILogger<ReleaseFinder> logger, IQbitClient qbit) : IReleaseFinder
 {
     // Il parse non mette niente in cache e un parallelismo piccolo basta (1640 release in 6 s in sequenza).
     private const int ParseParallelism = 4;
+
+    // I rifiuti del push per file, coda o monitoraggio: per un download voluto non contano.
+    private static readonly string[] IntentionalRejections =
+    [
+        "Existing file on disk",
+        "Not an upgrade",
+        "Release in queue",
+        "Series is not monitored",
+        "Episode is not monitored",
+        "Movie is not monitored",
+        "Not a Custom Format upgrade",
+        "Existing file meets cutoff",
+    ];
 
     public bool UsesProwlarr => settings.Prowlarr.IsConfigured;
 
@@ -32,6 +46,70 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient prowlarr, IArr
         }
 
         return await SearchProwlarrAsync(key, service, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken)
+    {
+        if (release.Source != ReleaseSource.Prowlarr)
+        {
+            await arr.GrabReleaseAsync(service, release.Guid ?? string.Empty, release.IndexerId, cancellationToken).ConfigureAwait(false);
+            return new GrabResult(GrabKind.Grabbed, null, null);
+        }
+
+        ArrPushResult decision;
+        try
+        {
+            decision = await arr.PushReleaseAsync(
+                service,
+                new ArrPushRelease
+                {
+                    Title = release.Title ?? string.Empty,
+                    DownloadUrl = release.DownloadUrl,
+                    MagnetUrl = release.MagnetUrl,
+                    Protocol = release.Protocol ?? "torrent",
+                    PublishDate = release.PublishDate ?? default,
+                    Size = release.Size,
+                    IndexerId = release.IndexerId,
+                    Seeders = release.Seeders,
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (ArrException ex) when (ex.Status == 400)
+        {
+            // "Unable to parse": Sonarr/Radarr non sanno a cosa attribuirla, è un rifiuto di regola.
+            return new GrabResult(GrabKind.RuleRefused, "Unable to parse", null);
+        }
+
+        if (decision.Approved)
+        {
+            return new GrabResult(GrabKind.Grabbed, null, null);
+        }
+
+        if (decision.TemporarilyRejected)
+        {
+            return new GrabResult(GrabKind.Pending, null, null);
+        }
+
+        var reasons = decision.Rejections?.Where(r => !string.IsNullOrWhiteSpace(r)).ToList() ?? [];
+        if (!intentional || reasons.Count == 0
+            || !reasons.All(r => IntentionalRejections.Any(p => r.StartsWith(p, StringComparison.OrdinalIgnoreCase))))
+        {
+            return new GrabResult(GrabKind.RuleRefused, reasons.FirstOrDefault(), null);
+        }
+
+        // La categoria del client di Sonarr/Radarr: così il torrent finisce dove finiscono i loro.
+        var category = (await arr.GetDownloadClientsAsync(service, cancellationToken).ConfigureAwait(false))
+            .OfType<ArrDownloadClient>()
+            .Where(c => c.Enable && string.Equals(c.Implementation, "QBittorrent", StringComparison.OrdinalIgnoreCase))
+            .Select(c => c.Category)
+            .FirstOrDefault(c => !string.IsNullOrEmpty(c))
+            ?? throw new QbitException(QbitError.NotConfigured);
+        var link = release.MagnetUrl ?? release.DownloadUrl ?? throw new QbitException(QbitError.NotFound);
+        var hash = await qbit.AddAsync(link, category, cancellationToken).ConfigureAwait(false);
+
+        // Mai il titolo nel log (è quello che l'utente cerca); i motivi sono di Sonarr/Radarr.
+        logger.LogInformation("Push rifiutato ({Reason}): torrent aggiunto direttamente a qBittorrent", reasons[0]);
+        return new GrabResult(GrabKind.Direct, null, hash);
     }
 
     private async Task<FinderResult> SearchProwlarrAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken)

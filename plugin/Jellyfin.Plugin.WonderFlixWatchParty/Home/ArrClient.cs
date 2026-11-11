@@ -198,6 +198,9 @@ public sealed class ArrClient(
     public async Task<IReadOnlyList<ArrIndexer?>> GetIndexersAsync(ArrKind kind, CancellationToken cancellationToken) =>
         await GetAsync<List<ArrIndexer?>>(kind, "indexer", cancellationToken).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<ArrDownloadClient?>> GetDownloadClientsAsync(ArrKind kind, CancellationToken cancellationToken) =>
+        await GetAsync<List<ArrDownloadClient?>>(kind, "downloadclient", cancellationToken).ConfigureAwait(false);
+
     public Task DeleteMovieAsync(int movieId, CancellationToken cancellationToken) =>
         SendWithoutResultAsync(
             ArrKind.Radarr,
