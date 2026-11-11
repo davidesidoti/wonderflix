@@ -98,6 +98,18 @@ Future<void> _open(BuildContext context, _Launch launch, String route) async {
   await opened;
 }
 
+/// Apre la schermata del trailer [route] con la stessa guardia di [playTrailer]:
+/// un doppio tocco non ne impila due.
+Future<void> openTrailerRoute(BuildContext context, String route) async {
+  if (_launchInProgress(context)) return;
+  final launch = _launch = _Launch();
+  try {
+    await _open(context, launch, route);
+  } finally {
+    if (identical(_launch, launch)) _launch = null;
+  }
+}
+
 /// Id del video YouTube di [url] (11 caratteri), come `YouTubeId.FromUrl`
 /// del plugin: watch?v=, youtu.be/, /embed/; `null` per il resto.
 String? youTubeIdOf(String url) {

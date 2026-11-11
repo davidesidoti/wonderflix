@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/navigation.dart';
@@ -19,6 +18,7 @@ import '../../ui/wf_buttons.dart';
 import '../../ui/wf_switcher.dart';
 import '../detail/detail_header.dart';
 import '../library/item_labels.dart';
+import '../playback/play_launcher.dart';
 import 'request_title_controller.dart';
 import 'requests_providers.dart';
 import 'season_picker.dart';
@@ -301,9 +301,12 @@ class TmdbTitleHeader extends StatelessWidget {
                       WfButton.secondary(
                         label: l.actionTrailer,
                         icon: LucideIcons.clapperboard,
-                        onPressed: () => unawaited(context.push(trailerRoute(
-                            TmdbTrailer(details.mediaType.wire, details.tmdbId),
-                            title: details.title))),
+                        onPressed: () => unawaited(openTrailerRoute(
+                            context,
+                            trailerRoute(
+                                TmdbTrailer(
+                                    details.mediaType.wire, details.tmdbId),
+                                title: details.title))),
                       ),
                   ],
                 ),

@@ -88,6 +88,41 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('tmdbTrailerDoubleTapPushesOneScreen', (tester) async {
+    api.titles[693134] =
+        testDetails(trailerUrl: 'https://www.youtube.com/watch?v=x');
+    var trailerScreens = 0;
+    await pumpAppRouter(
+      tester,
+      GoRouter(routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const Scaffold(
+              body: TmdbTitleScreen(
+                  type: RequestMediaType.movie, tmdbId: 693134)),
+        ),
+        GoRoute(
+          path: '/trailer/tmdb/:type/:id',
+          builder: (context, state) {
+            trailerScreens++;
+            return const Text('schermata trailer');
+          },
+        ),
+      ]),
+      overrides: requestsTestOverrides(api),
+    );
+    await tester.pump();
+    await tester.pump();
+    final button = find.text('Trailer');
+    // Due tocchi di fila, senza un frame in mezzo: la push non è ancora visibile.
+    await tester.tap(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    expect(trailerScreens, 1);
+    expect(find.text('schermata trailer', skipOffstage: false), findsOneWidget);
+  });
+
   testWidgets('serie: stagioni e Richiedi con le stagioni scelte', (tester) async {
     api.titles[90228] = testDetails(
       tmdbId: 90228,
