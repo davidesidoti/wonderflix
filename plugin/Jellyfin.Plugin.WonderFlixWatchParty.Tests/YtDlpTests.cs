@@ -28,6 +28,15 @@ public class YtDlpTests
     public void ExpectedHashIsNullWhenTheFileIsMissing() =>
         Assert.Null(YtDlpBinary.ExpectedHash("ff00  yt-dlp\n", "yt-dlp_linux"));
 
+    [Fact]
+    public void TheLoggedTailHasNoUrls()
+    {
+        var tail = YtDlpDownloader.Tail("ok\nERROR: unable to download https://rr1---sn-x.googlevideo.com/videoplayback?expire=1&sig=abc: HTTP Error 403\n");
+        Assert.DoesNotContain("googlevideo", tail);
+        Assert.Contains("<url>", tail);
+        Assert.Contains("HTTP Error 403", tail);
+    }
+
     private static string After(IReadOnlyList<string> args, string flag)
     {
         var i = args.ToList().IndexOf(flag);

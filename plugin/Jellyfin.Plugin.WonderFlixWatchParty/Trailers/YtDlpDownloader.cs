@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.MediaEncoding;
 using Microsoft.Extensions.Logging;
@@ -24,7 +25,7 @@ public static class YtDlpArguments
 }
 
 /// <summary>Scarica i trailer con yt-dlp, passando da <c>&lt;id&gt;.part.*</c> e rinominando a download finito.</summary>
-public sealed class YtDlpDownloader(
+public sealed partial class YtDlpDownloader(
     YtDlpBinary binary,
     IMediaEncoder mediaEncoder,
     IApplicationPaths paths,
@@ -67,6 +68,12 @@ public sealed class YtDlpDownloader(
             logger.LogWarning(e, "Trailer {Id}: yt-dlp non disponibile", videoId);
             return TrailerDownloadOutcome.Failed;
         }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Il timeout dell'HttpClient arriva come annullamento: non è uno spegnimento.
+            logger.LogWarning("Trailer {Id}: scaricare yt-dlp ha superato il tempo massimo", videoId);
+            return TrailerDownloadOutcome.Failed;
+        }
 
         var info = new ProcessStartInfo(exe)
         {
@@ -107,7 +114,17 @@ public sealed class YtDlpDownloader(
                 return TrailerDownloadOutcome.Unavailable;
             }
 
-            File.Move(part, target, overwrite: true);
+            try
+            {
+                File.Move(part, target, overwrite: true);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(e, "Trailer {Id}: non riesco a salvare il file", videoId);
+                DeleteParts(cache, videoId);
+                return TrailerDownloadOutcome.Failed;
+            }
+
             return TrailerDownloadOutcome.Ok;
         }
 
@@ -175,11 +192,14 @@ public sealed class YtDlpDownloader(
         }
     }
 
-    /// <summary>Le ultime righe di stderr per il log, accorciate.</summary>
-    private static string Tail(string errors)
+    /// <summary>Le ultime righe di stderr per il log, accorciate e senza URL (quelli di googlevideo portano token).</summary>
+    internal static string Tail(string errors)
     {
         var lines = errors.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var tail = string.Join(" | ", lines.TakeLast(3));
+        var tail = UrlPattern().Replace(string.Join(" | ", lines.TakeLast(3)), "<url>");
         return tail.Length > 400 ? tail[^400..] : tail;
     }
+
+    [GeneratedRegex(@"https?://\S+")]
+    private static partial Regex UrlPattern();
 }
