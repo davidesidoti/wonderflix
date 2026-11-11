@@ -444,34 +444,39 @@ public sealed partial class DownloadService(
         }
     }
 
-    // I torrent di qBittorrent, solo se ce n'è uno nostro da seguire; null senza qBittorrent o se non risponde (le voci restano come sono).
-    private async Task<IReadOnlyList<QbitTorrent>?> ReadDirectTorrentsAsync(CancellationToken cancellationToken)
+    // I torrent di qBittorrent, solo se ce n'è uno nostro da seguire, con gli hash seguiti prima della lettura; Torrents null senza
+    // qBittorrent o se non risponde (le voci restano come sono).
+    private async Task<(IReadOnlyList<QbitTorrent>? Torrents, IReadOnlySet<string> Tracked)> ReadDirectTorrentsAsync(CancellationToken cancellationToken)
     {
+        IReadOnlySet<string> tracked;
         lock (_lock)
         {
             if (qbit is null || Book.DirectGrabs.Count == 0)
             {
-                return null;
+                return (null, new HashSet<string>());
             }
+
+            tracked = Book.DirectGrabs.Keys.ToHashSet();
         }
 
         try
         {
-            return await qbit.GetTorrentsAsync(cancellationToken).ConfigureAwait(false);
+            return (await qbit.GetTorrentsAsync(cancellationToken).ConfigureAwait(false), tracked);
         }
         catch (QbitException ex)
         {
             logger.LogWarning("Download automatici: qBittorrent non ha risposto ({Error}), i torrent diretti restano come sono", ex.Error);
-            return null;
+            return (null, tracked);
         }
     }
 
     // Solo sotto _lock. I torrent messi da noi in qBittorrent: uno sparito si dimentica e la sua voce torna da cercare come un
-    // download sparito; uno finito si importa (ImportDirectAsync). Restituisce i finiti.
-    private List<(string Key, string Hash, QbitTorrent Torrent)> ApplyDirect(IReadOnlyList<QbitTorrent>? torrents, DateTimeOffset now)
+    // download sparito; uno finito si importa (ImportDirectAsync). Restituisce i finiti. Sparito solo se era seguito prima
+    // della lettura (tracked): uno aggiunto mentre si leggeva i torrent non poteva esserci.
+    private List<(string Key, string Hash, QbitTorrent Torrent)> ApplyDirect((IReadOnlyList<QbitTorrent>? Torrents, IReadOnlySet<string> Tracked) read, DateTimeOffset now)
     {
         var finished = new List<(string, string, QbitTorrent)>();
-        if (torrents is null)
+        if (read.Torrents is not { } torrents)
         {
             return finished;
         }
@@ -482,6 +487,11 @@ public sealed partial class DownloadService(
             var entry = Book.Get(key) is { } found && found.DirectHash == hash ? found : null;
             if (!byHash.TryGetValue(hash, out var torrent))
             {
+                if (!read.Tracked.Contains(hash))
+                {
+                    continue;
+                }
+
                 Book.DirectGrabs.Remove(hash);
                 if (entry is not null)
                 {
@@ -523,9 +533,15 @@ public sealed partial class DownloadService(
                 entry.LastSearchAt = time.GetUtcNow();
 
                 // Senza file del titolo la release si ricorda come un rifiuto del client: la ricerca dopo ne sceglie un'altra.
-                if (files is null && LatestChoice(key) is { } chosen)
+                // Il torrent non si segue più: resta in qBittorrent e compare fra i download senza titolo.
+                if (files is null)
                 {
-                    RememberRefused(entry, chosen.Guid, chosen.IndexerId);
+                    if (LatestChoice(key) is { } chosen)
+                    {
+                        RememberRefused(entry, chosen.Guid, chosen.IndexerId);
+                    }
+
+                    Book.DirectGrabs.Remove(hash);
                 }
             }
         }

@@ -1467,12 +1467,15 @@ public sealed partial class DownloadService
     // Con downloadId si toglie solo quel download: una stagione può averne altri sani ("Scarta").
     private async Task<bool> RemoveOldDownloadAsync(DownloadKey key, ArrKind service, CancellationToken cancellationToken, bool blocklist = false, string? downloadId = null)
     {
+        string? direct;
         lock (_lock)
         {
             if (!HasOldDownload(key.ToString()))
             {
                 return true;
             }
+
+            direct = downloadId is null ? Book.Get(key.ToString())?.DirectHash : null;
         }
 
         try
@@ -1511,7 +1514,38 @@ public sealed partial class DownloadService
             return false;
         }
 
+        if (direct is not null)
+        {
+            await RemoveDirectAsync(key.ToString(), direct, cancellationToken).ConfigureAwait(false);
+        }
+
         return true;
+    }
+
+    // Il torrent di prima messo da noi in qBittorrent si toglie, con i file, come la coda toglie i suoi dal client. Un errore di
+    // qBittorrent non ferma il grab nuovo: il torrent resta, non più seguito (compare fra i download senza titolo).
+    private async Task RemoveDirectAsync(string key, string hash, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (qbit is not null)
+            {
+                await qbit.DeleteAsync([hash], deleteFiles: true, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (QbitException ex)
+        {
+            logger.LogWarning("Download automatici: {Key}, qBittorrent non ha tolto il torrent diretto di prima ({Error})", key, ex.Error);
+        }
+
+        lock (_lock)
+        {
+            Book.DirectGrabs.Remove(hash);
+            if (Book.Get(key) is { } entry && entry.DirectHash == hash)
+            {
+                entry.DirectHash = null;
+            }
+        }
     }
 
     // Solo sotto _lock. La voce ha un download da togliere prima di un altro: in coda, o appena scelto (QueueId non ancora letto).

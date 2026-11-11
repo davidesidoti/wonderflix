@@ -144,9 +144,50 @@ public sealed class DownloadServiceDirectGrabTests : IDisposable
 
         await _service.RunCycleAsync(CancellationToken.None);
 
-        var entry = Store().Load().Get("movie:12")!;
+        var saved = Store().Load();
+        var entry = saved.Get("movie:12")!;
         Assert.Null(entry.DirectHash);
         Assert.Equal(["3|b"], entry.RefusedReleases);
+
+        // Il torrent non si segue più (compare fra i download senza titolo), ma resta in qBittorrent.
+        Assert.False(saved.DirectGrabs.ContainsKey(Hash));
+        Assert.Empty(_qbit.Deleted);
+    }
+
+    [Fact]
+    public async Task ADirectGrabMadeDuringTheTorrentReadIsNotVanished()
+    {
+        // "cambia" dell'admin mentre il giro legge i torrent: il torrent nuovo non è nella lettura, ma non è sparito.
+        const string fresh = "fedcba9876543210fedcba9876543210fedcba98";
+        Torrent(0.4);
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult([Release("b", WebRip1080, "WEBRip-1080p", 1.89, 150, indexerId: 3)], [], engine)),
+            Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.Direct, null, fresh)),
+        };
+        var service = new DownloadService(_arr, new FakeArrSettings(), new FakeDownloadSettings(), Store(), _time, NullLogger<DownloadService>.Instance, null, _qbit, finder) { Pause = TimeSpan.Zero };
+        using var reading = new SemaphoreSlim(0);
+        using var resume = new SemaphoreSlim(0);
+        _qbit.OnGetTorrents = () =>
+        {
+            _qbit.OnGetTorrents = null;
+            reading.Release();
+            resume.Wait();
+        };
+
+        var cycle = Task.Run(() => service.RunCycleAsync(CancellationToken.None));
+        Assert.True(await reading.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "b", 3, CancellationToken.None));
+        resume.Release();
+        await cycle;
+
+        // Solo il grab dell'admin: il giro non l'ha creduto sparito (e non l'ha cercato e scaricato di nuovo).
+        Assert.Single(finder.GrabCalls);
+        var saved = Store().Load();
+        var entry = saved.Get("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, fresh), (entry.State, entry.DirectHash));
+        Assert.Equal("movie:12", saved.DirectGrabs[fresh]);
     }
 
     [Fact]

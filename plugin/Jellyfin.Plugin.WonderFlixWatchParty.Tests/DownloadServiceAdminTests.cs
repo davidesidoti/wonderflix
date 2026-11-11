@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 using Jellyfin.Plugin.WonderFlixWatchParty.Protocol;
+using Jellyfin.Plugin.WonderFlixWatchParty.Space;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Xunit;
@@ -1494,6 +1495,48 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal((DownloadStates.Downloading, "direct-hash"), (saved.Get("movie:12")!.State, saved.Get("movie:12")!.DirectHash));
         Assert.Equal(["direct-hash"], saved.DirectGrabs.Keys);
         Assert.Equal("a", saved.Choices[0].Guid);
+    }
+
+    // "cambia" di un film che scarica da un torrent nostro (DirectHash "old", senza coda).
+    private (DownloadService Service, FakeReleaseFinder Finder, FakeQbitClient Qbit) DirectDownloading()
+    {
+        Animals();
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry { Key = "movie:12", Kind = DownloadKinds.Movie, Title = "Animals (2025)", State = DownloadStates.Downloading, AvailableSince = T0, DirectHash = "old" });
+        book.DirectGrabs["old"] = "movie:12";
+        Store().Save(book);
+        var qbit = new FakeQbitClient();
+        qbit.Torrents.Add(new QbitTorrent { Hash = "old", Name = "Animals", Progress = 0.3 });
+        var (service, finder) = WithProwlarr(qbit: qbit);
+        return (service, finder, qbit);
+    }
+
+    [Fact]
+    public async Task AChangeOfADirectTorrentDeletesTheOldOne()
+    {
+        var (service, _, qbit) = DirectDownloading();
+        await service.SearchAsync("movie:12", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "a", 1, CancellationToken.None));
+
+        Assert.Equal(["old"], Assert.Single(qbit.Deleted));
+        Assert.True(qbit.DeleteFiles["old"]);
+        var saved = Store().Load();
+        Assert.Empty(saved.DirectGrabs);
+        Assert.Null(saved.Get("movie:12")!.DirectHash);
+    }
+
+    [Fact]
+    public async Task AChangeOfADirectTorrentWithQbitDownStillGrabs()
+    {
+        var (service, finder, qbit) = DirectDownloading();
+        await service.SearchAsync("movie:12", CancellationToken.None);
+        qbit.Fail = QbitError.Unreachable;
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "a", 1, CancellationToken.None));
+
+        Assert.Single(finder.GrabCalls);
+        Assert.Empty(Store().Load().DirectGrabs);
     }
 
     [Fact]
