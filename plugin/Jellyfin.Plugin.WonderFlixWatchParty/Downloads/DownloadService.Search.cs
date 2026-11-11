@@ -381,9 +381,10 @@ public sealed partial class DownloadService
         if (item.Episodes is { } episodes)
         {
             // Una stagione: il pack se conviene (spec T §5.4), poi gli altri pack validi; altrimenti si divide, un upgrade resta com'è.
-            if (SeasonPackRule.ChoosePack(releases, episodes, input) is not null)
+            if (SeasonPackRule.PackCandidates(releases, episodes, input) is { Count: > 0 } packs)
             {
-                ranked = SeasonPackRule.Packs(releases, episodes.Count, input).Candidates;
+                // Anche i pack dopo il primo devono pesare poco più dei singoli.
+                ranked = packs;
             }
             else if (!item.Upgrade)
             {

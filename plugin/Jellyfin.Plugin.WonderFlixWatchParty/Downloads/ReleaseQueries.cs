@@ -19,12 +19,17 @@ public static class ReleaseQueries
         return Finish(all);
     }
 
-    /// <summary>Episodio: tvsearch; per gli anime anche il titolo con il numero assoluto, e i titoli della stagione scene con il numero scene.</summary>
+    /// <summary>
+    /// Episodio: tvsearch; per gli anime anche il titolo con il numero assoluto, e i titoli della stagione scene con il numero
+    /// scene. Poi i titoli generali (per esempio quello italiano) con SxxEyy, e per gli anime con il numero assoluto.
+    /// </summary>
     public static IReadOnlyList<(string Type, string Query, int? Season, int? Episode)> ForEpisode(SonarrSeries series, SonarrEpisode episode)
     {
         var title = series.Title ?? string.Empty;
         var all = new List<(string Type, string Query, int? Season, int? Episode)> { ("tvsearch", title, episode.SeasonNumber, episode.EpisodeNumber) };
-        if (series.SeriesType == "anime")
+        var anime = series.SeriesType == "anime";
+        var alts = Alternates(series);
+        if (anime)
         {
             if (episode.AbsoluteEpisodeNumber is { } abs)
             {
@@ -33,10 +38,18 @@ public static class ReleaseQueries
 
             if (episode.SceneSeasonNumber is { } sceneSeason && episode.SceneEpisodeNumber is { } sceneEpisode)
             {
-                all.AddRange(Alternates(series)
+                all.AddRange(alts
                     .Where(a => a.SceneSeasonNumber == sceneSeason)
                     .Select(a => ("search", $"{a.Title} {sceneEpisode:00}", (int?)null, (int?)null)));
             }
+        }
+
+        // Prima tutti con SxxEyy: col limite di query i titoli generali arrivano prima del numero assoluto.
+        var general = alts.Where(a => a.SceneSeasonNumber == -1 || a.SeasonNumber == -1).ToList();
+        all.AddRange(general.Select(a => ("search", $"{a.Title} S{episode.SeasonNumber:00}E{episode.EpisodeNumber:00}", (int?)null, (int?)null)));
+        if (anime && episode.AbsoluteEpisodeNumber is { } absolute)
+        {
+            all.AddRange(general.Select(a => ("search", $"{a.Title} {absolute:00}", (int?)null, (int?)null)));
         }
 
         return Finish(all);

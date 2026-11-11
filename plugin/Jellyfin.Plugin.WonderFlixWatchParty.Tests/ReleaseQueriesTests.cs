@@ -70,11 +70,35 @@ public class ReleaseQueriesTests
 
         var queries = ReleaseQueries.ForEpisode(SlimeSeries(), episode);
 
-        Assert.Equal(("tvsearch", Slime, 2, 1), queries[0]);
-        Assert.Contains(("search", $"{Slime} 25", (int?)null, (int?)null), queries);
-        Assert.Contains(("search", "Tensei Shitara Slime Datta Ken S2 01", (int?)null, (int?)null), queries);
-        Assert.Contains(("search", "Tensei shitara Slime Datta Ken 2nd Season 01", (int?)null, (int?)null), queries);
-        Assert.DoesNotContain(queries, q => q.Query.Contains("S3", StringComparison.Ordinal));
+        // Poi i titoli generali (anche quello italiano) con SxxEyy, finché c'è posto.
+        Assert.Equal(
+            [
+                ("tvsearch", Slime, (int?)2, (int?)1),
+                ("search", $"{Slime} 25", null, null),
+                ("search", "Tensei Shitara Slime Datta Ken S2 01", null, null),
+                ("search", "Tensei shitara Slime Datta Ken 2nd Season 01", null, null),
+                ("search", "That Time I Got Reincarnated as a Slime Season 2 01", null, null),
+                ("search", "Tensei Shitara Slime Datta Ken S02E01", null, null),
+                ("search", "Tensei Shitara Slime Datta Ken That Time I Got Reincarnated as a Slime S02E01", null, null),
+                ("search", "Vita da Slime S02E01", null, null),
+            ],
+            queries);
+    }
+
+    [Fact]
+    public void AnimeEpisodeGeneralTitlesAlsoUseTheAbsoluteNumber()
+    {
+        var series = new SonarrSeries { Title = "Frieren", SeriesType = "anime", AlternateTitles = [General("Frieren - Oltre la fine del viaggio")] };
+        var episode = new SonarrEpisode { SeasonNumber = 1, EpisodeNumber = 5, AbsoluteEpisodeNumber = 5 };
+
+        Assert.Equal(
+            [
+                ("tvsearch", "Frieren", (int?)1, (int?)5),
+                ("search", "Frieren 05", null, null),
+                ("search", "Frieren - Oltre la fine del viaggio S01E05", null, null),
+                ("search", "Frieren - Oltre la fine del viaggio 05", null, null),
+            ],
+            ReleaseQueries.ForEpisode(series, episode));
     }
 
     [Fact]
@@ -84,6 +108,17 @@ public class ReleaseQueriesTests
         var episode = new SonarrEpisode { SeasonNumber = 1, EpisodeNumber = 3, AbsoluteEpisodeNumber = 3, SceneSeasonNumber = 1, SceneEpisodeNumber = 3 };
 
         Assert.Equal([("tvsearch", "Severance", (int?)1, (int?)3)], ReleaseQueries.ForEpisode(series, episode));
+    }
+
+    [Fact]
+    public void StandardEpisodeSearchesTheGeneralTitlesWithSeasonAndEpisode()
+    {
+        var series = new SonarrSeries { Title = "Severance", SeriesType = "standard", AlternateTitles = [Scene("Severance Alt", 1), General("Scissione")] };
+        var episode = new SonarrEpisode { SeasonNumber = 1, EpisodeNumber = 3, AbsoluteEpisodeNumber = 3 };
+
+        Assert.Equal(
+            [("tvsearch", "Severance", (int?)1, (int?)3), ("search", "Scissione S01E03", null, null)],
+            ReleaseQueries.ForEpisode(series, episode));
     }
 
     [Fact]

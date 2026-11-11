@@ -53,6 +53,41 @@ public class SeasonPackRuleTests
     }
 
     [Fact]
+    public void LaterPacksMustBeLightEnoughToo()
+    {
+        // I singoli pesano 10 GB: un pack si prende fino a 12 GB, anche il secondo o il terzo.
+        ArrRelease Other(string guid, double gb) => new() { Guid = guid, Size = (long)(gb * Gb), CustomFormatScore = 100, FullSeason = true };
+
+        var packs = SeasonPackRule.PackCandidates(Singles(10).Append(Pack(11)).Append(Other("heavy", 13)).Append(Other("ok", 11.5)), Missing, PerEpisode);
+
+        Assert.Equal(["pack", "ok"], packs.Select(p => p.Guid));
+    }
+
+    [Fact]
+    public void WithoutAllSinglesEveryValidPackIsACandidate()
+    {
+        ArrRelease Other(string guid, double gb) => new() { Guid = guid, Size = (long)(gb * Gb), CustomFormatScore = 100, FullSeason = true };
+
+        Assert.Equal(["pack", "heavy"], SeasonPackRule.PackCandidates(Singles(9).Append(Pack(11)).Append(Other("heavy", 13)), Missing, PerEpisode).Select(p => p.Guid));
+    }
+
+    [Fact]
+    public void APackIsSizeCheckedOnTheWholeSeason()
+    {
+        // 2 episodi mancanti su 10 da 24 minuti: il massimo di Sonarr (100 MB/min) si misura su 240 minuti, non su 48.
+        var checks = new ChecksContext(
+            null, [new ArrQualityDefinition { Quality = new ArrQuality { Id = 3 }, MinSize = 1, MaxSize = 100 }], [], [], new Dictionary<int, int>(), []);
+        var input = new RuleInput(24, false, 0, 0, new Dictionary<int, int>(), checks);
+        var pack = new ArrRelease
+        {
+            Guid = "pack", Size = 20 * Gb, FullSeason = true, Source = ReleaseSource.Prowlarr,
+            Quality = new ArrQualityModel { Quality = new ArrQuality { Id = 3 } }, EpisodeNumbers = [.. Missing],
+        };
+
+        Assert.Equal("pack", SeasonPackRule.Packs([pack], 2, input).Choice?.Guid);
+    }
+
+    [Fact]
     public void NothingValidSplits()
     {
         Assert.Null(SeasonPackRule.ChoosePack(Singles(10).Append(Pack(11, "Unknown series")), Missing, PerEpisode));

@@ -20,8 +20,11 @@ public static class ReleaseChecks
 {
     private const double BytesPerMegabyte = 1024 * 1024;
 
-    /// <summary>Il motivo per scartare la release (<c>Blocklisted</c>, <c>Restricted</c>, <c>NotWanted</c>) e un dettaglio breve, o null se passa.</summary>
-    public static (string Reason, string? Detail)? Check(ArrRelease r, ChecksContext c, int runtimeMinutes)
+    /// <summary>
+    /// Il motivo per scartare la release (<c>Blocklisted</c>, <c>Restricted</c>, <c>NotWanted</c>) e un dettaglio breve, o null se
+    /// passa. <paramref name="seasonMinutes"/>: la durata di tutta la stagione, per il peso di un pack completo.
+    /// </summary>
+    public static (string Reason, string? Detail)? Check(ArrRelease r, ChecksContext c, int runtimeMinutes, int? seasonMinutes = null)
     {
         if (c.Blocklist.Any(b => string.Equals(b.SourceTitle, r.Title, StringComparison.OrdinalIgnoreCase)))
         {
@@ -51,12 +54,17 @@ public static class ReleaseChecks
             return ("NotWanted", quality.Name);
         }
 
+        // Un pack completo, come per Sonarr, si misura su tutta la stagione (seasonMinutes); senza saperla niente massimo, e il
+        // minimo sugli episodi della regola.
+        var (minMinutes, maxMinutes) = !r.FullSeason ? (runtimeMinutes, runtimeMinutes)
+            : seasonMinutes is > 0 and var season ? (season, season)
+            : (runtimeMinutes, 0);
         var definition = quality is null ? null : c.Definitions.FirstOrDefault(d => d.Quality?.Id == quality.Id);
-        if (definition is not null && runtimeMinutes > 0 && r.Size > 0)
+        if (definition is not null && r.Size > 0)
         {
-            // MinSize/MaxSize sono MB al minuto; 0 o null = nessun limite.
-            var min = (definition.MinSize ?? 0) * runtimeMinutes * BytesPerMegabyte;
-            var max = (definition.MaxSize ?? 0) * runtimeMinutes * BytesPerMegabyte;
+            // MinSize/MaxSize sono MB al minuto; 0 o null = nessun limite (anche con durata sconosciuta, 0).
+            var min = (definition.MinSize ?? 0) * minMinutes * BytesPerMegabyte;
+            var max = (definition.MaxSize ?? 0) * maxMinutes * BytesPerMegabyte;
             if ((min > 0 && r.Size < min) || (max > 0 && r.Size > max))
             {
                 return ("NotWanted", "Size");

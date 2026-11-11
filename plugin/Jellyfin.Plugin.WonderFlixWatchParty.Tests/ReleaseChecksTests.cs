@@ -107,6 +107,27 @@ public class ReleaseChecksTests
     }
 
     [Fact]
+    public void AFullSeasonIsMeasuredOnTheWholeSeason()
+    {
+        // 20-100 MB al minuto; 48 minuti sono gli episodi mancanti, 240 la stagione intera.
+        var definitions = new[] { new ArrQualityDefinition { Quality = Q(3, "WEBDL-1080p"), MinSize = 20, MaxSize = 100 } };
+        ArrRelease Pack(double gb)
+        {
+            var pack = Release(gb: gb);
+            pack.FullSeason = true;
+            return pack;
+        }
+
+        Assert.Null(ReleaseChecks.Check(Pack(20), Context(definitions: definitions), 48, seasonMinutes: 240));
+        Assert.Equal(("NotWanted", "Size"), ReleaseChecks.Check(Pack(30), Context(definitions: definitions), 48, seasonMinutes: 240));
+        Assert.Equal(("NotWanted", "Size"), ReleaseChecks.Check(Pack(4), Context(definitions: definitions), 48, seasonMinutes: 240));
+
+        // Senza la durata della stagione niente massimo; il minimo resta, sugli episodi mancanti.
+        Assert.Null(ReleaseChecks.Check(Pack(50), Context(definitions: definitions), 48));
+        Assert.Equal(("NotWanted", "Size"), ReleaseChecks.Check(Pack(0.5), Context(definitions: definitions), 48));
+    }
+
+    [Fact]
     public void ANullOrZeroMaxSizeAndAnUnknownRuntimeSkipTheSizeCheck()
     {
         var unlimited = new[] { new ArrQualityDefinition { Quality = Q(3, "WEBDL-1080p"), MinSize = 1, MaxSize = null } };

@@ -1413,7 +1413,7 @@ public sealed partial class DownloadService
         foreach (var release in releases)
         {
             var episodes = release.FullSeason ? seasonEpisodes.Count : Math.Max(1, release.SeasonEpisodeNumbers?.Count ?? 0);
-            var one = DownloadRule.Choose([release], input with { RuntimeMinutes = minutes * episodes });
+            var one = DownloadRule.Choose([release], input with { RuntimeMinutes = minutes * episodes, EpisodeMinutes = minutes });
             valid.AddRange(one.Candidates);
             rejected.AddRange(one.Rejected);
         }

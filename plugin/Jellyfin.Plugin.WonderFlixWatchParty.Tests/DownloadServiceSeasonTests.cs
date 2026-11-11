@@ -755,4 +755,22 @@ public sealed class DownloadServiceSeasonTests : IDisposable
         Assert.Equal(DownloadStates.Downloading, entry.State);
         Assert.Equal([1, 2, 3], entry.EpisodeNumbers!);
     }
+
+    [Fact]
+    public async Task ANextPackTooHeavyForTheSinglesIsNotTried()
+    {
+        // I singoli pesano 3 GB in tutto: p2 (5 GB) è troppo più pesante, come lo sarebbe stato come primo pack.
+        WholeSeason();
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult(
+                [Pack("p1", 3, 60), Pack("p2", 5, 50), Single("e1", 1, 1, 50), Single("e2", 2, 1, 50), Single("e3", 3, 1, 50)], [], engine)),
+            Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.RuleRefused, "Not English", null)),
+        };
+
+        await NewService(finder).RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(["p1"], finder.GrabCalls.Select(c => c.Release.Guid));
+    }
 }

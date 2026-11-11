@@ -3,8 +3,11 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Home;
 
 namespace Jellyfin.Plugin.WonderFlixWatchParty.Downloads;
 
-/// <summary>I dati della regola per un titolo (spec T §4). <c>RuntimeMinutes</c> 0 vuol dire "durata sconosciuta".</summary>
-public sealed record RuleInput(int RuntimeMinutes, bool IsMovie, double MinGbPerHour, int MinScore, IReadOnlyDictionary<int, int> IndexerPriority, ChecksContext? Checks = null);
+/// <summary>
+/// I dati della regola per un titolo (spec T §4). <c>RuntimeMinutes</c> 0 vuol dire "durata sconosciuta". <c>EpisodeMinutes</c>:
+/// per la regola di una stagione la durata di un episodio, così il peso di un pack completo si misura su tutta la stagione.
+/// </summary>
+public sealed record RuleInput(int RuntimeMinutes, bool IsMovie, double MinGbPerHour, int MinScore, IReadOnlyDictionary<int, int> IndexerPriority, ChecksContext? Checks = null, int EpisodeMinutes = 0);
 
 /// <summary>
 /// Una release scartata. <c>Reason</c>: "Arr" (<c>Detail</c> = il primo rifiuto), "TooSmall" (<c>Detail</c> = GB all'ora) (spec T §4),
@@ -58,7 +61,7 @@ public static class DownloadRule
             }
 
             if (input.Checks is { } checks && release.Source == ReleaseSource.Prowlarr
-                && ReleaseChecks.Check(release, checks, input.RuntimeMinutes) is var (reason, detail))
+                && ReleaseChecks.Check(release, checks, input.RuntimeMinutes, SeasonMinutesOf(release, input)) is var (reason, detail))
             {
                 rejected.Add(new RuleRejected(release, reason, detail));
                 continue;
@@ -87,6 +90,12 @@ public static class DownloadRule
         var meetsMinimum = best is not null && best.CustomFormatScore >= input.MinScore;
         return new RuleResult(ordered, rejected, meetsMinimum ? best : null, best is not null && !meetsMinimum);
     }
+
+    // Un pack completo copre tutti gli episodi della stagione: il parse di Sonarr li elenca tutti, non solo i mancanti.
+    private static int? SeasonMinutesOf(ArrRelease release, RuleInput input) =>
+        release.FullSeason && input.EpisodeMinutes > 0 && release.SeasonEpisodeNumbers is { Count: > 0 } episodes
+            ? input.EpisodeMinutes * episodes.Count
+            : null;
 
     /// <summary>
     /// Radarr/Sonarr importerebbero la release nuova al posto del file attuale? Conta la posizione della qualità tra TUTTE
