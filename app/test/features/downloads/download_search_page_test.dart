@@ -23,6 +23,8 @@ DownloadSearch _search({
   String? error,
   String? externalSearchUrl,
   List<DownloadEpisodeChoice> episodeChoices = const [],
+  SearchEngine engine = SearchEngine.prowlarr,
+  bool lowResults = false,
 }) =>
     DownloadSearch(
       key: 'movie:1',
@@ -37,6 +39,8 @@ DownloadSearch _search({
       error: error,
       externalSearchUrl: externalSearchUrl,
       episodeChoices: episodeChoices,
+      engine: engine,
+      lowResults: lowResults,
     );
 
 /// Una riga con questo peso e punteggio; `g1` è la scelta della regola.
@@ -666,6 +670,53 @@ void main() {
       expect(find.text('Migliori episodi'), findsOneWidget);
       expect(find.text('nessun file valido'), findsOneWidget);
       expect(grabAllButton('Scarica tutti (2)'), findsOneWidget);
+    });
+  });
+
+  group('Prowlarr search', () {
+    const jobs = SocialFeatures(
+        inbox: true, downloads: true, downloadsSearchJobs: true, known: true);
+    const notice =
+        'Prowlarr ha trovato poco per questo titolo: prova la ricerca di Radarr.';
+
+    testWidgets('theNoticeShowsOnlyWithLowResults', (tester) async {
+      await open(tester, features: jobs);
+      expect(find.text(notice), findsNothing);
+      expect(find.widgetWithText(OutlinedButton, 'Cerca con Radarr'),
+          findsOneWidget);
+    });
+
+    testWidgets('theNoticeShowsWithLowResults', (tester) async {
+      api.searchValue = _search(lowResults: true);
+      await open(tester, features: jobs);
+      expect(find.text(notice), findsOneWidget);
+    });
+
+    testWidgets('theButtonRerunsTheSearchViaArr', (tester) async {
+      api.searchValue = _search(lowResults: true);
+      await open(tester, features: jobs);
+      api.calls.clear();
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cerca con Radarr'));
+      await tester.pumpAndSettle();
+
+      expect(api.calls, contains('start movie:1 again arr'));
+    });
+
+    testWidgets('anArrSearchSaysWhereItCameFrom', (tester) async {
+      api.searchValue = _search(engine: SearchEngine.arr);
+      await open(tester, features: jobs);
+      expect(find.text('Risultati da Radarr'), findsOneWidget);
+
+      api.searchValue = _search();
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Ricerca di nuovo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Risultati da Radarr'), findsNothing);
+    });
+
+    testWidgets('withoutSearchJobsThereIsNoButton', (tester) async {
+      await open(tester);
+      expect(find.text('Cerca con Radarr'), findsNothing);
     });
   });
 

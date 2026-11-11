@@ -146,8 +146,9 @@ class FakeDownloadsApi implements DownloadsApi {
   }
 
   @override
-  Future<DownloadSearchStatus> startSearch(String key, {bool again = false}) =>
-      _status('start $key${again ? ' again' : ''}', key);
+  Future<DownloadSearchStatus> startSearch(String key,
+          {bool again = false, bool viaArr = false}) =>
+      _status('start $key${again ? ' again' : ''}${viaArr ? ' arr' : ''}', key);
 
   @override
   Future<DownloadSearchStatus> searchStatus(String key) =>

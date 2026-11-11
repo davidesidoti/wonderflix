@@ -312,6 +312,48 @@ void main() {
     expect((search.validCount, search.totalCount, search.error), (1, 3, null));
   });
 
+  test('EngineAndLowResultsParseWithDefaults', () {
+    Map<String, dynamic> base([Map<String, dynamic> extra = const {}]) => {
+          'Key': 'movie:1',
+          'Kind': 'Movie',
+          'Title': 'Film',
+          'RuntimeMinutes': 100,
+          'ValidCount': 0,
+          'TotalCount': 0,
+          ...extra,
+        };
+    final old = DownloadSearch.fromJson(base())!;
+    expect((old.engine, old.lowResults), (SearchEngine.prowlarr, false));
+    final arr =
+        DownloadSearch.fromJson(base({'Engine': 'Arr', 'LowResults': true}))!;
+    expect((arr.engine, arr.lowResults), (SearchEngine.arr, true));
+    final prowlarr = DownloadSearch.fromJson(
+        base({'Engine': 'Prowlarr', 'LowResults': false}))!;
+    expect((prowlarr.engine, prowlarr.lowResults),
+        (SearchEngine.prowlarr, false));
+    expect(DownloadSearch.fromJson(base({'Engine': 'Boh'}))!.engine,
+        SearchEngine.prowlarr);
+  });
+
+  test('TheNewRejectedReasonsParse', () {
+    expect([
+      for (final w in [
+        'WrongTitle',
+        'NotWanted',
+        'Restricted',
+        'Blocklisted',
+        'X',
+      ])
+        RejectedReason.fromWire(w),
+    ], [
+      RejectedReason.wrongTitle,
+      RejectedReason.notWanted,
+      RejectedReason.restricted,
+      RejectedReason.blocklisted,
+      RejectedReason.unknown,
+    ]);
+  });
+
   test('EpisodeChoicesParseTolerantly', () {
     Map<String, dynamic> base([Object? choices = 'absent']) => {
           'Key': 'season:1',

@@ -49,6 +49,23 @@ void main() {
     expect(rejectedLabel(it, arr), 'Not an upgrade');
   });
 
+  test('TheNewReasonsHaveShortLabels', () {
+    String label(RejectedReason r, [String? detail]) => rejectedLabel(
+        it, DownloadRejected(release: testRelease(), reason: r, detail: detail));
+    expect(label(RejectedReason.wrongTitle), 'Altro titolo');
+    expect(label(RejectedReason.notWanted, 'Bluray-1080p'),
+        'Qualità non voluta: Bluray-1080p');
+    expect(label(RejectedReason.restricted, 'cam, ts'),
+        'Termini vietati: cam, ts');
+    expect(label(RejectedReason.blocklisted), 'In blocklist');
+    expect(
+        rejectedLabel(
+            en,
+            DownloadRejected(
+                release: testRelease(), reason: RejectedReason.blocklisted)),
+        'Blocklisted');
+  });
+
   test('FailuresAndReasonsHaveTexts', () {
     expect(
       downloadsFailureLabel(it, DownloadsFailure.busy),

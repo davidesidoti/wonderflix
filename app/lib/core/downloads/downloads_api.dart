@@ -97,12 +97,18 @@ class DownloadsApi {
           (throw const ServerErrorException(null)));
 
   /// Avvia la ricerca in background (o ne dà lo stato se c'è già): risponde
-  /// subito. [again]: rifà la ricerca anche se c'è un risultato.
-  Future<DownloadSearchStatus> startSearch(String key, {bool again = false}) =>
+  /// subito. [again]: rifà la ricerca anche se c'è un risultato. [viaArr]:
+  /// cerca con Sonarr/Radarr invece che con Prowlarr.
+  Future<DownloadSearchStatus> startSearch(String key,
+          {bool again = false, bool viaArr = false}) =>
       _call(() async =>
           DownloadSearchStatus.fromJson(asJsonMap(await _http.post(
               '$_base/SearchStart',
-              body: {'Key': key, 'Again': again},
+              body: {
+                'Key': key,
+                'Again': again,
+                if (viaArr) 'Engine': SearchEngine.arr.wire,
+              },
               quietStatuses: _quiet))) ??
           (throw const ServerErrorException(null)));
 

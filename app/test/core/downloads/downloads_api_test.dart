@@ -65,6 +65,19 @@ void main() {
     expect(request.data, {'Key': 'movie:1', 'Again': true});
   });
 
+  test('StartSearchViaArrSendsTheEngine', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Key': 'movie:1',
+          'State': 'Running',
+          'StartedAt': '2026-11-01T10:00:00+01:00',
+          'Service': 'Radarr',
+          'Result': null,
+        });
+    await api.startSearch('movie:1', again: true, viaArr: true);
+    expect(adapter.requests.single.data,
+        {'Key': 'movie:1', 'Again': true, 'Engine': 'Arr'});
+  });
+
   test('SearchStatusGetsTheKey', () async {
     adapter.handler = (_) => const FakeResponse(200, {
           'Key': 'movie:1',

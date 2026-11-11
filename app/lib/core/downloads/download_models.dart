@@ -89,6 +89,11 @@ enum DownloadSearchPhase {
 enum RejectedReason {
   arr('Arr'),
   tooSmall('TooSmall'),
+  // Ricerche via Prowlarr (plugin 1.29.0).
+  wrongTitle('WrongTitle'),
+  notWanted('NotWanted'),
+  restricted('Restricted'),
+  blocklisted('Blocklisted'),
   unknown('');
 
   const RejectedReason(this.wire);
@@ -96,6 +101,20 @@ enum RejectedReason {
 
   static RejectedReason fromWire(String? value) => values
       .firstWhere((v) => v.wire == value && v != unknown, orElse: () => unknown);
+}
+
+/// Da dove vengono i risultati di una ricerca (plugin 1.29.0): Prowlarr, o
+/// Sonarr/Radarr con "Cerca con Sonarr/Radarr".
+enum SearchEngine {
+  prowlarr('Prowlarr'),
+  arr('Arr');
+
+  const SearchEngine(this.wire);
+  final String wire;
+
+  /// Assente o sconosciuto: Prowlarr, la strada di default.
+  static SearchEngine fromWire(Object? value) =>
+      value == arr.wire ? arr : prowlarr;
 }
 
 DateTime _date(Object? value) => DateTime.parse(value as String).toUtc();
@@ -719,6 +738,8 @@ class DownloadSearch {
     this.error,
     this.episodeChoices = const [],
     this.externalSearchUrl,
+    this.engine = SearchEngine.prowlarr,
+    this.lowResults = false,
   });
 
   final String key;
@@ -741,6 +762,13 @@ class DownloadSearch {
   /// La pagina di ricerca del tracker esterno, già col titolo; `null` senza
   /// (o con un plugin più vecchio).
   final String? externalSearchUrl;
+
+  /// Da dove vengono i risultati; Prowlarr con un plugin più vecchio.
+  final SearchEngine engine;
+
+  /// Prowlarr ha trovato poco (nessuna candidata valida, o nessun pack
+  /// completo in una stagione).
+  final bool lowResults;
 
   /// Scarto di peso entro cui una release con lo stesso punteggio è il file
   /// attuale: la stessa release può pesare poco diverso sull'indexer.
@@ -790,6 +818,8 @@ class DownloadSearch {
         error: error,
         episodeChoices: choices,
         externalSearchUrl: externalSearchUrl,
+        engine: engine,
+        lowResults: lowResults,
       );
 
   static DownloadSearch? fromJson(Map<String, dynamic> json) {
@@ -811,6 +841,8 @@ class DownloadSearch {
         episodeChoices: DownloadEpisodeChoice.listFromJson(
             json['EpisodeChoices']),
         externalSearchUrl: json['ExternalSearchUrl'] as String?,
+        engine: SearchEngine.fromWire(json['Engine']),
+        lowResults: json['LowResults'] == true,
       );
     } on Object {
       return null;

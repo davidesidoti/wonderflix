@@ -109,7 +109,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
 
   /// Avvia (o riprende) la ricerca sul plugin e ne chiede lo stato finché non
   /// è finita.
-  Future<DownloadSearch> _job({bool again = false}) async {
+  Future<DownloadSearch> _job({bool again = false, bool viaArr = false}) async {
     final run = ++_run;
     _timer?.cancel();
     final api = ref.read(downloadsApiProvider);
@@ -118,7 +118,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
     final stale = Completer<DownloadSearch>().future;
     var failures = 0;
     try {
-      var status = await api.startSearch(key, again: again);
+      var status = await api.startSearch(key, again: again, viaArr: viaArr);
       while (true) {
         if (!ref.mounted || run != _run) return await stale;
         switch (status.state) {
@@ -145,7 +145,7 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
           if (!ref.mounted || run != _run) return await stale;
           try {
             status = restart
-                ? await api.startSearch(key)
+                ? await api.startSearch(key, viaArr: viaArr)
                 : await api.searchStatus(key);
             failures = 0;
             break;
@@ -190,15 +190,18 @@ class DownloadSearchController extends AsyncNotifier<DownloadSearch> {
   /// Rilancia la ricerca (sul plugin: `again`, anche se ha già un risultato).
   Future<void> searchAgain() => _restart(again: true);
 
+  /// Come [searchAgain], ma con Sonarr/Radarr invece che con Prowlarr.
+  Future<void> searchViaArr() => _restart(again: true, viaArr: true);
+
   /// Dopo un errore: riprende a chiedere lo stato senza rilanciare la ricerca
   /// sul plugin.
   Future<void> retry() => _restart(again: false);
 
-  Future<void> _restart({required bool again}) async {
+  Future<void> _restart({required bool again, bool viaArr = false}) async {
     _token?.cancel();
     state = const AsyncLoading();
     try {
-      final search = await (_jobs ? _job(again: again) : _search());
+      final search = await (_jobs ? _job(again: again, viaArr: viaArr) : _search());
       if (ref.mounted) state = AsyncData(search);
     } on Object catch (error, stack) {
       if (ref.mounted) state = AsyncError(error, stack);

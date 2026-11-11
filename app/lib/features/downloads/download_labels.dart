@@ -160,6 +160,18 @@ String downloadsFailureLabel(AppLocalizations l, DownloadsFailure f) =>
 
 String rejectedLabel(AppLocalizations l, DownloadRejected r) {
   final detail = r.detail ?? '';
+  final reason = switch (r.reason) {
+    RejectedReason.wrongTitle => l.downloadsRejectedWrongTitle,
+    RejectedReason.notWanted => l.downloadsRejectedNotWanted,
+    RejectedReason.restricted => l.downloadsRejectedRestricted,
+    RejectedReason.blocklisted => l.downloadsRejectedBlocklisted,
+    _ => null,
+  };
+  if (reason != null) {
+    return detail.isEmpty
+        ? reason
+        : l.downloadsRejectedWithDetail(reason, detail);
+  }
   if (r.reason != RejectedReason.tooSmall) return detail;
   // Il plugin manda "0.62" col punto: in italiano la virgola.
   final rate = double.tryParse(detail);

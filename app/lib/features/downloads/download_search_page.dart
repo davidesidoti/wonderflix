@@ -202,10 +202,12 @@ class _SearchPage extends ConsumerWidget {
     final margin = adminSideMargin(context);
     final search = state.value;
     void again() => unawaited(ref.read(provider.notifier).searchAgain());
+    void viaArr() => unawaited(ref.read(provider.notifier).searchViaArr());
     final running = ref.watch(downloadSearchRunningProvider(dlKey));
+    final jobs = ref.watch(socialAvailabilityProvider).downloadsSearchJobs;
     // Con la ricerca in background, tre errori di rete di fila: "Riprova"
     // riprende a chiedere lo stato senza rilanciare la ricerca.
-    final pollingFailed = ref.watch(socialAvailabilityProvider).downloadsSearchJobs &&
+    final pollingFailed = jobs &&
         state.error is DownloadsException &&
         (state.error! as DownloadsException).failure == DownloadsFailure.network;
 
@@ -247,12 +249,21 @@ class _SearchPage extends ConsumerWidget {
           _Header(
             search: search,
             onAgain: busy ? null : again,
+            // Solo un plugin con le ricerche in background conosce l'Engine.
+            showViaArr: jobs,
+            onViaArr: busy ? null : viaArr,
             onAccept: reviewing && !busy ? () => _accept(context, ref) : null,
             reviewing: reviewing,
             onAtMinimum: busy ? null : () => _markAtMinimum(context, ref),
             lighten: lighten,
           ),
           const SizedBox(height: 16),
+          if (search.lowResults)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(l.downloadsLowResults(_arrService(search)),
+                  style: const TextStyle(color: WfColors.creamMuted)),
+            ),
           if (lighten && search.current != null && !search.hasLighter)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
@@ -409,10 +420,16 @@ class _SearchRunningState extends State<_SearchRunning> {
   }
 }
 
+/// Il servizio che cerca "alla vecchia maniera" questo titolo.
+String _arrService(DownloadSearch search) =>
+    search.kind == DownloadKind.movie ? 'Radarr' : 'Sonarr';
+
 class _Header extends StatelessWidget {
   const _Header({
     required this.search,
     required this.onAgain,
+    required this.showViaArr,
+    required this.onViaArr,
     required this.onAccept,
     required this.reviewing,
     required this.onAtMinimum,
@@ -421,6 +438,8 @@ class _Header extends StatelessWidget {
 
   final DownloadSearch search;
   final VoidCallback? onAgain;
+  final bool showViaArr;
+  final VoidCallback? onViaArr;
   final VoidCallback? onAccept;
   final bool reviewing;
   final VoidCallback? onAtMinimum;
@@ -447,7 +466,13 @@ class _Header extends StatelessWidget {
             style: muted),
         Text(l.downloadsValidOf(search.validCount, search.totalCount),
             style: muted),
+        if (search.engine == SearchEngine.arr)
+          Text(l.downloadsResultsFromArr(_arrService(search)), style: muted),
         OutlinedButton(onPressed: onAgain, child: Text(l.downloadsSearchAgain)),
+        if (showViaArr)
+          OutlinedButton(
+              onPressed: onViaArr,
+              child: Text(l.downloadsSearchWithArr(_arrService(search)))),
         if (lighten && current != null)
           OutlinedButton(
               onPressed: onAtMinimum, child: Text(l.downloadsAtMinimum)),

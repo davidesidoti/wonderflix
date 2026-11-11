@@ -320,6 +320,23 @@ void main() {
       });
     });
 
+    test('searchViaArrStartsTheJobWithTheArrEngine', () {
+      fakeAsync((async) {
+        api.searchStatuses.addAll([done, done]);
+        final (c, sub) = open();
+        async.elapse(Duration.zero);
+        api.calls.clear();
+
+        unawaited(c
+            .read(downloadSearchControllerProvider(_key).notifier)
+            .searchViaArr());
+        async.elapse(Duration.zero);
+
+        expect(callsOf(_key), ['start movie:1 again arr']);
+        sub.close();
+      });
+    });
+
     test('exposesStartedAtAndServiceWhileRunning', () {
       fakeAsync((async) {
         api.searchStatuses.addAll([running, done]);
