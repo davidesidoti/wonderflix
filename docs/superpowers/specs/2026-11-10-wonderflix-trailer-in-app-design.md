@@ -1,6 +1,6 @@
 # Trailer dentro l'app — design
 
-Data: 2026-11-10. Stato: bozza da approvare.
+Data: 2026-11-10. Stato: approvato il 2026-11-11.
 
 ## Perché
 
@@ -206,7 +206,7 @@ risoluzione: un id che non ha risolto lui risponde 404.
 2. Plugin: risoluzione, cache, job, API, test.
 3. App: pulsante, schermata trailer, TV, scheda TMDB, test.
 4. Riga nuova nella checklist manuale di `docs/RELEASING.md`; versioni
-   plugin 1.27.0 e app 0.38.0.
+   plugin 1.28.0 e app 0.39.0.
 
 ## Test
 
