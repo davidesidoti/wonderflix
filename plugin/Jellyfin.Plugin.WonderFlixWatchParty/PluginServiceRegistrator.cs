@@ -6,6 +6,7 @@ using Jellyfin.Plugin.WonderFlixWatchParty.Push;
 using Jellyfin.Plugin.WonderFlixWatchParty.Seerr;
 using Jellyfin.Plugin.WonderFlixWatchParty.Server;
 using Jellyfin.Plugin.WonderFlixWatchParty.Space;
+using Jellyfin.Plugin.WonderFlixWatchParty.Trailers;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
@@ -148,6 +149,17 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             () => Plugin.Instance?.Configuration, () => Plugin.Instance?.SaveConfiguration()));
         serviceCollection.AddSingleton<PushService>();
         serviceCollection.AddSingleton<IInboxPush>(provider => provider.GetRequiredService<PushService>());
+        // Trailer dentro l'app: yt-dlp pesa circa 35 MB, il limite di 100 s del client non basta su una linea lenta.
+        serviceCollection.AddHttpClient(YtDlpBinary.HttpClientName)
+            .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromMinutes(2));
+        serviceCollection.AddSingleton<YtDlpBinary>();
+        serviceCollection.AddSingleton<ITrailerDownloader, YtDlpDownloader>();
+        serviceCollection.AddSingleton<ITrailerLibrary, JellyfinTrailerLibrary>();
+        serviceCollection.AddSingleton<TrailerResolver>();
+        serviceCollection.AddSingleton(provider => new TrailerCache(
+            TrailerPaths.Cache(provider.GetRequiredService<IApplicationPaths>()),
+            provider.GetRequiredService<TimeProvider>()));
+        serviceCollection.AddSingleton<TrailerService>();
         serviceCollection.AddSingleton<IRestartState>(new JellyfinRestartState(applicationHost));
         serviceCollection.AddSingleton<NewTitlesCollector>();
         serviceCollection.AddSingleton<PresenceTracker>();
@@ -169,5 +181,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<DownloadsHostedService>();
         serviceCollection.AddHostedService<SpaceHostedService>();
         serviceCollection.AddHostedService<ServerAlertsHostedService>();
+        serviceCollection.AddHostedService<TrailersHostedService>();
     }
 }

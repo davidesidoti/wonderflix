@@ -338,6 +338,17 @@ uscite in arrivo.
   di `Home` e `Upcoming` sono aperti a ogni utente che ha fatto l'accesso,
   tranne le scritture (`POST Home/Layout`, `POST Upcoming/Test`), solo per gli
   admin. Quelli di `Recommendations` hanno la stessa policy degli amici. Quelli di `Activity` hanno la stessa policy degli amici. Quelli di `Match` hanno la stessa policy degli amici. Quelli di `Ratings` hanno la stessa policy degli amici, tranne `Ratings/Admin`, solo per l'admin. Quelli di `Downloads` e di `Space` sono solo per l'admin.
+- **Trailer** (dalla 1.28.0): i trailer si guardano dentro l'app. Il plugin
+  trova il video YouTube (quello già sull'elemento, altrimenti quello che
+  Seerr dà per il titolo in italiano), lo scarica una volta sola per tutti
+  con yt-dlp e lo serve come mp4 con i range. yt-dlp (`yt-dlp_linux`) lo
+  scarica da GitHub nella cartella `bin` e lo riscarica se ha più di 7 giorni;
+  i trailer stanno in `cache`, entrambe dentro `trailers` nelle
+  configurazioni del plugin. Un trailer resta un'ora dall'ultima visione
+  (mai finché lo si guarda), la cartella non supera 1 GB e all'avvio si
+  svuota. Endpoint, aperti a ogni utente che ha fatto l'accesso:
+  `GET Trailers/Info`, `POST Trailers/Start`, `GET Trailers/Status`,
+  `GET Trailers/{key}/Stream`.
 
 ## Installazione dal repository
 

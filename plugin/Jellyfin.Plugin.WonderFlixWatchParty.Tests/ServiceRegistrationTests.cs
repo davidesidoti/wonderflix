@@ -4,6 +4,7 @@ using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Drawing;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Controller.MediaEncoding;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.Session;
@@ -35,6 +36,7 @@ public class ServiceRegistrationTests
         services.AddSingleton(InterfaceStub<IProviderManager>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IFileSystem>.Create().Proxy);
         services.AddSingleton(InterfaceStub<IDeviceManager>.Create().Proxy);
+        services.AddSingleton(InterfaceStub<IMediaEncoder>.Create().Proxy);
         var (paths, stub) = InterfaceStub<IApplicationPaths>.Create();
         stub.Handlers["get_PluginConfigurationsPath"] = _ => Path.GetTempPath();
         services.AddSingleton(paths);
@@ -162,6 +164,14 @@ public class ServiceRegistrationTests
         Assert.IsType<Server.JellyfinLibraryRefresh>(provider.GetRequiredService<Space.ILibraryRefresh>());
         Assert.NotNull(ActivatorUtilities.CreateInstance<Api.SpaceController>(provider));
 
+        // Trailer dentro l'app: una sola cache per tutti, e il client di yt-dlp scarica 35 MB.
+        Assert.Same(provider.GetRequiredService<Trailers.TrailerService>(), provider.GetRequiredService<Trailers.TrailerService>());
+        Assert.Same(provider.GetRequiredService<Trailers.TrailerCache>(), provider.GetRequiredService<Trailers.TrailerCache>());
+        Assert.IsType<Trailers.YtDlpDownloader>(provider.GetRequiredService<Trailers.ITrailerDownloader>());
+        Assert.IsType<Server.JellyfinTrailerLibrary>(provider.GetRequiredService<Trailers.ITrailerLibrary>());
+        Assert.Equal(TimeSpan.FromMinutes(2), provider.GetRequiredService<IHttpClientFactory>().CreateClient(Trailers.YtDlpBinary.HttpClientName).Timeout);
+        Assert.NotNull(ActivatorUtilities.CreateInstance<Api.TrailersController>(provider));
+
         // Il promemoria dei contatti, oltre ai due di prima.
         // I consigli (spec N), oltre ai tre di prima.
         // L'attività degli amici (spec O), oltre ai quattro di prima.
@@ -171,7 +181,8 @@ public class ServiceRegistrationTests
         // I download automatici (spec T), oltre agli otto di prima.
         // Lo spazio (spec U), oltre ai nove di prima.
         // Gli avvisi del server (spec V), oltre ai dieci di prima.
-        Assert.Equal(11, provider.GetServices<IHostedService>().Count());
+        // I trailer (1.28), oltre agli undici di prima.
+        Assert.Equal(12, provider.GetServices<IHostedService>().Count());
         Assert.IsType<Server.JellyfinRestartState>(provider.GetRequiredService<IRestartState>());
     }
 }
