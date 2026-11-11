@@ -89,20 +89,18 @@ public sealed class DownloadServiceRushTests : IDisposable
         Task.FromException<IReadOnlyList<ArrRelease?>>(new ArrException(ArrError.Unreachable));
 
     // La ricerca numero index (da 0, dopo Seed) finisce senza release.
-    private void Finish(int index)
-    {
-        lock (_gatesLock)
-        {
-            _gates[index].SetResult([]);
-        }
-    }
+    private void Finish(int index) => Gate(index).SetResult([]);
 
     // La ricerca numero index finisce per tempo scaduto: una stagione si divide in episodi.
-    private void TimeOut(int index)
+    private void TimeOut(int index) => Gate(index).SetException(new ArrException(ArrError.Unreachable) { TimedOut = true });
+
+    // Il fake registra la chiamata prima di chiedere la risposta: dopo Call il cancello può non esserci ancora.
+    private TaskCompletionSource<IReadOnlyList<ArrRelease?>> Gate(int index)
     {
+        Assert.True(SpinWait.SpinUntil(() => { lock (_gatesLock) { return _gates.Count > index; } }, TimeSpan.FromSeconds(5)), $"cancello {index}");
         lock (_gatesLock)
         {
-            _gates[index].SetException(new ArrException(ArrError.Unreachable) { TimedOut = true });
+            return _gates[index];
         }
     }
 
