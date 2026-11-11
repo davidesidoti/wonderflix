@@ -97,7 +97,8 @@ public sealed partial class DownloadService
         IReadOnlyList<SonarrEpisode>? Episodes = null);
 
     // Quello che scarica un grab dell'admin: la voce, il file di adesso e, per una stagione, gli episodi della release.
-    private sealed record GrabTarget(ArrTitle Title, CurrentFile? Current, List<int>? EpisodeNumbers);
+    // Monitored: Radarr/Sonarr seguono tutto quello che la release copre (serie compresa).
+    private sealed record GrabTarget(ArrTitle Title, CurrentFile? Current, List<int>? EpisodeNumbers, bool Monitored);
 
     /// <summary>Un avviso agli admin per ogni voce che aspetta loro (stato <c>NeedsYou</c>).</summary>
     public IReadOnlyList<AdminAlert> NeedsYouAlerts()
@@ -134,20 +135,25 @@ public sealed partial class DownloadService
 
     /// <summary>
     /// Scarica una release dell'ultima ricerca dell'admin (spec T §8.2), anche al posto del download in corso ("cambia").
-    /// Se Radarr/Sonarr hanno dimenticato i risultati (dopo circa 30 minuti) si cerca di nuovo e si riprova una volta (spec T §11).
+    /// Se Radarr/Sonarr hanno dimenticato i risultati (dopo circa 30 minuti) si cerca di nuovo e si riprova una volta (spec T §11):
+    /// solo per una release della loro ricerca, una di Prowlarr ha il suo link.
     /// </summary>
-    public async Task<GrabOutcome> GrabAsync(string key, string guid, int indexerId, CancellationToken cancellationToken, bool lighten = false)
+    public async Task<GrabOutcome> GrabAsync(string key, string guid, int indexerId, CancellationToken cancellationToken, bool lighten = false) =>
+        (await GrabWithRuleAsync(key, guid, indexerId, cancellationToken, lighten).ConfigureAwait(false)).Outcome;
+
+    // Come GrabAsync. RuleRefused: il push l'ha scartata per regola (Refused, ma non è un rifiuto del client da ricordare).
+    private async Task<(GrabOutcome Outcome, bool RuleRefused)> GrabWithRuleAsync(string key, string guid, int indexerId, CancellationToken cancellationToken, bool lighten)
     {
         if (!DownloadKey.TryParse(key, out var parsed) || string.IsNullOrEmpty(guid))
         {
-            return GrabOutcome.Invalid;
+            return (GrabOutcome.Invalid, false);
         }
 
         lock (_lock)
         {
             if (!_grabbing.Add(parsed.ToString()))
             {
-                return GrabOutcome.Busy;
+                return (GrabOutcome.Busy, false);
             }
         }
 
@@ -155,7 +161,7 @@ public sealed partial class DownloadService
         List<string> guarded = [parsed.ToString()];
         try
         {
-            var outcome = await GrabGuardedAsync(parsed, guid, indexerId, guarded, cancellationToken).ConfigureAwait(false);
+            var (outcome, ruleRefused) = await GrabGuardedAsync(parsed, guid, indexerId, guarded, lighten, cancellationToken).ConfigureAwait(false);
 
             // "Alleggerisci" (spec U): il titolo scelto non entra negli upgrade, come dopo "va bene così".
             // Tutte le chiavi del grab: per un singolo da una ricerca di stagione anche quella dell'episodio.
@@ -173,7 +179,7 @@ public sealed partial class DownloadService
                 }
             }
 
-            return outcome;
+            return (outcome, ruleRefused);
         }
         finally
         {
@@ -192,8 +198,10 @@ public sealed partial class DownloadService
         string key, string guid, int indexerId, CancellationToken cancellationToken, bool lighten = false)
     {
         var started = time.GetUtcNow();
-        var outcome = await GrabAsync(key, guid, indexerId, cancellationToken, lighten).ConfigureAwait(false);
-        return (outcome, outcome == GrabOutcome.Refused && qbit is not null ? await FindExistingAsync(qbit, started, cancellationToken).ConfigureAwait(false) : null);
+        var (outcome, ruleRefused) = await GrabWithRuleAsync(key, guid, indexerId, cancellationToken, lighten).ConfigureAwait(false);
+
+        // Un rifiuto di regola del push non viene da qBittorrent: nessun torrent da cercare.
+        return (outcome, outcome == GrabOutcome.Refused && !ruleRefused && qbit is not null ? await FindExistingAsync(qbit, started, cancellationToken).ConfigureAwait(false) : null);
     }
 
     // Il torrent della riga di duplicato più recente scritta da started in poi. Un errore di qBittorrent non deve nascondere il rifiuto.
@@ -258,15 +266,36 @@ public sealed partial class DownloadService
             refused = [.. Book.Get(parsed.ToString())?.RefusedReleases ?? []];
         }
 
-        var rule = DownloadRule.Choose(search.Releases.Where(r => !refused.Contains(DownloadRule.ReleaseId(r.Guid ?? "", r.IndexerId))), search.Input);
-        var (release, stopgap) = rule.Choice is { } choice ? (choice, null) : DownloadRule.ChooseStopgap(rule);
-        // Di nuovo dopo la ricerca: intanto il giro o un altro admin può aver fatto partire un download.
-        if (release is null || !CanGrabBest(parsed))
+        // Come nel giro: dopo un rifiuto di regola del push la scelta successiva, fino a 3 release; poi niente da prendere.
+        var ruleRefused = new HashSet<ArrRelease>();
+        while (ruleRefused.Count < MaxGrabAttempts)
         {
-            return GrabOutcome.NothingToGrab;
+            var rule = DownloadRule.Choose(search.Releases.Where(r => !ruleRefused.Contains(r) && !refused.Contains(DownloadRule.ReleaseId(r.Guid ?? "", r.IndexerId))), search.Input);
+            var (release, stopgap) = rule.Choice is { } choice ? (choice, null) : DownloadRule.ChooseStopgap(rule);
+
+            // Di nuovo dopo la ricerca: intanto il giro o un altro admin può aver fatto partire un download.
+            if (release is null || !CanGrabBest(parsed))
+            {
+                return GrabOutcome.NothingToGrab;
+            }
+
+            var (outcome, byRule) = await GrabWithRuleAsync(parsed.ToString(), release.Guid!, release.IndexerId, CancellationToken.None, lighten: false).ConfigureAwait(false);
+            if (byRule)
+            {
+                ruleRefused.Add(release);
+                continue;
+            }
+
+            GrabbedBest(parsed, outcome, release, stopgap);
+            return outcome;
         }
 
-        var outcome = await GrabAsync(parsed.ToString(), release.Guid!, release.IndexerId, CancellationToken.None).ConfigureAwait(false);
+        return GrabOutcome.NothingToGrab;
+    }
+
+    // Dopo "Scarica il migliore intanto": il tappabuchi scelto, o la release rifiutata dal client.
+    private void GrabbedBest(DownloadKey parsed, GrabOutcome outcome, ArrRelease release, string? stopgap)
+    {
         if (outcome is GrabOutcome.Ok or GrabOutcome.Refused)
         {
             lock (_lock)
@@ -287,8 +316,6 @@ public sealed partial class DownloadService
                 }
             }
         }
-
-        return outcome;
     }
 
     // "Scarica il migliore intanto" vale solo dove la panoramica lo offre: mai su un download in corso o un upgrade.
@@ -664,7 +691,8 @@ public sealed partial class DownloadService
         }
     }
 
-    private async Task<GrabOutcome> GrabGuardedAsync(DownloadKey parsed, string guid, int indexerId, List<string> guarded, CancellationToken cancellationToken)
+    private async Task<(GrabOutcome Outcome, bool RuleRefused)> GrabGuardedAsync(
+        DownloadKey parsed, string guid, int indexerId, List<string> guarded, bool lighten, CancellationToken cancellationToken)
     {
         var service = ServiceOf(parsed.Kind);
         AdminSearch? search;
@@ -675,24 +703,27 @@ public sealed partial class DownloadService
 
         var searchedAgain = false;
         var oldRemoved = false;
+
+        // La ricerca di nuovo: con Prowlarr, o dopo risultati scaduti con Radarr/Sonarr (la release era loro).
+        var engine = SearchEngine.Prowlarr;
         while (true)
         {
             if (search is null || search.Releases.FirstOrDefault(r => r.Guid == guid && r.IndexerId == indexerId) is not { } release)
             {
                 if (searchedAgain)
                 {
-                    return GrabOutcome.Expired;
+                    return (GrabOutcome.Expired, false);
                 }
 
-                var (fresh, error) = await ReadAsync(service, c => RunSearchAsync(parsed, c), cancellationToken).ConfigureAwait(false);
+                var (fresh, error) = await ReadAsync(service, c => RunSearchAsync(parsed, c, engine: engine), cancellationToken).ConfigureAwait(false);
                 if (error is not null)
                 {
-                    return GrabOutcome.Unavailable;
+                    return (GrabOutcome.Unavailable, false);
                 }
 
                 if (fresh is null)
                 {
-                    return GrabOutcome.Invalid;
+                    return (GrabOutcome.Invalid, false);
                 }
 
                 (search, searchedAgain) = (fresh, true);
@@ -709,7 +740,7 @@ public sealed partial class DownloadService
                     // Il giro sta scaricando quell'episodio: come per la chiave dell'admin (ruling 8).
                     if (!_grabbing.Add(target.Title.Key))
                     {
-                        return GrabOutcome.Busy;
+                        return (GrabOutcome.Busy, false);
                     }
                 }
 
@@ -722,43 +753,56 @@ public sealed partial class DownloadService
                         && DownloadKey.TryParse(target.Title.Key, out var episode)
                         && !await RemoveOldDownloadAsync(episode, service, cancellationToken).ConfigureAwait(false))))
             {
-                return GrabOutcome.Unavailable;
+                return (GrabOutcome.Unavailable, false);
             }
 
             oldRemoved = true;
+
+            // Un download voluto (Alleggerisci, un file che Radarr/Sonarr non sostituirebbero, qualcosa che non seguono): se il
+            // push lo scarta solo per file, coda o monitoraggio va direttamente in qBittorrent.
+            var intentional = lighten || (target.Current is not null && !WouldImport(search.Profile, target.Current, release)) || !target.Monitored;
+            GrabResult result;
             try
             {
-                await arr.GrabReleaseAsync(service, guid, indexerId, cancellationToken).ConfigureAwait(false);
+                result = await _finder.GrabAsync(service, release, intentional, cancellationToken).ConfigureAwait(false);
             }
-            catch (ArrException ex) when (ex.Status is 404 or 400)
+            catch (ArrException ex) when ((ex.Status is 404 or 400) && release.Source == ReleaseSource.Arr)
             {
-                // Risultati scaduti in Radarr/Sonarr: una nuova ricerca, se non è già quella di adesso.
+                // Risultati scaduti in Radarr/Sonarr: una nuova ricerca con loro, se non è già quella di adesso.
                 if (searchedAgain)
                 {
-                    return GrabOutcome.Expired;
+                    return (GrabOutcome.Expired, false);
                 }
 
-                search = null;
+                (search, engine) = (null, SearchEngine.Arr);
                 continue;
             }
             catch (ArrException ex) when (ex.Status >= 500)
             {
                 // Radarr/Sonarr hanno risposto: non è un servizio che non risponde (spec T §8.2).
                 logger.LogWarning("Download automatici: {Key}, {Kind} ha rifiutato la release dell'admin ({Error})", search.Title.Key, service, ErrorOf(ex));
-                return GrabOutcome.Refused;
+                return (GrabOutcome.Refused, false);
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
+                // Anche un torrent che qBittorrent non ha preso (QbitException).
                 logger.LogWarning("Download automatici: {Key}, {Kind} non ha scaricato la release dell'admin ({Error})", search.Title.Key, service, ErrorOf(ex));
-                return GrabOutcome.Unavailable;
+                return (GrabOutcome.Unavailable, false);
+            }
+
+            if (result.Kind is GrabKind.RuleRefused or GrabKind.ClientRefused)
+            {
+                // Il motivo è di Sonarr/Radarr, mai il titolo.
+                logger.LogWarning("Download automatici: {Key}, {Kind} ha rifiutato la release dell'admin ({Reason})", search.Title.Key, service, result.Reason ?? result.Kind.ToString());
+                return (GrabOutcome.Refused, result.Kind == GrabKind.RuleRefused);
             }
 
             logger.LogInformation("Download automatici: {Key} scaricato da {Kind} per l'admin", target.Title.Key, service);
-            GrabbedByAdmin(search, target, release);
+            GrabbedByAdmin(search, target, release, result.Kind == GrabKind.Direct ? result.Hash : null);
 
             // Un giro presto: la voce "serve te" di questo titolo esce dalla cassetta degli admin (spec V).
             Nudge();
-            return GrabOutcome.Ok;
+            return (GrabOutcome.Ok, false);
         }
     }
 
@@ -1167,7 +1211,7 @@ public sealed partial class DownloadService
     }
 
     // Fuori dal lock: titolo, file, profilo e release, poi la regola; la ricerca si ricorda per il grab. Solo da RunSearchAsync.
-    private async Task<AdminSearch?> SearchForAdminAsync(DownloadKey key, CancellationToken cancellationToken)
+    private async Task<AdminSearch?> SearchForAdminAsync(DownloadKey key, SearchEngine engine, CancellationToken cancellationToken)
     {
         if (await ReadTargetAsync(key, cancellationToken).ConfigureAwait(false) is not { } target)
         {
@@ -1176,14 +1220,16 @@ public sealed partial class DownloadService
 
         var service = ServiceOf(key.Kind);
         var context = await ReadContextAsync(service)(cancellationToken).ConfigureAwait(false);
-        var releases = (await arr.SearchReleasesAsync(service, QueryOf(key), cancellationToken).ConfigureAwait(false)).OfType<ArrRelease>().ToList();
+        var found = await _finder.SearchAsync(key, engine, cancellationToken).ConfigureAwait(false);
+        var releases = found.Releases.OfType<ArrRelease>().ToList();
         var files = target.Files is { } check ? await CurrentFilesAsync(check, cancellationToken).ConfigureAwait(false) : [];
         var current = CurrentOf(files);
 
         var title = target.Title;
         var profile = context.Profiles.GetValueOrDefault(title.ProfileId);
         var thresholds = settings.For(service, title.ProfileId, profile?.Name);
-        var input = new RuleInput(title.RuntimeMinutes, service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, context.IndexerPriority);
+        var checks = context.Checks is { } all ? ChecksFor(all, service, service == ArrKind.Radarr ? key.Id : title.SeriesId, title.Tags ?? [], profile) : null;
+        var input = new RuleInput(title.RuntimeMinutes, service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, context.IndexerPriority, checks);
         var (rule, choice) = ApplyRule(releases, input, target.RuleEpisodes);
         var result = new DownloadSearchDto(
             title.Key,
@@ -1192,12 +1238,17 @@ public sealed partial class DownloadService
             title.RuntimeMinutes,
             current is null ? null : new DownloadCurrentFileDto(current.SizeBytes, current.Score, current.Quality),
             [.. rule.Candidates.Select((r, i) => new DownloadCandidateDto(i + 1, ReleaseDto(r), ReferenceEquals(r, choice), WouldImport(profile, current, r)))],
-            [.. rule.Rejected.Select(r => new DownloadRejectedDto(ReleaseDto(r.Release), r.Reason, r.Detail))],
+            [.. rule.Rejected.Select(r => new DownloadRejectedDto(ReleaseDto(r.Release), r.Reason, r.Detail)),
+                .. found.WrongTitle.Select(r => new DownloadRejectedDto(ReleaseDto(r), "WrongTitle", r.WrongTitle))],
             rule.Candidates.Count,
             releases.Count(r => !string.IsNullOrEmpty(r.Guid)),
             null,
             choice is null ? EpisodeChoicesOf(target, releases, files, input, thresholds.TargetScore, profile, time.GetUtcNow()) : [],
-            ExternalSearch.UrlFor(settings.ExternalSearchUrl, title.Title));
+            ExternalSearch.UrlFor(settings.ExternalSearchUrl, title.Title),
+            found.Engine.ToString(),
+
+            // "Trovato poco" (spec ricerche-prowlarr §7): niente di valido o, per una stagione, nessun pack completo.
+            rule.Candidates.Count == 0 || (key.Kind == DownloadKinds.Season && !rule.Candidates.Any(r => r.FullSeason)));
 
         var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files, input);
         lock (_lock)
@@ -1246,7 +1297,8 @@ public sealed partial class DownloadService
                 return null;
             }
 
-            var title = EpisodeTitleOf(episode, now);
+            // Il push scarta anche un episodio di una serie non monitorata.
+            var title = EpisodeTitleOf(episode, now) with { Monitored = episode.Monitored && episode.Series?.Monitored != false };
             return new AdminTarget(title, episode.EpisodeFileId > 0 ? new UpgradeCheck(title.Key, ArrKind.Sonarr, 0, episode.SeriesId, key.Id) : null);
         }
 
@@ -1285,7 +1337,8 @@ public sealed partial class DownloadService
             Followed: true,
             Wanted: missing.Count > 0,
             HasFile: missing.Count == 0,
-            SeriesId: show.Id);
+            SeriesId: show.Id,
+            Tags: show.Tags);
         return new AdminTarget(seasonTitle, new UpgradeCheck(seasonTitle.Key, ArrKind.Sonarr, 0, show.Id, 0, key.Season), missing.Count > 0 ? missing : all, all, episodes);
     }
 
@@ -1301,7 +1354,7 @@ public sealed partial class DownloadService
     {
         if (search.Episodes is not { } episodes || search.SeasonEpisodes is not { } all)
         {
-            return new GrabTarget(search.Title, search.Current, null);
+            return new GrabTarget(search.Title, search.Current, null, search.Title.Monitored);
         }
 
         var partial = !release.FullSeason && release.SeasonEpisodeNumbers is { Count: > 0 };
@@ -1309,9 +1362,10 @@ public sealed partial class DownloadService
         var covered = episodes.Where(e => numbers.Contains(e.EpisodeNumber)).ToList();
         var fileIds = covered.Select(e => e.EpisodeFileId).Where(id => id > 0).ToHashSet();
         var current = CurrentOf([.. search.Files.Where(f => fileIds.Contains(f.Id))]);
+        var monitored = covered.All(e => e.Monitored && e.Series?.Monitored != false);
         return partial && numbers is [_] && covered is [var episode]
-            ? new GrabTarget(EpisodeTitleOf(episode, now), current, null)
-            : new GrabTarget(search.Title, current, numbers);
+            ? new GrabTarget(EpisodeTitleOf(episode, now), current, null, monitored)
+            : new GrabTarget(search.Title, current, numbers, monitored);
     }
 
     // La regola sulle release di una ricerca. Una stagione: ogni release si misura sui suoi episodi (un pack su quelli
@@ -1433,8 +1487,8 @@ public sealed partial class DownloadService
 
     // Dopo un grab riuscito: la voce (creata se manca, per esempio da "Da ripassare") scarica la scelta dell'admin.
     // Con un file presente è un upgrade, che il giro conferma dal file (ruling 5-6); se Radarr/Sonarr non lo
-    // importerebbero si importa a mano (decisione 9).
-    private void GrabbedByAdmin(AdminSearch search, GrabTarget target, ArrRelease release)
+    // importerebbero si importa a mano (decisione 9). DirectHash: il torrent messo da noi in qBittorrent, che segue ApplyDirect.
+    private void GrabbedByAdmin(AdminSearch search, GrabTarget target, ArrRelease release, string? directHash)
     {
         lock (_lock)
         {
@@ -1454,6 +1508,12 @@ public sealed partial class DownloadService
             entry.LastProgressAt = null;
             entry.ManualImportPending = target.Current is not null && !WouldImport(search.Profile, target.Current, release);
             entry.EpisodeNumbers = target.EpisodeNumbers;
+            entry.DirectHash = directHash;
+            if (directHash is not null)
+            {
+                Book.DirectGrabs[directHash] = entry.Key;
+            }
+
             Book.RemoveFromReview(entry.Key);
 
             // Un singolo al posto della stagione: la voce di stagione esce (il suo pack, se c'era, è già tolto), salvo che

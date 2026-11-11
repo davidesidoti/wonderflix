@@ -18,7 +18,7 @@ public sealed class DownloadServiceSearchJobTests : IDisposable
     private readonly FakeArrSettings _arrSettings = new();
     private readonly FakeDownloadSettings _settings = new();
     private readonly FakeTimeProvider _time = new(T0);
-    private readonly DownloadService _service;
+    private DownloadService _service;
 
     // Il cancello tiene aperta la ricerca di release: ogni apertura ne lascia passare una.
     private readonly SemaphoreSlim _gate = new(0);
@@ -251,5 +251,60 @@ public sealed class DownloadServiceSearchJobTests : IDisposable
         _service.StopSearches();
 
         Assert.True(_arr.LastReleaseToken.IsCancellationRequested);
+    }
+
+    // Prowlarr configurato: il finder finto risponde subito con _releases.
+    private FakeReleaseFinder UseFinder()
+    {
+        var finder = new FakeReleaseFinder { UsesProwlarr = true, Search = (_, engine) => Task.FromResult(new FinderResult([.. _releases], [], engine)) };
+        _service = new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance, finder: finder) { Pause = TimeSpan.Zero };
+        return finder;
+    }
+
+    [Fact]
+    public async Task StartSearchDefaultsToProwlarr()
+    {
+        var finder = UseFinder();
+
+        _service.StartSearch("movie:12", again: false);
+
+        Assert.Equal("Prowlarr", (await Finished("movie:12")).Result!.Engine);
+        Assert.Equal(SearchEngine.Prowlarr, Assert.Single(finder.SearchCalls).Engine);
+        Assert.Empty(_arr.SearchReleaseCalls);
+    }
+
+    [Fact]
+    public async Task EngineArrUsesReleaseEndpoint()
+    {
+        // Il finder vero con Prowlarr configurato: "Cerca con Radarr" passa da GET /release, non da Prowlarr.
+        var prowlarr = new FakeProwlarrClient();
+        var finder = new ReleaseFinder(_arr, prowlarr, _arrSettings, NullLogger<ReleaseFinder>.Instance, null, _time);
+        _service = new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance, finder: finder) { Pause = TimeSpan.Zero };
+
+        _service.StartSearch("movie:12", again: false, SearchEngine.Arr);
+        OpenGate();
+
+        var done = await Finished("movie:12");
+        Assert.Equal("Arr", done.Result!.Engine);
+        Assert.Equal((ArrKind.Radarr, "movieId=12"), Assert.Single(_arr.SearchReleaseCalls));
+        Assert.Empty(prowlarr.SearchCalls);
+    }
+
+    [Fact]
+    public async Task ChangingEngineRestartsJob()
+    {
+        var finder = UseFinder();
+        _service.StartSearch("movie:12", again: false);
+        await Finished("movie:12");
+
+        // Lo stesso motore: l'esito recente.
+        _service.StartSearch("movie:12", again: false);
+        await Finished("movie:12");
+        Assert.Single(finder.SearchCalls);
+
+        // Un altro motore conta come "di nuovo".
+        _service.StartSearch("movie:12", again: false, SearchEngine.Arr);
+        Assert.Equal("Arr", (await Finished("movie:12")).Result!.Engine);
+        Assert.Equal([SearchEngine.Prowlarr, SearchEngine.Arr], finder.SearchCalls.Select(c => c.Engine));
     }
 }

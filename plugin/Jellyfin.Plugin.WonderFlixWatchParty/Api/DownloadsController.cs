@@ -40,7 +40,11 @@ public class DownloadsController(DownloadService downloads) : ControllerBase
     /// </summary>
     [HttpPost("SearchStart")]
     public ActionResult<DownloadSearchStatusDto> SearchStart([FromBody] SearchStartRequest? request) =>
-        request?.Key is { } key && downloads.StartSearch(key, request.Again) is { } status ? status : BadRequest();
+        request?.Key is { } key && downloads.StartSearch(key, request.Again, EngineOf(request)) is { } status ? status : BadRequest();
+
+    // Solo "Arr" sceglie la ricerca di Sonarr/Radarr: le app vecchie non mandano niente.
+    internal static SearchEngine EngineOf(SearchStartRequest request) =>
+        request.Engine == nameof(SearchEngine.Arr) ? SearchEngine.Arr : SearchEngine.Prowlarr;
 
     /// <summary>Lo stato della ricerca in background del titolo (spec W §4.4); 400 per una chiave non valida.</summary>
     [HttpGet("SearchStatus")]

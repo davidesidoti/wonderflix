@@ -248,11 +248,12 @@ public sealed partial class DownloadService
     };
 
     // I controlli per il titolo cercato: il suo profilo, i suoi tag e solo le sue voci di blocklist.
-    private static ChecksContext ChecksFor(ChecksContext checks, SearchItem item, ArrQualityProfile? profile) => checks with
+    // TitleId: il film (Radarr) o la serie (Sonarr).
+    private static ChecksContext ChecksFor(ChecksContext checks, ArrKind service, int titleId, IReadOnlyList<int> tags, ArrQualityProfile? profile) => checks with
     {
         Profile = profile,
-        TitleTags = item.Tags,
-        Blocklist = [.. checks.Blocklist.Where(b => (item.Service == ArrKind.Radarr ? b.MovieId : b.SeriesId) == item.TitleId)],
+        TitleTags = tags,
+        Blocklist = [.. checks.Blocklist.Where(b => (service == ArrKind.Radarr ? b.MovieId : b.SeriesId) == titleId)],
     };
 
     // Solo sotto _lock. Waiting e NeedsYou (non ImportBlocked) di un titolo ancora da scaricare, o UpgradeWatch;
@@ -318,9 +319,6 @@ public sealed partial class DownloadService
         return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes } : null;
     }
 
-    // La query di release per la chiave (la ricerca dell'admin): sta nel finder.
-    private static string QueryOf(DownloadKey key) => ReleaseFinder.QueryOf(key);
-
     // Una ricerca e quello che ne segue; true se ha scaricato.
     private async Task<bool> SearchOneAsync(SearchItem item, SearchContext context, CancellationToken cancellationToken)
     {
@@ -367,7 +365,7 @@ public sealed partial class DownloadService
             settings.MinGbPerHour,
             thresholds.MinScore,
             context.IndexerPriority,
-            context.Checks is { } checks ? ChecksFor(checks, item, profile) : null);
+            context.Checks is { } checks ? ChecksFor(checks, item.Service, item.TitleId, item.Tags, profile) : null);
 
         // Un tappabuchi ignora solo il punteggio minimo di WonderFlix: peso e rifiuti di Radarr/Sonarr valgono (spec §5.1).
         var stopgap = item.Upgrade ? item.Stopgap : null;

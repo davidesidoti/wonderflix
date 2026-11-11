@@ -1304,4 +1304,171 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(("movie:12", DownloadStates.Downloading), (item.Key, item.State));
         Assert.Null(item.Progress);
     }
+
+    // Prowlarr configurato: il finder finto risponde con _releases (di Prowlarr) e con wrongTitle; il grab è quello del finder.
+    private (DownloadService Service, FakeReleaseFinder Finder) WithProwlarr(IReadOnlyList<ArrRelease>? wrongTitle = null, FakeQbitClient? qbit = null)
+    {
+        var finder = new FakeReleaseFinder
+        {
+            UsesProwlarr = true,
+            Search = (_, engine) => Task.FromResult(new FinderResult([.. _releases.Select(r => { r!.Source = ReleaseSource.Prowlarr; return r; })], wrongTitle ?? [], SearchEngine.Prowlarr)),
+        };
+        return (new DownloadService(_arr, _arrSettings, _settings, Store(), _time, NullLogger<DownloadService>.Instance, qbit: qbit, finder: finder) { Pause = TimeSpan.Zero }, finder);
+    }
+
+    [Fact]
+    public async Task LowResultsWhenNoFullSeasonPack()
+    {
+        SeasonOf(null, null, null);
+        _releases = [Single("s1", 1, 1, 150), Single("s2", 2, 1, 150)];
+        var (service, _) = WithProwlarr();
+
+        var result = (await service.SearchAsync("season:7:2", CancellationToken.None))!;
+        Assert.Equal(("Prowlarr", true), (result.Engine, result.LowResults));
+        Assert.NotEmpty(result.Candidates);
+
+        // Con un pack completo non è poco.
+        _releases.Add(Pack("p", 6, 150));
+        result = (await service.SearchAsync("season:7:2", CancellationToken.None))!;
+        Assert.False(result.LowResults);
+    }
+
+    [Fact]
+    public async Task LowResultsWhenNothingValid()
+    {
+        Animals();
+        _releases = [Release("d", WebRip1080, "WEBRip-1080p", 1.1, 150)];
+        var (service, _) = WithProwlarr();
+
+        Assert.True((await service.SearchAsync("movie:12", CancellationToken.None))!.LowResults);
+
+        // Senza Prowlarr la ricerca è quella di Radarr.
+        Animals();
+        var old = (await Search("movie:12"))!;
+        Assert.Equal(("Arr", false), (old.Engine, old.LowResults));
+    }
+
+    [Fact]
+    public async Task WrongTitleListedAsRejected()
+    {
+        Animals();
+        var other = Release("x", WebRip1080, "WEBRip-1080p", 3, 150);
+        other.WrongTitle = "altro film";
+        var (service, _) = WithProwlarr([other]);
+
+        var result = (await service.SearchAsync("movie:12", CancellationToken.None))!;
+
+        var rejected = Assert.Single(result.Rejected, r => r.Release.Guid == "x");
+        Assert.Equal(("WrongTitle", "altro film"), (rejected.Reason, rejected.Detail));
+        Assert.DoesNotContain(result.Candidates, c => c.Release.Guid == "x");
+    }
+
+    [Fact]
+    public async Task LightenNotUpgradeGoesDirect()
+    {
+        // Il caso di Slime: il file di adesso è "migliore" per Radarr, il push rifiuta "Not an upgrade"; Alleggerisci lo vuole lo stesso.
+        AnimalsOnBluray();
+        _releases[1]!.DownloadUrl = "https://prowlarr.example/b.torrent";
+        var qbit = new FakeQbitClient();
+        var (service, finder) = WithProwlarr(qbit: qbit);
+        var real = new ReleaseFinder(_arr, new FakeProwlarrClient(), _arrSettings, NullLogger<ReleaseFinder>.Instance, qbit, _time);
+        finder.Grab = (kind, release, intentional) => real.GrabAsync(kind, release, intentional, CancellationToken.None);
+        _arr.Push = (_, _) => Task.FromResult(new ArrPushResult { Rejected = true, Rejections = ["Not an upgrade for existing movie file(s)"] });
+        await service.SearchAsync("movie:12", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "b", 3, CancellationToken.None, lighten: true));
+
+        Assert.True(Assert.Single(finder.GrabCalls).Intentional);
+        Assert.Equal("https://prowlarr.example/b.torrent", Assert.Single(qbit.Added).Link);
+        Assert.Empty(_arr.GrabCalls);
+        var book = Store().Load();
+        var entry = book.Get("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, qbit.AddedHash), (entry.State, entry.DirectHash));
+        Assert.Equal("movie:12", book.DirectGrabs[qbit.AddedHash]);
+        Assert.True(book.IsAccepted("movie:12"));
+        Assert.Equal(T0, book.Lightened["movie:12"]);
+    }
+
+    [Fact]
+    public async Task ARuleRefusedAdminGrabIsRefused()
+    {
+        Animals();
+        var (service, finder) = WithProwlarr();
+        finder.Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.RuleRefused, "Not English", null));
+        await service.SearchAsync("movie:12", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Refused, await service.GrabAsync("movie:12", "b", 3, CancellationToken.None));
+
+        // Non intenzionale: un film senza file, monitorato, non alleggerito.
+        Assert.False(Assert.Single(finder.GrabCalls).Intentional);
+        Assert.Empty(Store().Load().Choices);
+    }
+
+    [Fact]
+    public async Task AdminGrabAfterThirtyMinutesStillWorks()
+    {
+        Animals();
+        var (service, finder) = WithProwlarr();
+        await service.SearchAsync("movie:12", CancellationToken.None);
+        _time.Advance(TimeSpan.FromMinutes(31));
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "b", 3, CancellationToken.None));
+
+        // Il plugin ha il link: nessuna nuova ricerca.
+        Assert.Single(finder.SearchCalls);
+        Assert.Equal("b", Assert.Single(finder.GrabCalls).Release.Guid);
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task GrabBestTriesTheNextAfterARuleRefusal()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+        _releases = [Release("x40", WebRip1080, "WEBRip-1080p", 2, 40), Release("x30", WebRip1080, "WEBRip-1080p", 2, 30)];
+        var (service, finder) = WithProwlarr();
+        finder.Grab = (_, release, _) => Task.FromResult(release.Guid == "x40" ? new GrabResult(GrabKind.RuleRefused, "Not English", null) : new GrabResult(GrabKind.Grabbed, null, null));
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabBestAsync("movie:12"));
+
+        Assert.Equal(["x40", "x30"], finder.GrabCalls.Select(c => c.Release.Guid));
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, DownloadStopgaps.Score), (entry.State, entry.Stopgap));
+        Assert.Empty(entry.RefusedReleases ?? []);
+    }
+
+    [Fact]
+    public async Task GrabBestStopsAfterThreeRuleRefusals()
+    {
+        NeedsYou(DownloadReasons.BelowMinScore);
+        _releases = [.. new[] { 40, 35, 30, 25 }.Select(s => (ArrRelease?)Release("x" + s, WebRip1080, "WEBRip-1080p", 2, s))];
+        var (service, finder) = WithProwlarr();
+        finder.Grab = (_, _, _) => Task.FromResult(new GrabResult(GrabKind.RuleRefused, "Not English", null));
+
+        Assert.Equal(GrabOutcome.NothingToGrab, await service.GrabBestAsync("movie:12"));
+
+        Assert.Equal(["x40", "x35", "x30"], finder.GrabCalls.Select(c => c.Release.Guid));
+        Assert.Empty(Saved("movie:12")!.RefusedReleases ?? []);
+    }
+
+    [Fact]
+    public async Task AnExpiredArrReleaseIsSearchedAgainWithArr()
+    {
+        // "Cerca con Radarr" e poi il grab dopo 30 minuti: Radarr ha dimenticato (404), si ricerca con Radarr, non con Prowlarr.
+        Animals();
+        var (service, finder) = WithProwlarr();
+        finder.Search = (_, engine) => Task.FromResult(new FinderResult([.. _releases.Select(r => { r!.Source = ReleaseSource.Arr; return r; })], [], engine));
+        var grabs = 0;
+        finder.Grab = (_, _, _) => grabs++ == 0 ? Task.FromException<GrabResult>(new ArrException(ArrError.Unreachable, status: 404)) : Task.FromResult(new GrabResult(GrabKind.Grabbed, null, null));
+        service.StartSearch("movie:12", again: false, SearchEngine.Arr);
+        for (var i = 0; i < 500 && service.SearchStatus("movie:12")!.State == DownloadSearchStates.Running; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabAsync("movie:12", "b", 3, CancellationToken.None));
+
+        Assert.Equal([SearchEngine.Arr, SearchEngine.Arr], finder.SearchCalls.Select(c => c.Engine));
+        Assert.Equal(2, finder.GrabCalls.Count);
+    }
 }

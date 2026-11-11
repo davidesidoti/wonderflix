@@ -25,10 +25,12 @@ public sealed partial class DownloadService
     // Solo sotto _lock. Si completa quando il giro non cerca più niente: lo aspettano le ricerche dell'admin.
     private TaskCompletionSource? _autoIdle;
 
-    // Un job: quando è partito (prima la creazione, poi l'inizio vero della ricerca) e il lavoro. Started e StartedAt solo sotto _lock.
-    // Result null nell'esito: titolo che Radarr/Sonarr non hanno.
-    private sealed class SearchJob(DateTimeOffset createdAt)
+    // Un job: quando è partito (prima la creazione, poi l'inizio vero della ricerca), il motore chiesto e il lavoro. Started e
+    // StartedAt solo sotto _lock. Result null nell'esito: titolo che Radarr/Sonarr non hanno.
+    private sealed class SearchJob(DateTimeOffset createdAt, SearchEngine engine)
     {
+        public SearchEngine Engine { get; } = engine;
+
         public DateTimeOffset StartedAt { get; set; } = createdAt;
 
         public bool Started { get; set; }
@@ -41,9 +43,10 @@ public sealed partial class DownloadService
 
     /// <summary>
     /// Avvia la ricerca dell'admin, o restituisce quella in corso o un esito con meno di 30 minuti; con <paramref name="again"/>
-    /// ne avvia una nuova se non ce n'è una in corso (spec W §4.4). Null per una chiave non valida.
+    /// ne avvia una nuova se non ce n'è una in corso (spec W §4.4); un <paramref name="engine"/> diverso da quello dell'esito
+    /// conta come <paramref name="again"/>. Null per una chiave non valida.
     /// </summary>
-    public DownloadSearchStatusDto? StartSearch(string key, bool again)
+    public DownloadSearchStatusDto? StartSearch(string key, bool again, SearchEngine engine = SearchEngine.Prowlarr)
     {
         if (!DownloadKey.TryParse(key, out var parsed))
         {
@@ -52,7 +55,7 @@ public sealed partial class DownloadService
 
         lock (_lock)
         {
-            return StatusOf(parsed, JobFor(parsed, again));
+            return StatusOf(parsed, JobFor(parsed, again, engine));
         }
     }
 
@@ -73,8 +76,8 @@ public sealed partial class DownloadService
     /// <summary>Annulla le ricerche dell'admin in corso, allo spegnimento del plugin.</summary>
     public void StopSearches() => _searchStop.Cancel();
 
-    // Solo sotto _lock. Il job in corso o con un esito valido, altrimenti (o con again, se è finito) uno nuovo.
-    private SearchJob JobFor(DownloadKey key, bool again)
+    // Solo sotto _lock. Il job in corso o con un esito valido, altrimenti (o con again o un altro motore, se è finito) uno nuovo.
+    private SearchJob JobFor(DownloadKey key, bool again, SearchEngine engine = SearchEngine.Prowlarr)
     {
         // CurrentJob toglie gli esiti scaduti: i job non restano in memoria per sempre.
         foreach (var k in _searchJobs.Keys.ToList())
@@ -82,13 +85,13 @@ public sealed partial class DownloadService
             CurrentJob(k);
         }
 
-        if (CurrentJob(key.ToString()) is { } job && !(again && job.Work.IsCompleted))
+        if (CurrentJob(key.ToString()) is { } job && !((again || job.Engine != engine) && job.Work.IsCompleted))
         {
             return job;
         }
 
         // In un altro thread: il job prende _lock per conto suo e non gira dentro questo.
-        var created = new SearchJob(time.GetUtcNow());
+        var created = new SearchJob(time.GetUtcNow(), engine);
         created.Work = Task.Run(() => RunSearchJobAsync(key, created));
         _searchJobs[key.ToString()] = created;
         return created;
@@ -126,7 +129,7 @@ public sealed partial class DownloadService
     // Lo stesso lavoro della vecchia ricerca: un errore di Radarr/Sonarr dà il DTO con Error e le liste vuote.
     private async Task<SearchOutcome> RunSearchJobAsync(DownloadKey key, SearchJob job)
     {
-        var (search, error) = await ReadAsync(ServiceOf(key.Kind), c => RunSearchAsync(key, c, job), _searchStop.Token).ConfigureAwait(false);
+        var (search, error) = await ReadAsync(ServiceOf(key.Kind), c => RunSearchAsync(key, c, job, job.Engine), _searchStop.Token).ConfigureAwait(false);
         if (error is null)
         {
             return new SearchOutcome(search?.At ?? time.GetUtcNow(), search?.Result);
@@ -138,7 +141,8 @@ public sealed partial class DownloadService
             title = Book.Get(key.ToString())?.Title ?? "";
         }
 
-        return new SearchOutcome(time.GetUtcNow(), new DownloadSearchDto(key.ToString(), key.Kind, title, 0, null, [], [], 0, 0, error, [], null));
+        var engine = job.Engine == SearchEngine.Arr || !_finder.UsesProwlarr ? SearchEngine.Arr : SearchEngine.Prowlarr;
+        return new SearchOutcome(time.GetUtcNow(), new DownloadSearchDto(key.ToString(), key.Kind, title, 0, null, [], [], 0, 0, error, [], null, engine.ToString(), false));
     }
 
     // Solo sotto _lock. Un job dell'admin in corso sulla chiave, per la panoramica.
@@ -163,7 +167,7 @@ public sealed partial class DownloadService
     // Ogni ricerca dell'admin passa da qui: aspetta che finisca la ricerca automatica in corso (il giro intanto non ne avvia
     // altre), poi cerca; più ricerche dell'admin vanno insieme. L'attesa non conta nel timeout della ricerca, che vale solo
     // per la richiesta a Radarr/Sonarr. Alla fine dell'ultima, se il giro si era fermato, se ne chiede uno (Nudge).
-    private async Task<AdminSearch?> RunSearchAsync(DownloadKey key, CancellationToken cancellationToken, SearchJob? job = null)
+    private async Task<AdminSearch?> RunSearchAsync(DownloadKey key, CancellationToken cancellationToken, SearchJob? job = null, SearchEngine engine = SearchEngine.Prowlarr)
     {
         lock (_lock)
         {
@@ -195,7 +199,7 @@ public sealed partial class DownloadService
                 await idle.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            return await SearchForAdminAsync(key, cancellationToken).ConfigureAwait(false);
+            return await SearchForAdminAsync(key, engine, cancellationToken).ConfigureAwait(false);
         }
         finally
         {

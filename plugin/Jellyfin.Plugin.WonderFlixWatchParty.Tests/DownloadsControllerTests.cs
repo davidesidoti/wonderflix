@@ -182,6 +182,23 @@ public sealed class DownloadsControllerTests : IDisposable
     }
 
     [Fact]
+    public void TheSearchStartBodyReadsTheEngine()
+    {
+        Assert.Equal("Arr", JsonSerializer.Deserialize<SearchStartRequest>("""{"Key":"movie:12","Engine":"Arr"}""")!.Engine);
+        Assert.Null(JsonSerializer.Deserialize<SearchStartRequest>("""{"Key":"movie:12"}""")!.Engine);
+    }
+
+    [Theory]
+    [InlineData("Arr", SearchEngine.Arr)]
+    [InlineData("Prowlarr", SearchEngine.Prowlarr)]
+    [InlineData(null, SearchEngine.Prowlarr)]
+    [InlineData("altro", SearchEngine.Prowlarr)]
+    public void TheSearchStartEngineIsArrOnlyWhenAsked(string? engine, SearchEngine expected)
+    {
+        Assert.Equal(expected, DownloadsController.EngineOf(new SearchStartRequest { Key = "movie:12", Engine = engine }));
+    }
+
+    [Fact]
     public async Task TheGrabBodyReadsLighten()
     {
         var body = JsonSerializer.Deserialize<GrabRequest>("""{"Key":"movie:12","Guid":"b","IndexerId":3,"Lighten":true}""");

@@ -147,6 +147,8 @@ public sealed record DownloadEpisodeChoiceDto(
 /// Risposta di GET Downloads/Search (spec T §8.2). Con Error (un codice di UpcomingErrors) le liste sono vuote.
 /// EpisodeChoices (dalla 1.15.0): i migliori singoli per episodio, solo per una stagione senza un pack scelto; altrimenti vuota.
 /// ExternalSearchUrl: la ricerca sul tracker esterno per questo titolo, null senza link nelle impostazioni.
+/// Dalla 1.29.0 Engine: chi ha cercato, "Prowlarr" o "Arr" (Sonarr/Radarr); LowResults: nessuna candidata valida o, per una
+/// stagione, nessun pack completo. Rejected comprende le release di altri titoli (Reason "WrongTitle").
 /// </summary>
 public sealed record DownloadSearchDto(
     [property: JsonPropertyName("Key")] string Key,
@@ -160,7 +162,9 @@ public sealed record DownloadSearchDto(
     [property: JsonPropertyName("TotalCount")] int TotalCount,
     [property: JsonPropertyName("Error")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? Error,
     [property: JsonPropertyName("EpisodeChoices")] IReadOnlyList<DownloadEpisodeChoiceDto> EpisodeChoices,
-    [property: JsonPropertyName("ExternalSearchUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ExternalSearchUrl);
+    [property: JsonPropertyName("ExternalSearchUrl")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)] string? ExternalSearchUrl,
+    [property: JsonPropertyName("Engine")] string Engine,
+    [property: JsonPropertyName("LowResults")] bool LowResults);
 
 /// <summary>
 /// Risposta di POST Downloads/SearchStart e GET Downloads/SearchStatus (spec W §4.4). State: uno di DownloadSearchStates.
@@ -249,6 +253,10 @@ public sealed class SearchStartRequest
 
     [JsonPropertyName("Again")]
     public bool Again { get; set; }
+
+    /// <summary>Dalla 1.29.0: "Arr" cerca con Sonarr/Radarr ("Cerca con Sonarr/Radarr"); altro o assente con Prowlarr.</summary>
+    [JsonPropertyName("Engine")]
+    public string? Engine { get; set; }
 }
 
 /// <summary>Errore dei download: "Expired" (409) o "Unavailable" (503) (spec T §7.4).</summary>
