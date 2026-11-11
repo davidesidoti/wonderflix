@@ -311,6 +311,14 @@ public sealed class ArrRelease
     /// <summary>Non null = il parse l'attribuisce ad altro: testo breve per il log.</summary>
     [JsonIgnore]
     public string? WrongTitle { get; set; }
+
+    /// <summary>Solo Prowlarr: la serie (Sonarr) o il film (Radarr) cercato, per riconoscere il grab nella cronologia.</summary>
+    [JsonIgnore]
+    public int TitleId { get; set; }
+
+    /// <summary>Solo Prowlarr, per la ricerca di un episodio: l'episodio cercato.</summary>
+    [JsonIgnore]
+    public int? EpisodeId { get; set; }
 }
 
 /// <summary>Chi ha trovato la release.</summary>
@@ -625,7 +633,11 @@ public sealed class ArrPushResult
     public List<string>? Rejections { get; set; }
 }
 
-/// <summary>Una riga della cronologia di Sonarr/Radarr (<c>history/since</c>): per un grab il titolo della release e l'id del download.</summary>
+/// <summary>
+/// Una riga della cronologia di Sonarr/Radarr (<c>history/since</c>). <c>SourceTitle</c> è normalizzato da loro (non è il titolo
+/// spinto); <c>DownloadId</c> è l'hash in maiuscolo; <c>Data</c> ha <c>guid</c> ("PUSH-" + link per un push), <c>downloadUrl</c>,
+/// <c>torrentInfoHash</c>.
+/// </summary>
 public sealed class ArrHistoryRecord
 {
     public string? SourceTitle { get; set; }
@@ -635,6 +647,14 @@ public sealed class ArrHistoryRecord
     public DateTimeOffset? Date { get; set; }
 
     public string? EventType { get; set; }
+
+    public int? SeriesId { get; set; }
+
+    public int? EpisodeId { get; set; }
+
+    public int? MovieId { get; set; }
+
+    public Dictionary<string, string?>? Data { get; set; }
 }
 
 /// <summary>Il peso ammesso per una qualità, in MB per minuto; <c>MaxSize</c> null = senza limite.</summary>

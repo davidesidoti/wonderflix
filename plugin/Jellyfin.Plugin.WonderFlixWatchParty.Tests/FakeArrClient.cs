@@ -227,7 +227,7 @@ internal sealed class FakeArrClient : IArrClient
         return Push(kind, release);
     }
 
-    /// <summary>Di base la cronologia ha un grab per ogni release spinta, col suo titolo: ogni push approvato risulta preso.</summary>
+    /// <summary>Di base la cronologia ha un grab per ogni release spinta, col guid del push: ogni push approvato risulta preso.</summary>
     public Func<ArrKind, DateTimeOffset, Task<IReadOnlyList<ArrHistoryRecord?>>>? History { get; set; }
 
     public List<(ArrKind Kind, DateTimeOffset Since)> HistoryCalls { get; } = [];
@@ -240,7 +240,12 @@ internal sealed class FakeArrClient : IArrClient
             if (History is null)
             {
                 return Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
-                    [.. PushCalls.Where(c => c.Kind == kind).Select(c => (ArrHistoryRecord?)new ArrHistoryRecord { SourceTitle = c.Release.Title, EventType = "grabbed" })]);
+                    [.. PushCalls.Where(c => c.Kind == kind).Select(c => (ArrHistoryRecord?)new ArrHistoryRecord
+                    {
+                        SourceTitle = c.Release.Title,
+                        EventType = "grabbed",
+                        Data = new() { ["guid"] = "PUSH-" + (c.Release.DownloadUrl ?? c.Release.MagnetUrl) },
+                    })]);
             }
         }
 

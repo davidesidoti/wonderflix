@@ -36,6 +36,9 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
     // Il margine sull'ora del push per la cronologia: gli orologi di plugin e Sonarr/Radarr possono differire un po'.
     private static readonly TimeSpan ConfirmMargin = TimeSpan.FromSeconds(10);
 
+    // Un grab riconosciuto solo dal titolo (serie/film) vale se è di poco prima del push o dopo.
+    private static readonly TimeSpan FallbackMargin = TimeSpan.FromSeconds(5);
+
     /// <summary>L'attesa fra due letture della cronologia; i test la sostituiscono per non aspettare davvero.</summary>
     internal Func<TimeSpan, CancellationToken, Task> Wait { get; init; } = (delay, token) => Task.Delay(delay, time, token);
 
@@ -100,7 +103,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
 
         if (decision.Approved)
         {
-            return await ConfirmGrabAsync(service, release.Title ?? string.Empty, pushedAt, cancellationToken).ConfigureAwait(false)
+            return await ConfirmGrabAsync(service, release, pushedAt, cancellationToken).ConfigureAwait(false)
                 ? new GrabResult(GrabKind.Grabbed, null, null)
                 : new GrabResult(GrabKind.ClientRefused, null, null);
         }
@@ -126,15 +129,16 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
 
     // Sonarr/Radarr rispondono "approvata" anche se il client di download la rifiuta (l'errore resta dentro di loro): il grab
     // è vero solo se compare nella cronologia. Una cronologia che non risponde non dice niente: il grab resta.
-    private async Task<bool> ConfirmGrabAsync(ArrKind service, string title, DateTimeOffset pushedAt, CancellationToken cancellationToken)
+    private async Task<bool> ConfirmGrabAsync(ArrKind service, ArrRelease release, DateTimeOffset pushedAt, CancellationToken cancellationToken)
     {
-        var deadline = pushedAt + ConfirmWindow;
+        // La finestra parte dalla risposta del push: un push lento non deve consumarla.
+        var deadline = time.GetUtcNow() + ConfirmWindow;
         while (true)
         {
             try
             {
                 var grabs = await arr.GetGrabHistoryAsync(service, pushedAt - ConfirmMargin, cancellationToken).ConfigureAwait(false);
-                if (grabs.Any(g => string.Equals(g?.SourceTitle, title, StringComparison.OrdinalIgnoreCase)))
+                if (grabs.OfType<ArrHistoryRecord>().Any(g => IsGrabOf(g, service, release, pushedAt)))
                 {
                     return true;
                 }
@@ -153,6 +157,36 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
 
             await Wait(ConfirmPoll, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    // Il titolo nella cronologia è normalizzato da Sonarr/Radarr ("[CB46E567].mkv" → "[CB46E567] mkv", accenti tolti): non si
+    // confronta. Conta il link spinto (guid "PUSH-" + link, o downloadUrl), l'hash del magnet, se no un grab dello stesso titolo
+    // (serie, episodio o film) da poco prima del push.
+    private static bool IsGrabOf(ArrHistoryRecord grab, ArrKind service, ArrRelease release, DateTimeOffset pushedAt)
+    {
+        var link = release.DownloadUrl ?? release.MagnetUrl;
+        var data = grab.Data ?? [];
+        if (link is not null
+            && (data.GetValueOrDefault("guid") == "PUSH-" + link || data.GetValueOrDefault("downloadUrl") == link))
+        {
+            return true;
+        }
+
+        if (release.MagnetUrl is { } magnet && QbitClient.HashOfMagnet(magnet) is { } hash
+            && (string.Equals(grab.DownloadId, hash, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(data.GetValueOrDefault("torrentInfoHash"), hash, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (grab.Date is not { } date || date < pushedAt - FallbackMargin || release.TitleId <= 0)
+        {
+            return false;
+        }
+
+        return service == ArrKind.Radarr
+            ? grab.MovieId == release.TitleId
+            : grab.SeriesId == release.TitleId || (release.EpisodeId is { } episode && grab.EpisodeId == episode);
     }
 
     public async Task<string> AddDirectAsync(ArrKind service, ArrRelease release, CancellationToken cancellationToken)

@@ -880,7 +880,9 @@ public class ArrClientTests
         Answer(
             HttpStatusCode.OK,
             """
-            [{"sourceTitle":"Show S01 1080p","downloadId":"ABC","date":"2026-11-11T12:00:03Z","eventType":"grabbed","data":{}}]
+            [{"sourceTitle":"Show S01 1080p","downloadId":"ABC","date":"2026-11-11T12:00:03Z","eventType":"grabbed","seriesId":5,"episodeId":9,
+              "data":{"guid":"PUSH-http://p/dl","downloadUrl":"http://p/dl","torrentInfoHash":"abc","indexer":"Knaben"}},
+             {"movieId":12,"data":null}]
             """);
 
         var records = await Client().GetGrabHistoryAsync(ArrKind.Radarr, new DateTimeOffset(2026, 11, 11, 13, 0, 0, TimeSpan.FromHours(1)), CancellationToken.None);
@@ -888,9 +890,12 @@ public class ArrClientTests
         Assert.Equal(
             "https://arr.example/radarr/api/v3/history/since?date=2026-11-11T12%3A00%3A00Z&eventType=grabbed",
             Assert.Single(_http.Requests).Uri.OriginalString);
-        var record = Assert.Single(records)!;
+        var record = records[0]!;
         Assert.Equal(("Show S01 1080p", "ABC", "grabbed"), (record.SourceTitle, record.DownloadId, record.EventType));
         Assert.Equal(new DateTimeOffset(2026, 11, 11, 12, 0, 3, TimeSpan.Zero), record.Date);
+        Assert.Equal((5, 9, (int?)null), (record.SeriesId, record.EpisodeId, record.MovieId));
+        Assert.Equal(("PUSH-http://p/dl", "http://p/dl", "abc"), (record.Data!["guid"], record.Data["downloadUrl"], record.Data["torrentInfoHash"]));
+        Assert.Equal(12, records[1]!.MovieId);
     }
 
     [Fact]

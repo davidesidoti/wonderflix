@@ -33,6 +33,7 @@ public static class ParsedRelease
         if (key.Kind == DownloadKinds.Movie)
         {
             release.WrongTitle = parse.Movie is { } movie && movie.Id == key.Id ? null : "altro film";
+            release.TitleId = key.Id;
             return release;
         }
 
@@ -50,7 +51,11 @@ public static class ParsedRelease
 
             season = wanted.SeasonNumber;
             seriesId = wanted.SeriesId;
+            release.EpisodeId = key.Id;
         }
+
+        // Per riconoscere il grab nella cronologia di Sonarr.
+        release.TitleId = seriesId;
 
         var numbers = episodes.Where(e => e.SeasonNumber == season).Select(e => e.EpisodeNumber).ToList();
         release.WrongTitle =

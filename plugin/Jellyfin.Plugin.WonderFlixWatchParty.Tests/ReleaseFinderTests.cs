@@ -441,16 +441,87 @@ public class ReleaseFinderTests
     }
 
     [Fact]
-    public async Task AnApprovedPushIsConfirmedInTheHistory()
+    public async Task AnApprovedPushIsConfirmedByTheGuidOfThePush()
     {
+        // Sonarr normalizza il titolo nella cronologia ("[CB46E567].mkv" → "[CB46E567] mkv", accenti tolti): conta il guid "PUSH-<link>".
         _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
-            [new ArrHistoryRecord { SourceTitle = "Other", EventType = "grabbed" }, new ArrHistoryRecord { SourceTitle = "show s01 1080P", EventType = "grabbed" }]);
+        [
+            new ArrHistoryRecord { SourceTitle = "Other", Data = new() { ["guid"] = "PUSH-http://other" } },
+            new ArrHistoryRecord { SourceTitle = "Show S01 1080p mkv", Data = new() { ["guid"] = "PUSH-http://prowlarr/dl?apikey=k" } },
+        ]);
 
-        var result = await Finder().GrabAsync(ArrKind.Radarr, Pushed(), false, CancellationToken.None);
+        var result = await Finder().GrabAsync(ArrKind.Radarr, Pushed("http://prowlarr/dl?apikey=k"), false, CancellationToken.None);
 
         Assert.Equal(GrabKind.Grabbed, result.Kind);
         var (kind, since) = Assert.Single(_arr.HistoryCalls);
         Assert.Equal((ArrKind.Radarr, _time.GetUtcNow() - TimeSpan.FromSeconds(10)), (kind, since));
+    }
+
+    public static TheoryData<string, string?, ArrHistoryRecord> Matches => new()
+    {
+        { "guid col magnet", null, new ArrHistoryRecord { Data = new() { ["guid"] = "PUSH-" + Magnet } } },
+        { "downloadUrl", "http://prowlarr/dl", new ArrHistoryRecord { Data = new() { ["downloadUrl"] = "http://prowlarr/dl" } } },
+        { "downloadId", null, new ArrHistoryRecord { DownloadId = "0123456789ABCDEF0123456789ABCDEF01234567" } },
+        { "torrentInfoHash", null, new ArrHistoryRecord { Data = new() { ["torrentInfoHash"] = "0123456789ABCDEF0123456789ABCDEF01234567" } } },
+        { "serie", null, new ArrHistoryRecord { SeriesId = 5, Date = new DateTimeOffset(2026, 11, 11, 11, 59, 56, TimeSpan.Zero) } },
+        { "episodio", null, new ArrHistoryRecord { EpisodeId = 9, Date = new DateTimeOffset(2026, 11, 11, 12, 0, 0, TimeSpan.Zero) } },
+    };
+
+    [Theory]
+    [MemberData(nameof(Matches))]
+    public async Task AGrabRecordOfThePushConfirmsIt(string rule, string? downloadUrl, ArrHistoryRecord record)
+    {
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>([record]);
+        var release = Pushed(downloadUrl);
+        (release.TitleId, release.EpisodeId) = (5, 9);
+
+        Assert.True(GrabKind.Grabbed == (await Finder().GrabAsync(ArrKind.Sonarr, release, false, CancellationToken.None)).Kind, rule);
+    }
+
+    [Fact]
+    public async Task AMovieGrabIsConfirmedByTheMovieId()
+    {
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
+            [new ArrHistoryRecord { MovieId = 12, Date = _time.GetUtcNow() }, new ArrHistoryRecord { SeriesId = 12, Date = _time.GetUtcNow() }]);
+        var release = Pushed("http://prowlarr/x");
+        release.TitleId = 12;
+
+        Assert.Equal(GrabKind.Grabbed, (await Finder().GrabAsync(ArrKind.Radarr, release, false, CancellationToken.None)).Kind);
+
+        // Per Radarr seriesId non conta.
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>([new ArrHistoryRecord { SeriesId = 12, Date = _time.GetUtcNow() }]);
+        Assert.Equal(GrabKind.ClientRefused, (await Finder().GrabAsync(ArrKind.Radarr, release, false, CancellationToken.None)).Kind);
+    }
+
+    [Fact]
+    public async Task AnOlderGrabOfTheSameTitleOrAnEqualTitleDoesNotConfirm()
+    {
+        // Un grab della stessa serie di prima del push (oltre 5 s), o solo lo stesso titolo: non è il nostro.
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
+        [
+            new ArrHistoryRecord { SeriesId = 5, Date = new DateTimeOffset(2026, 11, 11, 11, 59, 54, TimeSpan.Zero) },
+            new ArrHistoryRecord { SourceTitle = "Show S01 1080p" },
+        ]);
+        var release = Pushed("http://prowlarr/x");
+        release.TitleId = 5;
+
+        Assert.Equal(GrabKind.ClientRefused, (await Finder().GrabAsync(ArrKind.Sonarr, release, false, CancellationToken.None)).Kind);
+    }
+
+    [Fact]
+    public async Task TheConfirmWindowStartsWhenThePushAnswers()
+    {
+        // Un push lento (10 s): si aspetta il grab ancora 15 s dopo la risposta.
+        var start = _time.GetUtcNow();
+        _arr.Push = (_, _) =>
+        {
+            _time.Advance(TimeSpan.FromSeconds(10));
+            return Task.FromResult(new ArrPushResult { Approved = true });
+        };
+        _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>([]);
+
+        Assert.Equal(GrabKind.ClientRefused, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None)).Kind);
+        Assert.InRange(_time.GetUtcNow() - start, TimeSpan.FromSeconds(25), TimeSpan.FromSeconds(27));
     }
 
     [Fact]
@@ -458,7 +529,7 @@ public class ReleaseFinderTests
     {
         var calls = 0;
         _arr.History = (_, _) => Task.FromResult<IReadOnlyList<ArrHistoryRecord?>>(
-            ++calls < 3 ? [] : [new ArrHistoryRecord { SourceTitle = "Show S01 1080p", EventType = "grabbed" }]);
+            ++calls < 3 ? [] : [new ArrHistoryRecord { Data = new() { ["guid"] = "PUSH-" + Magnet } }]);
 
         var result = await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None);
 

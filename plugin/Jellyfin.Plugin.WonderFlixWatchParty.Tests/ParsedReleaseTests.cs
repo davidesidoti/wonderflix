@@ -56,6 +56,7 @@ public class ParsedReleaseTests
         Assert.Equal(2, release.SeasonNumber);
         Assert.Equal(new[] { 1, 2, 3 }, release.EpisodeNumbers);
         Assert.Equal(new[] { 1, 2, 3 }, release.MappedEpisodeNumbers);
+        Assert.Equal((265, (int?)null), (release.TitleId, release.EpisodeId));
         Assert.False(release.Rejected);
         Assert.Empty(release.Rejections!);
         Assert.Equal(ReleaseSource.Prowlarr, release.Source);
@@ -105,6 +106,7 @@ public class ParsedReleaseTests
         Assert.Null(release.WrongTitle);
         Assert.Equal(2, release.SeasonNumber);
         Assert.Equal(new[] { 4, 5 }, release.EpisodeNumbers);
+        Assert.Equal((265, (int?)1005), (release.TitleId, release.EpisodeId));
     }
 
     [Fact]
@@ -126,6 +128,7 @@ public class ParsedReleaseTests
         Assert.Equal(7, ok.Quality!.Quality!.Id);
         Assert.Null(ok.EpisodeNumbers);
         Assert.False(ok.FullSeason);
+        Assert.Equal((12, (int?)null), (ok.TitleId, ok.EpisodeId));
 
         Assert.NotNull(ParsedRelease.From(Found(), parse, 77, new DownloadKey(DownloadKinds.Movie, 13, 0)).WrongTitle);
     }
