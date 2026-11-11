@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.28.0.0",
+        "changelog": "Trailer dentro l'app: il plugin scarica al momento il trailer da YouTube (da Jellyfin o da Seerr) e lo dà all'app come un video; i file restano un'ora, al massimo 1 GB. Serve l'app 0.39.0 per usarlo.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.28.0/wonderflix-watch-party_1.28.0.zip",
+        "checksum": "c4226bacc24d44952f284705bd348fc4",
+        "timestamp": "2026-11-11T00:00:00Z"
+      },
+      {
         "version": "1.27.0.0",
         "changelog": "Scarica subito: una serie o un film passa in testa alla coda dei download automatici, e Aggiorna ora fa comparire subito un titolo appena aggiunto. Serve l'app 0.38.0 per usarli.",
         "targetAbi": "10.11.0.0",
