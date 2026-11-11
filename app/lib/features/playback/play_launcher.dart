@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
 import '../../app/navigation.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/trailers/trailers_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../detail/detail_providers.dart';
 import '../detail/primary_action.dart';
@@ -34,7 +34,8 @@ bool _launchInProgress(BuildContext context) {
   if (!launch.pushed) return true;
   // La pagina in cima: l'indirizzo del `routeInformationProvider`, dopo una
   // push, torna quello della pagina di base.
-  return GoRouter.of(context).state.uri.path.startsWith('/play/');
+  final path = GoRouter.of(context).state.uri.path;
+  return path.startsWith('/play/') || path.startsWith('/trailer/');
 }
 
 /// Unico punto d'ingresso della riproduzione.
@@ -97,18 +98,49 @@ Future<void> _open(BuildContext context, _Launch launch, String route) async {
   await opened;
 }
 
-/// Primo trailer remoto con indirizzo web valido (solo `http`/`https`).
-Uri? remoteTrailerUri(JellyfinItem item) {
-  if (item.remoteTrailers.isEmpty) return null;
-  final uri = Uri.tryParse(item.remoteTrailers.first.url);
+/// Id del video YouTube di [url] (11 caratteri), come `YouTubeId.FromUrl`
+/// del plugin: watch?v=, youtu.be/, /embed/; `null` per il resto.
+String? youTubeIdOf(String url) {
+  final uri = Uri.tryParse(url);
   if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
     return null;
   }
-  return uri;
+  final host = uri.host.toLowerCase();
+  final segments = uri.pathSegments;
+  final id = switch (host) {
+    'youtu.be' => segments.firstOrNull,
+    'youtube.com' ||
+    'www.youtube.com' ||
+    'm.youtube.com' ||
+    'youtube-nocookie.com' ||
+    'www.youtube-nocookie.com' =>
+      segments.length > 1 && segments.first == 'embed'
+          ? segments[1]
+          : uri.path == '/watch'
+          ? uri.queryParameters['v']
+          : null,
+    _ => null,
+  };
+  return id != null && RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id) ? id : null;
 }
 
-/// Trailer di [item]: quello salvato sul server nel player, altrimenti il
-/// trailer remoto (YouTube) nel browser.
+/// Il titolo ha un trailer: locale, YouTube conosciuto da Jellyfin o, per
+/// film e serie, uno che il plugin sa trovare (chiede `Info` solo se
+/// Jellyfin non ne conosce già uno).
+bool hasTrailerOf(WidgetRef ref, JellyfinItem item) {
+  if (item.localTrailerCount > 0 ||
+      item.remoteTrailers.any((t) => youTubeIdOf(t.url) != null)) {
+    return true;
+  }
+  if (item.kind != ItemKind.movie && item.kind != ItemKind.series) {
+    return false;
+  }
+  return ref.watch(trailerAvailableProvider(LibraryTrailer(item.id))).value ??
+      false;
+}
+
+/// Trailer di [item]: quello salvato sul server nel player, altrimenti la
+/// schermata del trailer, che lo fa scaricare al plugin.
 Future<void> playTrailer(
     BuildContext context, WidgetRef ref, JellyfinItem item) async {
   if (_launchInProgress(context)) return;
@@ -130,10 +162,15 @@ Future<void> playTrailer(
         return;
       }
     }
-    final remote = remoteTrailerUri(item);
-    if (remote != null) {
-      await launchUrl(remote, mode: LaunchMode.externalApplication);
-    }
+    await _open(
+      context,
+      launch,
+      trailerRoute(
+        LibraryTrailer(item.id),
+        title: item.name,
+        backdropItemId: item.id,
+      ),
+    );
   } finally {
     if (identical(_launch, launch)) _launch = null;
   }

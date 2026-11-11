@@ -13,29 +13,7 @@ import 'package:wonderflix/features/trailer/trailer_screen.dart';
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/test_data.dart';
-
-/// Plugin finto: `start` risponde [startResult], ogni `status` il prossimo
-/// di [statuses] (l'ultimo si ripete).
-class FakeTrailersApi implements TrailersApi {
-  TrailerStatus startResult = const TrailerStatus('k1', TrailerState.ready);
-  List<TrailerStatus> statuses = const [];
-  int statusCalls = 0;
-
-  @override
-  Future<bool> available(TrailerSubject s) async => true;
-
-  @override
-  Future<TrailerStatus> start(TrailerSubject s) async => startResult;
-
-  @override
-  Future<TrailerStatus> status(String key) async {
-    final i = statusCalls++;
-    return statuses[i < statuses.length ? i : statuses.length - 1];
-  }
-
-  @override
-  String streamUrl(String key) => 'https://media.example.com/$key/Stream';
-}
+import '../../support/trailer_fakes.dart';
 
 void main() {
   late FakeTrailersApi api;

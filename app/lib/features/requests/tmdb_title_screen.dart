@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
+import '../../core/trailers/trailers_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/backdrop_image.dart';
 import '../../ui/skeletons.dart';
@@ -193,13 +194,6 @@ class TmdbTitleHeader extends StatelessWidget {
   /// Larghezza massima della trama, come nelle schede della libreria.
   static const _overviewMaxWidth = 680.0;
 
-  static Uri? _trailerUri(String? url) {
-    final uri = url == null ? null : Uri.tryParse(url);
-    return uri != null && (uri.scheme == 'https' || uri.scheme == 'http')
-        ? uri
-        : null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -219,7 +213,6 @@ class TmdbTitleHeader extends StatelessWidget {
     final itemId = details.jellyfinItemId;
     final watchable = details.status == TitleStatus.available ||
         details.status == TitleStatus.partial;
-    final trailer = _trailerUri(details.trailerUrl);
     final showRequest = canRequest && details.canBeRequested;
     final status = showRequest ? null : titleStatusLabel(l, details);
     final chosen = state.selected.length;
@@ -303,12 +296,14 @@ class TmdbTitleHeader extends StatelessWidget {
                         icon: LucideIcons.play,
                         onPressed: () => openItemById(context, itemId),
                       ),
-                    if (trailer != null)
+                    // Il plugin dà `TrailerUrl` solo per un video YouTube.
+                    if (details.trailerUrl != null)
                       WfButton.secondary(
                         label: l.actionTrailer,
                         icon: LucideIcons.clapperboard,
-                        onPressed: () => unawaited(launchUrl(trailer,
-                            mode: LaunchMode.externalApplication)),
+                        onPressed: () => unawaited(context.push(trailerRoute(
+                            TmdbTrailer(details.mediaType.wire, details.tmdbId),
+                            title: details.title))),
                       ),
                   ],
                 ),

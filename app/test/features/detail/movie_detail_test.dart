@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/core/trailers/trailers_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/collections/collections_providers.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
@@ -21,6 +23,7 @@ import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
+import '../../support/trailer_fakes.dart';
 import '../../support/watch_party_fakes.dart';
 
 void main() {
@@ -39,18 +42,20 @@ void main() {
           {'Id': 'p8', 'Name': 'Denis Villeneuve', 'Type': 'Director'},
         ],
         trailers: [
-          {'Url': 'https://youtube.com/watch?v=x'},
+          {'Url': 'https://youtube.com/watch?v=25WcssMq1VM'},
         ],
       )
       ..similarItems = [testItem(id: 'm2', name: 'Arrival')];
   });
 
-  Future<void> pumpDetail(WidgetTester tester) async {
+  Future<void> pumpDetail(WidgetTester tester,
+      {List<Override> extra = const []}) async {
     // In app la schermata vive dentro lo Scaffold dell'AppShell (servono
     // Material e ScaffoldMessenger per IconButton e SnackBar).
     await pumpApp(
         tester, const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
         overrides: [
+      ...extra,
       libraryApiProvider.overrideWithValue(api),
       sessionControllerProvider
           .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
@@ -125,6 +130,32 @@ void main() {
     api.itemsById.clear();
     await pumpDetail(tester);
     expect(find.text('Riprova'), findsOneWidget);
+  });
+
+  testWidgets('trailerButtonShowsWhenThePluginHasOne', (tester) async {
+    api.itemsById['m1'] = testItem(id: 'm1');
+    final trailers = FakeTrailersApi();
+    await pumpDetail(tester,
+        extra: [trailersApiProvider.overrideWithValue(trailers)]);
+    expect(find.text('Trailer'), findsOneWidget);
+    expect(trailers.availableCalls, [const LibraryTrailer('m1')]);
+  });
+
+  testWidgets('noTrailerButtonWhenThePluginIsOld', (tester) async {
+    api.itemsById['m1'] = testItem(id: 'm1');
+    final trailers = FakeTrailersApi()..availableResult = false;
+    await pumpDetail(tester,
+        extra: [trailersApiProvider.overrideWithValue(trailers)]);
+    expect(find.text('Trailer'), findsNothing);
+  });
+
+  testWidgets('trailer YouTube di Jellyfin: nessuna chiamata a Info',
+      (tester) async {
+    final trailers = FakeTrailersApi();
+    await pumpDetail(tester,
+        extra: [trailersApiProvider.overrideWithValue(trailers)]);
+    expect(find.text('Trailer'), findsOneWidget);
+    expect(trailers.availableCalls, isEmpty);
   });
 
   testWidgets('solo trailer locale: pulsante presente', (tester) async {

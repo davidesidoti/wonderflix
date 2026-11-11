@@ -115,9 +115,7 @@ class _TitleBodyState extends ConsumerState<_TitleBody> {
     final genres = item != null && item.genres.isNotEmpty
         ? item.genres
         : c.genres;
-    final hasTrailer =
-        item != null &&
-        (item.localTrailerCount > 0 || remoteTrailerUri(item) != null);
+    final hasTrailer = item != null && hasTrailerOf(ref, item);
     final now = clock.now();
     final poster = c.posterUrl;
     final signals = [...spaceViaLines(l, c, now), ...spaceKeepLabels(l, c)];

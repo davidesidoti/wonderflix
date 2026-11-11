@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
+import 'package:wonderflix/core/trailers/trailers_api.dart';
 import 'package:wonderflix/features/requests/tmdb_title_screen.dart';
 import 'package:wonderflix/ui/backdrop_image.dart';
 import 'package:wonderflix/ui/skeletons.dart';
@@ -54,6 +57,35 @@ void main() {
 
     expect(api.created.single.type, RequestMediaType.movie);
     expect(find.text('Richiesta inviata'), findsOneWidget);
+  });
+
+  testWidgets('tmdbTrailerOpensTheTrailerScreen', (tester) async {
+    api.titles[693134] =
+        testDetails(trailerUrl: 'https://www.youtube.com/watch?v=x');
+    await pumpAppRouter(
+      tester,
+      GoRouter(routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const Scaffold(
+              body: TmdbTitleScreen(
+                  type: RequestMediaType.movie, tmdbId: 693134)),
+        ),
+        GoRoute(
+          path: '/trailer/tmdb/:type/:id',
+          builder: (context, state) => Text('schermata ${state.uri}'),
+        ),
+      ]),
+      overrides: requestsTestOverrides(api),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('Trailer'));
+    await tester.pumpAndSettle();
+    expect(
+        find.text('schermata '
+            '${trailerRoute(const TmdbTrailer('movie', 693134), title: 'Dune - Parte due')}'),
+        findsOneWidget);
   });
 
   testWidgets('serie: stagioni e Richiedi con le stagioni scelte', (tester) async {

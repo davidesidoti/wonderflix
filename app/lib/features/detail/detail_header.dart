@@ -166,8 +166,7 @@ class DetailHeader extends ConsumerWidget {
     final action = primary;
     final canCreateParty = ref.watch(syncPlayAccessProvider).canCreate;
     final overview = item.overview;
-    final hasTrailer =
-        item.localTrailerCount > 0 || remoteTrailerUri(item) != null;
+    final hasTrailer = hasTrailerOf(ref, item);
     // Serie della libreria con stagioni che mancano (spec I §9.3): la
     // scheda di Seerr si carica solo per le serie con l'id TMDB.
     final tmdbId = item.kind == ItemKind.series ? item.tmdbId : null;
@@ -194,8 +193,8 @@ class DetailHeader extends ConsumerWidget {
         );
 
     final tv = FormFactor.of(context).tv;
-    // Sulla TV la riga ha anche Vota e Consiglia (icone), senza Insieme,
-    // Trailer e stagioni da richiedere; il voto attuale è quello che legge
+    // Sulla TV la riga ha anche Vota e Consiglia (icone), senza Insieme e
+    // stagioni da richiedere; il voto attuale è quello che legge
     // anche `FriendRatingsRow`.
     final target = switch (item.kind) {
       ItemKind.movie => (item: item, title: item.name),
@@ -411,7 +410,7 @@ class DetailHeader extends ConsumerWidget {
                             onPressed: () => together(buttonContext),
                           ),
                         ),
-                      if (trailer != null && !tv)
+                      if (trailer != null)
                         WfButton.secondary(
                           label: l.actionTrailer,
                           icon: LucideIcons.clapperboard,

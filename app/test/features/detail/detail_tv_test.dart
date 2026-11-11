@@ -58,7 +58,7 @@ void main() {
         positionTicks: 13940000000,
         playedPercentage: 20,
         trailers: [
-          {'Url': 'https://youtube.com/watch?v=x'},
+          {'Url': 'https://youtube.com/watch?v=25WcssMq1VM'},
         ],
       )
       ..itemsById['s1'] = testItem(
@@ -271,7 +271,7 @@ void main() {
   });
 
   testWidgets(
-    'film: la riga delle azioni, in ordine, senza Insieme e Trailer',
+    'film: la riga delle azioni, in ordine, senza Insieme',
     (tester) async {
       await pumpDetail(tester, 'm1');
       final xs = [
@@ -287,10 +287,21 @@ void main() {
       expect(xs, orderedEquals([...xs]..sort()));
       expect(xs.toSet(), hasLength(5));
       expect(find.text('Ricomincia'), findsOneWidget);
-      expect(find.text('Trailer'), findsNothing);
       expect(find.text('Guarda insieme'), findsNothing);
     },
   );
+
+  testWidgets('tvShowsTheTrailerButton', (tester) async {
+    await pumpDetail(tester, 'm1');
+    await tester.pumpAndSettle();
+    expect(hasFocus(tester, find.text('Riprendi da 23:14')), isTrue);
+    // Riprendi → Ricomincia → Trailer.
+    for (var i = 0; i < 2; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+    }
+    expect(hasFocus(tester, find.text('Trailer')), isTrue);
+  });
 
   testWidgets('film: "Vota" apre il pannello col voto attuale', (tester) async {
     await pumpDetail(tester, 'm1');
