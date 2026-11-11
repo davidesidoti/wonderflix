@@ -26,15 +26,21 @@ internal sealed class FakeTrailerDownloader : ITrailerDownloader
 
     public int DownloadCalls => Volatile.Read(ref _calls);
 
+    /// <summary>Gli id dei download partiti, in ordine: ci entrano quando sono già contati in MaxRunning.</summary>
+    public ConcurrentQueue<string> Started { get; } = new();
+
     public async Task<TrailerDownloadOutcome> DownloadAsync(string videoId, string targetMp4Path, CancellationToken cancellationToken)
     {
-        Interlocked.Increment(ref _calls);
+        // Il token prima del conteggio: chi vede DownloadCalls salire trova già il token giusto.
         LastToken = cancellationToken;
+        Interlocked.Increment(ref _calls);
         var running = Interlocked.Increment(ref _running);
         int max;
         while ((max = Volatile.Read(ref _maxRunning)) < running && Interlocked.CompareExchange(ref _maxRunning, running, max) != max)
         {
         }
+
+        Started.Enqueue(videoId);
 
         try
         {

@@ -163,17 +163,20 @@ public sealed class TrailerServiceTests : IDisposable
             Assert.Equal(TrailerStates.Downloading, status.State);
         }
 
-        await WaitFor(() => _downloader.DownloadCalls == 2);
+        // Quali due prendono i posti non è detto (tre Task.Run): si sblocca uno di quelli partiti davvero.
+        await WaitFor(() => _downloader.Started.Count == 2);
         await Task.Delay(100);
-        Assert.Equal(2, _downloader.DownloadCalls); // il terzo aspetta, ma per chi chiede sta scaricando
-        Assert.Equal(TrailerStates.Downloading, _service.Status(IdOf(23))?.State);
+        Assert.Equal(2, _downloader.DownloadCalls);
+        var started = _downloader.Started.ToArray();
+        var waiting = subjects.Select(s => IdOf(s.TmdbId!.Value)).Single(id => !started.Contains(id));
+        Assert.Equal(TrailerStates.Downloading, _service.Status(waiting)?.State); // aspetta, ma per chi chiede sta scaricando
 
-        _downloader.Gates[IdOf(21)].SetResult();
-        await WaitFor(() => _downloader.DownloadCalls == 3);
+        _downloader.Gates[started[0]].SetResult();
+        await WaitFor(() => _downloader.Started.Count == 3);
 
-        foreach (var n in new[] { 22, 23 })
+        foreach (var id in new[] { started[1], waiting })
         {
-            _downloader.Gates[IdOf(n)].SetResult();
+            _downloader.Gates[id].SetResult();
         }
 
         foreach (var n in new[] { 21, 22, 23 })
