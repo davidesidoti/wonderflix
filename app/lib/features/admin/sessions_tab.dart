@@ -14,6 +14,7 @@ import '../../ui/states.dart';
 import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
+import 'admin_kit.dart';
 import 'admin_time.dart';
 import 'admin_widgets.dart';
 import 'session_labels.dart';
@@ -70,21 +71,50 @@ class _SessionsTabState extends ConsumerState<SessionsTab> {
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
         if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
-        AdminSectionTitle(title: l.adminSessionsPlaying),
+        AdminTabTitle(title: l.adminTabSessions),
+        AdminSectionTitle(
+            title: l.adminSessionsPlaying, count: snapshot.playing.length),
         if (snapshot.playing.isEmpty)
           AdminEmptyText(text: l.adminSessionsNobodyPlaying)
         else
-          for (final session in snapshot.playing)
-            PlayingSessionCard(
-                key: ValueKey('playing-${session.id}'), session: session),
-        AdminSectionTitle(title: l.adminSessionsIdle),
+          // Largo: due sale per riga; stretto: una.
+          LayoutBuilder(builder: (context, constraints) {
+            final width = FormFactor.of(context).compact
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 14) / 2;
+            return Wrap(
+              spacing: 14,
+              runSpacing: 14,
+              children: [
+                for (final (index, session) in snapshot.playing.indexed)
+                  SizedBox(
+                    width: width,
+                    child: PlayingSessionCard(
+                        key: ValueKey('playing-${session.id}'),
+                        session: session,
+                        number: index + 1),
+                  ),
+              ],
+            );
+          }),
+        AdminSectionTitle(
+            title: l.adminSessionsIdle, count: snapshot.idle.length),
         if (snapshot.idle.isEmpty)
           AdminEmptyText(text: l.adminSessionsNobodyIdle)
         else
-          for (final session in snapshot.idle)
-            IdleSessionRow(
-                key: ValueKey('idle-${session.id}'), session: session, now: now),
-        AdminSectionTitle(title: l.adminSessionsParties),
+          Wrap(
+            spacing: 22,
+            runSpacing: 8,
+            children: [
+              for (final session in snapshot.idle)
+                IdleSessionRow(
+                    key: ValueKey('idle-${session.id}'),
+                    session: session,
+                    now: now),
+            ],
+          ),
+        AdminSectionTitle(
+            title: l.adminSessionsParties, count: snapshot.parties.length),
         if (snapshot.parties.isEmpty)
           AdminEmptyText(text: l.adminSessionsNoParties)
         else
@@ -95,18 +125,15 @@ class _SessionsTabState extends ConsumerState<SessionsTab> {
   }
 }
 
-/// Una sessione che sta riproducendo: locandina, utente, titolo,
-/// avanzamento e metodo.
+/// Una sessione che sta riproducendo: la sala, con lo sfondo del titolo.
 class PlayingSessionCard extends ConsumerWidget {
-  const PlayingSessionCard({super.key, required this.session});
+  const PlayingSessionCard(
+      {super.key, required this.session, required this.number});
 
-  static const posterWidth = 64.0;
-  static const posterHeight = 96.0;
+  static const height = 170.0;
 
-  /// Larghezza della locandina chiesta al server (il doppio, per gli schermi
-  /// ad alta densità).
-  static const _posterRequestWidth = 128;
-
+  /// "Sala N": l'ordine della sessione nello snapshot, da 1.
+  final int number;
   final SessionEntry session;
 
   @override
@@ -121,109 +148,135 @@ class PlayingSessionCard extends ConsumerWidget {
       _ => null,
     };
     final progress = runtime == null
-        ? 0.0
+        ? null
         : (position.inMilliseconds / runtime.inMilliseconds).clamp(0.0, 1.0);
     final method = displayMethod(session);
     final methodLabel = displayMethodLabel(l, method);
-    final transcode =
-        method == DisplayMethod.transcode ? session.transcode : null;
+    final isTranscode = method == DisplayMethod.transcode;
+    final transcode = isTranscode ? session.transcode : null;
     final transcodeText =
         transcode == null ? null : transcodeLine(l, transcode);
     final reasonsText = transcode == null || transcode.reasons.isEmpty
         ? null
         : transcodeReasons(l, transcode.reasons);
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
-    final timeText = Text(
-        runtime == null
-            ? formatClock(position)
-            : '${formatClock(position)} / ${formatClock(runtime)}',
-        style: muted);
-    // Nello stretto il tempo va sotto la barra: accanto non ci sta.
-    final compact = FormFactor.of(context).compact;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WfColors.surface,
-        borderRadius: BorderRadius.circular(8),
+    Widget oneLine(String text) =>
+        Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: muted);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+      height: height,
+      color: WfColors.surfaceHigh,
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: WfColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: SizedBox(
-              width: posterWidth,
-              height: posterHeight,
-              child: WfImage(
-                image: ref.watch(imageUrlsProvider).primaryOf(item.imageItemId,
-                    maxWidth: _posterRequestWidth),
+          WfImage(
+            image: ref.watch(imageUrlsProvider).backdropOf(
+                item.seriesId ?? item.itemId,
+                maxWidth: 960),
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  Color.fromRGBO(10, 10, 10, 0.95),
+                  Color.fromRGBO(10, 10, 10, 0.95),
+                  Color.fromRGBO(10, 10, 10, 0.2),
+                ],
+                stops: [0, 0.25, 1],
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Stack(
               children: [
-                AdminUserLine(
-                    name: session.userName,
-                    detail: sessionDevice(session),
-                    userId: session.userId,
-                    imageTag: session.userImageTag),
-                const SizedBox(height: 8),
-                Text(nowPlayingTitle(l, item),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (session.isPaused) ...[
-                      Icon(LucideIcons.pause,
-                          key: Key('session-paused-${session.id}'),
-                          size: 14,
-                          color: WfColors.creamMuted),
-                      const SizedBox(width: 6),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    children: [
+                      Text(l.adminSessionsSala(number),
+                          style: WfText.display(15, color: WfColors.gold)),
+                      const Spacer(),
+                      if (session.isPaused) ...[
+                        Icon(LucideIcons.pause,
+                            key: Key('session-paused-${session.id}'),
+                            size: 14,
+                            color: WfColors.creamMuted),
+                        const SizedBox(width: 8),
+                      ],
+                      if (methodLabel != null)
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: isTranscode
+                                ? WfColors.gold.withValues(alpha: 0.18)
+                                : WfColors.cream.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            child: Text(methodLabel,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isTranscode
+                                      ? WfColors.gold
+                                      : WfColors.cream,
+                                )),
+                          ),
+                        ),
                     ],
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 4,
-                        color: WfColors.gold,
-                        backgroundColor: WfColors.surfaceHigh,
-                      ),
-                    ),
-                    if (!compact) ...[const SizedBox(width: 12), timeText],
-                  ],
+                  ),
                 ),
-                if (compact) ...[const SizedBox(height: 4), timeText],
-                if (methodLabel != null) ...[
-                  const SizedBox(height: 8),
-                  Text(methodLabel,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: method == DisplayMethod.transcode
-                            ? WfColors.gold
-                            : WfColors.cream,
-                      )),
-                ],
-                if (transcodeText != null || reasonsText != null) ...[
-                  const SizedBox(height: 4),
-                  if (transcodeText != null) Text(transcodeText, style: muted),
-                  if (reasonsText != null) Text(reasonsText, style: muted),
-                ],
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    Text(nowPlayingTitle(l, item),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: WfText.display(26)),
+                    const SizedBox(height: 4),
+                    AdminUserLine(
+                        name: session.userName,
+                        detail: sessionDevice(session),
+                        userId: session.userId,
+                        imageTag: session.userImageTag),
+                    const SizedBox(height: 6),
+                    FilmStripBar(progress: progress),
+                    const SizedBox(height: 4),
+                    oneLine(runtime == null
+                        ? formatClock(position)
+                        : '${formatClock(position)} / ${formatClock(runtime)}'),
+                    if (transcodeText != null) oneLine(transcodeText),
+                    if (reasonsText != null) oneLine(reasonsText),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ],
       ),
+      ),
     );
   }
 }
 
-/// Una sessione collegata senza riprodurre.
+/// Una sessione collegata senza riprodurre: una riga compatta.
 class IdleSessionRow extends StatelessWidget {
   const IdleSessionRow({super.key, required this.session, required this.now});
 
@@ -234,20 +287,26 @@ class IdleSessionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final last = session.lastActivity;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: AdminUserLine(
-                name: session.userName,
-                detail: sessionDevice(session),
-                userId: session.userId,
-                imageTag: session.userImageTag),
+          // Dentro un Wrap la riga non ha larghezza: la prende dal contenuto.
+          Flexible(
+            child: IntrinsicWidth(
+              child: AdminUserLine(
+                  name: session.userName,
+                  detail: sessionDevice(session),
+                  userId: session.userId,
+                  imageTag: session.userImageTag),
+            ),
           ),
-          if (last != null)
+          if (last != null) ...[
+            const SizedBox(width: 10),
             Text(l.adminActive(adminTimeLabel(last, now, l)),
                 style: const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
+          ],
         ],
       ),
     );

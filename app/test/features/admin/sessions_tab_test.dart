@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/admin/sessions_tab.dart';
 
 import '../../support/admin_fakes.dart';
@@ -141,6 +142,83 @@ void main() {
         find.byKey(const ValueKey('party-p1')), 300,
         scrollable: find.byType(Scrollable));
     expect(find.byKey(const ValueKey('party-p1')), findsOneWidget);
+  });
+
+  testWidgets('le sale: "Sala 1" e "Sala 2" nell\'ordine dello snapshot',
+      (tester) async {
+    api.sessionsValue = [
+      testSession('s1', 'Mario', playing: testMovie),
+      testSession('s2', 'Luigi', playing: testMovie),
+    ];
+    await pumpTab(tester);
+
+    expect(find.text('Sala 1'), findsOneWidget);
+    expect(find.text('Sala 2'), findsOneWidget);
+    expect(
+        tester.getTopLeft(find.text('Sala 1')).dx <
+            tester.getTopLeft(find.text('Sala 2')).dx,
+        isTrue);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('playing-s1')),
+            matching: find.text('Mario')),
+        findsOneWidget);
+  });
+
+  testWidgets('durata zero: barra vuota, solo il tempo, nessun NaN',
+      (tester) async {
+    api.sessionsValue = [
+      testSession('s1', 'Mario',
+          playing: const NowPlaying(
+              itemId: 'm2', name: 'Senza durata', runtime: Duration.zero)),
+    ];
+    await pumpTab(tester);
+
+    expect(find.byType(FilmStripBar), findsOneWidget);
+    expect(find.byKey(const ValueKey('film-strip-filled')), findsNothing);
+    expect(find.text('00:00'), findsOneWidget);
+    expect(find.textContaining(' / '), findsNothing);
+  });
+
+  testWidgets('transcodifica: etichetta, riga e motivi; pausa accanto',
+      (tester) async {
+    api.sessionsValue = const [
+      SessionEntry(
+          id: 's1',
+          userId: 'u1',
+          userName: 'Mario',
+          nowPlaying: testMovie,
+          isPaused: true,
+          playMethod: PlayMethod.transcode,
+          transcode: TranscodeInfo(
+              videoCodec: 'h264', reasons: ['VideoCodecNotSupported'])),
+    ];
+    await pumpTab(tester);
+
+    expect(find.text('Transcodifica'), findsOneWidget);
+    expect(find.textContaining('→ H264'), findsOneWidget);
+    expect(find.text('codec video non supportato'), findsOneWidget);
+    expect(find.byKey(const Key('session-paused-s1')), findsOneWidget);
+  });
+
+  testWidgets('il titolo della sezione dei collegati è "In sala d\'attesa"',
+      (tester) async {
+    api.sessionsValue = [testSession('s1', 'Mario')];
+    await pumpTab(tester);
+
+    expect(find.text('In sala d\'attesa'), findsOneWidget);
+    expect(find.text('Collegati'), findsNothing);
+  });
+
+  testWidgets('stretto: una sala per riga', (tester) async {
+    api.sessionsValue = [
+      testSession('s1', 'Mario', playing: testMovie),
+      testSession('s2', 'Luigi', playing: testMovie),
+    ];
+    await pumpTab(tester, surfaceSize: const Size(500, 900));
+
+    expect(tester.getTopLeft(find.text('Sala 1')).dx,
+        tester.getTopLeft(find.text('Sala 2')).dx);
   });
 
   testWidgets('le righe utente: l\'immagine con il tag della sessione',

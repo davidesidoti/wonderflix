@@ -60,6 +60,9 @@ void main() {
     testWidgets('negativo = 0', (tester) async {
       expect(await filled(tester, -1), 0);
     });
+    testWidgets('NaN = 0', (tester) async {
+      expect(await filled(tester, double.nan), 0);
+    });
   });
 
   testWidgets('AdminSectionTitle: titolo e conteggio', (tester) async {

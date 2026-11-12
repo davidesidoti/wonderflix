@@ -181,7 +181,9 @@ class FilmStripBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final filled = ((progress ?? 0).clamp(0.0, 1.0) * segments).floor();
+    final value = progress ?? 0;
+    // NaN (una divisione che non doveva esserci) vale zero fotogrammi.
+    final filled = value.isNaN ? 0 : (value.clamp(0.0, 1.0) * segments).floor();
     return Row(
       children: [
         for (var i = 0; i < segments; i++) ...[
