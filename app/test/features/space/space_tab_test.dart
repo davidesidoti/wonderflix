@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/space/space_api.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/space/space_models.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/space/space_gauge.dart';
 import 'package:wonderflix/features/space/space_providers.dart';
 import 'package:wonderflix/features/space/space_tab.dart';
 
@@ -102,6 +104,47 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('TheUsedSpaceIsBigAndTheGaugeSumsToTheQuota', (tester) async {
+    api.overviewValue = _overview(scannedAt: _scanned);
+    await pumpTab(tester);
+
+    final used = tester.widget<Text>(find.text('3,00 TB'));
+    expect(used.style?.fontFamily, WfText.displayFamily);
+    expect(find.textContaining('liberi 1,00 TB'), findsOneWidget);
+    expect(find.byType(SpaceGauge), findsOneWidget);
+    expect(find.text('Calcolato 2 ore fa'), findsNothing);
+  });
+
+  testWidgets('BeforeTheFirstScanThereIsNoGauge', (tester) async {
+    api.overviewValue = _overview(scanning: true);
+    await pumpTab(tester);
+
+    expect(find.byType(SpaceGauge), findsNothing);
+  });
+
+  testWidgets('WithoutAQuotaTheGaugeIsTheBreakdownAlone', (tester) async {
+    final o = _overview(scannedAt: _scanned);
+    api.overviewValue = SpaceOverview(
+      scannedAt: o.scannedAt,
+      scanning: false,
+      quota: null,
+      breakdown: o.breakdown,
+      delete: const [],
+      lighten: const [],
+      cleanup: const SpaceCleanup(),
+      pending: const [],
+      kept: const [],
+      atMinimum: const [],
+      operations: const [],
+      topGenres: const [],
+      errors: const SpaceErrors(),
+    );
+    await pumpTab(tester);
+
+    expect(find.byType(SpaceGauge), findsOneWidget);
+    expect(find.textContaining('liberi'), findsNothing);
+  });
 
   testWidgets('BeforeTheFirstScanShowsCalculating', (tester) async {
     api.overviewValue = _overview(scanning: true);
@@ -708,7 +751,7 @@ void main() {
         sizeLeftBytes: 1000000000,
       ),
     );
-    expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(find.text('In download 75 %'), findsOneWidget);
     expect(find.text('1,00 GB rimanenti'), findsOneWidget);
     expect(find.text('Alleggerisci'), findsNothing);

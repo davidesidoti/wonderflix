@@ -13,6 +13,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../admin/admin_action_button.dart';
+import '../admin/admin_kit.dart';
 import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
@@ -20,6 +21,7 @@ import '../downloads/download_search_page.dart';
 import 'space_actions.dart';
 import 'space_bulk.dart';
 import 'space_controller.dart';
+import 'space_gauge.dart';
 import 'space_labels.dart';
 import 'space_operation_dialog.dart';
 import 'space_providers.dart';
@@ -413,95 +415,102 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     );
   }
 
-  Widget _quotaCard(AppLocalizations l, SpaceOverview o, DateTime now) {
-    final quota = o.quota;
-    final b = o.breakdown;
+  /// Il titolo della scheda con lo stato del calcolo e le sue azioni.
+  Widget _title(AppLocalizations l, SpaceOverview o, DateTime now) {
     final scannedAt = o.scannedAt;
     final status = scannedAt != null
         ? l.spaceCalculated(adminTimeLabel(scannedAt, now, l))
         : o.scanning
         ? l.spaceCalculating
         : l.spaceScanFailed;
-    const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
-    return AdminCard(
+    return AdminTabTitle(
       title: l.adminTabSpace,
-      icon: LucideIcons.hardDrive,
+      actions: [
+        SizedBox(
+          height: 36,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                status,
+                style: const TextStyle(
+                  color: WfColors.creamMuted,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        AdminActionButton(
+          label: l.adminActivityRefresh,
+          icon: LucideIcons.rotateCw,
+          onPressed: _reload,
+        ),
+        AdminActionButton(
+          label: l.spaceRecalculate,
+          icon: LucideIcons.refreshCw,
+          onPressed: o.scanning
+              ? null
+              : () => _run(
+                  ref.read(spaceControllerProvider.notifier).recalculate,
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// La barra dello spazio: l'occupato in grande, la quota e la ripartizione.
+  /// Prima del primo calcolo non c'è niente da mostrare.
+  Widget _quota(AppLocalizations l, SpaceOverview o) {
+    final quota = o.quota;
+    final b = o.breakdown;
+    final hasQuota = quota != null && quota.limitBytes > 0;
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (quota != null && quota.limitBytes > 0) ...[
-            Text(
-              l.spaceQuotaLine(
-                spaceTb(l, quota.usedBytes),
-                spaceTb(l, quota.limitBytes),
-                spaceTb(l, quota.limitBytes - quota.usedBytes),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: (quota.usedBytes / quota.limitBytes).clamp(0.0, 1.0),
-                minHeight: 8,
-                color: WfColors.gold,
-                backgroundColor: WfColors.border,
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          if (scannedAt != null)
+          if (hasQuota) ...[
             Wrap(
               spacing: 12,
-              runSpacing: 2,
+              crossAxisAlignment: WrapCrossAlignment.end,
               children: [
-                for (final (label, bytes) in [
-                  (l.spaceBreakdownMovies, b.moviesBytes),
-                  (l.spaceBreakdownSeries, b.seriesBytes),
-                  (l.spaceBreakdownAnime, b.animeBytes),
-                  (l.spaceBreakdownTorrentOnly, b.torrentOnlyBytes),
-                  (l.spaceBreakdownOther, b.otherBytes),
-                ])
-                  Text(
-                    l.spaceBreakdownItem(label, spaceGb(l, bytes)),
-                    style: muted,
+                Text(
+                  spaceTb(l, quota.usedBytes),
+                  style: WfText.display(34),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    l.spaceQuotaLine(
+                      spaceTb(l, quota.usedBytes),
+                      spaceTb(l, quota.limitBytes),
+                      spaceTb(l, quota.limitBytes - quota.usedBytes),
+                    ),
+                    style: const TextStyle(
+                      color: WfColors.creamMuted,
+                      fontSize: 13,
+                    ),
                   ),
+                ),
               ],
             ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(status, style: muted),
-              AdminActionButton(
-                label: l.adminActivityRefresh,
-                icon: LucideIcons.rotateCw,
-                onPressed: _reload,
-              ),
-              AdminActionButton(
-                label: l.spaceRecalculate,
-                icon: LucideIcons.refreshCw,
-                onPressed: o.scanning
-                    ? null
-                    : () => _run(
-                        ref.read(spaceControllerProvider.notifier).recalculate,
-                      ),
-              ),
+            const SizedBox(height: 12),
+          ],
+          SpaceGauge(
+            totalBytes: hasQuota ? quota.limitBytes : null,
+            parts: [
+              (l.spaceBreakdownMovies, b.moviesBytes),
+              (l.spaceBreakdownSeries, b.seriesBytes),
+              (l.spaceBreakdownAnime, b.animeBytes),
+              (l.spaceBreakdownTorrentOnly, b.torrentOnlyBytes),
+              (l.spaceBreakdownOther, b.otherBytes),
             ],
           ),
         ],
       ),
     );
   }
-
-  Widget _totals(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      text,
-      style: const TextStyle(color: WfColors.creamMuted, fontSize: 13),
-    ),
-  );
 
   Widget _group(String title) => Padding(
     padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -562,35 +571,35 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
           ),
         ];
 
+  List<SpaceTorrent> _removable(SpaceOverview o) => [
+    for (final t in o.cleanup.torrents)
+      if (t.canRemoveNow) t,
+  ];
+
+  /// "Rimuovi tutti", a destra del titolo di Pulizia.
+  Widget? _removeAll(AppLocalizations l, SpaceOverview o) {
+    final removable = _removable(o);
+    if (removable.isEmpty) return null;
+    final bytes = removable.fold(0, (sum, t) => sum + t.sizeBytes);
+    return AdminActionButton(
+      label: l.spaceRemoveAll(removable.length, spaceGb(l, bytes)),
+      icon: LucideIcons.trash2,
+      onPressed: () => _start(
+        'AllTorrents',
+        'all-torrents',
+        l.spaceRemoveAllTitle,
+        sizeBytes: bytes,
+      ),
+    );
+  }
+
   List<Widget> _cleanup(AppLocalizations l, SpaceOverview o) {
     final c = o.cleanup;
-    final removable = [
-      for (final t in c.torrents)
-        if (t.canRemoveNow) t,
-    ];
-    final removableBytes = removable.fold(0, (sum, t) => sum + t.sizeBytes);
     if (c.isEmpty) {
       return [AdminEmptyText(text: l.spaceEmptyCleanup)];
     }
     return [
-      if (removable.isNotEmpty)
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: AdminActionButton(
-            label: l.spaceRemoveAll(
-              removable.length,
-              spaceGb(l, removableBytes),
-            ),
-            icon: LucideIcons.trash2,
-            onPressed: () => _start(
-              'AllTorrents',
-              'all-torrents',
-              l.spaceRemoveAllTitle,
-              sizeBytes: removableBytes,
-            ),
-          ),
-        ),
-      ..._torrentGroup('now', l.spaceGroupRemovableNow, removable),
+      ..._torrentGroup('now', l.spaceGroupRemovableNow, _removable(o)),
       ..._torrentGroup('seed', l.spaceGroupSeedRule, [
         for (final t in c.torrents)
           if (!t.canRemoveNow) t,
@@ -662,31 +671,33 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
       children: [
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
+        _title(l, o, now),
         for (final text in notes) _note(text),
-        const SizedBox(height: 12),
-        _quotaCard(l, o, now),
+        if (ready) _quota(l, o),
         if (ready) ...[
-          AdminSectionTitle(title: l.spaceSectionDelete),
-          if (o.delete.isNotEmpty)
-            _totals(
-              l.spaceTotalsDelete(
-                spaceGb(l, o.delete.fold(0, (s, c) => s + c.freeNowBytes)),
-                spaceGb(l, o.delete.fold(0, (s, c) => s + c.freeLaterBytes)),
-              ),
-            ),
+          AdminSectionTitle(
+            title: l.spaceSectionDelete,
+            note: o.delete.isEmpty
+                ? null
+                : l.spaceTotalsDelete(
+                    spaceGb(l, o.delete.fold(0, (s, c) => s + c.freeNowBytes)),
+                    spaceGb(
+                      l,
+                      o.delete.fold(0, (s, c) => s + c.freeLaterBytes),
+                    ),
+                  ),
+            action: o.delete.isNotEmpty && !_selecting
+                ? TextButton.icon(
+                    onPressed: () => setState(() {
+                      _selecting = true;
+                      _orphanKeys = null;
+                    }),
+                    icon: const Icon(LucideIcons.squareCheck, size: 16),
+                    label: Text(l.spaceSelect),
+                  )
+                : null,
+          ),
           if (o.delete.isEmpty) AdminEmptyText(text: l.spaceEmptyDelete),
-          if (o.delete.isNotEmpty && !_selecting)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                onPressed: () => setState(() {
-                  _selecting = true;
-                  _orphanKeys = null;
-                }),
-                icon: const Icon(LucideIcons.squareCheck, size: 16),
-                label: Text(l.spaceSelect),
-              ),
-            ),
           ..._page('delete', _entries(o.delete), (x) => _entry(o, x, now)),
           AdminSectionTitle(title: l.spaceSectionLighten),
           if (o.lighten.isEmpty) AdminEmptyText(text: l.spaceEmptyLighten),
@@ -702,24 +713,26 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               onImport: () => _import(i.key),
             ),
           ),
-          AdminSectionTitle(title: l.spaceSectionCleanup),
-          if (!o.cleanup.isEmpty)
-            _totals(
-              l.spaceTotalsCleanup(
-                spaceGb(
-                  l,
-                  [
-                    for (final t in o.cleanup.torrents)
-                      if (t.canRemoveNow) t.sizeBytes,
-                    for (final f in [
-                      ...o.cleanup.orphans,
-                      ...o.cleanup.duplicates,
-                    ])
-                      if (!f.linked) f.sizeBytes,
-                  ].fold(0, (s, b) => s + b),
-                ),
-              ),
-            ),
+          AdminSectionTitle(
+            title: l.spaceSectionCleanup,
+            note: o.cleanup.isEmpty
+                ? null
+                : l.spaceTotalsCleanup(
+                    spaceGb(
+                      l,
+                      [
+                        for (final t in o.cleanup.torrents)
+                          if (t.canRemoveNow) t.sizeBytes,
+                        for (final f in [
+                          ...o.cleanup.orphans,
+                          ...o.cleanup.duplicates,
+                        ])
+                          if (!f.linked) f.sizeBytes,
+                      ].fold(0, (s, b) => s + b),
+                    ),
+                  ),
+            action: _removeAll(l, o),
+          ),
           ..._cleanup(l, o),
           AdminSectionTitle(title: l.spaceSectionPending),
           if (o.pending.isEmpty) AdminEmptyText(text: l.spaceEmptyPending),
