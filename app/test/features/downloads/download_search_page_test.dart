@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
+import 'package:wonderflix/core/jellyfin/image_urls.dart';
 import 'package:wonderflix/core/space/space_api.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/downloads/download_search_controller.dart';
 import 'package:wonderflix/features/downloads/download_search_page.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -147,10 +149,108 @@ void main() {
     ]);
     await open(tester);
 
-    expect(find.text('Scartati · 2'), findsOneWidget);
-    expect(find.textContaining('Già nel catalogo'), findsOneWidget);
-    expect(find.textContaining('0,62 GB/ora, sotto la soglia'), findsOneWidget);
+    expect(find.text('Scartati'), findsOneWidget);
+    // Chiusi: le pastiglie per motivo, l'elenco solo dopo "Mostra".
+    expect(find.text('1 Già nel catalogo'), findsOneWidget);
+    expect(find.text('1 0,62 GB/ora, sotto la soglia'), findsOneWidget);
+    expect(find.textContaining('Idx · Già nel catalogo'), findsNothing);
+
+    await tester.tap(find.text('Mostra'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Idx · Già nel catalogo'), findsOneWidget);
+    expect(find.textContaining('Idx · 0,62 GB/ora, sotto la soglia'),
+        findsOneWidget);
   });
+
+  testWidgets('the rejected pills count each reason', (tester) async {
+    api.searchValue = _search(rejected: [
+      for (final g in ['r1', 'r2', 'r3'])
+        DownloadRejected(
+            release: testRelease(guid: g), reason: RejectedReason.wrongTitle),
+      DownloadRejected(
+          release: testRelease(guid: 'r4'), reason: RejectedReason.notWanted),
+    ]);
+    await open(tester);
+
+    expect(find.text('3 Altro titolo'), findsOneWidget);
+    expect(find.text('1 Qualità non voluta'), findsOneWidget);
+  });
+
+  testWidgets('the choice shows once, outside the table', (tester) async {
+    api.searchValue = _search(candidates: [
+      _row('g1', 1000000000),
+      _row('g2', 2000000000),
+    ]);
+    await open(tester);
+
+    expect(find.text('Film.g1'), findsOneWidget);
+    expect(find.text('La scelta della regola'), findsOneWidget);
+    expect(find.text('Tutte le release'), findsOneWidget);
+    expect(
+        tester.getTopLeft(find.text('Film.g1')).dy,
+        lessThan(tester.getTopLeft(find.text('Tutte le release')).dy));
+  });
+
+  testWidgets('the choice says how much it frees and the hero has the file',
+      (tester) async {
+    api.searchValue = _search(
+      current: const DownloadCurrentFile(
+          sizeBytes: 3000000000, score: 120, quality: 'Remux'),
+      candidates: [_row('g1', 1000000000), _row('g2', 2000000000)],
+    );
+    await open(tester);
+
+    expect(find.text('Libera 2,00 GB'), findsOneWidget);
+    expect(find.text('3,00 GB'), findsOneWidget);
+    expect(find.text('Pesi a confronto'), findsOneWidget);
+    expect(find.text('scelta 1,00 GB'), findsOneWidget);
+    expect(find.text('attuale 3,00 GB'), findsOneWidget);
+  });
+
+  testWidgets('one release: no ruler', (tester) async {
+    await open(tester);
+    expect(find.text('Pesi a confronto'), findsNothing);
+  });
+
+  test('seedersLamp', () {
+    expect(seedersLamp(null), LampState.off);
+    expect(seedersLamp(0), LampState.off);
+    expect(seedersLamp(5), LampState.attention);
+    expect(seedersLamp(412), LampState.ok);
+  });
+
+  testWidgets('"← Download" closes the page', (tester) async {
+    await open(tester);
+    await tester.tap(find.text('Download'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+  });
+
+  for (final blur in [false, true]) {
+    testWidgets('showDownloadSearch with an image, blur $blur',
+        (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showDownloadSearch(context, 'movie:1', 'Film',
+                  image: const ImageRef('https://x/p.jpg'), blurImage: blur),
+              child: const Text('apri'),
+            ),
+          ),
+        ),
+        overrides: [
+          ...adminTestOverrides(FakeAdminApi(), downloads: api),
+          spaceApiProvider.overrideWithValue(space),
+        ],
+      );
+      await tester.tap(find.text('apri'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ImageFiltered), blur ? findsOneWidget : findsNothing);
+    });
+  }
 
   group('ExternalSearch', () {
     const url = 'https://mircrew.example/search?q=Film';
@@ -171,7 +271,7 @@ void main() {
       expect(find.text('Niente da mostrare'), findsOneWidget);
       expect(find.widgetWithText(OutlinedButton, 'Cerca su MIRCrew'),
           findsOneWidget);
-      expect(find.text('Scartati · 1'), findsOneWidget);
+      expect(find.text('Scartati'), findsOneWidget);
     });
 
     testWidgets('without a URL there is no button', (tester) async {
@@ -651,8 +751,9 @@ void main() {
       api.searchValue = season([testEpisodeChoice(1)]);
       await open(tester);
 
-      // Quella del riquadro e quella della lista completa.
-      expect(find.text('Release'), findsNWidgets(2));
+      // Quella del riquadro; la lista completa ha solo la scelta, fuori
+      // dalla tabella.
+      expect(find.text('Release'), findsOneWidget);
       expect(
           tester.getTopLeft(find.text('Release').first).dy,
           lessThan(tester.getTopLeft(find.text('E1')).dy));

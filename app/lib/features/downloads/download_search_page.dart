@@ -1,44 +1,66 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
 import '../../core/downloads/downloads_api.dart';
+import '../../core/jellyfin/image_urls.dart';
 import '../../core/space/space_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/wf_image.dart';
 import '../admin/admin_confirm_dialog.dart';
+import '../admin/admin_kit.dart';
 import '../admin/admin_widgets.dart';
 import '../social/social_providers.dart';
 import '../space/space_labels.dart';
 import '../space/space_providers.dart';
 import 'download_labels.dart';
 import 'download_search_controller.dart';
+import 'weight_ruler.dart';
 
 /// La pagina a tutto schermo con le release di un titolo (spec T §8.2).
 /// [reviewing]: aperta da "Da ripassare", con "Va bene così". [lighten]: da
 /// "Alleggerisci", il titolo scaricato resta "va bene così" (niente upgrade
-/// automatici).
+/// automatici). [image]: lo sfondo della testa, [blurImage] per le locandine
+/// (sfocate), non per i backdrop.
 Future<void> showDownloadSearch(
   BuildContext context,
   String key,
   String title, {
   bool reviewing = false,
   bool lighten = false,
+  ImageRef? image,
+  bool blurImage = false,
 }) =>
     showDialog<void>(
       context: context,
       useSafeArea: false,
       builder: (context) => Dialog.fullscreen(
         child: _SearchPage(
-            dlKey: key, title: title, reviewing: reviewing, lighten: lighten),
+            dlKey: key,
+            title: title,
+            reviewing: reviewing,
+            lighten: lighten,
+            image: image,
+            blurImage: blurImage),
       ),
     );
+
+/// La spia dei seeders: spenta a 0 o sconosciuti, oro da 1 a 9, verde da 10.
+LampState seedersLamp(int? seeders) => switch (seeders) {
+      null || <= 0 => LampState.off,
+      < 10 => LampState.attention,
+      _ => LampState.ok,
+    };
 
 /// Apre nel browser la ricerca sul tracker esterno; se non parte lo dice.
 Future<void> openExternalSearch(BuildContext context, String url) async {
@@ -63,12 +85,16 @@ class _SearchPage extends ConsumerWidget {
     required this.title,
     required this.reviewing,
     required this.lighten,
+    required this.image,
+    required this.blurImage,
   });
 
   final String dlKey;
   final String title;
   final bool reviewing;
   final bool lighten;
+  final ImageRef? image;
+  final bool blurImage;
 
   /// Un errore dopo un'azione: la pagina resta, con il messaggio.
   void _fail(BuildContext context, DownloadsFailure failure) =>
@@ -243,10 +269,30 @@ class _SearchPage extends ConsumerWidget {
         ),
       );
     } else {
-      body = ListView(
-        padding: EdgeInsets.fromLTRB(margin, 8, margin, 40),
-        children: [
-          _Header(
+      // La scelta da sola sopra la tabella; con Alleggerisci, se è il file
+      // che c'è già, resta in tabella senza "Scarica".
+      final pick = search.candidates
+          .where((c) => c.isChoice && !(lighten && search.isCurrentFile(c.release)))
+          .firstOrNull;
+      final rows = [
+        for (final c in search.candidates)
+          if (c != pick) c,
+      ];
+      final maxScore =
+          search.candidates.fold(0, (m, c) => math.max(m, c.release.score));
+      final marks = rulerMarks(search);
+      final freed = freedBytes(search);
+      return Scaffold(
+        body: ListView(
+          padding: const EdgeInsets.only(bottom: 40),
+          children: [
+            _Hero(search: search, image: image, blur: blurImage),
+            Padding(
+              padding: EdgeInsets.fromLTRB(margin, 12, margin, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+          _Actions(
             search: search,
             onAgain: busy ? null : again,
             // Solo un plugin con le ricerche in background conosce l'Engine.
@@ -270,6 +316,12 @@ class _SearchPage extends ConsumerWidget {
               child: Text(l.downloadsNothingLighter(search.current!.score),
                   style: const TextStyle(color: WfColors.creamMuted)),
             ),
+          if (marks.length >= 2) ...[
+            AdminSectionTitle(
+                title: l.downloadsWeightsTitle, note: l.downloadsWeightsHint),
+            WeightRuler(marks: marks, currentBytes: search.current?.sizeBytes),
+            const SizedBox(height: 8),
+          ],
           if (search.episodeChoices.isNotEmpty)
             _BestEpisodes(
               choices: search.episodeChoices,
@@ -280,37 +332,42 @@ class _SearchPage extends ConsumerWidget {
               onGrabAll: (withRelease) => _grabAll(context, ref, withRelease),
             ),
           if (search.candidates.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
-          if (search.candidates.isEmpty && search.externalSearchUrl != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: OutlinedButton(
-                  onPressed: () =>
-                      openExternalSearch(context, search.externalSearchUrl!),
-                  child: Text(l.downloadsExternalSearch),
-                ),
-              ),
+          if (pick != null) ...[
+            AdminSectionTitle(title: l.downloadsRuleChoiceTitle),
+            _ChoiceBlock(
+              key: ValueKey('candidate-${pick.release.guid}'),
+              search: search,
+              candidate: pick,
+              freedBytes: freed,
+              onGrab: busy
+                  ? null
+                  : () => _grab(context, ref, search.current?.score,
+                      pick.release,
+                      wouldImport: pick.wouldImport),
             ),
-          if (search.candidates.isNotEmpty &&
-              !FormFactor.of(context).compact)
-            const _TableHead(),
-          for (final c in search.candidates)
+          ],
+          if (rows.isNotEmpty) ...[
+            AdminSectionTitle(title: l.downloadsAllReleases, count: rows.length),
+            if (!FormFactor.of(context).compact) const _TableHead(),
+          ],
+          for (final c in rows)
             _CandidateRow(
               key: ValueKey('candidate-${c.release.guid}'),
               candidate: c,
+              maxScore: maxScore,
               isCurrent: lighten && search.isCurrentFile(c.release),
               onGrab: busy
                   ? null
                   : () => _grab(context, ref, search.current?.score, c.release,
                       wouldImport: c.wouldImport),
             ),
-          if (search.rejected.isNotEmpty) ...[
-            AdminSectionTitle(
-                title: '${l.downloadsRejectedTitle} · ${search.rejected.length}'),
-            for (final r in search.rejected) _RejectedRow(rejected: r),
+          if (search.rejected.isNotEmpty)
+            _RejectedSection(rejected: search.rejected),
+                ],
+              ),
+            ),
           ],
-        ],
+        ),
       );
     }
     return Scaffold(
@@ -424,8 +481,156 @@ class _SearchRunningState extends State<_SearchRunning> {
 String _arrService(DownloadSearch search) =>
     search.kind == DownloadKind.movie ? 'Radarr' : 'Sonarr';
 
-class _Header extends StatelessWidget {
-  const _Header({
+/// La testa: lo sfondo del titolo col velo, "← Download", il titolo, la riga
+/// meta e la scheda tecnica del file attuale (sotto, nello stretto).
+class _Hero extends StatelessWidget {
+  const _Hero({required this.search, required this.image, required this.blur});
+
+  final DownloadSearch search;
+  final ImageRef? image;
+  final bool blur;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final compact = FormFactor.of(context).compact;
+    final margin = adminSideMargin(context);
+    final inset = MediaQuery.paddingOf(context).top;
+    final image = this.image;
+    const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+    final spec = _SpecCard(search: search);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: (compact ? 150 : 190) + inset,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              const ColoredBox(color: WfColors.surfaceHigh),
+              if (image != null)
+                ClipRect(
+                  child: blur
+                      ? ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: WfImage(image: image, fallbackIcon: null))
+                      : WfImage(image: image, fallbackIcon: null),
+                ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [WfColors.bg, WfColors.bg.withValues(alpha: 0.25)],
+                    stops: const [0.08, 1],
+                  ),
+                ),
+              ),
+              Positioned(
+                top: inset + 8,
+                left: margin - 8,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                      foregroundColor: WfColors.creamMuted),
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(LucideIcons.arrowLeft, size: 16),
+                  label: Text(l.adminTabDownloads),
+                ),
+              ),
+              Positioned(
+                left: margin,
+                right: margin,
+                bottom: 16,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(search.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: WfText.display(compact ? 32 : 44)),
+                          const SizedBox(height: 4),
+                          Wrap(spacing: 18, runSpacing: 4, children: [
+                            Text(l.downloadsRuntime(search.runtimeMinutes),
+                                style: muted),
+                            Text(
+                                l.downloadsValidOf(
+                                    search.validCount, search.totalCount),
+                                style: muted),
+                            if (search.engine == SearchEngine.arr)
+                              Text(l.downloadsResultsFromArr(
+                                      _arrService(search)),
+                                  style: muted),
+                          ]),
+                        ],
+                      ),
+                    ),
+                    if (!compact) ...[const SizedBox(width: 20), spec],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (compact)
+          Padding(
+              padding: EdgeInsets.fromLTRB(margin, 12, margin, 0),
+              child: spec),
+      ],
+    );
+  }
+}
+
+/// La "scheda tecnica" del file attuale: peso, punteggio e qualità, GB/ora.
+class _SpecCard extends StatelessWidget {
+  const _SpecCard({required this.search});
+
+  final DownloadSearch search;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final current = search.current;
+    final rate = current == null ? null : gbPerHour(search, current.sizeBytes);
+    return Container(
+      constraints: const BoxConstraints(minWidth: 230, maxWidth: 340),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: WfColors.surface.withValues(alpha: 0.85),
+        border: Border.all(color: WfColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: current == null
+          ? Text(l.downloadsNoFile,
+              style: const TextStyle(color: WfColors.creamMuted))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(formatGb(l, current.sizeBytes),
+                    style: WfText.display(26)),
+                Text(
+                    '${l.downloadsColScore} ${current.score} · '
+                    '${current.quality}',
+                    style: const TextStyle(
+                        color: WfColors.creamMuted, fontSize: 12)),
+                if (rate != null)
+                  Text(gbPerHourLabel(l, rate),
+                      style:
+                          const TextStyle(color: WfColors.gold, fontSize: 12)),
+              ],
+            ),
+    );
+  }
+}
+
+/// La riga delle azioni sotto la testa; "Cerca su MIRCrew" a destra.
+class _Actions extends StatelessWidget {
+  const _Actions({
     required this.search,
     required this.onAgain,
     required this.showViaArr,
@@ -449,25 +654,12 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final current = search.current;
-    const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
-    return Wrap(
-      spacing: 16,
+    final external = search.externalSearchUrl;
+    final buttons = Wrap(
+      spacing: 8,
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text(search.title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-        Text(l.downloadsRuntime(search.runtimeMinutes), style: muted),
-        Text(
-            current == null
-                ? l.downloadsNoFile
-                : l.downloadsCurrentFile(
-                    formatGb(l, current.sizeBytes), current.score, current.quality),
-            style: muted),
-        Text(l.downloadsValidOf(search.validCount, search.totalCount),
-            style: muted),
-        if (search.engine == SearchEngine.arr)
-          Text(l.downloadsResultsFromArr(_arrService(search)), style: muted),
         OutlinedButton(onPressed: onAgain, child: Text(l.downloadsSearchAgain)),
         if (showViaArr)
           OutlinedButton(
@@ -481,6 +673,20 @@ class _Header extends StatelessWidget {
               style: _compactButton,
               onPressed: onAccept,
               child: Text(l.downloadsAccept)),
+      ],
+    );
+    // Come prima: MIRCrew solo quando non c'è niente da scaricare.
+    if (search.candidates.isNotEmpty || external == null) return buttons;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.spaceBetween,
+      children: [
+        buttons,
+        OutlinedButton(
+          onPressed: () => openExternalSearch(context, external),
+          child: Text(l.downloadsExternalSearch),
+        ),
       ],
     );
   }
@@ -627,6 +833,7 @@ class _CandidateRow extends StatelessWidget {
     required this.onGrab,
     this.rankText,
     this.isCurrent = false,
+    this.maxScore,
   });
 
   final DownloadCandidate candidate;
@@ -638,12 +845,15 @@ class _CandidateRow extends StatelessWidget {
   /// Al posto del rango (per "E12" nel riquadro dei migliori episodi).
   final String? rankText;
 
+  /// Il punteggio più alto della tabella, per la barretta; null: niente.
+  final int? maxScore;
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final r = candidate.release;
     final compact = FormFactor.of(context).compact;
-    final highlight = candidate.isChoice && !isCurrent;
+    final top = maxScore;
     final button = isCurrent
         ? null
         : FilledButton(
@@ -672,12 +882,33 @@ class _CandidateRow extends StatelessWidget {
           )
         : Row(children: [
             SizedBox(
-                width: _colRank, child: Text(rankText ?? '${candidate.rank}')),
+                width: _colRank,
+                child: Text(rankText ?? '${candidate.rank}',
+                    style: WfText.display(18, color: WfColors.creamMuted))),
             Expanded(flex: 4, child: name),
-            SizedBox(width: _colScore, child: Text('${r.score}')),
+            SizedBox(
+                width: _colScore,
+                child: Row(children: [
+                  if (top != null && top > 0) ...[
+                    Container(
+                      width: 40 * (r.score / top).clamp(0.0, 1.0),
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: WfColors.gold,
+                          borderRadius: BorderRadius.circular(2)),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(child: Text('${r.score}')),
+                ])),
             SizedBox(width: _colSize, child: Text(size)),
-            SizedBox(width: _colSeeders, child: Text(seeders)),
-            Expanded(flex: 2, child: Text(r.indexer)),
+            SizedBox(
+                width: _colSeeders,
+                child: _Seeders(seeders: r.seeders)),
+            Expanded(
+                flex: 2,
+                child: Text(r.indexer,
+                    style: const TextStyle(color: WfColors.creamMuted))),
             SizedBox(
                 width: _colButton,
                 child: button == null
@@ -686,13 +917,12 @@ class _CandidateRow extends StatelessWidget {
                         alignment: AlignmentDirectional.centerEnd,
                         child: button)),
           ]);
-    return Container(
+    final row = Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        // Come la bozza: la scelta della regola ha lo sfondo del film.
-        color: highlight ? WfColors.calendarMovie : WfColors.surface,
-        border: Border.all(color: highlight ? WfColors.gold : WfColors.border),
+        color: WfColors.surface,
+        border: Border.all(color: WfColors.border),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -705,15 +935,185 @@ class _CandidateRow extends StatelessWidget {
               child: Text(l.downloadsIsCurrentFile,
                   style:
                       const TextStyle(color: WfColors.creamMuted, fontSize: 13)),
-            )
-          else if (candidate.isChoice)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(choiceWhy(l, candidate),
-                  style: const TextStyle(color: WfColors.gold, fontSize: 13)),
             ),
         ],
       ),
+    );
+    return isCurrent ? Opacity(opacity: 0.6, child: row) : row;
+  }
+}
+
+/// La spia e il numero dei seeders ("-" se sconosciuti).
+class _Seeders extends StatelessWidget {
+  const _Seeders({required this.seeders, this.suffix});
+
+  final int? seeders;
+  final String? suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final n = seeders?.toString() ?? '-';
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      WfLamp(
+          state: seedersLamp(seeders),
+          label: '${l.downloadsColSeeders} $n',
+          size: 8),
+      const SizedBox(width: 5),
+      Flexible(child: Text(suffix == null ? n : '$n $suffix')),
+    ]);
+  }
+}
+
+/// La scelta della regola, da sola sopra la tabella (spec "La ricerca
+/// manuale"): lo stesso "Scarica" e le stesse conferme di [_CandidateRow].
+class _ChoiceBlock extends StatelessWidget {
+  const _ChoiceBlock({
+    super.key,
+    required this.search,
+    required this.candidate,
+    required this.freedBytes,
+    required this.onGrab,
+  });
+
+  final DownloadSearch search;
+  final DownloadCandidate candidate;
+  final int? freedBytes;
+  final VoidCallback? onGrab;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final r = candidate.release;
+    final compact = FormFactor.of(context).compact;
+    final rate = gbPerHour(search, r.sizeBytes);
+    final freed = freedBytes;
+    const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+    const gold = TextStyle(color: WfColors.gold, fontSize: 12);
+    final rank =
+        Text('${candidate.rank}', style: WfText.display(30, color: WfColors.gold));
+    final button = FilledButton(
+        style: _compactButton, onPressed: onGrab, child: Text(l.downloadsGrab));
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(r.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 5),
+        DefaultTextStyle.merge(
+          style: muted,
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('${l.downloadsColScore} ${r.score}'),
+              Text([
+                formatGb(l, r.sizeBytes),
+                if (rate != null) gbPerHourLabel(l, rate),
+              ].join(', ')),
+              _Seeders(seeders: r.seeders, suffix: l.downloadsColSeeders),
+              Text(r.indexer),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(spacing: 6, children: [
+          Text(choiceWhy(l, candidate), style: gold),
+          if (freed != null)
+            Text(l.downloadsFrees(formatGb(l, freed)), style: gold),
+        ]),
+      ],
+    );
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: WfColors.calendarMovie,
+        border: Border.all(color: WfColors.gold),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: compact
+          ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                rank,
+                const SizedBox(width: 12),
+                Expanded(child: details),
+              ]),
+              const SizedBox(height: 8),
+              Align(alignment: AlignmentDirectional.centerEnd, child: button),
+            ])
+          : Row(children: [
+              rank,
+              const SizedBox(width: 16),
+              Expanded(child: details),
+              const SizedBox(width: 16),
+              button,
+            ]),
+    );
+  }
+}
+
+/// Gli scartati, chiusi: un riepilogo per motivo e "Mostra" per l'elenco.
+class _RejectedSection extends StatefulWidget {
+  const _RejectedSection({required this.rejected});
+
+  final List<DownloadRejected> rejected;
+
+  @override
+  State<_RejectedSection> createState() => _RejectedSectionState();
+}
+
+class _RejectedSectionState extends State<_RejectedSection> {
+  bool _shown = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final counts = <String, int>{};
+    for (final r in widget.rejected) {
+      counts.update(rejectedLabel(l, r), (n) => n + 1, ifAbsent: () => 1);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AdminSectionTitle(
+          title: l.downloadsRejectedTitle,
+          count: widget.rejected.length,
+          action: _shown
+              ? null
+              : TextButton(
+                  onPressed: () => setState(() => _shown = true),
+                  child: Text(l.downloadsShow)),
+        ),
+        if (_shown)
+          for (final r in widget.rejected) _RejectedRow(rejected: r)
+        else
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final MapEntry(:key, :value) in counts.entries)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  border: Border.all(color: WfColors.border),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                        text: '$value',
+                        style: const TextStyle(
+                            color: WfColors.cream,
+                            fontWeight: FontWeight.w600)),
+                    TextSpan(text: ' $key'),
+                  ]),
+                  style:
+                      const TextStyle(color: WfColors.creamMuted, fontSize: 13),
+                ),
+              ),
+          ]),
+      ],
     );
   }
 }

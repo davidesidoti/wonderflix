@@ -674,7 +674,7 @@ void main() {
     expect(find.text('Voce movie:2'), findsWidgets);
     expect(api.calls, ['search movie:2']);
 
-    await tester.tap(find.byIcon(Icons.close));
+    await tester.tap(find.byIcon(LucideIcons.arrowLeft));
     await tester.pumpAndSettle();
     expect(api.calls, ['search movie:2', 'overview']);
   });

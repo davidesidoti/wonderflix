@@ -15,6 +15,7 @@ import '../../ui/wf_dialog.dart';
 import '../../ui/wf_image.dart';
 import '../detail/detail_providers.dart';
 import '../downloads/download_search_page.dart';
+import '../library/library_providers.dart';
 import '../playback/play_launcher.dart';
 import 'space_actions.dart';
 import 'space_controller.dart';
@@ -326,7 +327,12 @@ class _TitleBodyState extends ConsumerState<_TitleBody> {
     WidgetRef ref,
     String title,
   ) async {
-    await showDownloadSearch(context, candidate.key, title, lighten: true);
+    final itemId = candidate.itemId;
+    await showDownloadSearch(context, candidate.key, title,
+        lighten: true,
+        image: itemId == null
+            ? null
+            : ref.read(imageUrlsProvider).backdropOf(itemId, maxWidth: 1280));
     if (context.mounted) {
       await ref.read(spaceControllerProvider.notifier).reload();
     }

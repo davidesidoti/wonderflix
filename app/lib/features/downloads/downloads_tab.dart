@@ -10,6 +10,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
 import '../../core/downloads/downloads_api.dart';
+import '../../core/requests/remote_images.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
@@ -183,8 +184,12 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
 
   /// Apre la ricerca; chiusa la pagina rilegge (un grab finito dopo la
   /// chiusura lascerebbe la panoramica vecchia fino al giro dopo).
-  Future<void> _open(String key, String title, {bool reviewing = false}) async {
-    await showDownloadSearch(context, key, title, reviewing: reviewing);
+  Future<void> _open(String key, String title,
+      {bool reviewing = false, String? posterUrl}) async {
+    await showDownloadSearch(context, key, title,
+        reviewing: reviewing,
+        image: posterUrl == null ? null : RemoteImages.poster(posterUrl),
+        blurImage: true);
     if (mounted) await _reload();
   }
 
@@ -193,7 +198,7 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
   Future<void> _act(DownloadAction action, DownloadItem item) async {
     final key = item.key;
     if (action == DownloadAction.pick) {
-      unawaited(_open(key, item.title));
+      unawaited(_open(key, item.title, posterUrl: item.posterUrl));
       return;
     }
     if (action == DownloadAction.externalSearch) {
@@ -431,7 +436,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
               ),
               choice: choice,
               now: now,
-              onChange: () => unawaited(_open(choice.key, choice.title)),
+              onChange: () => unawaited(
+                  _open(choice.key, choice.title, posterUrl: choice.posterUrl)),
             ),
           if (!filtering &&
               !_allRecent &&
@@ -471,7 +477,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
                       )
                   : null,
               onOpen: () =>
-                  unawaited(_open(item.key, item.title, reviewing: true)),
+                  unawaited(_open(item.key, item.title,
+                      reviewing: true, posterUrl: item.posterUrl)),
             ),
           if (!filtering && review.length > _reviewShown)
             _MoreButton(

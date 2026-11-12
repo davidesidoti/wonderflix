@@ -18,6 +18,7 @@ import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
 import '../downloads/download_search_page.dart';
+import '../library/library_providers.dart';
 import 'space_actions.dart';
 import 'space_bulk.dart';
 import 'space_controller.dart';
@@ -92,8 +93,12 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
     }
   }
 
-  Future<void> _lighten(String key, String title) async {
-    await showDownloadSearch(context, key, title, lighten: true);
+  Future<void> _lighten(String key, String title, String? itemId) async {
+    await showDownloadSearch(context, key, title,
+        lighten: true,
+        image: itemId == null
+            ? null
+            : ref.read(imageUrlsProvider).backdropOf(itemId, maxWidth: 1280));
     if (mounted) await _reload();
   }
 
@@ -709,7 +714,8 @@ class _SpaceTabState extends ConsumerState<SpaceTab> {
               item: i,
               onOpen: () => unawaited(showSpaceLighten(context, i)),
               onLighten: () =>
-                  _lighten(i.key, spaceTitleOf(l, i.title, i.seasonNumber)),
+                  _lighten(i.key, spaceTitleOf(l, i.title, i.seasonNumber),
+                      i.itemId),
               onImport: () => _import(i.key),
             ),
           ),
