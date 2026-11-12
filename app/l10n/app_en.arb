@@ -1118,6 +1118,8 @@
   "downloadsBacklogTitle": "automatic searches",
   "downloadsBacklogPaused": "Paused",
   "downloadsBacklogManualSearch": "Paused: manual search running",
+  "downloadsBacklogRunning": "Running",
+  "downloadsBacklogBroken": "Sonarr or Radarr not responding",
   "downloadsBacklogEstimating": "Estimating…",
   "downloadsBacklogEndToday": "Estimated end around {time} (~{duration})",
   "@downloadsBacklogEndToday": {"placeholders": {"time": {"type": "String"}, "duration": {"type": "String"}}},

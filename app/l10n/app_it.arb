@@ -1297,6 +1297,8 @@
   "downloadsBacklogTitle": "ricerche automatiche",
   "downloadsBacklogPaused": "In pausa",
   "downloadsBacklogManualSearch": "In pausa: ricerca manuale in corso",
+  "downloadsBacklogRunning": "In corso",
+  "downloadsBacklogBroken": "Sonarr o Radarr non rispondono",
   "downloadsBacklogEstimating": "Stima in calcolo…",
   "downloadsBacklogEndToday": "Fine stimata verso le {time} (~{duration})",
   "@downloadsBacklogEndToday": {"placeholders": {"time": {"type": "String"}, "duration": {"type": "String"}}},

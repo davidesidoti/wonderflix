@@ -414,6 +414,35 @@ void main() {
       expect(shell.accent, WfColors.gold);
       expect(shell.leftAccent, isTrue);
     });
+
+    testWidgets('Serve te: la scritta di stato è oro, non rossa',
+        (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:5',
+            state: DownloadState.needsYou, actions: [DownloadAction.pick])
+      ]);
+      await pumpTab(tester);
+
+      final label = tester.widget<Text>(find.descendant(
+          of: find.byKey(const ValueKey('item-movie:5')),
+          matching: find.text('Serve te')));
+      expect(label.style!.color, WfColors.gold);
+    });
+
+    testWidgets('la spia sta al centro della prima riga, con lo stato',
+        (tester) async {
+      api.overviewValue = const DownloadsOverview(
+          enabled: true,
+          progress: SearchProgress(done: 1, remaining: 2, paused: true));
+      await pumpTab(tester);
+
+      final lampY = tester.getCenter(find.byType(WfLamp)).dy;
+      final text = tester.getRect(find.text('1 / 3'));
+      expect(lampY, greaterThan(text.top));
+      expect(lampY, lessThan(text.bottom));
+      expect(tester.widget<WfLamp>(find.byType(WfLamp)).label,
+          'ricerche automatiche: In pausa');
+    });
   });
 
   testWidgets('con la funzione spenta c\'è la nota', (tester) async {

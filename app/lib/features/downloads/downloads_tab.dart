@@ -603,13 +603,22 @@ class _BacklogCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              WfLamp(
-                state: broken
-                    ? LampState.broken
-                    : progress.paused || progress.manualSearch
-                        ? LampState.attention
-                        : LampState.ok,
-                label: l.downloadsBacklogTitle,
+              // Senza baseline la spia andrebbe in cima: il fondo sta 4 px
+              // sopra la linea del testo, cioè al centro delle cifre.
+              Baseline(
+                baseline: 12,
+                baselineType: TextBaseline.alphabetic,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: WfLamp(
+                    state: broken
+                        ? LampState.broken
+                        : progress.paused || progress.manualSearch
+                            ? LampState.attention
+                            : LampState.ok,
+                    label: '${l.downloadsBacklogTitle}: ${broken ? l.downloadsBacklogBroken : progress.manualSearch ? l.downloadsBacklogManualSearch : progress.paused ? l.downloadsBacklogPaused : l.downloadsBacklogRunning}',
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Text(

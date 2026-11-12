@@ -280,7 +280,7 @@ class DownloadItemRow extends StatelessWidget {
         else
           _title(item.title),
         _muted(downloadStateLabel(l, item),
-            color: needsYou ? WfColors.error : WfColors.creamMuted),
+            color: needsYou ? WfColors.gold : WfColors.creamMuted),
         _muted([since, if (next.isNotEmpty) next].join(' · ')),
         if (phase != null) const RowProgressBar(value: null),
         if (why.isNotEmpty) _muted(why, color: WfColors.gold),
