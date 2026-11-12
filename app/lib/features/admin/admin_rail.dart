@@ -90,6 +90,18 @@ class _AdminTabEntryState extends ConsumerState<_AdminTabEntry> {
   bool _focused = false;
 
   @override
+  void initState() {
+    super.initState();
+    // La fila vive dentro la lista di ogni scheda e a ogni cambio si rimonta
+    // da zero: la voce scelta, magari a destra, va riportata in vista.
+    if (!widget.vertical && widget.tab == widget.current) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Scrollable.ensureVisible(context, duration: Duration.zero);
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final selected = widget.tab == widget.current;

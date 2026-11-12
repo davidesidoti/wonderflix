@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/admin_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -135,6 +136,35 @@ void main() {
 
       expect(find.byType(ServerStrip), findsNothing);
       expect(find.byType(AdminTabStrip), findsNothing);
+    });
+
+    testWidgets('cambiando scheda la fila riporta in vista la voce scelta',
+        (tester) async {
+      final router = GoRouter(initialLocation: '/admin', routes: [
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => Scaffold(
+              body: AdminScreen(
+                  tab: AdminTab.parse(state.uri.queryParameters['tab']))),
+        ),
+      ]);
+      await pumpAppRouter(tester, router,
+          overrides: adminTestOverrides(api, features: all),
+          surfaceSize: narrow,
+          touch: true);
+      await tester.pumpAndSettle();
+
+      final last = find.byKey(tabKey(AdminTab.wonderflix));
+      await tester.ensureVisible(last);
+      await tester.pumpAndSettle();
+      await tester.tap(last);
+      await tester.pumpAndSettle();
+
+      // La scheda nuova rimonta la fila da zero: la voce scelta deve vedersi.
+      final rect = tester.getRect(find.byKey(tabKey(AdminTab.wonderflix)));
+      expect(rect.left, greaterThanOrEqualTo(0));
+      expect(rect.right, lessThanOrEqualTo(390));
+      expect(find.text('Annuncio'), findsOneWidget);
     });
 
     testWidgets('server in errore: Riprova e Riavvia, anche con la scheda in '

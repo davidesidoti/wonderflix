@@ -9,6 +9,7 @@ import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/admin/admin_navigation.dart';
 import 'package:wonderflix/features/admin/admin_screen.dart';
+import 'package:wonderflix/features/admin/sessions_tab.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -328,6 +329,7 @@ void main() {
         settle: false);
 
     expect(find.byType(LoadingView), findsOneWidget);
+    expect(find.byType(SessionsTab), findsNothing);
     expect(find.text('viviroby'), findsNothing);
 
     availability.set(const SocialFeatures(inbox: true, account: true));
@@ -347,6 +349,7 @@ void main() {
         settle: false);
 
     expect(find.byType(LoadingView), findsOneWidget);
+    expect(find.byType(SessionsTab), findsNothing);
     expect(find.text('viviroby'), findsNothing);
 
     availability.set(const SocialFeatures(inbox: true));
