@@ -164,6 +164,11 @@ void main() {
     expect(find.textContaining('Idx · Già nel catalogo'), findsOneWidget);
     expect(find.textContaining('Idx · 0,62 GB/ora, sotto la soglia'),
         findsOneWidget);
+
+    await tester.tap(find.text('Nascondi'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Idx · Già nel catalogo'), findsNothing);
+    expect(find.text('1 Già nel catalogo'), findsOneWidget);
   });
 
   testWidgets('the rejected pills count each reason', (tester) async {
@@ -272,9 +277,10 @@ void main() {
     expect(seedersLamp(412), LampState.ok);
   });
 
-  testWidgets('"← Download" closes the page', (tester) async {
+  testWidgets('"← Indietro" closes the page', (tester) async {
     await open(tester);
-    await tester.tap(find.text('Download'));
+    expect(find.text('Download'), findsNothing);
+    await tester.tap(find.text('Indietro'));
     await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
   });
@@ -975,6 +981,11 @@ void main() {
         expect(find.byKey(const ValueKey('search-film-strip')), findsOneWidget);
         expect(find.byType(LinearProgressIndicator), findsNothing);
         expect(find.text('Ricerca su Sonarr in corso'), findsOneWidget);
+        // La spia dice a voce la stessa riga che si legge.
+        expect(
+            find.byWidgetPredicate((w) =>
+                w is WfLamp && w.label == 'Ricerca su Sonarr in corso'),
+            findsOneWidget);
         expect(find.text('2:15'), findsOneWidget);
         expect(
             find.text(

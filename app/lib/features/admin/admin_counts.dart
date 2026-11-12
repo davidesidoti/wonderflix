@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/downloads/download_models.dart';
@@ -27,6 +29,17 @@ class AdminCountsController extends AdminTabController<AdminCounts> {
 
   @override
   Duration get interval => every;
+
+  @override
+  AdminData<AdminCounts> build() {
+    final data = super.build();
+    // Le funzioni del plugin si sanno dopo il login (o cambiano): quando
+    // `downloads` si accende o spegne si rilegge subito, senza aspettare il
+    // minuto.
+    ref.listen(socialAvailabilityProvider.select((f) => f.downloads),
+        (_, _) => unawaited(refresh()));
+    return data;
+  }
 
   /// Una lettura che fallisce lascia il valore di prima di quel campo, senza
   /// far fallire le altre.

@@ -48,7 +48,7 @@ final accountUsersControllerProvider = NotifierProvider.autoDispose<
     AccountUsersController,
     AdminData<List<AdminAccountUser>>>(AccountUsersController.new);
 
-/// La card "Recupero password" (spec L §9.6): lo stato dei canali, riletto
+/// La fascia "Recupero password" di Utenti (spec L §9.6): lo stato dei canali, riletto
 /// ogni 30 s, e "Invia prova a me".
 class AccountAdminController extends AdminTabController<AccountAdminStatus> {
   static const every = Duration(seconds: 30);

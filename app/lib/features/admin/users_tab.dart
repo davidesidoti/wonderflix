@@ -90,7 +90,7 @@ class _UsersTabState extends ConsumerState<UsersTab> {
     return ListView(
       controller: _scroll,
       padding: EdgeInsets.fromLTRB(
-          adminSideMargin(context), 8, adminSideMargin(context), 40),
+          adminSideMargin(context), 0, adminSideMargin(context), 40),
       children: [
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),

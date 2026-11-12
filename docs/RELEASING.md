@@ -85,7 +85,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] "Password dimenticata?" nell'accesso con un account di prova non admin con un contatto: il codice arriva, la password nuova fa entrare, arriva l'avviso "password cambiata"; un nome inesistente ha la stessa risposta.
 - [ ] Promemoria "Proteggi il tuo account" nella cassetta per un utente senza contatti; il clic apre Impostazioni.
 - [ ] Amministrazione → Utenti (plugin 1.6.0): righe con "Admin"/"Disattivato" e le icone dei contatti; sulla propria riga niente "Imposta password"; "Imposta password" a un account di prova (le sue sessioni si chiudono), "Invia codice di recupero" (arriva, e con "Ho già un codice" fa cambiare la password), "Scollega contatti".
-- [ ] Amministrazione → WonderFlix → "Recupero password": Discord ed email, utenti con un contatto, promemoria, "Invia prova a me" con l'esito per canale.
+- [ ] Amministrazione → Utenti → fascia "Recupero password" (clic per il dettaglio): Discord ed email, utenti con un contatto, promemoria, "Invia prova a me" con l'esito per canale.
 - [ ] Home (plugin 1.7.0): Serie in arrivo e Film in arrivo con i clic (scheda della serie o pagina Seerr); Perché hai visto X, Le mie richieste, Continua la saga.
 - [ ] Impostazioni → Home: sposta (trascinando, con le frecce, con Alt+↑/↓) e nascondi righe, la Home cambia; "Ripristina la Home predefinita"; il link "Personalizza la Home" in fondo alla Home.
 - [ ] Amministrazione → WonderFlix → "Home per tutti": spegni e riaccendi una riga, cambia l'ordine, "Salva"; "Ripristina" con la conferma. "Sonarr e Radarr": "Prova collegamento".

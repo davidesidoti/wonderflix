@@ -22,7 +22,7 @@ import 'admin_widgets.dart';
 const _muted = TextStyle(color: WfColors.creamMuted);
 
 /// "Invia prova a me" con l'esito accanto: la prova (fino a 24 s) la fanno
-/// allo stesso modo la card e la fascia.
+/// la fascia.
 class _RecoveryTest extends ConsumerStatefulWidget {
   const _RecoveryTest();
 
@@ -129,12 +129,11 @@ class _RecoveryStatus extends ConsumerWidget {
 }
 
 /// Il dettaglio del recupero: canali con l'ultimo errore, conteggi,
-/// promemoria; [probe] (la prova) prima del suggerimento per configurare.
+/// promemoria e dove si configura.
 class _RecoveryDetail extends StatelessWidget {
-  const _RecoveryDetail({required this.status, this.probe});
+  const _RecoveryDetail({required this.status});
 
   final AccountAdminStatus status;
-  final Widget? probe;
 
   List<Widget> _channelLines(AppLocalizations l, AccountChannel channel,
       AccountChannelStatus status, DateTime now) {
@@ -170,7 +169,6 @@ class _RecoveryDetail extends StatelessWidget {
                 ? l.adminRecoveryReminders(status.reminderDays)
                 : l.adminRecoveryRemindersOff,
             style: _muted),
-        if (probe case final probe?) ...[const SizedBox(height: 12), probe],
         const SizedBox(height: 12),
         Text(l.adminRecoveryConfigHint,
             style:
@@ -180,31 +178,10 @@ class _RecoveryDetail extends StatelessWidget {
   }
 }
 
-/// La card "Recupero password" della scheda WonderFlix (spec L §9.6):
-/// Discord ed email, quanti utenti hanno un contatto, i promemoria e "Invia
-/// prova a me". Niente campi: la configurazione è nella Dashboard. Senza la
-/// funzione `account` del plugin la card non c'è; con la funzione il
-/// recupero sta in Utenti ([AccountRecoveryBand]).
-class AccountRecoveryCard extends ConsumerWidget {
-  const AccountRecoveryCard({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (!ref.watch(accountAvailableProvider)) return const SizedBox.shrink();
-    return AdminCard(
-      title: AppLocalizations.of(context).adminRecovery,
-      icon: LucideIcons.keyRound,
-      child: _RecoveryStatus(
-        builder: (status) =>
-            _RecoveryDetail(status: status, probe: const _RecoveryTest()),
-      ),
-    );
-  }
-}
-
 /// La fascia "Recupero password" in cima a Utenti: una spia per canale
 /// (verde configurato, spenta no, rossa con l'ultimo errore) e "Invia prova
-/// a me". Cliccandola si apre sotto il dettaglio della card.
+/// a me". Cliccandola si apre sotto il dettaglio (canali con l'ultimo errore,
+/// conteggi, promemoria). Senza la funzione `account` del plugin non c'è.
 class AccountRecoveryBand extends ConsumerStatefulWidget {
   const AccountRecoveryBand({super.key});
 

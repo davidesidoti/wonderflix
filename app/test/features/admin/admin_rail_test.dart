@@ -85,6 +85,40 @@ void main() {
       expect(find.byKey(tabKey(AdminTab.space)), findsOneWidget);
     });
 
+    testWidgets('le etichette della colonna hanno spazio', (tester) async {
+      await pumpPage(tester);
+
+      final label = find.descendant(
+          of: find.byKey(tabKey(AdminTab.maintenance)),
+          matching: find.text('Manutenzione'));
+      expect(tester.getSize(label).width, greaterThanOrEqualTo(120));
+    });
+
+    testWidgets('i titoli delle schede stanno alla stessa altezza',
+        (tester) async {
+      final titles = {
+        AdminTab.sessions: 'Sessioni',
+        AdminTab.users: 'Utenti',
+        AdminTab.maintenance: 'Manutenzione',
+        AdminTab.wonderflix: 'WonderFlix',
+      };
+      final tops = <AdminTab, double>{};
+      for (final MapEntry(key: tab, value: title) in titles.entries) {
+        await pumpApp(
+          tester,
+          Scaffold(body: AdminScreen(tab: tab)),
+          overrides: adminTestOverrides(api, features: all),
+          surfaceSize: wide,
+        );
+        await tester.pumpAndSettle();
+        tops[tab] = tester.getTopLeft(find.descendant(
+            of: find.byType(AdminTabTitle), matching: find.text(title))).dy;
+      }
+
+      expect(tops.values.toSet().length, 1, reason: '$tops');
+      expect(tops.values.first, greaterThan(0));
+    });
+
     testWidgets('il blocco del server sta in cima alla colonna',
         (tester) async {
       await pumpPage(tester);
@@ -165,6 +199,38 @@ void main() {
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.right, lessThanOrEqualTo(390));
       expect(find.text('Annuncio'), findsOneWidget);
+    });
+
+    testWidgets('aprire una scheda lunga non fa scorrere via il blocco del '
+        'server', (tester) async {
+      final router = GoRouter(initialLocation: '/admin', routes: [
+        GoRoute(
+          path: '/admin',
+          builder: (context, state) => Scaffold(
+              body: AdminScreen(
+                  tab: AdminTab.parse(state.uri.queryParameters['tab']))),
+        ),
+      ]);
+      await pumpAppRouter(tester, router,
+          overrides: adminTestOverrides(api, features: all),
+          surfaceSize: narrow,
+          touch: true);
+      await tester.pumpAndSettle();
+
+      final last = find.byKey(tabKey(AdminTab.wonderflix));
+      await tester.ensureVisible(last);
+      await tester.pumpAndSettle();
+      await tester.tap(last);
+      await tester.pumpAndSettle();
+
+      final vertical = tester.state<ScrollableState>(find
+          .descendant(
+              of: find.byType(ListView).first,
+              matching: find.byType(Scrollable))
+          .first);
+      expect(vertical.position.pixels, 0);
+      expect(tester.getTopLeft(find.byType(ServerStrip)).dy, greaterThanOrEqualTo(0));
+      expect(find.text('Riavvia').hitTestable(), findsOneWidget);
     });
 
     testWidgets('server in errore: Riprova e Riavvia, anche con la scheda in '

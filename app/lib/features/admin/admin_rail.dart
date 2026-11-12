@@ -93,10 +93,15 @@ class _AdminTabEntryState extends ConsumerState<_AdminTabEntry> {
   void initState() {
     super.initState();
     // La fila vive dentro la lista di ogni scheda e a ogni cambio si rimonta
-    // da zero: la voce scelta, magari a destra, va riportata in vista.
+    // da zero: la voce scelta, magari a destra, va riportata in vista. Solo
+    // nella fila orizzontale: `Scrollable.ensureVisible` scorrerebbe anche la
+    // lista verticale della scheda, portando via il blocco del server.
     if (!widget.vertical && widget.tab == widget.current) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) Scrollable.ensureVisible(context, duration: Duration.zero);
+        if (!mounted) return;
+        Scrollable.maybeOf(context, axis: Axis.horizontal)?.position.ensureVisible(
+            context.findRenderObject()!,
+            duration: Duration.zero);
       });
     }
   }
@@ -142,7 +147,9 @@ class _AdminTabEntryState extends ConsumerState<_AdminTabEntry> {
                   children: [
                     Icon(adminTabIcon(widget.tab), size: 16, color: color),
                     const SizedBox(width: 9),
-                    Flexible(
+                    // Nella colonna la voce prende tutto lo spazio che resta (il
+                    // pallino va a destra); nella fila ha la sua larghezza.
+                    (widget.vertical ? Expanded.new : Flexible.new)(
                       child: Text(
                         adminTabLabel(l, widget.tab),
                         maxLines: 1,
@@ -153,7 +160,6 @@ class _AdminTabEntryState extends ConsumerState<_AdminTabEntry> {
                                 selected ? FontWeight.w600 : FontWeight.w400),
                       ),
                     ),
-                    if (widget.vertical) const Spacer(),
                     if (count != null) ...[
                       const SizedBox(width: 8),
                       _CountDot(count),

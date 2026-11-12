@@ -9,6 +9,7 @@ import 'package:wonderflix/features/social/social_providers.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/download_fakes.dart';
+import '../../support/social_fakes.dart';
 
 DownloadItem _item(String key, DownloadState state) => DownloadItem(
       key: key,
@@ -79,6 +80,27 @@ void main() {
     final counts = container.read(adminCountsProvider).value!;
     expect(counts.needsYou, isNull);
     expect(counts.playing, 0);
+  });
+
+  test('downloads switching on is read at once, not after 60 s', () async {
+    final availability =
+        FakeSocialAvailability(const SocialFeatures(inbox: true));
+    downloads.overviewValue = DownloadsOverview(enabled: true, waiting: [
+      _item('n', DownloadState.needsYou),
+    ]);
+    final container = ProviderContainer.test(
+      overrides: adminTestOverrides(api,
+          downloads: downloads, availability: availability),
+      retry: (_, _) => null,
+    );
+    container.listen(adminCountsProvider, (_, _) {});
+    await pumpEventQueue();
+    expect(container.read(adminCountsProvider).value!.needsYou, isNull);
+
+    availability.set(const SocialFeatures(inbox: true, downloads: true));
+    await pumpEventQueue();
+
+    expect(container.read(adminCountsProvider).value!.needsYou, 1);
   });
 
   test('a failed read keeps the previous value', () async {

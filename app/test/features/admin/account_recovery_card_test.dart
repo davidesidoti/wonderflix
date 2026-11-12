@@ -19,25 +19,19 @@ void main() {
 
   setUp(() => plugin = FakePluginAdminApi());
 
-  Future<void> pumpCard(WidgetTester tester,
-      {SocialFeatures features =
-          const SocialFeatures(inbox: true, account: true)}) async {
+  /// La fascia con il dettaglio già aperto (dove stanno canali e conteggi).
+  Future<void> pumpCard(WidgetTester tester) async {
     await pumpApp(
         tester,
         const Scaffold(
-            body: SingleChildScrollView(child: AccountRecoveryCard())),
+            body: SingleChildScrollView(child: AccountRecoveryBand())),
         overrides: adminTestOverrides(FakeAdminApi(),
-            plugin: plugin, features: features));
+            plugin: plugin,
+            features: const SocialFeatures(inbox: true, account: true)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Recupero password'));
     await tester.pumpAndSettle();
   }
-
-  testWidgets('senza la funzione account: niente card, niente letture',
-      (tester) async {
-    await pumpCard(tester, features: const SocialFeatures(inbox: true));
-
-    expect(find.text('Recupero password'), findsNothing);
-    expect(plugin.count('accountStatus'), 0);
-  });
 
   testWidgets('canali, ultimo errore, conteggi, promemoria, dove si configura',
       (tester) async {
@@ -69,38 +63,6 @@ void main() {
     expect(find.textContaining('Ultimo errore'), findsNothing);
   });
 
-  testWidgets('Invia prova a me: l\'esito per canale', (tester) async {
-    await pumpCard(tester);
-
-    await tester.tap(find.text('Invia prova a me'));
-    await tester.pumpAndSettle();
-
-    expect(plugin.calls, contains('accountTest:it'));
-    expect(find.text('Discord: inviato · Email: collega prima il tuo contatto'),
-        findsOneWidget);
-  });
-
-  testWidgets('lettura fallita: l\'errore della card', (tester) async {
-    plugin.accountStatusError = const ServerUnreachableException();
-    await pumpCard(tester);
-
-    expect(find.byType(AdminCardError), findsOneWidget);
-  });
-
-  testWidgets('lettura fallita, poi Riprova: la card si riempie',
-      (tester) async {
-    plugin.accountStatusError = const ServerUnreachableException();
-    await pumpCard(tester);
-    expect(find.text('Discord: configurato'), findsNothing);
-
-    plugin.accountStatusError = null;
-    await tester.tap(find.text('Riprova'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(AdminCardError), findsNothing);
-    expect(find.text('Discord: configurato'), findsOneWidget);
-  });
-
   testWidgets('rilettura fallita con i dati di prima: "Dati non aggiornati"',
       (tester) async {
     await pumpCard(tester);
@@ -130,15 +92,15 @@ void main() {
     expect(find.textContaining('Discord: inviato'), findsNothing);
   });
 
-  group('card fuori vista durante la prova', () {
-    /// La card in una lista lunga, in una finestra bassa: scorrendo la card
-    /// esce dalla vista.
+  group('fascia fuori vista durante la prova', () {
+    /// La fascia in una lista lunga, in una finestra bassa: scorrendo esce
+    /// dalla vista.
     Future<void> pumpScrolling(WidgetTester tester) async {
       await pumpApp(
           tester,
           Scaffold(
               body: ListView(children: const [
-            AccountRecoveryCard(),
+            AccountRecoveryBand(),
             SizedBox(height: 3000),
           ])),
           overrides: adminTestOverrides(FakeAdminApi(),
@@ -161,7 +123,7 @@ void main() {
       await tester.pump();
       await scroll(tester, -2500);
       expect(find.text('Invia prova a me'), findsNothing,
-          reason: 'la card è fuori vista');
+          reason: 'la fascia è fuori vista');
 
       gate.complete();
       await tester.pumpAndSettle();
@@ -171,7 +133,7 @@ void main() {
           'contatto'), findsOneWidget);
     });
 
-    testWidgets('la card tiene lo stato: il pulsante resta spento',
+    testWidgets('la fascia tiene lo stato: il pulsante resta spento',
         (tester) async {
       plugin.accountActionGate = Completer<void>();
       await pumpScrolling(tester);

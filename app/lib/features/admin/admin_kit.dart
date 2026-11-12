@@ -75,8 +75,14 @@ class AdminTabTitle extends StatelessWidget {
         ],
       ],
     );
-    if (actions.isEmpty) return head;
-    if (FormFactor.of(context).compact) {
+    // Nel largo il titolo sta 18 px sotto il bordo, uguale in ogni scheda; nello
+    // stretto sta sotto il blocco del server, senza altro spazio.
+    final compact = FormFactor.of(context).compact;
+    final top = compact ? 0.0 : 18.0;
+    if (actions.isEmpty) {
+      return Padding(padding: EdgeInsets.only(top: top), child: head);
+    }
+    if (compact) {
       return Wrap(
         spacing: 12,
         runSpacing: 8,
@@ -84,12 +90,14 @@ class AdminTabTitle extends StatelessWidget {
         children: [head, ...actions],
       );
     }
-    return Row(
-      children: [
-        Flexible(child: head),
-        const Spacer(),
-        Wrap(spacing: 8, children: actions),
-      ],
+    return Padding(
+      padding: EdgeInsets.only(top: top),
+      child: Row(
+        children: [
+          Expanded(child: head),
+          Wrap(spacing: 8, children: actions),
+        ],
+      ),
     );
   }
 }
@@ -116,16 +124,24 @@ class AdminSectionTitle extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            Flexible(child: Text(title, style: WfText.display(20))),
-            if (count != null) ...[
-              const SizedBox(width: 8),
-              Text('$count', style: _mutedStyle(12)),
-            ],
-            if (note != null) ...[
-              const SizedBox(width: 8),
-              Flexible(child: Text(note!, style: _mutedStyle(12))),
-            ],
-            if (action != null) ...[const Spacer(), action!],
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Flexible(child: Text(title, style: WfText.display(20))),
+                  if (count != null) ...[
+                    const SizedBox(width: 8),
+                    Text('$count', style: _mutedStyle(12)),
+                  ],
+                  if (note != null) ...[
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(note!, style: _mutedStyle(12))),
+                  ],
+                ],
+              ),
+            ),
+            ?action,
           ],
         ),
       );

@@ -75,6 +75,29 @@ void main() {
     expect(find.text('2'), findsOneWidget);
   });
 
+  testWidgets('AdminSectionTitle: con l azione il titolo ha più di metà riga',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 400,
+            child: AdminSectionTitle(
+              title: 'Un titolo di sezione molto lungo',
+              action: SizedBox(width: 100, height: 20),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+        tester.getSize(find.text('Un titolo di sezione molto lungo')).width,
+        greaterThan(200));
+  });
+
   testWidgets('AdminTabTitle: titolo, conteggio e azioni', (tester) async {
     await pumpApp(
       tester,

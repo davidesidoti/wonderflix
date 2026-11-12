@@ -31,6 +31,20 @@ void main() {
     expect(find.byKey(const Key('activity-severity-11950-warning')),
         findsOneWidget);
     expect(find.byKey(const Key('activity-severity-11904-error')), findsOneWidget);
+    // Il punto dice la gravità anche a parole.
+    for (final (key, label) in [
+      ('12134-info', 'Informazione'),
+      ('11950-warning', 'Avviso'),
+      ('11904-error', 'Errore'),
+    ]) {
+      expect(
+          find.ancestor(
+              of: find.byKey(Key('activity-severity-$key')),
+              matching: find.byWidgetPredicate(
+                  (w) => w is Semantics && w.properties.label == label)),
+          findsOneWidget,
+          reason: key);
+    }
 
     // Il dettaglio si apre con un clic.
     expect(find.text('Nome utente o password non validi.'), findsNothing);

@@ -179,15 +179,15 @@ class PlayingSessionCard extends ConsumerWidget {
                 item.seriesId ?? item.itemId,
                 maxWidth: 960),
           ),
-          const DecoratedBox(
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  Color.fromRGBO(10, 10, 10, 0.95),
-                  Color.fromRGBO(10, 10, 10, 0.95),
-                  Color.fromRGBO(10, 10, 10, 0.2),
+                  WfColors.bg.withValues(alpha: 0.95),
+                  WfColors.bg.withValues(alpha: 0.95),
+                  WfColors.bg.withValues(alpha: 0.2),
                 ],
                 stops: [0, 0.25, 1],
               ),

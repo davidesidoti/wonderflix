@@ -295,11 +295,24 @@ class _ActivityRowState extends State<ActivityRow> {
             ),
             Padding(
               padding: const EdgeInsets.only(top: 6),
-              child: DecoratedBox(
-                key: Key('activity-severity-${entry.id}-${entry.severity.name}'),
-                decoration: BoxDecoration(
-                    color: activityDotColor(entry), shape: BoxShape.circle),
-                child: const SizedBox.square(dimension: 8),
+              // Il colore non basta: la gravità la dice anche ai lettori di
+              // schermo.
+              child: Semantics(
+                label: switch (entry.severity) {
+                  ActivitySeverity.info => l.adminActivitySeverityInfo,
+                  ActivitySeverity.warning => l.adminActivitySeverityWarning,
+                  ActivitySeverity.error => l.adminActivitySeverityError,
+                },
+                child: ExcludeSemantics(
+                  child: DecoratedBox(
+                    key: Key(
+                        'activity-severity-${entry.id}-${entry.severity.name}'),
+                    decoration: BoxDecoration(
+                        color: activityDotColor(entry),
+                        shape: BoxShape.circle),
+                    child: const SizedBox.square(dimension: 8),
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 12),

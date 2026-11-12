@@ -449,21 +449,21 @@ class _SearchRunningState extends State<_SearchRunning> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     const muted = TextStyle(color: WfColors.creamMuted);
+    final line = switch (widget.running.waitingFor) {
+      final w? => _waiting(l, w),
+      null => l.downloadsSearchRunningOn(widget.running.service),
+    };
     return _SearchBox(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            WfLamp(
-                state: LampState.attention, label: l.downloadsSearchWaiting),
+            WfLamp(state: LampState.attention, label: line),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                switch (widget.running.waitingFor) {
-                  final w? => _waiting(l, w),
-                  null => l.downloadsSearchRunningOn(widget.running.service),
-                },
+                line,
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
@@ -603,7 +603,7 @@ class _Hero extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Altezza minima, non fissa: un titolo lungo allunga la testa invece
-        // di salire sopra "← Download".
+        // di salire sopra "← Indietro".
         Stack(
           children: [
             const Positioned.fill(
@@ -642,7 +642,7 @@ class _Hero extends StatelessWidget {
                           foregroundColor: WfColors.creamMuted),
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(LucideIcons.arrowLeft, size: 16),
-                      label: Text(l.adminTabDownloads),
+                      label: Text(l.navBack),
                     ),
                   ),
                   ConstrainedBox(
@@ -1237,7 +1237,7 @@ class _ChoiceBlock extends StatelessWidget {
   }
 }
 
-/// Gli scartati, chiusi: un riepilogo per motivo e "Mostra" per l'elenco.
+/// Gli scartati, chiusi: un riepilogo per motivo e "Mostra"/"Nascondi" per l'elenco.
 class _RejectedSection extends StatefulWidget {
   const _RejectedSection({required this.rejected});
 
@@ -1271,11 +1271,9 @@ class _RejectedSectionState extends State<_RejectedSection> {
         AdminSectionTitle(
           title: l.downloadsRejectedTitle,
           count: widget.rejected.length,
-          action: _shown
-              ? null
-              : TextButton(
-                  onPressed: () => setState(() => _shown = true),
-                  child: Text(l.downloadsShow)),
+          action: TextButton(
+              onPressed: () => setState(() => _shown = !_shown),
+              child: Text(_shown ? l.downloadsHide : l.downloadsShow)),
         ),
         if (_shown)
           for (final r in widget.rejected) _RejectedRow(rejected: r)
