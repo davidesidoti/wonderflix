@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/home_models.dart';
 import 'package:wonderflix/core/social/rating_models.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/admin/home_admin_cards.dart';
 import 'package:wonderflix/features/admin/wonderflix_tab.dart';
 import 'package:wonderflix/features/home/home_layout.dart';
@@ -480,6 +481,47 @@ void main() {
               of: find.byKey(const Key('arr-radarr')),
               matching: find.text("Non raggiungibile: controlla l'indirizzo")),
           findsOneWidget);
+    });
+
+    testWidgets('prova fallita: la spia è rossa col motivo, senza sbordare '
+        'a 360 px', (tester) async {
+      home.arrTest = const ArrTestResults(
+        sonarr: ArrTestResult(
+            configured: true, ok: false, error: UpcomingError.unreachable),
+        radarr: ArrTestResult(
+            configured: true, ok: false, error: UpcomingError.unauthorized),
+      );
+      await pumpTab(tester,
+          features: const SocialFeatures(
+              inbox: true,
+              home: true,
+              upcomingSeries: true,
+              upcomingMovies: true),
+          size: const Size(360, 3000));
+      await openArr(tester);
+      await tester.tap(find.byKey(const Key('arr-test')));
+      await tester.pumpAndSettle();
+
+      for (final name in ['sonarr', 'radarr']) {
+        final lamp = find.byKey(Key('lamp-$name'));
+        expect(
+            tester
+                .widget<WfLamp>(
+                    find.descendant(of: lamp, matching: find.byType(WfLamp)))
+                .state,
+            LampState.broken);
+      }
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('lamp-sonarr')),
+              matching: find.textContaining('Non raggiungibile')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('lamp-radarr')),
+              matching: find.text('Chiave API rifiutata')),
+          findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('prova fallita: l\'errore nello SnackBar', (tester) async {

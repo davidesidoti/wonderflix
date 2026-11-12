@@ -208,10 +208,15 @@ class IntegrationLamps extends ConsumerWidget {
               ),
               if (state == LampState.broken && text != null) ...[
                 const SizedBox(width: 6),
-                ExcludeSemantics(
-                  child: Text(text,
-                      style:
-                          const TextStyle(fontSize: 12, color: WfColors.error)),
+                // Su un telefono il motivo lungo si accorcia, non sborda.
+                Flexible(
+                  child: ExcludeSemantics(
+                    child: Text(text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, color: WfColors.error)),
+                  ),
                 ),
               ],
             ],
