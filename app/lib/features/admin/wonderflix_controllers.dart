@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/social/home_models.dart';
 import '../../core/social/plugin_admin_models.dart';
 import 'admin_providers.dart';
 import 'admin_tab_controller.dart';
@@ -72,3 +73,24 @@ class SeerrAdminController extends AdminTabController<SeerrCardData> {
 
 final seerrAdminControllerProvider = NotifierProvider.autoDispose<
     SeerrAdminController, AdminData<SeerrCardData>>(SeerrAdminController.new);
+
+/// L'esito dell'ultima "Prova collegamento": sta qui, non nella card, così la
+/// spia della fila lo vede e chiudere la card non lo perde (la pagina
+/// Amministrazione tiene vivo il provider).
+class TestResultNotifier<T> extends Notifier<T?> {
+  @override
+  T? build() => null;
+
+  // La prova può finire dopo che la scheda è stata lasciata.
+  void set(T? value) {
+    if (ref.mounted) state = value;
+  }
+}
+
+final arrTestResultProvider = NotifierProvider.autoDispose<
+    TestResultNotifier<ArrTestResults>,
+    ArrTestResults?>(TestResultNotifier.new);
+
+final seerrTestResultProvider = NotifierProvider.autoDispose<
+    TestResultNotifier<SeerrTestResult>,
+    SeerrTestResult?>(TestResultNotifier.new);

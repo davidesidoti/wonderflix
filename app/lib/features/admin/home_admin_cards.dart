@@ -15,6 +15,7 @@ import '../social/social_providers.dart';
 import 'admin_action_button.dart';
 import 'admin_confirm_dialog.dart';
 import 'admin_widgets.dart';
+import 'wonderflix_controllers.dart';
 
 /// La bozza della card "Home per tutti" (spec M §8.6).
 @immutable
@@ -239,25 +240,15 @@ class ArrCard extends ConsumerStatefulWidget {
   ConsumerState<ArrCard> createState() => _ArrCardState();
 }
 
-class _ArrCardState extends ConsumerState<ArrCard>
-    with AutomaticKeepAliveClientMixin {
-  /// L'esito dell'ultima prova.
-  ArrTestResults? _result;
-
-  /// Con un esito da mostrare la card resta montata scorrendo.
-  @override
-  bool get wantKeepAlive => _result != null;
-
+class _ArrCardState extends ConsumerState<ArrCard> {
   Future<void> _test() async {
-    final result = await ref.read(homeApiProvider).testArr();
-    if (!mounted) return;
-    setState(() => _result = result);
-    updateKeepAlive();
+    // Letto prima dell'attesa: l'esito va alla spia anche se la card si chiude.
+    final notifier = ref.read(arrTestResultProvider.notifier);
+    notifier.set(await ref.read(homeApiProvider).testArr());
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
     final l = AppLocalizations.of(context);
     final features = ref.watch(socialAvailabilityProvider);
     final Widget child;
@@ -267,7 +258,7 @@ class _ArrCardState extends ConsumerState<ArrCard>
       child = Text(l.adminNeedsPlugin170,
           style: const TextStyle(color: WfColors.creamMuted));
     } else {
-      final result = _result;
+      final result = ref.watch(arrTestResultProvider);
       child = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

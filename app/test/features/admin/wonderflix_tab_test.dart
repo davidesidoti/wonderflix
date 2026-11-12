@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
 import 'package:wonderflix/features/admin/account_recovery_card.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
+import 'package:wonderflix/features/admin/home_admin_cards.dart';
 import 'package:wonderflix/features/admin/wonderflix_tab.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -55,10 +57,17 @@ void main() {
 
   setUp(() => plugin = FakePluginAdminApi());
 
-  Future<void> pumpTab(WidgetTester tester) async {
+  Future<void> pumpTab(WidgetTester tester,
+      {SocialFeatures features = const SocialFeatures(inbox: true)}) async {
     await pumpApp(tester, const Scaffold(body: WonderflixTab()),
-        overrides: adminTestOverrides(FakeAdminApi(), plugin: plugin),
+        overrides:
+            adminTestOverrides(FakeAdminApi(), plugin: plugin, features: features),
         surfaceSize: const Size(1440, 1400));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openLamp(WidgetTester tester, String name) async {
+    await tester.tap(find.byKey(Key('lamp-$name')));
     await tester.pumpAndSettle();
   }
 
@@ -66,6 +75,124 @@ void main() {
       .widget<OutlinedButton>(find.ancestor(
           of: find.text(label), matching: find.bySubtype<OutlinedButton>()))
       .onPressed != null;
+
+  group('la fila delle spie', () {
+    LampState lamp(WidgetTester tester, String name) => tester
+        .widget<WfLamp>(find.descendant(
+            of: find.byKey(Key('lamp-$name')), matching: find.byType(WfLamp)))
+        .state;
+
+    testWidgets('Seerr non configurato: spenta', (tester) async {
+      plugin.seerrValue = const SeerrAdminStatus(configured: false);
+      await pumpTab(tester);
+
+      expect(lamp(tester, 'seerr'), LampState.off);
+    });
+
+    testWidgets('Seerr con la lettura in errore: rotta, col motivo',
+        (tester) async {
+      plugin.seerrError = const ServerUnreachableException();
+      await pumpTab(tester);
+
+      expect(lamp(tester, 'seerr'), LampState.broken);
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('lamp-seerr')),
+              matching: find.text(it.adminSeerrUnavailable)),
+          findsOneWidget);
+    });
+
+    testWidgets('Seerr configurato: accesa; dopo la prova fallita: rotta',
+        (tester) async {
+      await pumpTab(tester);
+      expect(lamp(tester, 'seerr'), LampState.ok);
+
+      await tester.tap(find.byKey(const Key('lamp-seerr')));
+      await tester.pumpAndSettle();
+      plugin.testValue = const SeerrTestResult(ok: false, error: 'SeerrAuth');
+      await tester.tap(find.text('Prova collegamento'));
+      await tester.pumpAndSettle();
+
+      expect(lamp(tester, 'seerr'), LampState.broken);
+      // L'esito sta nel provider: chiudere la card non lo cancella.
+      await tester.tap(find.byKey(const Key('lamp-seerr')));
+      await tester.pumpAndSettle();
+      expect(find.text('Prova collegamento'), findsNothing);
+      expect(lamp(tester, 'seerr'), LampState.broken);
+    });
+
+    testWidgets('Sonarr e Radarr: configurato o no, poi la prova',
+        (tester) async {
+      await pumpTab(tester, features: const SocialFeatures(
+          inbox: true, home: true, upcomingSeries: true));
+      expect(lamp(tester, 'sonarr'), LampState.ok);
+      expect(lamp(tester, 'radarr'), LampState.off);
+
+      await tester.tap(find.byKey(const Key('lamp-sonarr')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('arr-test')));
+      await tester.pumpAndSettle();
+      expect(lamp(tester, 'sonarr'), LampState.ok);
+    });
+
+    testWidgets('un tap apre la card, il secondo la chiude, una sola alla '
+        'volta', (tester) async {
+      await pumpTab(tester);
+      expect(find.byType(ArrCard), findsNothing);
+      expect(find.byType(SeerrCard), findsNothing);
+
+      await tester.tap(find.byKey(const Key('lamp-sonarr')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ArrCard), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('lamp-seerr')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ArrCard), findsNothing);
+      expect(find.byType(SeerrCard), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('lamp-seerr')));
+      await tester.pumpAndSettle();
+      expect(find.byType(SeerrCard), findsNothing);
+    });
+
+    testWidgets('plugin più vecchio della 1.4.0: niente spia Seerr',
+        (tester) async {
+      plugin.seerrValue = null;
+      await pumpTab(tester);
+
+      expect(find.byKey(const Key('lamp-seerr')), findsNothing);
+      expect(find.byKey(const Key('lamp-sonarr')), findsOneWidget);
+    });
+  });
+
+  group('le card sotto la fila', () {
+    testWidgets('nello stretto, una colonna in ordine di urgenza',
+        (tester) async {
+      await pumpApp(tester, const Scaffold(body: WonderflixTab()),
+          overrides: adminTestOverrides(FakeAdminApi(),
+              plugin: plugin,
+              features: const SocialFeatures(
+                  inbox: true, home: true, reports: true)),
+          surfaceSize: const Size(700, 4000));
+      await tester.pumpAndSettle();
+      double y(String text) => tester.getTopLeft(find.text(text)).dy;
+
+      expect(y('Segnalazioni'), lessThan(y('Annuncio')));
+      expect(y('Annuncio'), lessThan(y('Novità')));
+      expect(y('Novità'), lessThan(y('Commenti degli utenti')));
+      expect(y('Commenti degli utenti'), lessThan(y('Home per tutti')));
+    });
+
+    testWidgets('nel largo, due colonne: la seconda card sta a destra',
+        (tester) async {
+      await pumpTab(tester);
+
+      final reports = tester.getTopLeft(find.text('Segnalazioni'));
+      final announcement = tester.getTopLeft(find.text('Annuncio'));
+      expect(announcement.dx, greaterThan(reports.dx));
+      expect(announcement.dy, reports.dy);
+    });
+  });
 
   group('dopo aver lasciato la scheda', () {
     /// La scheda dentro un `Scaffold` che resta: [visible] la toglie, come un
@@ -283,6 +410,17 @@ void main() {
       expect(find.textContaining('Dati non aggiornati'), findsOneWidget);
     });
 
+    testWidgets('il numero in attesa è in grande, la frase resta intera',
+        (tester) async {
+      await pumpTab(tester);
+
+      final text = tester.widget<Text>(
+          find.text('3 titoli in attesa del prossimo riepilogo'));
+      expect(text.textSpan!.toPlainText(),
+          '3 titoli in attesa del prossimo riepilogo');
+      expect((text.textSpan! as TextSpan).children!.first.style!.fontSize, 26);
+    });
+
     testWidgets('nessun titolo: Invia ora spento', (tester) async {
       plugin.newTitlesValue = const NewTitlesStatus(enabled: true, pending: 0);
       await pumpTab(tester);
@@ -296,13 +434,14 @@ void main() {
       await pumpTab(tester);
 
       expect(find.text('Riprova'), findsOneWidget);
-      expect(find.text('Prova collegamento'), findsOneWidget);
+      expect(find.byKey(const Key('lamp-seerr')), findsOneWidget);
     });
   });
 
   group('Seerr', () {
     testWidgets('configurato: ultimo evento e prova', (tester) async {
       await pumpTab(tester);
+      await openLamp(tester, 'seerr');
 
       expect(find.textContaining('Richiesta in attesa'), findsOneWidget);
       await tester.tap(find.text('Prova collegamento'));
@@ -312,12 +451,18 @@ void main() {
       plugin.testValue = const SeerrTestResult(ok: false, error: 'SeerrAuth');
       await tester.tap(find.text('Prova collegamento'));
       await tester.pumpAndSettle();
-      expect(find.text('Seerr ha rifiutato la chiave'), findsOneWidget);
+      // Il motivo sta sia nella card sia sulla spia.
+      expect(
+          find.descendant(
+              of: find.byType(SeerrCard),
+              matching: find.text('Seerr ha rifiutato la chiave')),
+          findsOneWidget);
     });
 
     testWidgets('lettura fallita con i dati di prima: "Dati non aggiornati"',
         (tester) async {
       await pumpTab(tester);
+      await openLamp(tester, 'seerr');
       expect(find.textContaining('Dati non aggiornati'), findsNothing);
 
       plugin.seerrError = const ServerUnreachableException();
@@ -334,6 +479,7 @@ void main() {
       final gated = _GatedPluginAdminApi();
       plugin = gated;
       await pumpTab(tester);
+      await openLamp(tester, 'seerr');
       final gate = gated.testGate = Completer<void>();
 
       await tester.tap(find.text('Prova collegamento'));
@@ -357,6 +503,7 @@ void main() {
     testWidgets('nessun evento', (tester) async {
       plugin.seerrValue = const SeerrAdminStatus(configured: true);
       await pumpTab(tester);
+      await openLamp(tester, 'seerr');
 
       expect(find.text('Nessun evento ricevuto'), findsOneWidget);
     });
@@ -364,6 +511,7 @@ void main() {
     testWidgets('non configurato', (tester) async {
       plugin.seerrValue = const SeerrAdminStatus(configured: false);
       await pumpTab(tester);
+      await openLamp(tester, 'seerr');
 
       expect(find.text(it.adminSeerrNotConfigured), findsOneWidget);
       expect(find.text('Prova collegamento'), findsNothing);
@@ -398,19 +546,6 @@ void main() {
       expect(find.byType(AccountRecoveryCard), findsNothing);
       expect(find.text('Recupero password'), findsNothing);
       expect(plugin.count('accountStatus'), 0);
-    });
-
-    // Da tenere d'occhio 4: senza la scheda Utenti la card resta qui (si
-    // disegna solo con la funzione `account`, come sempre).
-    testWidgets('senza account ma con inbox: la card è ancora in WonderFlix',
-        (tester) async {
-      await pumpApp(tester, const Scaffold(body: WonderflixTab()),
-          overrides: adminTestOverrides(FakeAdminApi(),
-              plugin: plugin, features: const SocialFeatures(inbox: true)),
-          surfaceSize: const Size(1440, 1400));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(AccountRecoveryCard), findsOneWidget);
     });
   });
 }

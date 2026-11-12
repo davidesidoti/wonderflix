@@ -122,27 +122,29 @@ class AdminStaleNote extends StatelessWidget {
   }
 }
 
-/// Una card della pagina (scheda WonderFlix): titolo con l'icona e
-/// contenuto.
+/// Una card della pagina (WonderFlix, Spazio): piatta, titolo con l'icona,
+/// [titleTrailing] accanto al titolo e contenuto.
 class AdminCard extends StatelessWidget {
   const AdminCard({
     super.key,
     required this.title,
     required this.icon,
     required this.child,
+    this.titleTrailing,
   });
 
   final String title;
   final IconData icon;
   final Widget child;
+  final Widget? titleTrailing;
 
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: WfColors.surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(color: WfColors.border),
         ),
         child: Column(
@@ -150,18 +152,24 @@ class AdminCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: WfColors.gold),
-                const SizedBox(width: 10),
+                Icon(icon, size: 16, color: WfColors.gold),
+                const SizedBox(width: 8),
                 // Un titolo lungo si accorcia: non fa sbordare la riga.
                 Flexible(
                   child: Text(title,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.w600)),
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
                 ),
+                if (titleTrailing case final trailing?) ...[
+                  const SizedBox(width: 8),
+                  trailing,
+                ],
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             child,
           ],
         ),

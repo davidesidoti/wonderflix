@@ -52,23 +52,22 @@ void main() {
           .onPressed !=
       null;
 
+  Future<void> openArr(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('lamp-sonarr')));
+    await tester.pumpAndSettle();
+  }
+
   Switch toggle(WidgetTester tester, HomeRowKind row) => tester
       .widget<Switch>(find.byKey(ValueKey('home-rows-switch-${row.id}')));
 
   testWidgets('senza la funzione home: "Serve il plugin 1.7.0", nessuna '
       'chiamata', (tester) async {
     await pumpTab(tester, features: const SocialFeatures(inbox: true));
+    await tester.tap(find.byKey(const Key('lamp-sonarr')));
+    await tester.pumpAndSettle();
     expect(find.text('Serve il plugin 1.7.0'), findsNWidgets(2));
     expect(home.layoutCalls, 0);
     expect(home.arrTestCalls, 0);
-  });
-
-  testWidgets('le due card dopo Novità e prima di Seerr', (tester) async {
-    await pumpTab(tester);
-    double y(String text) => tester.getTopLeft(find.text(text)).dy;
-    expect(y('Novità'), lessThan(y('Home per tutti')));
-    expect(y('Home per tutti'), lessThan(y('Sonarr e Radarr')));
-    expect(y('Sonarr e Radarr'), lessThan(y('Seerr')));
   });
 
   group('Home per tutti', () {
@@ -431,6 +430,7 @@ void main() {
       await pumpTab(tester,
           features: const SocialFeatures(
               inbox: true, home: true, upcomingSeries: true));
+      await openArr(tester);
       expect(
           find.descendant(
               of: find.byKey(const Key('arr-radarr')),
@@ -470,14 +470,22 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('arr-test')));
       await tester.pumpAndSettle();
-      expect(find.text('Chiave API rifiutata'), findsOneWidget);
-      expect(find.text("Non raggiungibile: controlla l'indirizzo"),
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('arr-sonarr')),
+              matching: find.text('Chiave API rifiutata')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('arr-radarr')),
+              matching: find.text("Non raggiungibile: controlla l'indirizzo")),
           findsOneWidget);
     });
 
     testWidgets('prova fallita: l\'errore nello SnackBar', (tester) async {
       home.arrTestError = const ServerUnreachableException();
       await pumpTab(tester);
+      await openArr(tester);
       await tester.tap(find.byKey(const Key('arr-test')));
       await tester.pumpAndSettle();
       expect(find.byType(SnackBar), findsOneWidget);

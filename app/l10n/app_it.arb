@@ -1098,6 +1098,8 @@
   "adminReportsEmpty": "Nessuna segnalazione aperta",
   "adminReportsNeedPlugin": "Serve il plugin 1.12.0",
   "adminReportsOpen": "Apri",
+  "adminReportsOpenCount": "{n} aperte",
+  "@adminReportsOpenCount": {"placeholders": {"n": {"type": "int"}}},
   "subtitlesDialogTitle": "Sottotitoli",
   "subtitlesLanguage": "Lingua",
   "subtitlesSearch": "Cerca",

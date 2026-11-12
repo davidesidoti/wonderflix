@@ -28,9 +28,19 @@ class ReportsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final features = ref.watch(socialAvailabilityProvider);
+    final open = features.known && features.reports
+        ? ref.watch(adminReportsProvider).value?.length ?? 0
+        : 0;
     return AdminCard(
       title: l.adminReportsTitle,
       icon: LucideIcons.flag,
+      titleTrailing: open == 0
+          ? null
+          : Text(l.adminReportsOpenCount(open),
+              style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: WfColors.gold)),
       child: !features.known
           ? const SkeletonBox(width: 240, height: 20)
           : !features.reports

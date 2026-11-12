@@ -941,6 +941,8 @@
   "adminReportsEmpty": "No open reports",
   "adminReportsNeedPlugin": "Requires plugin 1.12.0",
   "adminReportsOpen": "Open",
+  "adminReportsOpenCount": "{n} open",
+  "@adminReportsOpenCount": {"placeholders": {"n": {"type": "int"}}},
   "subtitlesDialogTitle": "Subtitles",
   "subtitlesLanguage": "Language",
   "subtitlesSearch": "Search",

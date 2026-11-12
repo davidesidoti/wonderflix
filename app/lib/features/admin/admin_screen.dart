@@ -21,6 +21,7 @@ import 'server_info_controller.dart';
 import 'server_strip.dart';
 import 'sessions_tab.dart';
 import 'users_tab.dart';
+import 'wonderflix_controllers.dart';
 import 'wonderflix_tab.dart';
 
 /// La pagina Amministrazione (spec J §7, §9.1): il blocco del server, le
@@ -78,6 +79,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     ref.listen(serverInfoControllerProvider, (_, _) {});
     // Idem per i numeri sulle voci: le voci si smontano, i contatori no.
     ref.listen(adminCountsProvider, (_, _) {});
+    // E l'esito delle prove di Sonarr/Radarr e Seerr, che la card scrive e la
+    // spia legge: chiudere la card non lo perde.
+    ref.listen(arrTestResultProvider, (_, _) {});
+    ref.listen(seerrTestResultProvider, (_, _) {});
     // Le schede del plugin (Utenti e WonderFlix) ci sono solo con le sue
     // funzioni; se una manca ed è nell'indirizzo (o la funzione sparisce
     // mentre la si guarda), si mostra Sessioni. Ma finché non si sa se il
