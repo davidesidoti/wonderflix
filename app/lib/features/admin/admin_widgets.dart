@@ -8,6 +8,9 @@ import '../../ui/form_factor.dart';
 import '../../ui/user_avatar.dart';
 import 'admin_time.dart';
 
+// Il titolo di sezione vive nel kit: i chiamanti importano ancora da qui.
+export 'admin_kit.dart' show AdminSectionTitle;
+
 /// Diametro dell'avatar di una riga utente.
 const _adminAvatarSize = 28.0;
 
@@ -35,20 +38,6 @@ Widget adminTabState(BuildContext context, Widget? header, Widget state) =>
               SliverFillRemaining(hasScrollBody: false, child: state),
             ],
           );
-
-/// Titolo di una sezione di una scheda ("In riproduzione", "Collegati"…).
-class AdminSectionTitle extends StatelessWidget {
-  const AdminSectionTitle({super.key, required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 24, bottom: 12),
-        child: Text(title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-      );
-}
 
 /// Il testo di una sezione vuota.
 class AdminEmptyText extends StatelessWidget {
