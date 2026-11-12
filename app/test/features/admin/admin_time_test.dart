@@ -39,4 +39,19 @@ void main() {
     expect(adminFullDateTime(DateTime(2026, 10, 6, 8, 10, 3), it),
         '6 ott 2026, 08:10:03');
   });
+
+  test('etichette del giorno e ora del Registro', () {
+    final it = lookupAppLocalizations(const Locale('it'));
+    final en = lookupAppLocalizations(const Locale('en'));
+    final now = DateTime(2026, 10, 6, 0, 10);
+
+    expect(adminDayLabel(DateTime(2026, 10, 6, 0, 5), now, it), 'Oggi');
+    expect(adminDayLabel(DateTime(2026, 10, 5, 23, 50), now, it), 'Ieri',
+        reason: 'ieri è il giorno di calendario, non le ultime 24 ore');
+    expect(adminDayLabel(DateTime(2026, 10, 3, 12), now, it), '3 ott');
+    expect(adminDayLabel(DateTime(2026, 10, 3, 12), now, en), 'Oct 3');
+    expect(adminDayLabel(DateTime(2026, 10, 5, 12), now, en), 'Yesterday');
+
+    expect(adminHourLabel(DateTime(2026, 10, 6, 8, 5)), '08:05');
+  });
 }

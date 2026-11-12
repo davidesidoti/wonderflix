@@ -652,6 +652,8 @@
   "adminActivityAll": "Tutto",
   "adminActivityUsers": "Utenti",
   "adminActivitySystem": "Sistema",
+  "adminToday": "Oggi",
+  "adminYesterday": "Ieri",
   "adminActivityRefresh": "Aggiorna",
   "adminActivityOpenItem": "Apri il titolo",
   "adminActivityEmpty": "Nessuna voce",

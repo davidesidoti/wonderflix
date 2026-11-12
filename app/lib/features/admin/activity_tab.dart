@@ -15,6 +15,7 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import 'activity_controller.dart';
 import 'admin_providers.dart';
+import 'admin_kit.dart';
 import 'admin_time.dart';
 import 'admin_widgets.dart';
 
@@ -90,17 +91,20 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
       }
     });
 
-    final compact = FormFactor.of(context).compact;
     final side = adminSideMargin(context);
-    final chips = [
-      for (final filter in ActivityFilter.values)
-        ChoiceChip(
-          key: ValueKey('activity-filter-${filter.name}'),
-          label: Text(_filterLabel(l, filter)),
-          selected: filter == state.filter,
-          onSelected: (_) => unawaited(controller.setFilter(filter)),
-        ),
-    ];
+    final filters = SegmentedButton<ActivityFilter>(
+      showSelectedIcon: false,
+      segments: [
+        for (final filter in ActivityFilter.values)
+          ButtonSegment(
+              value: filter,
+              label: Text(_filterLabel(l, filter),
+                  key: ValueKey('activity-filter-${filter.name}'))),
+      ],
+      selected: {state.filter},
+      onSelectionChanged: (selection) =>
+          unawaited(controller.setFilter(selection.first)),
+    );
     final refresh = TextButton.icon(
       onPressed: () {
         // Si riparte dalla prima pagina: anche la vista torna in
@@ -111,46 +115,27 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
       icon: const Icon(LucideIcons.refreshCw, size: 16),
       label: Text(l.adminActivityRefresh),
     );
-    final filters = Padding(
-      padding: EdgeInsets.fromLTRB(side, 0, side, 8),
-      child: compact
-          // Nello stretto i filtri vanno a capo.
-          ? Wrap(
-              spacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [...chips, refresh])
-          : Row(
-              children: [
-                for (final chip in chips) ...[chip, const SizedBox(width: 8)],
-                const Spacer(),
-                refresh,
-              ],
-            ),
-    );
-    // Nel layout stretto la striscia del server e i filtri scorrono con
+    // La striscia del server (layout stretto) e il titolo scorrono con
     // l'elenco.
     final header = widget.header;
-    final top = header == null
-        ? null
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                  padding: EdgeInsets.fromLTRB(side, 0, side, 16),
-                  child: header),
-              filters,
-            ],
-          );
-    final list = _list(l, state, controller, top);
-    if (top != null) return list;
-    return Column(
+    final top = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [filters, Expanded(child: list)],
+      children: [
+        if (header != null)
+          Padding(
+              padding: EdgeInsets.fromLTRB(side, 0, side, 8), child: header),
+        Padding(
+          padding: EdgeInsets.fromLTRB(side, 0, side, 8),
+          child: AdminTabTitle(
+              title: l.adminTabActivity, actions: [filters, refresh]),
+        ),
+      ],
     );
+    return _list(l, state, controller, top);
   }
 
   Widget _list(AppLocalizations l, ActivityState state,
-      ActivityController controller, Widget? top) {
+      ActivityController controller, Widget top) {
     final error = state.error;
     if (state.items.isEmpty) {
       final Widget empty;
@@ -166,41 +151,67 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
               style: const TextStyle(color: WfColors.creamMuted)),
         );
       }
-      return top == null
-          ? empty
-          : CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(child: top),
-                SliverFillRemaining(hasScrollBody: false, child: empty),
-              ],
-            );
+      return CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: top),
+          SliverFillRemaining(hasScrollBody: false, child: empty),
+        ],
+      );
     }
     final now = clock.now();
-    final offset = top == null ? 0 : 1;
+    final lines = _lines(l, state.items, now);
     return ListView.builder(
       controller: _scroll,
       // Il margine laterale è delle righe, non della lista: la testa
-      // (striscia e filtri) ha già il suo.
+      // (striscia e titolo) ha già il suo.
       padding: const EdgeInsets.only(bottom: 40),
-      itemCount: state.items.length + 1 + offset,
+      itemCount: lines.length + 2,
       itemBuilder: (context, index) {
-        if (top != null && index == 0) return top;
+        if (index == 0) return top;
+        final side = adminSideMargin(context);
+        if (index <= lines.length) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: side),
+            child: switch (lines[index - 1]) {
+              final String day => Padding(
+                  padding: const EdgeInsets.only(top: 20, bottom: 4),
+                  child: Text(day, style: WfText.display(16, color: WfColors.gold)),
+                ),
+              final ActivityEntry entry => ActivityRow(
+                  key: ValueKey('activity-${entry.id}'), entry: entry),
+              _ => const SizedBox.shrink(),
+            },
+          );
+        }
         return Padding(
-          padding: EdgeInsets.symmetric(horizontal: adminSideMargin(context)),
-          child: _row(l, state, controller, index - offset, now),
+          padding: EdgeInsets.symmetric(horizontal: side),
+          child: _footer(l, state, controller),
         );
       },
     );
   }
 
-  Widget _row(AppLocalizations l, ActivityState state,
-      ActivityController controller, int index, DateTime now) {
-    final error = state.error;
-    if (index < state.items.length) {
-      final entry = state.items[index];
-      return ActivityRow(
-          key: ValueKey('activity-${entry.id}'), entry: entry, now: now);
+  /// Le voci con l'intestazione del giorno dove cambia; quelle senza data in
+  /// fondo all'ultimo gruppo (senza intestazione se non c'è altro).
+  List<Object> _lines(
+      AppLocalizations l, List<ActivityEntry> items, DateTime now) {
+    final lines = <Object>[];
+    String? day;
+    for (final entry in items) {
+      final date = entry.date;
+      if (date == null) continue;
+      final label = adminDayLabel(date, now, l);
+      if (label != day) lines.add(label);
+      day = label;
+      lines.add(entry);
     }
+    lines.addAll(items.where((entry) => entry.date == null));
+    return lines;
+  }
+
+  Widget _footer(AppLocalizations l, ActivityState state,
+      ActivityController controller) {
+    final error = state.error;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
@@ -230,13 +241,23 @@ class _ActivityTabState extends ConsumerState<ActivityTab> {
   }
 }
 
-/// Una voce del registro: gravità, testo, dettaglio con un clic, il titolo
-/// se c'è e l'ora (data completa al passaggio del mouse).
+/// Il colore del punto di una voce: rosso per avvisi ed errori, oro per le
+/// riproduzioni, spento per il resto.
+Color activityDotColor(ActivityEntry e) {
+  if (e.severity != ActivitySeverity.info) return WfColors.error;
+  final type = e.type ?? '';
+  if (type.startsWith('VideoPlayback') || type.startsWith('AudioPlayback')) {
+    return WfColors.gold;
+  }
+  return WfColors.creamMuted;
+}
+
+/// Una voce del registro: ora (data completa al passaggio del mouse), punto
+/// di gravità, testo, dettaglio con un clic e il titolo se c'è.
 class ActivityRow extends StatefulWidget {
-  const ActivityRow({super.key, required this.entry, required this.now});
+  const ActivityRow({super.key, required this.entry});
 
   final ActivityEntry entry;
-  final DateTime now;
 
   @override
   State<ActivityRow> createState() => _ActivityRowState();
@@ -255,11 +276,6 @@ class _ActivityRowState extends State<ActivityRow> {
     final date = entry.date;
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
     final compact = FormFactor.of(context).compact;
-    final (icon, color) = switch (entry.severity) {
-      ActivitySeverity.info => (LucideIcons.info, WfColors.creamMuted),
-      ActivitySeverity.warning => (LucideIcons.triangleAlert, WfColors.gold),
-      ActivitySeverity.error => (LucideIcons.circleX, WfColors.error),
-    };
     return InkWell(
       onTap: overview == null ? null : () => setState(() => _expanded = !_expanded),
       child: Padding(
@@ -267,10 +283,25 @@ class _ActivityRowState extends State<ActivityRow> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon,
+            SizedBox(
+              width: 56,
+              child: date == null
+                  ? null
+                  : Tooltip(
+                      message: adminFullDateTime(date, l),
+                      child: Text(adminHourLabel(date),
+                          style: WfText.display(19)),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: DecoratedBox(
                 key: Key('activity-severity-${entry.id}-${entry.severity.name}'),
-                size: 18,
-                color: color),
+                decoration: BoxDecoration(
+                    color: activityDotColor(entry), shape: BoxShape.circle),
+                child: const SizedBox.square(dimension: 8),
+              ),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -295,13 +326,6 @@ class _ActivityRowState extends State<ActivityRow> {
                 ],
               ),
             ),
-            if (date != null) ...[
-              const SizedBox(width: 12),
-              Tooltip(
-                message: adminFullDateTime(date, l),
-                child: Text(adminTimeLabel(date, widget.now, l), style: muted),
-              ),
-            ],
           ],
         ),
       ),

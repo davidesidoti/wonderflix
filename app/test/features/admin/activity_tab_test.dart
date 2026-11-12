@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/core/jellyfin/activity_models.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/admin/activity_tab.dart';
 import 'package:wonderflix/features/admin/admin_providers.dart';
@@ -70,9 +72,12 @@ void main() {
     await tester.scrollUntilVisible(find.text('Voce 80'), 500,
         scrollable: scrollable);
     await tester.pumpAndSettle();
+    expect(find.text('Voce 120'), findsNothing);
+    // "Aggiorna" scorre con l'elenco: lo si riporta quasi in cima.
+    tester.state<ScrollableState>(scrollable).position.jumpTo(10);
+    await tester.pumpAndSettle();
     expect(tester.state<ScrollableState>(scrollable).position.pixels,
         greaterThan(0));
-    expect(find.text('Voce 120'), findsNothing);
 
     await tester.tap(find.text('Aggiorna'));
     await tester.pumpAndSettle();
@@ -150,5 +155,52 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(api.calls, contains('activity:50:all'));
+  });
+
+  test('colore del punto', () {
+    ActivityEntry entry(String? type,
+            [ActivitySeverity severity = ActivitySeverity.info]) =>
+        ActivityEntry(id: 1, name: 'x', type: type, severity: severity);
+
+    expect(activityDotColor(entry('VideoPlayback')), WfColors.gold);
+    expect(activityDotColor(entry('AudioPlaybackStopped')), WfColors.gold);
+    expect(activityDotColor(entry('AuthenticationFailed', ActivitySeverity.warning)),
+        WfColors.error);
+    expect(activityDotColor(entry('VideoPlayback', ActivitySeverity.error)),
+        WfColors.error,
+        reason: 'la gravità vince sul tipo');
+    expect(activityDotColor(entry('UserLockedOut')), WfColors.creamMuted);
+    expect(activityDotColor(entry(null)), WfColors.creamMuted);
+  });
+
+  testWidgets('giorni diversi, due intestazioni; ora a sinistra, punto colorato',
+      (tester) async {
+    final now = DateTime.now();
+    api.activityValue = [
+      ActivityEntry(
+          id: 3, name: 'Di oggi', date: DateTime(now.year, now.month, now.day, 0, 1)),
+      ActivityEntry(
+          id: 2, name: 'Di ieri', date: DateTime(now.year, now.month, now.day - 1, 22, 30)),
+      ActivityEntry(
+          id: 1,
+          name: 'Di ieri, prima',
+          date: DateTime(now.year, now.month, now.day - 1, 9, 5),
+          type: 'VideoPlayback'),
+      const ActivityEntry(id: 0, name: 'Senza data'),
+    ];
+    await pumpTab(tester);
+
+    expect(find.text('Oggi'), findsOneWidget);
+    expect(find.text('Ieri'), findsOneWidget);
+    expect(find.text('00:01'), findsOneWidget);
+    expect(find.text('22:30'), findsOneWidget);
+    expect(find.text('09:05'), findsOneWidget);
+
+    // Il giorno senza data resta in fondo, senza ora e senza intestazione.
+    expect(tester.getTopLeft(find.text('Senza data')).dy,
+        greaterThan(tester.getTopLeft(find.text('Di ieri, prima')).dy));
+    final dot = tester.widget<DecoratedBox>(
+        find.byKey(const Key('activity-severity-1-info')));
+    expect((dot.decoration as BoxDecoration).color, WfColors.gold);
   });
 }

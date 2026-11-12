@@ -47,3 +47,20 @@ String adminFullDateTime(DateTime at, AppLocalizations l) {
   return '${DateFormat.yMMMd(l.localeName).format(local)}, '
       '${DateFormat.Hms(l.localeName).format(local)}';
 }
+
+/// "Oggi", "Ieri" o la data ("5 ott"): l'intestazione di un giorno del
+/// Registro, per giorni di calendario locali.
+String adminDayLabel(DateTime date, DateTime now, AppLocalizations l) {
+  final day = date.toLocal();
+  final today = now.toLocal();
+  // Mezzogiorno: la differenza di giorni non risente dell'ora legale.
+  final days = DateTime(today.year, today.month, today.day, 12)
+      .difference(DateTime(day.year, day.month, day.day, 12))
+      .inDays;
+  if (days == 0) return l.adminToday;
+  if (days == 1) return l.adminYesterday;
+  return DateFormat.MMMd(l.localeName).format(day);
+}
+
+/// "08:05": l'ora locale di una voce del Registro.
+String adminHourLabel(DateTime date) => DateFormat('HH:mm').format(date.toLocal());

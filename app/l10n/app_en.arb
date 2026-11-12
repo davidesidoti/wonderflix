@@ -541,6 +541,8 @@
   "adminActivityAll": "All",
   "adminActivityUsers": "Users",
   "adminActivitySystem": "System",
+  "adminToday": "Today",
+  "adminYesterday": "Yesterday",
   "adminActivityRefresh": "Refresh",
   "adminActivityOpenItem": "Open the title",
   "adminActivityEmpty": "No entries",
