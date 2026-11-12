@@ -48,6 +48,8 @@ void main() {
     );
     expect(first.color, spaceGaugeColors[0]);
     expect(tester.getSize(find.byKey(const ValueKey('space-gauge-bar'))).height, 22);
+    // Un segmento senza figlio è alto 0 se la riga non lo stira.
+    expect(tester.getSize(find.byKey(const ValueKey('space-gauge-0'))).height, 22);
     expect(find.text('P4 60,00 GB'), findsOneWidget);
   });
 

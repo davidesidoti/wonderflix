@@ -40,6 +40,7 @@ class SpaceGauge extends StatelessWidget {
             child: ColoredBox(
               color: WfColors.surfaceHigh,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < parts.length; i++)
                     // Flex 0 sarebbe un figlio senza spazio: un segmento vuoto non c'è.
