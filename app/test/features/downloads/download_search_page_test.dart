@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/core/jellyfin/image_urls.dart';
@@ -84,6 +85,7 @@ void main() {
     bool reviewing = false,
     bool lighten = false,
     bool settle = true,
+    MotionLevel motion = MotionLevel.reduced,
     Size size = const Size(1440, 900),
     SocialFeatures features =
         const SocialFeatures(inbox: true, downloads: true),
@@ -106,6 +108,7 @@ void main() {
         spaceApiProvider.overrideWithValue(space),
       ],
       surfaceSize: size,
+      motion: motion,
     );
     await tester.tap(find.text('apri'));
     if (settle) {
@@ -583,7 +586,7 @@ void main() {
       expect(find.textContaining('Scarica tutti'), findsNothing);
     });
 
-    testWidgets('lists one row per episode and "nessun file valido"',
+    testWidgets('lists one tile per episode and "nessun file valido"',
         (tester) async {
       api.searchValue = season([
         testEpisodeChoice(1),
@@ -598,8 +601,60 @@ void main() {
       expect(find.text('nessun file valido'), findsOneWidget);
       // N = solo gli episodi con un singolo.
       expect(grabAllButton('Scarica tutti (2)'), findsOneWidget);
-      // Un "Scarica" per i due singoli e uno per la lista completa sotto.
-      expect(find.widgetWithText(FilledButton, 'Scarica'), findsNWidgets(3));
+      // Solo le tessere: le righe degli episodi si aprono toccandole.
+      expect(find.byKey(const ValueKey('episode-1')), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Scarica'), findsOneWidget);
+    });
+
+    InkWell tileInk(WidgetTester tester, int n) => tester.widget<InkWell>(find
+        .descendant(
+            of: find.byKey(ValueKey('episode-tile-$n')),
+            matching: find.byType(InkWell)));
+
+    Future<void> tapTile(WidgetTester tester, int n) async {
+      await tester.tap(find.byKey(ValueKey('episode-tile-$n')));
+      await tester.pumpAndSettle();
+    }
+
+    /// Il "Scarica" della riga aperta di un episodio.
+    Finder rowGrab(int n) => find.descendant(
+        of: find.byKey(ValueKey('episode-$n')),
+        matching: find.widgetWithText(FilledButton, 'Scarica'));
+
+    testWidgets('14 tiles, two without a single are not tappable',
+        (tester) async {
+      api.searchValue = season([
+        for (var n = 1; n <= 14; n++)
+          testEpisodeChoice(n, hasRelease: n != 5 && n != 9),
+      ]);
+      await open(tester);
+
+      for (var n = 1; n <= 14; n++) {
+        expect(find.byKey(ValueKey('episode-tile-$n')), findsOneWidget);
+        expect(tileInk(tester, n).onTap, n == 5 || n == 9 ? isNull : isNotNull);
+      }
+      expect(grabAllButton('Scarica tutti (12)'), findsOneWidget);
+
+      await tapTile(tester, 5);
+      expect(find.byKey(const ValueKey('episode-5')), findsNothing);
+    });
+
+    testWidgets('a tile opens its row and a second tap closes it',
+        (tester) async {
+      api.searchValue = season([for (var n = 1; n <= 4; n++) testEpisodeChoice(n)]);
+      await open(tester);
+
+      await tapTile(tester, 3);
+      expect(find.byKey(const ValueKey('episode-3')), findsOneWidget);
+      expect(find.byKey(const ValueKey('episode-2')), findsNothing);
+      expect(rowGrab(3), findsOneWidget);
+
+      // Un'altra tessera sposta la riga; la stessa la chiude.
+      await tapTile(tester, 4);
+      expect(find.byKey(const ValueKey('episode-3')), findsNothing);
+      expect(find.byKey(const ValueKey('episode-4')), findsOneWidget);
+      await tapTile(tester, 4);
+      expect(find.byKey(const ValueKey('episode-4')), findsNothing);
     });
 
     testWidgets('no single at all: no "Scarica tutti"', (tester) async {
@@ -615,7 +670,8 @@ void main() {
       api.searchValue = season([testEpisodeChoice(1), testEpisodeChoice(2)]);
       await open(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Scarica').at(1));
+      await tapTile(tester, 2);
+      await tester.tap(rowGrab(2));
       await tester.pumpAndSettle();
 
       expect(grabs(), ['grab movie:1 e2 3']);
@@ -678,9 +734,9 @@ void main() {
       expect(find.byType(Dialog), findsOneWidget);
       // Resta solo E1, quello fallito: E2 ed E3 sono partiti e non si
       // riscaricano.
-      expect(find.text('E1'), findsOneWidget);
-      expect(find.text('E2'), findsNothing);
-      expect(find.text('E3'), findsNothing);
+      expect(find.byKey(const ValueKey('episode-tile-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('episode-tile-2')), findsNothing);
+      expect(find.byKey(const ValueKey('episode-tile-3')), findsNothing);
       expect(grabAllButton('Scarica tutti (1)'), findsOneWidget);
 
       await tester.tap(grabAllButton('Scarica tutti (1)'));
@@ -724,7 +780,8 @@ void main() {
       api.searchValue = season([testEpisodeChoice(1, wouldImport: false)]);
       await open(tester);
 
-      await tester.tap(find.widgetWithText(FilledButton, 'Scarica').first);
+      await tapTile(tester, 1);
+      await tester.tap(rowGrab(1));
       await tester.pumpAndSettle();
 
       expect(find.text(_confirmTitle), findsOneWidget);
@@ -743,9 +800,9 @@ void main() {
       await open(tester);
 
       // Punteggio pari (120 contro 120) e più basso (120 contro 150): chiede.
-      for (final index in [0, 2]) {
-        await tester
-            .tap(find.widgetWithText(FilledButton, 'Scarica').at(index));
+      for (final n in [1, 3]) {
+        await tapTile(tester, n);
+        await tester.tap(rowGrab(n));
         await tester.pumpAndSettle();
         expect(find.text(_confirmTitle), findsOneWidget);
         expect(find.textContaining('non supera quello del file attuale'),
@@ -756,7 +813,8 @@ void main() {
       expect(grabs(), isEmpty);
 
       // Più alto e importabile: parte senza chiedere.
-      await tester.tap(find.widgetWithText(FilledButton, 'Scarica').at(1));
+      await tapTile(tester, 2);
+      await tester.tap(rowGrab(2));
       await tester.pumpAndSettle();
       expect(find.text(_confirmTitle), findsNothing);
       expect(grabs(), ['grab movie:1 e2 3']);
@@ -796,17 +854,22 @@ void main() {
       expect(grabs(), hasLength(2));
     });
 
-    testWidgets('wide layout has a column header above the box rows',
+    testWidgets('wide layout has a column header above the open row',
         (tester) async {
       api.searchValue = season([testEpisodeChoice(1)]);
       await open(tester);
+      expect(find.text('Release'), findsNothing);
 
-      // Quella del riquadro; la lista completa ha solo la scelta, fuori
+      await tapTile(tester, 1);
+
+      // Quella della riga aperta; la lista completa ha solo la scelta, fuori
       // dalla tabella.
       expect(find.text('Release'), findsOneWidget);
       expect(
-          tester.getTopLeft(find.text('Release').first).dy,
-          lessThan(tester.getTopLeft(find.text('E1')).dy));
+          tester.getTopLeft(find.text('Release')).dy,
+          lessThan(tester
+              .getTopLeft(find.byKey(const ValueKey('episode-1')))
+              .dy));
     });
 
     testWidgets('narrow layout has no horizontal overflow', (tester) async {
@@ -821,6 +884,10 @@ void main() {
       expect(find.text('Migliori episodi'), findsOneWidget);
       expect(find.text('nessun file valido'), findsOneWidget);
       expect(grabAllButton('Scarica tutti (2)'), findsOneWidget);
+
+      await tapTile(tester, 12);
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const ValueKey('episode-12')), findsOneWidget);
     });
   });
 
@@ -895,8 +962,10 @@ void main() {
         api.searchStatuses.add(running(t0.subtract(const Duration(minutes: 2, seconds: 15))));
         await open(tester, settle: false, features: jobs);
 
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
-        expect(find.text('Ricerca su Sonarr in corso · 2:15'), findsOneWidget);
+        expect(find.byKey(const ValueKey('search-film-strip')), findsOneWidget);
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        expect(find.text('Ricerca su Sonarr in corso'), findsOneWidget);
+        expect(find.text('2:15'), findsOneWidget);
         expect(
             find.text(
                 'Le stagioni anime possono richiedere qualche minuto: puoi chiudere, i risultati restano pronti.'),
@@ -905,7 +974,46 @@ void main() {
 
         now = now.add(const Duration(seconds: 1));
         await tester.pump(const Duration(seconds: 1));
-        expect(find.text('Ricerca su Sonarr in corso · 2:16'), findsOneWidget);
+        expect(find.text('2:16'), findsOneWidget);
+      });
+    });
+
+    int litSegments() =>
+        find.byKey(const ValueKey('search-film-lit')).evaluate().length;
+
+    double litLeft(WidgetTester tester) => tester
+        .getTopLeft(find.byKey(const ValueKey('search-film-lit')).first)
+        .dx;
+
+    testWidgets('with animations off the film strip is still: no ticker',
+        (tester) async {
+      await withClock(Clock(() => t0), () async {
+        api.searchStatuses.add(running(t0));
+        await open(tester, settle: false, features: jobs);
+        await tester.pump(const Duration(milliseconds: 700));
+
+        expect(tester.binding.transientCallbackCount, 0);
+        expect(litSegments(), 3);
+        // I tre accesi restano a sinistra.
+        expect(
+            litLeft(tester),
+            tester
+                .getTopLeft(find.byKey(const ValueKey('search-film-strip')))
+                .dx);
+      });
+    });
+
+    testWidgets('with animations on the film strip scrolls', (tester) async {
+      await withClock(Clock(() => t0), () async {
+        api.searchStatuses.add(running(t0));
+        await open(tester,
+            settle: false, features: jobs, motion: MotionLevel.full);
+        final start = litLeft(tester);
+        await tester.pump(const Duration(milliseconds: 600));
+
+        expect(tester.binding.transientCallbackCount, greaterThan(0));
+        expect(litSegments(), 3);
+        expect(litLeft(tester), greaterThan(start));
       });
     });
 
@@ -914,7 +1022,8 @@ void main() {
         api.searchStatuses.add(running(t0.add(const Duration(minutes: 5))));
         await open(tester, settle: false, features: jobs);
 
-        expect(find.text('Ricerca su Sonarr in corso · 0:00'), findsOneWidget);
+        expect(find.text('Ricerca su Sonarr in corso'), findsOneWidget);
+        expect(find.text('0:00'), findsOneWidget);
       });
     });
 
@@ -936,7 +1045,7 @@ void main() {
           ..add(running(t0.add(const Duration(seconds: 3))));
         await open(tester, settle: false, features: jobs);
 
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(find.byKey(const ValueKey('search-film-strip')), findsOneWidget);
         expect(
             find.text('In attesa: sta finendo una ricerca automatica '
                 '(One Piece · S22E40, da 1:20, di solito ~2 min)'),
@@ -947,7 +1056,7 @@ void main() {
         await tester.pump(DownloadSearchController.pollInterval);
         await tester.pump();
         expect(find.textContaining('In attesa'), findsNothing);
-        expect(find.text('Ricerca su Sonarr in corso · 0:00'), findsOneWidget);
+        expect(find.text('Ricerca su Sonarr in corso'), findsOneWidget);
       });
     });
 
@@ -973,7 +1082,7 @@ void main() {
         await tester.pump();
 
         expect(find.text('Connessione persa, riprovo…'), findsOneWidget);
-        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(find.byKey(const ValueKey('search-film-strip')), findsOneWidget);
       });
     });
 
@@ -1007,7 +1116,7 @@ void main() {
       await open(tester, settle: false);
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.byKey(const ValueKey('search-film-strip')), findsNothing);
     });
   });
 

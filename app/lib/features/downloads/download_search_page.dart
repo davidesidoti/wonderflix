@@ -9,6 +9,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/downloads/download_models.dart';
 import '../../core/downloads/downloads_api.dart';
@@ -398,8 +399,9 @@ class _SearchPage extends ConsumerWidget {
   }
 }
 
-/// La ricerca in background in corso: barra indeterminata e tempo che scorre
-/// (spec W §5.3).
+/// La ricerca in background in corso (spec W §5.3): la spia, il testo, il
+/// tempo che scorre e una pellicola che avanza. Attesa, riconnessione e
+/// suggerimento stanno nello stesso riquadro.
 class _SearchRunning extends StatefulWidget {
   const _SearchRunning({required this.running});
 
@@ -449,32 +451,120 @@ class _SearchRunningState extends State<_SearchRunning> {
     const muted = TextStyle(color: WfColors.creamMuted);
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
+        constraints: const BoxConstraints(maxWidth: 560),
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const LinearProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              switch (widget.running.waitingFor) {
-                final w? => _waiting(l, w),
-                null =>
-                  l.downloadsSearchRunning(widget.running.service, _elapsed()),
-              },
-              textAlign: TextAlign.center,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: WfColors.surface,
+              border: Border.all(color: WfColors.border),
+              borderRadius: BorderRadius.circular(6),
             ),
-            if (widget.running.reconnecting) ...[
-              const SizedBox(height: 8),
-              Text(l.downloadsSearchReconnecting, style: muted),
-            ],
-            const SizedBox(height: 8),
-            Text(l.downloadsSearchRunningHint,
-                textAlign: TextAlign.center, style: muted),
-          ]),
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    WfLamp(
+                        state: LampState.attention,
+                        label: l.downloadsSearchWaiting),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        switch (widget.running.waitingFor) {
+                          final w? => _waiting(l, w),
+                          null => l.downloadsSearchRunningOn(
+                              widget.running.service),
+                        },
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(_elapsed(), style: WfText.display(22)),
+                  ]),
+                  const SizedBox(height: 14),
+                  const _FilmRunStrip(),
+                  if (widget.running.reconnecting) ...[
+                    const SizedBox(height: 8),
+                    Text(l.downloadsSearchReconnecting, style: muted),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(l.downloadsSearchRunningHint, style: muted),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+/// La pellicola dell'attesa: [_filmSegments] fotogrammi, [_filmLit] accesi che
+/// scorrono (un giro in 1,2 s). Con le animazioni ridotte resta ferma, con gli
+/// accesi a sinistra: l'unica animazione fuori richiesta della Cabina.
+const _filmSegments = 28;
+const _filmLit = 3;
+
+class _FilmRunStrip extends StatefulWidget {
+  const _FilmRunStrip();
+
+  @override
+  State<_FilmRunStrip> createState() => _FilmRunStripState();
+}
+
+class _FilmRunStripState extends State<_FilmRunStrip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1200));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (WfMotion.of(context).isReduced) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final shift = (_controller.value * _filmSegments).floor();
+          return Row(
+            key: const ValueKey('search-film-strip'),
+            children: [
+              for (var i = 0; i < _filmSegments; i++) ...[
+                if (i > 0) const SizedBox(width: 3),
+                Expanded(
+                  child: Container(
+                    key: (i - shift) % _filmSegments < _filmLit
+                        ? const ValueKey('search-film-lit')
+                        : null,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: (i - shift) % _filmSegments < _filmLit
+                          ? WfColors.gold
+                          : WfColors.border,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      );
 }
 
 /// Il servizio che cerca "alla vecchia maniera" questo titolo.
@@ -741,9 +831,10 @@ class _TableHead extends StatelessWidget {
   }
 }
 
-/// Il riquadro "Migliori episodi" (spec T §8.2): il singolo scelto di ogni
-/// episodio e "Scarica tutti". Le righe sono quelle della lista completa.
-class _BestEpisodes extends StatelessWidget {
+/// "Migliori episodi" (spec T §8.2): una tessera per episodio. Toccare quella
+/// di un episodio con un singolo apre sotto la sua riga, col suo "Scarica" e le
+/// sue conferme; toccarla di nuovo la chiude.
+class _BestEpisodes extends StatefulWidget {
   const _BestEpisodes({
     required this.choices,
     required this.busy,
@@ -759,82 +850,134 @@ class _BestEpisodes extends StatelessWidget {
   final void Function(List<DownloadEpisodeChoice>) onGrabAll;
 
   @override
+  State<_BestEpisodes> createState() => _BestEpisodesState();
+}
+
+class _BestEpisodesState extends State<_BestEpisodes> {
+  int? _selected;
+
+  @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final choices = widget.choices;
     final withRelease = [
       for (final c in choices)
         if (c.release != null) c,
     ];
-    final progress = this.progress;
+    final progress = widget.progress;
+    // Un episodio partito con "Scarica tutti" esce dalla lista: via anche la riga.
+    final open =
+        withRelease.where((c) => c.episodeNumber == _selected).firstOrNull;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AdminSectionTitle(
+            title: l.downloadsBestEpisodes,
+            action: withRelease.isEmpty
+                ? null
+                : FilledButton(
+                    style: _compactButton,
+                    onPressed:
+                        widget.busy ? null : () => widget.onGrabAll(withRelease),
+                    child: Text(progress == null
+                        ? l.downloadsGrabAll(withRelease.length)
+                        : l.downloadsGrabAllProgress(progress.$1, progress.$2)),
+                  ),
+          ),
           Wrap(
-            spacing: 16,
+            spacing: 8,
             runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(l.downloadsBestEpisodes,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600)),
-              if (withRelease.isNotEmpty)
-                FilledButton(
-                  style: _compactButton,
-                  onPressed: busy ? null : () => onGrabAll(withRelease),
-                  child: Text(progress == null
-                      ? l.downloadsGrabAll(withRelease.length)
-                      : l.downloadsGrabAllProgress(progress.$1, progress.$2)),
+              for (final c in choices)
+                _EpisodeTile(
+                  key: ValueKey('episode-tile-${c.episodeNumber}'),
+                  choice: c,
+                  selected: c == open,
+                  onTap: c.release == null
+                      ? null
+                      : () => setState(() => _selected =
+                          _selected == c.episodeNumber ? null : c.episodeNumber),
                 ),
             ],
           ),
-          const SizedBox(height: 8),
-          if (!FormFactor.of(context).compact) const _TableHead(),
-          for (final c in choices)
-            if (c.release == null)
-              _NoEpisodeRow(number: c.episodeNumber)
-            else
-              _CandidateRow(
-                key: ValueKey('episode-${c.episodeNumber}'),
-                candidate: DownloadCandidate(
-                  rank: c.episodeNumber,
-                  release: c.release!,
-                  isChoice: false,
-                  wouldImport: c.wouldImport,
-                ),
-                rankText: l.downloadsEpisodeShort(c.episodeNumber),
-                onGrab: busy ? null : () => onGrab(c),
+          if (open != null) ...[
+            const SizedBox(height: 12),
+            if (!FormFactor.of(context).compact) const _TableHead(),
+            _CandidateRow(
+              key: ValueKey('episode-${open.episodeNumber}'),
+              candidate: DownloadCandidate(
+                rank: open.episodeNumber,
+                release: open.release!,
+                isChoice: false,
+                wouldImport: open.wouldImport,
               ),
+              rankText: l.downloadsEpisodeShort(open.episodeNumber),
+              onGrab: widget.busy ? null : () => widget.onGrab(open),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _NoEpisodeRow extends StatelessWidget {
-  const _NoEpisodeRow({required this.number});
+/// La tessera di un episodio: bordo oro tenue con il peso del singolo scelto
+/// (oro pieno se aperta); senza singolo, attenuata e senza tocco.
+class _EpisodeTile extends StatelessWidget {
+  const _EpisodeTile({
+    super.key,
+    required this.choice,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final int number;
+  final DownloadEpisodeChoice choice;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: WfColors.surface,
-        border: Border.all(color: WfColors.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(children: [
-        SizedBox(width: _colRank, child: Text(l.downloadsEpisodeShort(number))),
-        Expanded(
-          child: Text(l.downloadsEpisodeNone,
-              style: const TextStyle(color: WfColors.creamMuted)),
+    final release = choice.release;
+    final border = selected
+        ? WfColors.gold
+        : release != null
+            ? WfColors.gold.withValues(alpha: 0.5)
+            : WfColors.border;
+    return Opacity(
+      opacity: release == null ? 0.5 : 1,
+      child: SizedBox(
+        width: 92,
+        child: Material(
+          color: WfColors.surface,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+              side: BorderSide(color: border)),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(l.downloadsEpisodeShort(choice.episodeNumber),
+                      style: WfText.display(20)),
+                  const SizedBox(height: 2),
+                  Text(
+                      release == null
+                          ? l.downloadsEpisodeNone
+                          : formatGb(l, release.sizeBytes),
+                      style: const TextStyle(
+                          color: WfColors.creamMuted, fontSize: 12)),
+                ],
+              ),
+            ),
+          ),
         ),
-      ]),
+      ),
     );
   }
 }
