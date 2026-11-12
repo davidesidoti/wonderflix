@@ -7,106 +7,142 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/error_text.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_buttons.dart';
+import 'admin_kit.dart';
 import 'admin_widgets.dart';
 import 'restart_controller.dart';
 import 'restart_dialog.dart';
 import 'server_info_controller.dart';
 
-/// La striscia in cima alla pagina Amministrazione: nome e versione del
-/// server, "Riavvio necessario" e Riavvia.
+/// Il blocco del server in cima alla pagina Amministrazione: spia, nome e
+/// versione, Riavvia e "Riavvio necessario". [vertical] è quello della
+/// colonna dello schermo largo (tutto impilato); senza, quello dello schermo
+/// stretto (spia e nome a sinistra, Riavvia a destra se c'è posto).
 class ServerStrip extends ConsumerWidget {
-  const ServerStrip({super.key});
+  const ServerStrip({super.key, this.vertical = false});
+
+  final bool vertical;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final compact = FormFactor.of(context).compact;
     final data = ref.watch(serverInfoControllerProvider);
     final info = data.value;
     final error = data.error;
     final updatedAt = data.updatedAt;
-    final Widget title;
+    final pending = info?.hasPendingRestart ?? false;
+    final lamp = info != null
+        ? (pending ? LampState.attention : LampState.ok)
+        : error != null
+            ? LampState.broken
+            : LampState.off;
+    final Widget name;
+    final List<Widget> details;
+    final String lampLabel;
     if (info != null) {
       final os = info.operatingSystem;
-      title = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(info.name.isEmpty ? 'Jellyfin' : info.name,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          Text(
-              os == null
-                  ? l.adminServerVersion(info.version)
-                  : l.adminServerVersionOs(info.version, os),
-              style: const TextStyle(color: WfColors.creamMuted)),
-        ],
-      );
+      final version = os == null
+          ? l.adminServerVersion(info.version)
+          : l.adminServerVersionOs(info.version, os);
+      lampLabel = info.name.isEmpty ? 'Jellyfin' : info.name;
+      name = Text(lampLabel, style: WfText.display(24));
+      details = [
+        Text(version, style: const TextStyle(color: WfColors.creamMuted)),
+      ];
     } else if (error != null) {
-      title = Row(
-        children: [
-          Flexible(
-            child: Text(describeError(l, error),
-                style: const TextStyle(color: WfColors.creamMuted)),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
+      lampLabel = describeError(l, error);
+      name = Text(lampLabel,
+          style: const TextStyle(color: WfColors.creamMuted));
+      details = [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
             onPressed: () => unawaited(
                 ref.read(serverInfoControllerProvider.notifier).refresh()),
             child: Text(l.retry),
           ),
+        ),
+      ];
+    } else {
+      lampLabel = '';
+      name = const Align(
+          alignment: Alignment.centerLeft,
+          child: SkeletonBox(width: 160, height: 20));
+      details = const [];
+    }
+    final head = Row(
+      children: [
+        WfLamp(state: lamp, label: lampLabel),
+        const SizedBox(width: 12),
+        Expanded(child: name),
+      ],
+    );
+    // Nello stretto Riavvia sta a destra solo se non è in corso nulla e il
+    // server risponde: le altre fasi hanno testi lunghi e vanno sotto.
+    final inline = !vertical &&
+        info != null &&
+        ref.watch(restartControllerProvider) == RestartPhase.idle;
+    final Widget top;
+    if (inline) {
+      top = Row(
+        children: [
+          WfLamp(state: lamp, label: lampLabel),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [name, ...details],
+            ),
+          ),
+          const SizedBox(width: 12),
+          const RestartArea(),
         ],
       );
     } else {
-      title = const Align(
-          alignment: Alignment.centerLeft,
-          child: SkeletonBox(width: 220, height: 20));
-    }
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: WfColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: WfColors.border),
-      ),
-      child: Column(
+      top = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
+          head,
+          for (final d in details)
+            Padding(
+                padding: EdgeInsets.only(left: 21, top: 2),
+                child: d),
+          const SizedBox(height: 12),
+          const Align(alignment: Alignment.centerLeft, child: RestartArea()),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        top,
+        if (pending) ...[
+          const SizedBox(height: 12),
           Row(
+            key: const Key('pending-restart'),
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(LucideIcons.server, color: WfColors.gold),
-              const SizedBox(width: 12),
-              Expanded(child: title),
-              // Nello stretto Riavvia va sotto: non c'è posto accanto al nome.
-              if (!compact) ...const [SizedBox(width: 16), RestartArea()],
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(LucideIcons.triangleAlert,
+                    size: 16, color: WfColors.gold),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text.rich(TextSpan(children: [
+                  TextSpan(
+                      text: '${l.adminPendingRestart}: ',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  TextSpan(text: l.adminPendingRestartHint),
+                ])),
+              ),
             ],
           ),
-          if (compact) ...const [SizedBox(height: 12), RestartArea()],
-          if (info?.hasPendingRestart ?? false) ...[
-            const SizedBox(height: 12),
-            Row(
-              key: const Key('pending-restart'),
-              children: [
-                const Icon(LucideIcons.triangleAlert,
-                    size: 16, color: WfColors.gold),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text.rich(TextSpan(children: [
-                    TextSpan(
-                        text: '${l.adminPendingRestart}: ',
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    TextSpan(text: l.adminPendingRestartHint),
-                  ])),
-                ),
-              ],
-            ),
-          ],
-          if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
         ],
-      ),
+        if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
+      ],
     );
   }
 }

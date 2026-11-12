@@ -557,6 +557,11 @@ void main() {
     testWidgets('admin stretto: scorrendo la striscia non si perde il riavvio '
         'in corso né si rilegge il server', (tester) async {
       api.upAnswers.addAll(List.filled(100, false));
+      // Il blocco in cima è alto: serve una lista abbastanza lunga da scorrere.
+      api.sessionsValue = [
+        for (var i = 0; i < 12; i++)
+          testSession('s$i', 'utente$i', playing: testMovie),
+      ];
       await pumpApp(
         tester,
         const Scaffold(body: AdminScreen()),

@@ -146,4 +146,20 @@ void main() {
     expect(find.text('Riavvio non riuscito'), findsOneWidget);
     expect(find.text('Riavvia'), findsOneWidget);
   });
+
+  testWidgets('aspetto della colonna: tutto impilato', (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: SizedBox(width: 180, child: ServerStrip(vertical: true))),
+      overrides: adminTestOverrides(api, session: session),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('WonderFlix'), findsOneWidget);
+    expect(find.text('Jellyfin 10.11.9'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Riavvia')).dy,
+        greaterThan(tester.getBottomLeft(find.text('Jellyfin 10.11.9')).dy));
+    expect(tester.takeException(), isNull);
+  });
 }

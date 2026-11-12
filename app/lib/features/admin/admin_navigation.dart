@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../l10n/gen/app_localizations.dart';
 
@@ -50,3 +51,13 @@ String adminTabLabel(AppLocalizations l, AdminTab tab) => switch (tab) {
 /// Apre la pagina Amministrazione, sulla scheda [tab] se c'è.
 void openAdmin(BuildContext context, {AdminTab? tab}) =>
     context.go(tab == null ? '/admin' : '/admin?tab=${tab.name}');
+
+IconData adminTabIcon(AdminTab tab) => switch (tab) {
+      AdminTab.sessions => LucideIcons.monitorPlay,
+      AdminTab.users => LucideIcons.users,
+      AdminTab.maintenance => LucideIcons.wrench,
+      AdminTab.activity => LucideIcons.scrollText,
+      AdminTab.downloads => LucideIcons.download,
+      AdminTab.space => LucideIcons.hardDrive,
+      AdminTab.wonderflix => LucideIcons.sparkles,
+    };

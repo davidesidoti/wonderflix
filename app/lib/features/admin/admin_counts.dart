@@ -75,26 +75,35 @@ final adminCountsProvider =
 
 /// Il numero sul pallino di [tab], `null` = nessun pallino (anche 0). Per la
 /// scheda aperta ([current]) conta il controller della scheda, già vivo e
-/// più fresco; per le altre [adminCountsProvider]. WonderFlix conta sempre le
-/// segnalazioni, che si aggiornano da sole con gli eventi.
+/// più fresco; per le altre [adminCountsProvider]. Il controller della scheda
+/// aperta riparte vuoto a ogni cambio di scheda (è autoDispose): finché non ha
+/// un valore vale [adminCountsProvider], così il pallino non lampeggia.
+/// WonderFlix conta sempre le segnalazioni, che si aggiornano da sole con gli
+/// eventi.
 int? adminTabCount(WidgetRef ref, AdminTab tab, {required AdminTab current}) {
   final open = tab == current;
   final int? count = switch (tab) {
-    AdminTab.sessions => open
-        ? ref.watch(sessionsControllerProvider).value?.playing.length
-        : ref.watch(adminCountsProvider).value?.playing,
-    AdminTab.maintenance => open
-        ? ref
-            .watch(maintenanceControllerProvider)
-            .value
-            ?.groups
-            .expand((g) => g.tasks)
-            .where((t) => t.state != TaskState.idle)
-            .length
-        : ref.watch(adminCountsProvider).value?.running,
-    AdminTab.downloads => open
-        ? _needsYouOf(ref.watch(downloadsControllerProvider).value)
-        : ref.watch(adminCountsProvider).value?.needsYou,
+    AdminTab.sessions =>
+      (open
+              ? ref.watch(sessionsControllerProvider).value?.playing.length
+              : null) ??
+          ref.watch(adminCountsProvider).value?.playing,
+    AdminTab.maintenance =>
+      (open
+              ? ref
+                  .watch(maintenanceControllerProvider)
+                  .value
+                  ?.groups
+                  .expand((g) => g.tasks)
+                  .where((t) => t.state != TaskState.idle)
+                  .length
+              : null) ??
+          ref.watch(adminCountsProvider).value?.running,
+    AdminTab.downloads =>
+      (open
+              ? _needsYouOf(ref.watch(downloadsControllerProvider).value)
+              : null) ??
+          ref.watch(adminCountsProvider).value?.needsYou,
     AdminTab.wonderflix => ref.watch(adminReportsProvider).value?.length,
     AdminTab.users || AdminTab.activity || AdminTab.space => null,
   };

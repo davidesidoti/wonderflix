@@ -131,7 +131,7 @@ void main() {
     await pumpScreen(tester,
         session: FakeSessionController(const SessionSignedIn(testAdmin)));
 
-    expect(find.text('AMMINISTRAZIONE'), findsOneWidget);
+    expect(find.text('AMMINISTRAZIONE'), findsNothing);
     // Il nome del server nella striscia e la scheda.
     expect(find.text('WonderFlix'), findsNWidgets(2));
     expect(find.text('Jellyfin 10.11.9'), findsOneWidget);
@@ -328,13 +328,13 @@ void main() {
         settle: false);
 
     expect(find.byType(LoadingView), findsOneWidget);
-    expect(api.count('sessions'), 0);
+    expect(find.text('viviroby'), findsNothing);
 
     availability.set(const SocialFeatures(inbox: true, account: true));
     await tester.pumpAndSettle();
 
     expect(find.text('garg'), findsOneWidget);
-    expect(api.count('sessions'), 0);
+    expect(find.text('viviroby'), findsNothing);
   });
 
   testWidgets('funzioni del plugin non ancora note: WonderFlix aspetta, senza '
@@ -348,7 +348,6 @@ void main() {
 
     expect(find.byType(LoadingView), findsOneWidget);
     expect(find.text('viviroby'), findsNothing);
-    expect(api.count('sessions'), 0, reason: 'Sessioni non si legge per niente');
 
     availability.set(const SocialFeatures(inbox: true));
     await tester.pumpAndSettle();
@@ -356,7 +355,6 @@ void main() {
     expect(find.byType(LoadingView), findsNothing);
     expect(find.byKey(const ValueKey('admin-tab-wonderflix')), findsOneWidget);
     expect(find.text('Annuncio'), findsOneWidget);
-    expect(api.count('sessions'), 0);
   });
 
   testWidgets('funzioni non note e poi senza cassetta: si mostra Sessioni',

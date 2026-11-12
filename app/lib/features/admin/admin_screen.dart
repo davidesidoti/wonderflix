@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
-import '../../ui/wf_tab_button.dart';
 import '../auth/session_controller.dart';
 import '../downloads/downloads_tab.dart';
 import '../space/space_tab.dart';
 import '../social/social_providers.dart';
 import 'activity_tab.dart';
+import 'admin_counts.dart';
 import 'admin_navigation.dart';
 import 'admin_providers.dart';
+import 'admin_rail.dart';
 import 'admin_widgets.dart';
 import 'maintenance_tab.dart';
 import 'restart_controller.dart';
@@ -23,7 +23,7 @@ import 'sessions_tab.dart';
 import 'users_tab.dart';
 import 'wonderflix_tab.dart';
 
-/// La pagina Amministrazione (spec J §7, §9.1): la striscia del server, le
+/// La pagina Amministrazione (spec J §7, §9.1): il blocco del server, le
 /// schede e il contenuto della scheda scelta. La scheda sta nell'indirizzo;
 /// cambiandola la pagina resta la stessa (con la striscia e un riavvio in
 /// corso). Chi non è admin torna alla Home; chi smette di esserlo mentre la
@@ -76,6 +76,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
     // perdendo il riavvio in corso. La pagina li tiene vivi.
     ref.listen(restartControllerProvider, (_, _) {});
     ref.listen(serverInfoControllerProvider, (_, _) {});
+    // Idem per i numeri sulle voci: le voci si smontano, i contatori no.
+    ref.listen(adminCountsProvider, (_, _) {});
     // Le schede del plugin (Utenti e WonderFlix) ci sono solo con le sue
     // funzioni; se una manca ed è nell'indirizzo (o la funzione sparisce
     // mentre la si guarda), si mostra Sessioni. Ma finché non si sa se il
@@ -100,57 +102,39 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
         ? widget.tab
         : AdminTab.sessions;
     final compact = FormFactor.of(context).compact;
-    final side = adminSideMargin(context);
-    // Nel layout stretto la striscia del server scorre con la scheda (spec
-    // 1c): ogni scheda la mette in cima al suo elenco.
-    final Widget? header = compact ? const ServerStrip() : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
-          child: Text(l.menuAdmin.toUpperCase(),
-              style: WfText.display(compact ? 28 : 40)),
-        ),
-        if (!compact) ...const [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 32),
-            child: ServerStrip(),
-          ),
-          SizedBox(height: 16),
-        ],
-        // Le schede possono non starci in larghezza: scorrono.
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: side),
-          child: Row(
+    // Nello stretto il blocco del server e la fila delle schede scorrono con
+    // la scheda (spec "Struttura della pagina"): ogni scheda li mette in cima
+    // al suo elenco, così Riavvia resta raggiungibile anche con la scheda in
+    // errore. Nel largo stanno nella colonna.
+    final Widget? header = compact
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final item in tabs) ...[
-                WfTabButton(
-                  key: ValueKey('admin-tab-${item.name}'),
-                  label: adminTabLabel(l, item),
-                  selected: item == tab,
-                  onTap: () => openAdmin(context, tab: item),
-                ),
-                const SizedBox(width: 24),
-              ],
+              const ServerStrip(),
+              const SizedBox(height: 12),
+              AdminTabStrip(tabs: tabs, current: tab),
             ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: waitingForPlugin
-              ? const LoadingView()
-              : switch (tab) {
-                  AdminTab.sessions => SessionsTab(header: header),
-                  AdminTab.users => UsersTab(header: header),
-                  AdminTab.maintenance => MaintenanceTab(header: header),
-                  AdminTab.activity => ActivityTab(header: header),
-                  AdminTab.downloads => DownloadsTab(header: header),
-                  AdminTab.space => SpaceTab(header: header),
-                  AdminTab.wonderflix => WonderflixTab(header: header),
-                },
-        ),
+          )
+        : null;
+    final Widget content = waitingForPlugin
+        ? (header == null
+            ? const LoadingView()
+            : adminTabState(context, header, const LoadingView()))
+        : switch (tab) {
+            AdminTab.sessions => SessionsTab(header: header),
+            AdminTab.users => UsersTab(header: header),
+            AdminTab.maintenance => MaintenanceTab(header: header),
+            AdminTab.activity => ActivityTab(header: header),
+            AdminTab.downloads => DownloadsTab(header: header),
+            AdminTab.space => SpaceTab(header: header),
+            AdminTab.wonderflix => WonderflixTab(header: header),
+          };
+    if (compact) return content;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminRail(tabs: tabs, current: tab),
+        Expanded(child: content),
       ],
     );
   }

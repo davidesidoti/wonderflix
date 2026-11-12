@@ -144,5 +144,36 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       container.dispose();
     });
+
+    testWidgets('the open tab falls back to the counts until its own '
+        'controller has a value, then uses it', (tester) async {
+      api.sessionsValue = [testSession('a', 'anna', playing: testMovie)];
+      final container = makeContainer();
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(container.read(adminCountsProvider).value!.playing, 1);
+
+      // Il controller delle Sessioni legge più tardi e trova di più.
+      api.sessionsValue = [
+        testSession('a', 'anna', playing: testMovie),
+        testSession('b', 'bruno', playing: testMovie),
+      ];
+      final seen = <int?>[];
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: Consumer(builder: (context, ref, _) {
+          seen.add(adminTabCount(ref, AdminTab.sessions,
+              current: AdminTab.sessions));
+          return const SizedBox();
+        }),
+      ));
+      expect(seen.first, 1, reason: 'subito il numero dei contatori');
+
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(seen.last, 2, reason: 'poi il valore della scheda aperta');
+      expect(seen, isNot(contains(null)), reason: 'mai senza pallino');
+
+      await tester.pumpWidget(const SizedBox());
+      container.dispose();
+    });
   });
 }
