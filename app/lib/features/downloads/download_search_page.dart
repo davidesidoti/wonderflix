@@ -502,21 +502,24 @@ class _Hero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: (compact ? 150 : 190) + inset,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const ColoredBox(color: WfColors.surfaceHigh),
-              if (image != null)
-                ClipRect(
+        // Altezza minima, non fissa: un titolo lungo allunga la testa invece
+        // di salire sopra "← Download".
+        Stack(
+          children: [
+            const Positioned.fill(
+                child: ColoredBox(color: WfColors.surfaceHigh)),
+            if (image != null)
+              Positioned.fill(
+                child: ClipRect(
                   child: blur
                       ? ImageFiltered(
                           imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                           child: WfImage(image: image, fallbackIcon: null))
                       : WfImage(image: image, fallbackIcon: null),
                 ),
-              DecoratedBox(
+              ),
+            Positioned.fill(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
@@ -526,22 +529,29 @@ class _Hero extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                top: inset + 8,
-                left: margin - 8,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                      foregroundColor: WfColors.creamMuted),
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(LucideIcons.arrowLeft, size: 16),
-                  label: Text(l.adminTabDownloads),
-                ),
-              ),
-              Positioned(
-                left: margin,
-                right: margin,
-                bottom: 16,
-                child: Row(
+            ),
+            Padding(
+              padding: EdgeInsets.fromLTRB(margin, inset + 8, margin, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Transform.translate(
+                    offset: const Offset(-8, 0),
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                          foregroundColor: WfColors.creamMuted),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(LucideIcons.arrowLeft, size: 16),
+                      label: Text(l.adminTabDownloads),
+                    ),
+                  ),
+                  ConstrainedBox(
+                    // 40: il pulsante; 24: i margini sopra e sotto.
+                    constraints: BoxConstraints(
+                        minHeight: (compact ? 150 : 190) - 40 - 24),
+                    child: Align(
+                      alignment: AlignmentDirectional.bottomStart,
+                      child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
@@ -571,10 +581,13 @@ class _Hero extends StatelessWidget {
                     ),
                     if (!compact) ...[const SizedBox(width: 20), spec],
                   ],
-                ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
         if (compact)
           Padding(
@@ -1073,7 +1086,15 @@ class _RejectedSectionState extends State<_RejectedSection> {
     final l = AppLocalizations.of(context);
     final counts = <String, int>{};
     for (final r in widget.rejected) {
-      counts.update(rejectedLabel(l, r), (n) => n + 1, ifAbsent: () => 1);
+      // Per motivo, senza il dettaglio della singola release; Sonarr/Radarr
+      // hanno solo il dettaglio come motivo.
+      final label = switch (r.reason) {
+        RejectedReason.tooSmall => l.downloadsRejectedTooSmallShort,
+        RejectedReason.arr || RejectedReason.unknown => rejectedLabel(l, r),
+        _ => rejectedLabel(
+            l, DownloadRejected(release: r.release, reason: r.reason)),
+      };
+      counts.update(label, (n) => n + 1, ifAbsent: () => 1);
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

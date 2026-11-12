@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/core/jellyfin/image_urls.dart';
@@ -152,7 +153,7 @@ void main() {
     expect(find.text('Scartati'), findsOneWidget);
     // Chiusi: le pastiglie per motivo, l'elenco solo dopo "Mostra".
     expect(find.text('1 Già nel catalogo'), findsOneWidget);
-    expect(find.text('1 0,62 GB/ora, sotto la soglia'), findsOneWidget);
+    expect(find.text('1 troppo piccoli'), findsOneWidget);
     expect(find.textContaining('Idx · Già nel catalogo'), findsNothing);
 
     await tester.tap(find.text('Mostra'));
@@ -174,6 +175,55 @@ void main() {
 
     expect(find.text('3 Altro titolo'), findsOneWidget);
     expect(find.text('1 Qualità non voluta'), findsOneWidget);
+  });
+
+  testWidgets('too small at different rates make one pill', (tester) async {
+    api.searchValue = _search(rejected: [
+      DownloadRejected(
+          release: testRelease(guid: 'r1'),
+          reason: RejectedReason.tooSmall,
+          detail: '0.62'),
+      DownloadRejected(
+          release: testRelease(guid: 'r2'),
+          reason: RejectedReason.tooSmall,
+          detail: '0.48'),
+      DownloadRejected(
+          release: testRelease(guid: 'r3'),
+          reason: RejectedReason.notWanted,
+          detail: 'x264'),
+    ]);
+    await open(tester);
+
+    expect(find.text('2 troppo piccoli'), findsOneWidget);
+    expect(find.text('1 Qualità non voluta'), findsOneWidget);
+    await tester.tap(find.text('Mostra'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('0,48 GB/ora, sotto la soglia'), findsOneWidget);
+    expect(find.textContaining('Qualità non voluta: x264'), findsOneWidget);
+  });
+
+  testWidgets('narrow hero with a long title and the file below',
+      (tester) async {
+    api.searchValue = DownloadSearch(
+      key: 'movie:1',
+      kind: DownloadKind.movie,
+      title: 'Un titolo lunghissimo che non sta su una riga sola del telefono',
+      runtimeMinutes: 180,
+      current: _current120,
+      candidates: [_row('g1', 1000000000), _row('g2', 2000000000)],
+      validCount: 2,
+      totalCount: 9,
+      engine: SearchEngine.arr,
+    );
+    await open(tester, lighten: true, size: const Size(375, 800));
+
+    expect(tester.takeException(), isNull);
+    final back = tester.getRect(find.byIcon(LucideIcons.arrowLeft));
+    final title = tester.getRect(find.textContaining('Un titolo lunghissimo'));
+    expect(title.top, greaterThanOrEqualTo(back.bottom));
+    // La scheda tecnica sta sotto la testa.
+    expect(tester.getTopLeft(find.text('1,00 GB').first).dy,
+        greaterThan(title.bottom));
   });
 
   testWidgets('the choice shows once, outside the table', (tester) async {

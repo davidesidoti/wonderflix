@@ -1217,6 +1217,7 @@
   "downloadsRuleChoiceTitle": "The rule's pick",
   "downloadsAllReleases": "All releases",
   "downloadsShow": "Show",
+  "downloadsRejectedTooSmallShort": "too small",
   "downloadsGbPerHour": "{rate} GB/h",
   "@downloadsGbPerHour": {"placeholders": {"rate": {"type": "String"}}},
   "downloadsColRelease": "Release",

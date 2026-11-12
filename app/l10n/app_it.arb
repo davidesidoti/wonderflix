@@ -1400,6 +1400,7 @@
   "downloadsRuleChoiceTitle": "La scelta della regola",
   "downloadsAllReleases": "Tutte le release",
   "downloadsShow": "Mostra",
+  "downloadsRejectedTooSmallShort": "troppo piccoli",
   "downloadsGbPerHour": "{rate} GB/ora",
   "@downloadsGbPerHour": {"placeholders": {"rate": {"type": "String"}}},
   "downloadsColRelease": "Release",
