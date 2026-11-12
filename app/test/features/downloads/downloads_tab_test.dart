@@ -11,7 +11,9 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/downloads/downloads_api.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/core/downloads/download_models.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/admin/admin_action_button.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/downloads/download_rows.dart';
 import 'package:wonderflix/features/downloads/downloads_tab.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -337,6 +339,80 @@ void main() {
 
       expect(find.text('3 / 10'), findsOneWidget);
       expect(find.text('~1 ricerca/ora'), findsOneWidget);
+    });
+  });
+
+  group('cabina', () {
+    LampState lamp(WidgetTester tester) =>
+        tester.widget<WfLamp>(find.byType(WfLamp)).state;
+
+    testWidgets('il titolo della scheda è in cima', (tester) async {
+      api.overviewValue = const DownloadsOverview(enabled: true);
+      await pumpTab(tester);
+
+      expect(find.byType(AdminTabTitle), findsOneWidget);
+    });
+
+    Future<void> lampIs(WidgetTester tester, DownloadsOverview overview,
+        LampState expected) async {
+      api.overviewValue = overview;
+      await pumpTab(tester);
+      expect(lamp(tester), expected);
+    }
+
+    testWidgets('la spia è verde se la coda corre', (tester) async {
+      await lampIs(
+          tester,
+          const DownloadsOverview(
+              enabled: true, progress: SearchProgress(done: 1, remaining: 2)),
+          LampState.ok);
+    });
+
+    testWidgets('la spia è gialla in pausa',
+        (tester) async {
+      await lampIs(
+          tester,
+          const DownloadsOverview(
+              enabled: true,
+              progress: SearchProgress(done: 1, remaining: 2, paused: true)),
+          LampState.attention);
+    });
+
+    testWidgets('la spia è gialla per la ricerca manuale', (tester) async {
+      await lampIs(
+          tester,
+          const DownloadsOverview(
+              enabled: true,
+              progress:
+                  SearchProgress(done: 1, remaining: 2, manualSearch: true)),
+          LampState.attention);
+    });
+
+    testWidgets('la spia è rossa se Sonarr o Radarr non rispondono',
+        (tester) async {
+      await lampIs(
+          tester,
+          const DownloadsOverview(
+              enabled: true,
+              radarrError: 'Unreachable',
+              progress: SearchProgress(done: 1, remaining: 2)),
+          LampState.broken);
+    });
+
+    testWidgets('Serve te: la riga ha il bordo oro', (tester) async {
+      api.overviewValue = DownloadsOverview(enabled: true, waiting: [
+        _item('movie:5',
+            state: DownloadState.needsYou,
+            reason: DownloadReason.belowMinScore,
+            actions: [DownloadAction.pick])
+      ]);
+      await pumpTab(tester);
+
+      final shell = tester.widget<RowShell>(find.descendant(
+          of: find.byKey(const ValueKey('item-movie:5')),
+          matching: find.byType(RowShell)));
+      expect(shell.accent, WfColors.gold);
+      expect(shell.leftAccent, isTrue);
     });
   });
 

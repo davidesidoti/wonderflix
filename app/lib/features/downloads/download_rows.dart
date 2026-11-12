@@ -46,6 +46,7 @@ class RowShell extends StatelessWidget {
     required this.lines,
     required this.actions,
     this.accent,
+    this.leftAccent = false,
     this.onTap,
   });
 
@@ -56,8 +57,20 @@ class RowShell extends StatelessWidget {
   /// Il colore del bordo ("Serve te").
   final Color? accent;
 
+  /// Con [accent]: in più una barra piena di 3 px sul bordo sinistro.
+  final bool leftAccent;
+
   /// Riga toccabile: l'evidenziazione resta dentro la scheda arrotondata.
   final VoidCallback? onTap;
+
+  Widget _bar(Widget child) => leftAccent && accent != null
+      ? DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(left: BorderSide(color: accent!, width: 3)),
+          ),
+          child: child,
+        )
+      : child;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +113,7 @@ class RowShell extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           side: BorderSide(color: accent ?? WfColors.border),
         ),
-        child: onTap == null ? row : InkWell(onTap: onTap, child: row),
+        child: _bar(onTap == null ? row : InkWell(onTap: onTap, child: row)),
       ),
     );
   }
@@ -255,7 +268,8 @@ class DownloadItemRow extends StatelessWidget {
         : item.actions;
     return RowShell(
       posterUrl: item.posterUrl,
-      accent: needsYou ? WfColors.error : null,
+      accent: needsYou ? WfColors.gold : null,
+      leftAccent: needsYou,
       lines: [
         if (item.snoozed)
           Wrap(

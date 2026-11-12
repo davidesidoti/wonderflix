@@ -17,6 +17,7 @@ import '../../ui/states.dart';
 import '../../ui/tv_focusable.dart';
 import '../admin/admin_action_button.dart';
 import '../admin/admin_confirm_dialog.dart';
+import '../admin/admin_kit.dart';
 import '../admin/admin_poller.dart';
 import '../admin/admin_time.dart';
 import '../admin/admin_widgets.dart';
@@ -129,8 +130,9 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
     }
   }
 
-  Widget _header(String id, String title) => _SectionHeader(
+  Widget _header(String id, String title, int count) => _SectionHeader(
     title: title,
+    count: count,
     expanded: _isOpen(id),
     onToggle: () => _toggle(id),
   );
@@ -352,6 +354,10 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
       children: [
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: AdminTabTitle(title: l.adminTabDownloads),
+        ),
         Align(
           alignment: Alignment.centerLeft,
           child: Padding(
@@ -382,7 +388,11 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             onRefresh: () => _call(ref.read(downloadsApiProvider).refresh),
           ),
         if (overview.progress case final progress?)
-          _BacklogCard(progress: progress, now: now),
+          _BacklogCard(
+            progress: progress,
+            now: now,
+            broken: overview.sonarrError != null || overview.radarrError != null,
+          ),
         if (!overview.enabled)
           _Note(text: l.downloadsDisabledNote, icon: LucideIcons.info),
         for (final text in errors)
@@ -390,7 +400,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
         if (needsYou.isNotEmpty) ...[
           _header(
             'needsYou',
-            '${l.downloadsSectionNeedsYou} · ${needsYou.length}',
+            l.downloadsSectionNeedsYou,
+            needsYou.length,
           ),
           if (_isOpen('needsYou'))
             for (final item in needsYou) _itemRow(item, now),
@@ -398,7 +409,8 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
         if (unknown.isNotEmpty) ...[
           _header(
             'unknown',
-            '${l.downloadsSectionUnknown} · ${unknown.length}',
+            l.downloadsSectionUnknown,
+            unknown.length,
           ),
           if (_isOpen('unknown'))
             for (final item in unknown)
@@ -409,7 +421,7 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
               ),
         ],
         if (!filtering || recent.isNotEmpty)
-          _header('chosen', '${l.downloadsSectionChosen} · ${recent.length}'),
+          _header('chosen', l.downloadsSectionChosen, recent.length),
         if ((!filtering || recent.isNotEmpty) && _isOpen('chosen')) ...[
           if (recent.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
           for (final choice in recent)
@@ -427,13 +439,13 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
             _MoreButton(onPressed: () => setState(() => _allRecent = true)),
         ],
         if (!filtering || waiting.isNotEmpty)
-          _header('waiting', '${l.downloadsSectionWaiting} · ${waiting.length}'),
+          _header('waiting', l.downloadsSectionWaiting, waiting.length),
         if ((!filtering || waiting.isNotEmpty) && _isOpen('waiting')) ...[
           if (waiting.isEmpty) AdminEmptyText(text: l.downloadsNothingYet),
           for (final item in waiting) _itemRow(item, now),
         ],
         if (!filtering || review.isNotEmpty)
-          _header('review', '${l.downloadsSectionReview} · ${review.length}'),
+          _header('review', l.downloadsSectionReview, review.length),
         if ((!filtering || review.isNotEmpty) && _isOpen('review')) ...[
           if (reviewAt != null)
             Padding(
@@ -494,11 +506,13 @@ class _DownloadsTabState extends ConsumerState<DownloadsTab> {
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
+    required this.count,
     required this.expanded,
     required this.onToggle,
   });
 
   final String title;
+  final int count;
   final bool expanded;
   final VoidCallback onToggle;
 
@@ -526,11 +540,21 @@ class _SectionHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Flexible(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
+                  // Un solo testo ("Titolo · 3"): il conteggio è la parte piccola.
+                  child: Text.rich(
+                    TextSpan(
+                      text: title,
+                      style: WfText.display(20),
+                      children: [
+                        TextSpan(
+                          text: ' · $count',
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            color: WfColors.creamMuted,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -546,10 +570,17 @@ class _SectionHeader extends StatelessWidget {
 /// L'avanzamento della coda delle ricerche automatiche: "140 / 600", barra e
 /// fine stimata. Stesso aspetto di [AdminCard]; su TV non prende il focus.
 class _BacklogCard extends StatelessWidget {
-  const _BacklogCard({required this.progress, required this.now});
+  const _BacklogCard({
+    required this.progress,
+    required this.now,
+    required this.broken,
+  });
 
   final SearchProgress progress;
   final DateTime now;
+
+  /// Sonarr o Radarr non rispondono: la spia è rossa.
+  final bool broken;
 
   @override
   Widget build(BuildContext context) {
@@ -572,6 +603,15 @@ class _BacklogCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
+              WfLamp(
+                state: broken
+                    ? LampState.broken
+                    : progress.paused || progress.manualSearch
+                        ? LampState.attention
+                        : LampState.ok,
+                label: l.downloadsBacklogTitle,
+              ),
+              const SizedBox(width: 12),
               Text(
                 '${progress.done} / $total',
                 style: const TextStyle(
