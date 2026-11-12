@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
@@ -79,10 +78,10 @@ void main() {
     expect(plugin.calls, contains('setDiscord:u3:d42'));
     expect(find.text('Associa Discord a lucia'), findsNothing);
     expect(find.text('Discord associato a lucia'), findsOneWidget);
-    final icon = find.descendant(
-        of: find.byTooltip('Discord: Mario'),
-        matching: find.byIcon(LucideIcons.messageCircle));
-    expect(tester.widget<Icon>(icon).color, WfColors.gold);
+    // La casellina è piena: la "D" è crema, non quella dei canali vuoti.
+    final box = find.descendant(
+        of: find.byTooltip('Discord: Mario'), matching: find.text('D'));
+    expect(tester.widget<Text>(box).style?.color, WfColors.cream);
   });
 
   testWidgets('Discord: cambiare il nome toglie l\'anteprima', (tester) async {

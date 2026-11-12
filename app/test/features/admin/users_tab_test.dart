@@ -9,6 +9,7 @@ import 'package:wonderflix/core/jellyfin/auth_api.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
+import 'package:wonderflix/features/admin/account_recovery_card.dart';
 import 'package:wonderflix/features/admin/users_tab.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -230,6 +231,68 @@ void main() {
       expect(find.text('Imposta password'), findsOneWidget);
       expect(find.text('Associa Discord'), findsNothing);
       expect(find.text('Associa email'), findsNothing);
+    });
+  });
+
+  group('tessere', () {
+    testWidgets('la fascia del recupero sta sopra le tessere', (tester) async {
+      await pumpTab(tester);
+
+      expect(find.byType(AccountRecoveryBand), findsOneWidget);
+      expect(
+          tester.getTopLeft(find.byType(AccountRecoveryBand)).dy,
+          lessThan(
+              tester.getTopLeft(find.byKey(const ValueKey('user-u2'))).dy));
+    });
+
+    testWidgets('"nessun contatto" solo per un non admin attivo senza contatti',
+        (tester) async {
+      plugin.accountUsersValue = const [
+        AdminAccountUser(
+            id: 'a', name: 'amministratore', isAdmin: true, enabled: true),
+        AdminAccountUser(id: 'b', name: 'senza', isAdmin: false, enabled: true),
+        AdminAccountUser(
+            id: 'c', name: 'spento', isAdmin: false, enabled: false),
+        AdminAccountUser(
+            id: 'd',
+            name: 'con',
+            isAdmin: false,
+            enabled: true,
+            discordName: 'con'),
+      ];
+      await pumpTab(tester);
+
+      expect(find.text('nessun contatto'), findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('user-b')),
+              matching: find.text('nessun contatto')),
+          findsOneWidget);
+    });
+
+    testWidgets('un utente disattivato ha la tessera a opacità 0.55',
+        (tester) async {
+      await pumpTab(tester);
+
+      Finder opacityOf(String id) => find.descendant(
+          of: find.byKey(ValueKey('user-$id')),
+          matching: find.byType(Opacity));
+      // `testAccountUsers`: u4 è disattivato, u2 attivo.
+      expect(tester.widget<Opacity>(opacityOf('u4').first).opacity, 0.55);
+      expect(opacityOf('u2'), findsNothing);
+    });
+
+    testWidgets('largo: due tessere per riga; stretto: una', (tester) async {
+      await pumpTab(tester);
+      expect(tester.getTopLeft(find.byKey(const ValueKey('user-u2'))).dy,
+          tester.getTopLeft(find.byKey(const ValueKey('user-u3'))).dy);
+
+      await pumpTab(tester, surfaceSize: const Size(420, 900));
+      expect(tester.getTopLeft(find.byKey(const ValueKey('user-u2'))).dx,
+          tester.getTopLeft(find.byKey(const ValueKey('user-u3'))).dx);
+      expect(tester.getTopLeft(find.byKey(const ValueKey('user-u2'))).dy,
+          lessThan(
+              tester.getTopLeft(find.byKey(const ValueKey('user-u3'))).dy));
     });
   });
 

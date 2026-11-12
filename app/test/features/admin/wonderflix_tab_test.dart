@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/social/plugin_admin_models.dart';
+import 'package:wonderflix/features/admin/account_recovery_card.dart';
 import 'package:wonderflix/features/admin/wonderflix_tab.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -385,7 +386,8 @@ void main() {
       expect(plugin.count('accountStatus'), 0);
     });
 
-    testWidgets('con la funzione account: la card dopo Seerr', (tester) async {
+    testWidgets('con la funzione account: il recupero sta in Utenti, non qui',
+        (tester) async {
       await pumpApp(tester, const Scaffold(body: WonderflixTab()),
           overrides: adminTestOverrides(FakeAdminApi(),
               plugin: plugin,
@@ -393,10 +395,22 @@ void main() {
           surfaceSize: const Size(1440, 1400));
       await tester.pumpAndSettle();
 
-      expect(find.text('Recupero password'), findsOneWidget);
-      expect(find.text('Discord: configurato'), findsOneWidget);
-      expect(tester.getTopLeft(find.text('Recupero password')).dy,
-          greaterThan(tester.getTopLeft(find.text('Seerr')).dy));
+      expect(find.byType(AccountRecoveryCard), findsNothing);
+      expect(find.text('Recupero password'), findsNothing);
+      expect(plugin.count('accountStatus'), 0);
+    });
+
+    // Da tenere d'occhio 4: senza la scheda Utenti la card resta qui (si
+    // disegna solo con la funzione `account`, come sempre).
+    testWidgets('senza account ma con inbox: la card è ancora in WonderFlix',
+        (tester) async {
+      await pumpApp(tester, const Scaffold(body: WonderflixTab()),
+          overrides: adminTestOverrides(FakeAdminApi(),
+              plugin: plugin, features: const SocialFeatures(inbox: true)),
+          surfaceSize: const Size(1440, 1400));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AccountRecoveryCard), findsOneWidget);
     });
   });
 }

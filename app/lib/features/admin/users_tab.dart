@@ -17,13 +17,21 @@ import '../auth/session_controller.dart';
 import '../social/social_providers.dart';
 import 'account_admin_controllers.dart';
 import 'account_admin_labels.dart';
+import 'account_recovery_card.dart';
 import 'admin_confirm_dialog.dart';
+import 'admin_kit.dart';
 import 'admin_link_contact_dialog.dart';
 import 'admin_widgets.dart';
 import 'set_password_dialog.dart';
 
-/// Diametro dell'avatar di una riga.
-const _avatarSize = 28.0;
+/// Diametro dell'avatar di una tessera.
+const _avatarSize = 40.0;
+
+/// Lato delle caselline dei contatti.
+const _contactBoxSize = 20.0;
+
+/// Spazio fra le tessere, in orizzontale e in verticale.
+const _tileGap = 8.0;
 
 /// Larghezza del posto del menu: le righe senza menu restano allineate.
 const _menuWidth = 40.0;
@@ -76,6 +84,9 @@ class _UsersTabState extends ConsumerState<UsersTab> {
     final me = ref.watch(sessionControllerProvider.select(
         (s) => s is SessionSignedIn ? jellyfinIdKey(s.user.id) : null));
     final updatedAt = data.updatedAt;
+    // Largo: due tessere per riga; stretto: una. Righe e non `Wrap`, così la
+    // lista resta pigra (e le tessere fuori vista si smontano).
+    final perRow = FormFactor.of(context).compact ? 1 : 2;
     return ListView(
       controller: _scroll,
       padding: EdgeInsets.fromLTRB(
@@ -85,14 +96,32 @@ class _UsersTabState extends ConsumerState<UsersTab> {
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
         if (data.stale && updatedAt != null)
           AdminStaleNote(updatedAt: updatedAt),
+        AdminTabTitle(title: l.adminTabUsers, count: users.length),
+        const SizedBox(height: 14),
+        const AccountRecoveryBand(),
         if (users.isEmpty)
           AdminEmptyText(text: l.adminUsersEmpty)
         else
-          for (final user in users)
-            AccountUserRow(
-              key: ValueKey('user-${user.id}'),
-              user: user,
-              isMe: jellyfinIdKey(user.id) == me,
+          for (var i = 0; i < users.length; i += perRow)
+            Padding(
+              padding: const EdgeInsets.only(bottom: _tileGap),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var j = i; j < i + perRow; j++) ...[
+                    if (j > i) const SizedBox(width: _tileGap),
+                    Expanded(
+                      child: j < users.length
+                          ? AccountUserRow(
+                              key: ValueKey('user-${users[j].id}'),
+                              user: users[j],
+                              isMe: jellyfinIdKey(users[j].id) == me,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ],
+              ),
             ),
       ],
     );
@@ -273,8 +302,13 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
         canLinkEmail: status?.email.configured == true);
     final discord = user.discordName;
     final email = user.maskedEmail;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    final tile = Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WfColors.surface,
+        border: Border.all(color: WfColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
       child: Row(
         children: [
           UserAvatar.lookup(
@@ -283,35 +317,51 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
           // Nome ed etichette prendono tutto lo spazio che resta: un nome
           // lungo si tronca solo quando non c'è più posto.
           Expanded(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Flexible(
-                  child: Text(user.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(user.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    if (user.isAdmin) ...[
+                      const SizedBox(width: 8),
+                      _Badge(
+                          text: l.adminUsersAdmin,
+                          color: WfColors.gold,
+                          background: WfColors.gold.withValues(alpha: 0.18)),
+                    ],
+                    if (!user.enabled) ...[
+                      const SizedBox(width: 8),
+                      _Badge(
+                          text: l.adminUsersDisabled,
+                          color: WfColors.creamMuted,
+                          background: WfColors.cream.withValues(alpha: 0.08)),
+                    ],
+                  ],
                 ),
-                if (user.isAdmin) ...[
-                  const SizedBox(width: 8),
-                  _Badge(text: l.adminUsersAdmin),
-                ],
-                if (!user.enabled) ...[
-                  const SizedBox(width: 8),
-                  _Badge(text: l.adminUsersDisabled),
-                ],
+                // Senza contatti non può recuperare la password da solo.
+                if (!user.isAdmin && user.enabled && !user.hasContacts)
+                  Text(l.adminUsersNoContact,
+                      style:
+                          const TextStyle(color: WfColors.gold, fontSize: 12)),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          _ContactIcon(
-            icon: LucideIcons.messageCircle,
+          _ContactBox(
+            label: 'D',
             linked: discord != null,
             tooltip: discord == null
                 ? l.adminUsersDiscordNone
                 : l.adminUsersDiscordLinked(discord),
           ),
-          const SizedBox(width: 8),
-          _ContactIcon(
-            icon: LucideIcons.mail,
+          const SizedBox(width: 6),
+          _ContactBox(
+            label: '@',
             linked: email != null,
             tooltip: email == null
                 ? l.adminUsersEmailNone
@@ -349,41 +399,58 @@ class _AccountUserRowState extends ConsumerState<AccountUserRow>
         ],
       ),
     );
+    return user.enabled ? tile : Opacity(opacity: 0.55, child: tile);
   }
 }
 
-/// "Admin", "Disattivato".
+/// "Admin" (oro su oro) o "Disattivato" (crema su crema).
 class _Badge extends StatelessWidget {
-  const _Badge({required this.text});
+  const _Badge(
+      {required this.text, required this.color, required this.background});
 
   final String text;
+  final Color color;
+  final Color background;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          border: Border.all(color: WfColors.border),
+          color: background,
           borderRadius: BorderRadius.circular(4),
         ),
-        child: Text(text,
-            style: const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
+        child: Text(text, style: TextStyle(color: color, fontSize: 12)),
       );
 }
 
-/// L'icona di un canale: oro se collegato, grigia se no; il tooltip dice il
-/// contatto (l'email è mascherata dal plugin).
-class _ContactIcon extends StatelessWidget {
-  const _ContactIcon(
-      {required this.icon, required this.linked, required this.tooltip});
+/// La casellina di un canale: piena (crema 12%) se collegato, con il solo
+/// bordo se no; il tooltip dice il contatto (l'email è mascherata dal
+/// plugin).
+class _ContactBox extends StatelessWidget {
+  const _ContactBox(
+      {required this.label, required this.linked, required this.tooltip});
 
-  final IconData icon;
+  final String label;
   final bool linked;
   final String tooltip;
 
   @override
   Widget build(BuildContext context) => Tooltip(
         message: tooltip,
-        child: Icon(icon,
-            size: 18, color: linked ? WfColors.gold : WfColors.creamMuted),
+        child: Container(
+          width: _contactBoxSize,
+          height: _contactBoxSize,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: linked ? WfColors.cream.withValues(alpha: 0.12) : null,
+            border: linked ? null : Border.all(color: WfColors.border),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: linked ? WfColors.cream : WfColors.creamMuted)),
+        ),
       );
 }

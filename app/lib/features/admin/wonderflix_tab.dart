@@ -13,6 +13,7 @@ import '../../core/social/plugin_admin_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
+import '../social/social_providers.dart';
 import 'account_recovery_card.dart';
 import 'admin_action_button.dart';
 import 'admin_confirm_dialog.dart';
@@ -27,17 +28,17 @@ import 'wonderflix_labels.dart';
 /// La scheda WonderFlix (spec J §9.6, spec L §9.6, spec M §8.6): annuncio,
 /// novità, Home per tutti, Sonarr e Radarr, Seerr, recupero della password.
 /// Ogni card ha il suo stato: se una non carica, le altre funzionano.
-class WonderflixTab extends StatefulWidget {
+class WonderflixTab extends ConsumerStatefulWidget {
   const WonderflixTab({super.key, this.header});
 
   /// La striscia del server, nel layout stretto: scorre con l'elenco.
   final Widget? header;
 
   @override
-  State<WonderflixTab> createState() => _WonderflixTabState();
+  ConsumerState<WonderflixTab> createState() => _WonderflixTabState();
 }
 
-class _WonderflixTabState extends State<WonderflixTab> {
+class _WonderflixTabState extends ConsumerState<WonderflixTab> {
   final _scroll = SmoothScrollController();
 
   @override
@@ -61,7 +62,9 @@ class _WonderflixTabState extends State<WonderflixTab> {
           const HomeForEveryoneCard(),
           const ArrCard(),
           const SeerrCard(),
-          const AccountRecoveryCard(),
+          // Con la funzione `account` il recupero sta in Utenti.
+          if (!ref.watch(socialAvailabilityProvider.select((f) => f.account)))
+            const AccountRecoveryCard(),
         ],
       );
 }

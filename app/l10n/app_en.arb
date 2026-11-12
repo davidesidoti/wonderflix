@@ -683,6 +683,7 @@
   "adminTabUsers": "Users",
   "adminUsersAdmin": "Admin",
   "adminUsersDisabled": "Disabled",
+  "adminUsersNoContact": "no contact",
   "adminUsersEmpty": "No users",
   "adminUsersActionsFor": "Actions for {name}",
   "adminUsersDiscordLinked": "Discord: {name}",
