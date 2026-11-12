@@ -161,15 +161,26 @@ public sealed partial class DownloadService
     /// <summary>
     /// Fuori dal lock: i file importabili del download (uno per titolo), poi il comando ManualImport. Null se è partito,
     /// altrimenti "NoFiles" o il codice dell'errore. Lo usa anche la scheda spazio per un "Alleggerisci" bloccato.
+    /// Se Radarr/Sonarr hanno già importato tutti i file riconosciuti, il download è finito: esce dalla coda (null).
     /// </summary>
     public async Task<string?> ImportDownloadAsync(ArrKind kind, string downloadId, CancellationToken cancellationToken)
     {
         try
         {
-            var files = OnePerTitle(
-                kind,
-                [.. (await arr.GetManualImportAsync(kind, downloadId, cancellationToken).ConfigureAwait(false))
-                    .OfType<ArrManualImportItem>().Where(i => Importable(kind, i))]);
+            var items = (await arr.GetManualImportAsync(kind, downloadId, cancellationToken).ConfigureAwait(false)).OfType<ArrManualImportItem>().ToList();
+            var files = OnePerTitle(kind, [.. items.Where(i => Importable(kind, i) && !AlreadyImported(i))]);
+            if (files.Count == 0 && items.Any(AlreadyImported))
+            {
+                // Un pack con meno episodi del previsto resta bloccato in coda per sempre: si toglie, il torrent resta a seminare.
+                if ((await arr.GetQueueAsync(kind, cancellationToken).ConfigureAwait(false))
+                    .FirstOrDefault(q => string.Equals(q?.DownloadId, downloadId, StringComparison.OrdinalIgnoreCase)) is { } queued)
+                {
+                    await arr.RemoveFromQueueAsync(kind, queued.Id, blocklist: false, removeFromClient: false, cancellationToken).ConfigureAwait(false);
+                }
+
+                return null;
+            }
+
             if (files.Count == 0)
             {
                 return "NoFiles";
@@ -193,6 +204,10 @@ public sealed partial class DownloadService
                 .GroupBy(p => p.Id)
                 .Select(g => g.MaxBy(p => p.File.Size).File)
                 .Distinct()];
+
+    // "Episode/Movie file already imported at …": reimportarlo rifarebbe solo il file in libreria.
+    private static bool AlreadyImported(ArrManualImportItem item) =>
+        item.Rejections?.Any(r => r?.Reason?.Contains("file already imported", StringComparison.OrdinalIgnoreCase) == true) == true;
 
     // Un file riconosciuto (il film, o la serie e gli episodi) e non un sample: un sample prenderebbe il posto del film.
     private static bool Importable(ArrKind kind, ArrManualImportItem item) =>

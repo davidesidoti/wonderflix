@@ -1097,6 +1097,42 @@ public sealed class DownloadServiceAdminTests : IDisposable
     }
 
     [Fact]
+    public async Task ImportBlockedOfAnAlreadyImportedDownloadTakesItOutOfTheQueue()
+    {
+        // Un pack incompleto: Radarr/Sonarr hanno importato tutto quello che c'era ma lo tengono bloccato per sempre.
+        Blocked();
+        var blocked = MovieQueue(77, 12, 0, state: "importBlocked", status: "completed");
+        blocked.DownloadId = "abc";
+        _radarrQueue = [blocked];
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+            [new ArrManualImportItem { Path = "/dl/a.mkv", DownloadId = "abc", Movie = new ArrFileRef { Id = 12 }, Quality = System.Text.Json.JsonDocument.Parse("""{"quality":{"id":15}}""").RootElement, Rejections = [new ArrRejection { Reason = "Movie file already imported at 11/12/2026 23:42:47" }] }]);
+
+        Assert.Equal((BlockedOutcome.Ok, (string?)null), await _service.ImportBlockedAsync("movie:12"));
+
+        // Nessun secondo import degli stessi file; fuori dalla coda ma il torrent resta a seminare, senza blocklist.
+        Assert.Empty(_arr.ManualImportCalls);
+        Assert.Equal((ArrKind.Radarr, 77, false, false), Assert.Single(_arr.RemoveFromQueueCalls));
+        Assert.Equal(DownloadStates.Downloading, Saved("movie:12")!.State);
+    }
+
+    [Fact]
+    public async Task ImportBlockedSkipsTheFilesAlreadyImported()
+    {
+        Blocked();
+        var quality = System.Text.Json.JsonDocument.Parse("""{"quality":{"id":15}}""").RootElement;
+        _arr.ManualImportItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+        [
+            new ArrManualImportItem { Path = "/dl/big.mkv", Size = 9, DownloadId = "abc", Movie = new ArrFileRef { Id = 12 }, Quality = quality, Rejections = [new ArrRejection { Reason = "Movie file already imported at 11/12/2026 23:42:47" }] },
+            new ArrManualImportItem { Path = "/dl/small.mkv", Size = 1, DownloadId = "abc", Movie = new ArrFileRef { Id = 12 }, Quality = quality, Rejections = [new ArrRejection { Reason = "Not an upgrade" }] },
+        ]);
+
+        Assert.Equal(BlockedOutcome.Ok, (await _service.ImportBlockedAsync("movie:12")).Outcome);
+
+        Assert.Equal("/dl/small.mkv", Assert.Single(Assert.Single(_arr.ManualImportCalls).Items).Path);
+        Assert.Empty(_arr.RemoveFromQueueCalls);
+    }
+
+    [Fact]
     public async Task ImportBlockedOnAnotherStateIsChanged()
     {
         NeedsYou(DownloadReasons.BelowMinScore);
