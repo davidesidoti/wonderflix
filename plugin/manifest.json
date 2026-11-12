@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.30.0.0",
+        "changelog": "\"Importa comunque\" sui pack incompleti: i file già importati non si reimportano e, se non resta altro, il download esce dalla coda di Sonarr/Radarr (il torrent resta a seminare), così la voce non torna in \"Serve te\".",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/davidesidoti/wonderflix/releases/download/watch-party-plugin-v1.30.0/wonderflix-watch-party_1.30.0.zip",
+        "checksum": "e37bc129c5dee2f54b15f5b492c69f15",
+        "timestamp": "2026-11-13T00:00:00Z"
+      },
+      {
         "version": "1.29.0.0",
         "changelog": "Ricerche via Prowlarr: il giro dei download, la ricerca a mano e Alleggerisci cercano su Prowlarr e mandano a Sonarr/Radarr solo la release scelta (niente più memoria piena su Sonarr). Le release rifiutate perché non sono un upgrade vanno in qBittorrent e si importano a mano. Da configurare: Prowlarr URL e API key. Serve l'app 0.40.0 per \"Cerca con Sonarr/Radarr\".",
         "targetAbi": "10.11.0.0",
