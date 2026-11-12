@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/maintenance_models.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/admin/maintenance_tab.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
@@ -69,8 +71,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.calls, contains('scan:a656b907eb3a73532e40e44b968d0225'));
 
-    // "Scansiona tutte", con l'ultima scansione accanto.
-    expect(find.byKey(const Key('scan-all-status')), findsOneWidget);
     await tester.tap(find.text('Scansiona tutte'));
     await tester.pumpAndSettle();
     expect(api.calls, contains('start:t-scan'));
@@ -99,47 +99,10 @@ void main() {
             of: find.text('Scansiona tutte'),
             matching: find.bySubtype<OutlinedButton>()));
 
-    String? statusText(WidgetTester tester) =>
-        tester.widget<Text>(find.byKey(const Key('scan-all-status'))).data;
-
-    testWidgets('ferma: attiva, con l\'ultima scansione accanto', (tester) async {
+    testWidgets('ferma: attiva', (tester) async {
       await pumpTab(tester);
 
       expect(scanAllEnabled(tester), isTrue);
-      expect(statusText(tester), startsWith('Ultima: '));
-    });
-
-    /// Il bordo destro del pulsante "Scansiona tutte".
-    double scanAllRightEdge(WidgetTester tester) => tester
-        .getTopRight(find.ancestor(
-            of: find.text('Scansiona tutte'),
-            matching: find.bySubtype<OutlinedButton>()))
-        .dx;
-
-    /// Il bordo destro del "Scansiona" di Shows.
-    double libraryRightEdge(WidgetTester tester) => tester
-        .getTopRight(inRow('library-a656b907eb3a73532e40e44b968d0225',
-            find.bySubtype<OutlinedButton>()))
-        .dx;
-
-    testWidgets('con lo stato accanto: sul bordo destro, come "Scansiona"',
-        (tester) async {
-      await pumpTab(tester);
-
-      expect(find.byKey(const Key('scan-all-status')), findsOneWidget);
-      expect(scanAllRightEdge(tester), libraryRightEdge(tester));
-    });
-
-    testWidgets('senza stato accanto: sul bordo destro, come "Scansiona"',
-        (tester) async {
-      api.tasksValue = [
-        for (final task in testTasks())
-          if (task.key != ScheduledTask.refreshLibraryKey) task,
-      ];
-      await pumpTab(tester);
-
-      expect(find.byKey(const Key('scan-all-status')), findsNothing);
-      expect(scanAllRightEdge(tester), libraryRightEdge(tester));
     });
 
     testWidgets('azione in corso: "Dati non aggiornati" non smonta il pulsante',
@@ -168,20 +131,18 @@ void main() {
       expect(gated.calls, contains('start:t-scan'));
     });
 
-    testWidgets('scansione in corso: spenta, con la percentuale', (tester) async {
+    testWidgets('scansione in corso: spenta', (tester) async {
       api.tasksValue = withScanTask(TaskState.running, progress: 12.4);
       await pumpTab(tester);
 
       expect(scanAllEnabled(tester), isFalse);
-      expect(statusText(tester), '12%');
     });
 
-    testWidgets('scansione in arresto: spenta, con "Arresto…"', (tester) async {
+    testWidgets('scansione in arresto: spenta', (tester) async {
       api.tasksValue = withScanTask(TaskState.cancelling, progress: 80);
       await pumpTab(tester);
 
       expect(scanAllEnabled(tester), isFalse);
-      expect(statusText(tester), 'Arresto…');
     });
 
     testWidgets('senza l\'attività della scansione: spenta', (tester) async {
@@ -192,8 +153,55 @@ void main() {
       await pumpTab(tester);
 
       expect(scanAllEnabled(tester), isFalse);
-      expect(find.byKey(const Key('scan-all-status')), findsNothing);
     });
+  });
+
+  testWidgets('libreria in scansione: percentuale nella tessera', (tester) async {
+    api.librariesValue = [
+      const LibraryFolder(
+          itemId: 'lib1',
+          name: 'Movies',
+          kind: LibraryKind.movies,
+          refreshing: true,
+          refreshProgress: 64),
+      const LibraryFolder(
+          itemId: 'lib2', name: 'Anime', kind: LibraryKind.other),
+    ];
+    await pumpTab(tester);
+
+    expect(inRow('library-lib1', find.text('64%')), findsOneWidget);
+    expect(inRow('library-lib1', find.text('Scansione')), findsOneWidget);
+    expect(inRow('library-lib2', find.text('64%')), findsNothing);
+    // Il tipo: "Film" per i film (ma non mentre scansiona), niente per gli altri.
+    expect(inRow('library-lib1', find.text('Film')), findsNothing);
+    expect(inRow('library-lib2', find.textContaining('Film')), findsNothing);
+  });
+
+  testWidgets('libreria ferma: il tipo accanto a Scansiona', (tester) async {
+    await pumpTab(tester);
+
+    expect(inRow('library-a656b907eb3a73532e40e44b968d0225', find.text('Serie')),
+        findsOneWidget);
+  });
+
+  testWidgets('attività: la spia segue lo stato', (tester) async {
+    await pumpTab(tester);
+
+    LampState lamp(String id) => tester
+        .widget<WfLamp>(find.byKey(ValueKey('task-lamp-$id')))
+        .state;
+    expect(lamp('t-autocol'), LampState.attention);
+    expect(lamp('t-webhook'), LampState.attention);
+    expect(lamp('t-optimize'), LampState.ok);
+    expect(lamp('t-trakt'), LampState.broken);
+    expect(lamp('t-keyframe'), LampState.broken);
+    expect(lamp('t-skipme'), LampState.off);
+
+    // Il testo dell'ultimo esito non riuscito è in rosso.
+    final text = tester.widget<Text>(find.descendant(
+        of: find.byKey(const ValueKey('task-t-trakt')),
+        matching: find.textContaining('Ultima:')));
+    expect(text.style?.color, WfColors.error);
   });
 
   testWidgets('attività: gruppi in ordine e stati', (tester) async {

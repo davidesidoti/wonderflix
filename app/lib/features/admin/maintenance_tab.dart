@@ -12,7 +12,7 @@ import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import 'admin_action_button.dart';
-import 'admin_time.dart';
+import 'admin_kit.dart';
 import 'admin_widgets.dart';
 import 'maintenance_controller.dart';
 import 'task_labels.dart';
@@ -64,121 +64,74 @@ class _MaintenanceTabState extends ConsumerState<MaintenanceTab> {
         if (widget.header case final header?)
           Padding(padding: const EdgeInsets.only(bottom: 8), child: header),
         if (data.stale && updatedAt != null) AdminStaleNote(updatedAt: updatedAt),
+        AdminTabTitle(title: l.adminTabMaintenance),
         // Con una chiave: la riga "Dati non aggiornati" in cima, che va e
-        // viene, non sposta la testata (e non smonta "Scansiona tutte" mentre
-        // la sua azione è in corso).
-        _LibrariesHeader(
-            key: const ValueKey('libraries-header'),
-            scanTask: snapshot.scanTask,
-            now: now,
-            onScanAll: controller.scanAll),
-        for (final library in snapshot.libraries)
-          LibraryRow(
-            key: ValueKey('library-${library.itemId}'),
-            library: library,
-            onScan: () => controller.scanLibrary(library.itemId),
+        // viene, non sposta le librerie (e non smonta "Scansiona tutte"
+        // mentre la sua azione è in corso).
+        AdminSectionTitle(
+          key: const ValueKey('libraries-header'),
+          title: l.adminLibraries,
+          action: AdminActionButton(
+            label: l.adminScanAll,
+            icon: LucideIcons.refreshCw,
+            // Avvia l'attività "Scansione della libreria": senza (o già in
+            // corso) non c'è niente da avviare.
+            onPressed: snapshot.scanTask?.state == TaskState.idle
+                ? controller.scanAll
+                : null,
           ),
+        ),
+        // Largo: tre tessere per riga; stretto: una.
+        LayoutBuilder(builder: (context, constraints) {
+          final width = FormFactor.of(context).compact
+              ? constraints.maxWidth
+              : (constraints.maxWidth - 28) / 3;
+          return Wrap(
+            spacing: 14,
+            runSpacing: 14,
+            children: [
+              for (final library in snapshot.libraries)
+                SizedBox(
+                  width: width,
+                  child: LibraryTile(
+                    key: ValueKey('library-${library.itemId}'),
+                    library: library,
+                    onScan: () => controller.scanLibrary(library.itemId),
+                  ),
+                ),
+            ],
+          );
+        }),
         AdminSectionTitle(title: l.adminTasks),
         for (final group in snapshot.groups) ...[
           Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            padding: const EdgeInsets.only(top: 12, bottom: 6),
             child: Text(group.category,
                 style: const TextStyle(
-                    color: WfColors.gold, fontWeight: FontWeight.w600)),
+                    color: WfColors.creamMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
           ),
-          for (final task in group.tasks)
-            TaskRow(
-              key: ValueKey('task-${task.id}'),
-              task: task,
-              now: now,
-              onStart: () => controller.startTask(task.id),
-              onStop: () => controller.stopTask(task.id),
-            ),
+          AdminList(children: [
+            for (final task in group.tasks)
+              TaskRow(
+                key: ValueKey('task-${task.id}'),
+                task: task,
+                now: now,
+                onStart: () => controller.startTask(task.id),
+                onStop: () => controller.stopTask(task.id),
+              ),
+          ]),
         ],
       ],
     );
   }
 }
 
-/// "Librerie", lo stato della "Scansione della libreria" e "Scansiona
-/// tutte".
-class _LibrariesHeader extends StatelessWidget {
-  const _LibrariesHeader({
-    super.key,
-    required this.scanTask,
-    required this.now,
-    required this.onScanAll,
-  });
-
-  final ScheduledTask? scanTask;
-  final DateTime now;
-  final Future<void> Function() onScanAll;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final task = scanTask;
-    final last = task?.lastResult;
-    final when = last?.end ?? last?.start;
-    // La percentuale mentre va, "Arresto…" mentre si ferma, altrimenti
-    // l'ultima scansione.
-    final status = switch (task?.state) {
-      TaskState.running => taskProgressLabel(task?.progress),
-      TaskState.cancelling => l.adminTaskStopping,
-      _ => when == null
-          ? null
-          : l.adminTaskLastRun(adminTimeLabel(when, now, l)),
-    };
-    // "Scansiona tutte" avvia quell'attività: senza (o con l'attività già in
-    // corso) non c'è niente da avviare.
-    final canScan = task != null && task.state == TaskState.idle;
-    final compact = FormFactor.of(context).compact;
-    final scanAll = AdminActionButton(
-      label: l.adminScanAll,
-      icon: LucideIcons.refreshCw,
-      onPressed: canScan ? onScanAll : null,
-    );
-    return Padding(
-      padding: const EdgeInsets.only(top: 24, bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(l.adminLibraries,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 12),
-              // Lo stato prende tutto lo spazio che resta, a destra, e si
-              // accorcia se non basta: così il pulsante sta sempre sul bordo
-              // destro, come "Scansiona" delle librerie.
-              Expanded(
-                child: status == null
-                    ? const SizedBox.shrink()
-                    : Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: Text(status,
-                            key: const Key('scan-all-status'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: WfColors.creamMuted, fontSize: 13)),
-                      ),
-              ),
-              if (!compact) ...[const SizedBox(width: 12), scanAll],
-            ],
-          ),
-          // Nello stretto il pulsante va sotto: accanto al titolo non ci sta.
-          if (compact) ...[const SizedBox(height: 8), scanAll],
-        ],
-      ),
-    );
-  }
-}
-
-/// Una libreria: icona, nome, la barra durante la scansione e "Scansiona".
-class LibraryRow extends StatelessWidget {
-  const LibraryRow({super.key, required this.library, required this.onScan});
+/// Una libreria: nome, tipo e "Scansiona"; durante la scansione il bordo
+/// oro, la percentuale e la barra.
+class LibraryTile extends StatelessWidget {
+  const LibraryTile({super.key, required this.library, required this.onScan});
 
   final LibraryFolder library;
   final Future<void> Function() onScan;
@@ -186,42 +139,69 @@ class LibraryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final icon = switch (library.kind) {
-      LibraryKind.movies => LucideIcons.film,
-      LibraryKind.shows => LucideIcons.tv,
-      LibraryKind.other => LucideIcons.folder,
+    final kind = switch (library.kind) {
+      LibraryKind.movies => l.navMovies,
+      LibraryKind.shows => l.navSeries,
+      LibraryKind.other => null,
     };
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: WfColors.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+            color: library.refreshing
+                ? WfColors.gold.withValues(alpha: 0.5)
+                : WfColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: WfColors.gold),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(library.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                if (library.refreshing) ...[
-                  const SizedBox(height: 6),
-                  LinearProgressIndicator(
-                    key: Key('library-progress-${library.itemId}'),
-                    value: (library.refreshProgress ?? 0) / 100,
-                    minHeight: 4,
-                    color: WfColors.gold,
-                    backgroundColor: WfColors.surfaceHigh,
-                  ),
-                ],
-              ],
+          Text(library.name, style: WfText.display(20)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              // Il testo cede spazio al pulsante (col dito è più largo).
+              Expanded(
+                child: library.refreshing
+                    ? Row(children: [
+                        Flexible(
+                          child: Text(l.adminLibraryScanning,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: WfColors.gold, fontSize: 13)),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(taskProgressLabel(library.refreshProgress),
+                            style: const TextStyle(
+                                color: WfColors.gold, fontSize: 13)),
+                      ])
+                    : kind == null
+                        ? const SizedBox.shrink()
+                        : Text(kind,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: WfColors.creamMuted, fontSize: 13)),
+              ),
+              AdminActionButton(
+                label: l.adminScan,
+                icon: LucideIcons.scanLine,
+                onPressed: library.refreshing ? null : onScan,
+              ),
+            ],
+          ),
+          if (library.refreshing) ...[
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              key: Key('library-progress-${library.itemId}'),
+              value: (library.refreshProgress ?? 0) / 100,
+              minHeight: 4,
+              color: WfColors.gold,
+              backgroundColor: WfColors.surfaceHigh,
             ),
-          ),
-          const SizedBox(width: 16),
-          AdminActionButton(
-            label: l.adminScan,
-            icon: LucideIcons.scanLine,
-            onPressed: library.refreshing ? null : onScan,
-          ),
+          ],
         ],
       ),
     );
@@ -260,6 +240,20 @@ class _TaskRowState extends State<TaskRow> {
     final result = task.lastResult;
     final errorMessage = result?.errorMessage;
     final failed = result?.status == TaskStatus.failed;
+    // Spia (spec "Manutenzione"): oro in corso, verde completata, rossa
+    // non riuscita, interrotta o annullata, spenta mai eseguita.
+    final lamp = switch (task.state) {
+      TaskState.running || TaskState.cancelling => LampState.attention,
+      TaskState.idle => switch (result?.status) {
+          TaskStatus.completed => LampState.ok,
+          TaskStatus.failed ||
+          TaskStatus.aborted ||
+          TaskStatus.cancelled =>
+            LampState.broken,
+          _ => LampState.off,
+        },
+    };
+    final idleLabel = taskIdleLabel(l, result, widget.now);
     final Widget status = switch (task.state) {
       TaskState.running => Row(
           children: [
@@ -280,9 +274,11 @@ class _TaskRowState extends State<TaskRow> {
           spacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (taskIdleLabel(l, result, widget.now) case final label
-                when label.isNotEmpty)
-              Text(label, style: muted),
+            if (idleLabel.isNotEmpty)
+              Text(idleLabel,
+                  style: lamp == LampState.broken
+                      ? muted.copyWith(color: WfColors.error)
+                      : muted),
             if (failed)
               InkWell(
                 onTap: errorMessage == null
@@ -320,9 +316,17 @@ class _TaskRowState extends State<TaskRow> {
       TaskState.cancelling => const SizedBox.shrink(),
     };
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
+          WfLamp(
+            key: ValueKey('task-lamp-${task.id}'),
+            state: lamp,
+            label: task.state == TaskState.idle
+                ? idleLabel
+                : taskProgressLabel(task.progress),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

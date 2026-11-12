@@ -524,6 +524,7 @@
   "adminLibraries": "Libraries",
   "adminScanAll": "Scan all",
   "adminScan": "Scan",
+  "adminLibraryScanning": "Scanning",
   "adminTasks": "Scheduled tasks",
   "adminTaskStart": "Start",
   "adminTaskStop": "Stop",

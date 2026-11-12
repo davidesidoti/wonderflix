@@ -630,6 +630,7 @@
   "adminLibraries": "Librerie",
   "adminScanAll": "Scansiona tutte",
   "adminScan": "Scansiona",
+  "adminLibraryScanning": "Scansione",
   "adminTasks": "Attività pianificate",
   "adminTaskStart": "Avvia",
   "adminTaskStop": "Ferma",
