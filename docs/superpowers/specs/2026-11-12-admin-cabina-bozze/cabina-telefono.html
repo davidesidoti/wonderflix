@@ -1,0 +1,46 @@
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .ph { --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3; --mu:rgba(242,234,211,.6); --ok:#5BBF6A;
+        width:360px; background:var(--bg); color:var(--cr); font-family:Inter,sans-serif; font-size:13px; border-radius:22px; border:6px solid #222; overflow:hidden; margin:0 auto; }
+  .ph .bebas { font-family:'Bebas Neue',sans-serif; letter-spacing:1px; line-height:1; }
+  .ph .mu { color:var(--mu); }
+  .ph .row { display:flex; align-items:center; gap:8px; }
+  .ph .av { width:20px; height:20px; border-radius:50%; background:#3a3326; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; }
+  .ph .strip { display:flex; gap:6px; overflow:hidden; padding:0 16px 12px; }
+  .ph .strip span { white-space:nowrap; padding:6px 10px; border-radius:4px; color:var(--mu); background:var(--sf); display:flex; gap:6px; align-items:center; }
+  .ph .strip span.on { color:var(--cr); background:var(--sh); box-shadow:inset 0 -2px var(--gold); }
+  .ph .badge { background:var(--gold); color:var(--bg); font-size:10px; font-weight:700; border-radius:8px; padding:0 5px; }
+  .ph .lamp { width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 3px rgba(91,191,106,.15), 0 0 10px var(--ok); }
+  .ph .sala { position:relative; height:150px; border-radius:6px; overflow:hidden; border:1px solid var(--bd); margin:0 16px 12px; }
+  .ph .sala .bgi { position:absolute; inset:0; }
+  .ph .p1 { background:linear-gradient(160deg,#5a3b1c,#1c120a 70%); }
+  .ph .p2 { background:linear-gradient(160deg,#2b4a6b,#0d1620 70%); }
+  .ph .veil { position:absolute; inset:0; background:linear-gradient(0deg,rgba(10,10,10,.95) 30%,rgba(10,10,10,.2)); }
+  .ph .in { position:absolute; left:12px; right:12px; bottom:10px; }
+  .ph .num { position:absolute; top:9px; left:12px; color:var(--gold); font-size:14px; }
+  .ph .chip { position:absolute; top:9px; right:10px; font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(212,166,74,.18); color:var(--gold); }
+  .ph .chip.dp { background:rgba(242,234,211,.1); color:var(--cr); }
+  .ph .perf { display:flex; gap:2px; margin-top:7px; }
+  .ph .perf i { flex:1; height:5px; border-radius:1px; background:var(--sh); }
+  .ph .perf i.f { background:var(--gold); }
+</style>
+
+<h2>Cabina sul telefono (web)</h2>
+<p class="subtitle">La colonna di sinistra diventa una fila che scorre in orizzontale, con gli stessi contatori; le sale vanno una sotto l'altra. La barra in basso dell'app resta quella di oggi.</p>
+
+<div class="ph">
+  <div style="padding:16px 16px 10px" class="row">
+    <span class="lamp"></span>
+    <div><div class="bebas" style="font-size:22px">WonderFlix</div><div class="mu" style="font-size:12px">Jellyfin 10.11.9 su Linux, in funzione</div></div>
+    <div style="margin-left:auto;border:1px solid var(--bd);border-radius:6px;padding:5px 10px">Riavvia</div>
+  </div>
+  <div class="strip"><span class="on">Sessioni <b class="badge">2</b></span><span>Utenti</span><span>Manutenzione</span><span>Attività</span><span>Download <b class="badge">3</b></span></div>
+  <div class="sala"><div class="bgi p1"></div><div class="veil"></div><span class="num bebas">Sala 1</span><span class="chip dp">Diretta</span>
+    <div class="in"><div class="bebas" style="font-size:24px">2012</div><div class="row mu" style="margin-top:3px"><span class="av">D</span>davide.sidoti, Windows</div>
+    <div class="perf"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="mu" style="margin-top:3px;font-size:12px">1:12:04 di 2:38:00</div></div></div>
+  <div class="sala"><div class="bgi p2"></div><div class="veil"></div><span class="num bebas">Sala 2</span><span class="chip">Transcodifica</span>
+    <div class="in"><div class="bebas" style="font-size:24px">Mushoku Tensei S3E05</div><div class="row mu" style="margin-top:3px"><span class="av">G</span>giulia, iPhone</div>
+    <div class="perf"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i></div><div class="mu" style="margin-top:3px;font-size:12px">HEVC 10 bit verso H.264</div></div></div>
+  <div class="bebas" style="font-size:18px;padding:4px 16px 8px">In sala d'attesa</div>
+  <div style="padding:0 16px 18px" class="mu"><div class="row" style="margin-bottom:6px"><span class="av">M</span>marco, TV, 4 min fa</div><div class="row"><span class="av">L</span>luca, Windows, adesso</div></div>
+</div>

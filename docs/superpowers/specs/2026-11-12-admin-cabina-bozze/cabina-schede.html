@@ -1,0 +1,204 @@
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .wf { --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3; --mu:rgba(242,234,211,.6); --ok:#5BBF6A; --er:#C8463C;
+        background:var(--bg); color:var(--cr); font-family:Inter,sans-serif; font-size:13px; border-radius:6px; overflow:hidden; display:flex; margin-bottom:28px; }
+  .wf .bebas { font-family:'Bebas Neue',sans-serif; letter-spacing:1px; line-height:1; }
+  .wf .mu { color:var(--mu); } .wf .gold { color:var(--gold); } .wf .er { color:var(--er); }
+  .wf .row { display:flex; align-items:center; gap:10px; }
+  .wf .av { width:24px; height:24px; border-radius:50%; background:#3a3326; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; flex:none; }
+  .wf .bar { height:4px; background:var(--sh); border-radius:2px; overflow:hidden; }
+  .wf .bar > i { display:block; height:100%; background:var(--gold); }
+  .wf .btn { border:1px solid var(--bd); border-radius:6px; padding:5px 11px; white-space:nowrap; }
+  .wf .btn.g { border-color:var(--gold); color:var(--gold); }
+  .wf .btn.f { background:var(--gold); color:var(--bg); border-color:var(--gold); font-weight:600; }
+  .wf .lamp { width:9px; height:9px; border-radius:50%; flex:none; background:#444; }
+  .wf .lamp.ok { background:var(--ok); box-shadow:0 0 0 3px rgba(91,191,106,.15), 0 0 10px var(--ok); }
+  .wf .lamp.at { background:var(--gold); box-shadow:0 0 0 3px rgba(212,166,74,.15), 0 0 10px var(--gold); }
+  .wf .lamp.ko { background:var(--er); box-shadow:0 0 0 3px rgba(200,70,60,.15), 0 0 10px var(--er); }
+  .wf .h { font-family:'Bebas Neue'; letter-spacing:1px; font-size:20px; margin:22px 0 10px; display:flex; align-items:baseline; gap:8px; }
+  .wf .h small { font-family:Inter; letter-spacing:0; font-size:12px; color:var(--mu); }
+  .wf .h .act { margin-left:auto; font-family:Inter; letter-spacing:0; font-size:12px; }
+  .wf .list { border:1px solid var(--bd); border-radius:6px; overflow:hidden; }
+  .wf .li { display:flex; align-items:center; gap:12px; padding:10px 14px; border-top:1px solid var(--bd); }
+  .wf .li:first-child { border-top:none; }
+  .wf .poster { width:30px; height:44px; border-radius:3px; flex:none; }
+  .p1 { background:linear-gradient(160deg,#5a3b1c,#1c120a 70%); } .p2 { background:linear-gradient(160deg,#2b4a6b,#0d1620 70%); }
+  .p3 { background:linear-gradient(160deg,#4b2b5a,#140d1c 70%); } .p4 { background:linear-gradient(160deg,#2f5a3a,#0c1a10 70%); }
+
+  .rail { width:150px; background:var(--sf); border-right:1px solid var(--bd); padding:16px 10px; flex:none; }
+  .rail .srv { display:flex; gap:8px; align-items:center; padding:0 8px 14px; }
+  .rail .it { padding:7px 10px; border-radius:4px; color:var(--mu); display:flex; gap:9px; align-items:center; }
+  .rail .it.on { background:var(--sh); color:var(--cr); box-shadow:inset 2px 0 var(--gold); }
+  .rail .it b { width:13px; height:13px; border:1.5px solid currentColor; border-radius:3px; flex:none; }
+  .rail .badge { margin-left:auto; background:var(--gold); color:var(--bg); font-size:10px; font-weight:700; border-radius:8px; padding:0 6px; }
+  .main { flex:1; padding:18px 24px 22px; min-width:0; }
+  .tt { font-family:'Bebas Neue'; letter-spacing:1px; font-size:30px; line-height:1; }
+  .note { font-size:14px; color:var(--text-secondary,#888); margin:-18px 2px 30px; }
+  h3.tab { margin:8px 0 8px; }
+
+  .tess { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tes { border:1px solid var(--bd); border-radius:6px; padding:12px; background:var(--sf); display:flex; gap:12px; align-items:center; }
+  .tag { font-size:10px; font-weight:700; padding:1px 7px; border-radius:8px; background:rgba(212,166,74,.18); color:var(--gold); }
+  .tag.off { background:rgba(242,234,211,.08); color:var(--mu); }
+  .ci { width:20px; height:20px; border-radius:4px; display:inline-flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; }
+  .ci.on { background:rgba(242,234,211,.12); color:var(--cr); } .ci.no { border:1px dashed var(--bd); color:#555; }
+
+  .sched .day { font-family:'Bebas Neue'; letter-spacing:1px; color:var(--gold); font-size:16px; margin:14px 0 6px; }
+  .sched .ev { display:grid; grid-template-columns:56px 18px 1fr; gap:10px; align-items:start; padding:7px 0; border-top:1px solid var(--bd); }
+  .sched .ev .t { font-family:'Bebas Neue'; font-size:19px; letter-spacing:1px; color:var(--cr); }
+  .sched .dot { width:8px; height:8px; border-radius:50%; margin-top:6px; background:var(--mu); }
+  .seg { display:inline-flex; border:1px solid var(--bd); border-radius:6px; overflow:hidden; }
+  .seg span { padding:4px 10px; color:var(--mu); } .seg span.on { background:var(--sh); color:var(--cr); }
+
+  .needs { border:1px solid var(--bd); border-left:3px solid var(--gold); border-radius:6px; padding:12px 14px; background:var(--sf); display:flex; gap:12px; margin-bottom:8px; }
+  .backlog { border:1px solid var(--bd); border-radius:6px; padding:12px 14px; display:flex; align-items:center; gap:14px; }
+
+  .gauge { display:flex; height:22px; border-radius:4px; overflow:hidden; background:var(--sh); margin:10px 0 8px; }
+  .gauge i { display:block; height:100%; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--mu); }
+  .legend span::before { content:''; display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; background:var(--c); }
+
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .card { border:1px solid var(--bd); border-radius:6px; background:var(--sf); padding:14px; }
+  .card .ct { display:flex; align-items:center; gap:8px; font-weight:600; font-size:14px; margin-bottom:10px; }
+  .card .ct .lamp { margin-left:auto; }
+  .ta { border:1px solid var(--bd); border-radius:6px; padding:8px 10px; color:#666; height:44px; margin-bottom:8px; }
+</style>
+
+<h2>Le altre schede in stile Cabina</h2>
+<p class="subtitle">Una bozza per ciascuna, con i contenuti di oggi. Il filo comune è la spia: verde se va, oro se chiede attenzione, rossa se è rotto, spenta se non è configurato. La usa il server e la riusano integrazioni e attività.</p>
+
+<!-- UTENTI -->
+<h3 class="tab">Utenti</h3>
+<div class="wf">
+  <div class="rail"><div class="srv"><span class="lamp ok"></span><span class="bebas" style="font-size:18px">WonderFlix</span></div>
+    <div class="it"><b></b>Sessioni<span class="badge">2</span></div><div class="it on"><b></b>Utenti</div><div class="it"><b></b>Manutenzione</div><div class="it"><b></b>Attività</div><div class="it"><b></b>Download<span class="badge">3</span></div><div class="it"><b></b>Spazio</div><div class="it"><b></b>WonderFlix</div></div>
+  <div class="main">
+    <div class="tt">Utenti <span class="mu" style="font-family:Inter;font-size:13px;letter-spacing:0">6</span></div>
+    <div class="row" style="margin-top:14px;border:1px solid var(--bd);border-radius:6px;padding:10px 14px">
+      <span style="font-weight:600">Recupero password</span>
+      <span class="row mu" style="gap:6px"><span class="lamp ok"></span>Discord</span>
+      <span class="row mu" style="gap:6px"><span class="lamp"></span>Email non configurata</span>
+      <span class="btn" style="margin-left:auto">Invia prova a me</span>
+    </div>
+    <div class="tess" style="margin-top:14px">
+      <div class="tes"><span class="av" style="width:40px;height:40px;font-size:15px">D</span><div style="flex:1;min-width:0"><div class="row" style="gap:8px"><b>davide.sidoti</b><span class="tag">Admin</span></div><div class="row" style="gap:5px;margin-top:6px"><span class="ci on">D</span><span class="ci on">@</span></div></div><span class="mu">⋯</span></div>
+      <div class="tes"><span class="av" style="width:40px;height:40px;font-size:15px">G</span><div style="flex:1"><div class="row" style="gap:8px"><b>giulia</b></div><div class="row" style="gap:5px;margin-top:6px"><span class="ci on">D</span><span class="ci no">@</span></div></div><span class="mu">⋯</span></div>
+      <div class="tes"><span class="av" style="width:40px;height:40px;font-size:15px">M</span><div style="flex:1"><div class="row" style="gap:8px"><b>marco</b></div><div class="row" style="gap:5px;margin-top:6px"><span class="ci no">D</span><span class="ci no">@</span><span class="gold" style="font-size:12px;margin-left:4px">nessun contatto</span></div></div><span class="mu">⋯</span></div>
+      <div class="tes" style="opacity:.55"><span class="av" style="width:40px;height:40px;font-size:15px">O</span><div style="flex:1"><div class="row" style="gap:8px"><b>ospite</b><span class="tag off">Disattivato</span></div><div class="row" style="gap:5px;margin-top:6px"><span class="ci no">D</span><span class="ci no">@</span></div></div><span class="mu">⋯</span></div>
+    </div>
+  </div>
+</div>
+<p class="note">Ogni utente è una tessera: avatar grande, ruolo, i contatti collegati come due caselle piene o tratteggiate. Chi non ha contatti è segnalato in oro (non potrebbe recuperare la password). Le azioni restano nel menu "⋯".</p>
+
+<!-- MANUTENZIONE -->
+<h3 class="tab">Manutenzione</h3>
+<div class="wf">
+  <div class="rail"><div class="srv"><span class="lamp ok"></span><span class="bebas" style="font-size:18px">WonderFlix</span></div>
+    <div class="it"><b></b>Sessioni<span class="badge">2</span></div><div class="it"><b></b>Utenti</div><div class="it on"><b></b>Manutenzione<span class="badge">1</span></div><div class="it"><b></b>Attività</div><div class="it"><b></b>Download<span class="badge">3</span></div><div class="it"><b></b>Spazio</div><div class="it"><b></b>WonderFlix</div></div>
+  <div class="main">
+    <div class="tt">Manutenzione</div>
+    <div class="h">Librerie <span class="act btn">Scansiona tutte</span></div>
+    <div class="grid2" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card" style="padding:12px"><div class="bebas" style="font-size:20px">Film</div><div class="row" style="margin-top:8px"><span class="mu">Film</span><span class="btn" style="margin-left:auto">Scansiona</span></div></div>
+      <div class="card" style="padding:12px"><div class="bebas" style="font-size:20px">Serie TV</div><div class="row" style="margin-top:8px"><span class="mu">Serie</span><span class="btn" style="margin-left:auto">Scansiona</span></div></div>
+      <div class="card" style="padding:12px;border-color:rgba(212,166,74,.5)"><div class="bebas" style="font-size:20px">Anime</div><div style="margin-top:8px"><div class="row"><span class="gold">Scansione 64%</span></div><div class="bar" style="margin-top:6px"><i style="width:64%"></i></div></div></div>
+    </div>
+    <div class="h">Attività pianificate</div>
+    <div class="list">
+      <div class="li"><span class="lamp at"></span><div style="flex:1"><div style="font-weight:600">Scansiona la libreria multimediale</div><div class="bar" style="margin-top:6px;width:60%"><i style="width:64%"></i></div></div><span class="gold">64%</span><span class="btn">Ferma</span></div>
+      <div class="li"><span class="lamp ok"></span><div style="flex:1"><div style="font-weight:600">Estrai immagini trickplay</div><div class="mu">Ultima: oggi 03:00, completata in 12 min</div></div><span class="btn">Avvia</span></div>
+      <div class="li"><span class="lamp ko"></span><div style="flex:1"><div style="font-weight:600">Scarica i sottotitoli mancanti</div><div class="er">Ultima: ieri 04:00, non riuscita</div></div><span class="btn">Avvia</span></div>
+      <div class="li"><span class="lamp"></span><div style="flex:1"><div style="font-weight:600">Ottimizza il database</div><div class="mu">Mai eseguita</div></div><span class="btn">Avvia</span></div>
+    </div>
+  </div>
+</div>
+<p class="note">Le librerie diventano tessere in fila, con la scansione in corso dentro la sua tessera. Le attività pianificate hanno la spia: oro in corso, verde ok, rossa non riuscita, spenta mai eseguita. Il contatore nella colonna conta quelle in corso.</p>
+
+<!-- ATTIVITÀ -->
+<h3 class="tab">Attività</h3>
+<div class="wf">
+  <div class="rail"><div class="srv"><span class="lamp ok"></span><span class="bebas" style="font-size:18px">WonderFlix</span></div>
+    <div class="it"><b></b>Sessioni<span class="badge">2</span></div><div class="it"><b></b>Utenti</div><div class="it"><b></b>Manutenzione<span class="badge">1</span></div><div class="it on"><b></b>Attività</div><div class="it"><b></b>Download<span class="badge">3</span></div><div class="it"><b></b>Spazio</div><div class="it"><b></b>WonderFlix</div></div>
+  <div class="main sched">
+    <div class="row"><div class="tt">Attività</div><span class="seg" style="margin-left:auto"><span class="on">Tutto</span><span>Utenti</span><span>Sistema</span></span><span class="btn">Aggiorna</span></div>
+    <div class="day">Oggi</div>
+    <div class="ev"><span class="t">21:04</span><span class="dot" style="background:var(--gold)"></span><div class="row"><span class="av">D</span><span><b>davide.sidoti</b> ha iniziato <b>2012</b> <span class="mu">su Windows</span></span></div></div>
+    <div class="ev"><span class="t">20:51</span><span class="dot" style="background:var(--gold)"></span><div class="row"><span class="av">G</span><span><b>giulia</b> ha iniziato <b>Mushoku Tensei S3E05</b> <span class="mu">su iPhone</span></span></div></div>
+    <div class="ev"><span class="t">19:30</span><span class="dot"></span><div class="mu">Aggiunto alla libreria: Mushoku Tensei S3E06</div></div>
+    <div class="ev"><span class="t">18:12</span><span class="dot" style="background:var(--er)"></span><div><span class="er">Accesso non riuscito</span> <span class="mu">da 93.41.x.x, utente "admin"</span></div></div>
+    <div class="day">Ieri</div>
+    <div class="ev"><span class="t">23:47</span><span class="dot" style="background:var(--gold)"></span><div class="row"><span class="av">M</span><span><b>marco</b> ha finito <b>Dune: Parte Due</b> <span class="mu">sulla TV</span></span></div></div>
+  </div>
+</div>
+<p class="note">Il registro diventa il programma della serata: ora grande in Bebas a sinistra, giorni come intestazioni oro, un punto colorato per tipo (oro riproduzione, rosso problema, grigio sistema).</p>
+
+<!-- DOWNLOAD -->
+<h3 class="tab">Download</h3>
+<div class="wf">
+  <div class="rail"><div class="srv"><span class="lamp ok"></span><span class="bebas" style="font-size:18px">WonderFlix</span></div>
+    <div class="it"><b></b>Sessioni<span class="badge">2</span></div><div class="it"><b></b>Utenti</div><div class="it"><b></b>Manutenzione<span class="badge">1</span></div><div class="it"><b></b>Attività</div><div class="it on"><b></b>Download<span class="badge">3</span></div><div class="it"><b></b>Spazio</div><div class="it"><b></b>WonderFlix</div></div>
+  <div class="main">
+    <div class="tt">Download</div>
+    <div class="backlog" style="margin-top:14px"><span class="lamp ok"></span><div style="flex:1"><div style="font-weight:600">14 ricerche automatiche</div><div class="mu">Fine stimata verso le 23:40 (~2 h 10 min), ~6 ricerche/ora</div></div><span class="btn">Aggiorna ora</span></div>
+    <div class="h">Serve te <small>3</small></div>
+    <div class="needs"><div class="poster p3"></div><div style="flex:1"><div style="font-weight:600">Frieren S2E03</div><div class="mu">2 troppo piccoli. Il più grande tra i piccoli va bene come tappabuchi.</div><div class="row" style="margin-top:8px;gap:8px"><span class="btn f">Scarica il migliore intanto</span><span class="btn">Scegli tu</span><span class="btn">Va bene, aspetto</span></div></div></div>
+    <div class="needs"><div class="poster p4"></div><div style="flex:1"><div style="font-weight:600">The Bear S4E01</div><div class="mu">Il file è scaricato ma Sonarr non lo importa.</div><div class="row" style="margin-top:8px;gap:8px"><span class="btn f">Importa comunque</span><span class="btn">Scarta e cerca un altro</span></div></div></div>
+    <div class="h">Scelte automatiche <small>2</small></div>
+    <div class="list">
+      <div class="li"><div class="poster p2"></div><div style="flex:1"><div style="font-weight:600">Mushoku Tensei S3E07</div><div class="bar" style="margin-top:6px"><i style="width:62%"></i></div><div class="mu" style="margin-top:4px">62% di 1,4 GB, finisce tra 12 min</div></div></div>
+      <div class="li"><div class="poster p1"></div><div style="flex:1"><div style="font-weight:600">Oppenheimer</div><div class="mu">Recupero i metadati da 8 min</div></div></div>
+    </div>
+  </div>
+</div>
+<p class="note">"Serve te" in cima con il bordo oro e l'azione consigliata piena: è ciò che il contatore nella colonna conta. Le ricerche automatiche hanno la loro spia (verde in corsa, oro in pausa per una ricerca manuale).</p>
+
+<!-- SPAZIO -->
+<h3 class="tab">Spazio</h3>
+<div class="wf">
+  <div class="rail"><div class="srv"><span class="lamp ok"></span><span class="bebas" style="font-size:18px">WonderFlix</span></div>
+    <div class="it"><b></b>Sessioni<span class="badge">2</span></div><div class="it"><b></b>Utenti</div><div class="it"><b></b>Manutenzione<span class="badge">1</span></div><div class="it"><b></b>Attività</div><div class="it"><b></b>Download<span class="badge">3</span></div><div class="it on"><b></b>Spazio</div><div class="it"><b></b>WonderFlix</div></div>
+  <div class="main">
+    <div class="row"><div class="tt">Spazio</div><span class="mu" style="margin-left:auto">Calcolato 10 min fa</span><span class="btn">Ricalcola</span></div>
+    <div style="margin-top:16px"><span class="bebas" style="font-size:34px">1,62 TB</span> <span class="mu">su 2,00 TB, liberi 380 GB</span></div>
+    <div class="gauge"><i style="width:22%;background:#D4A64A"></i><i style="width:20%;background:#B9893A"></i><i style="width:28%;background:#8C6A33"></i><i style="width:8%;background:#5E4A2A"></i><i style="width:3%;background:#3E342A"></i></div>
+    <div class="legend"><span style="--c:#D4A64A">Film 440 GB</span><span style="--c:#B9893A">Serie 400 GB</span><span style="--c:#8C6A33">Anime 560 GB</span><span style="--c:#5E4A2A">Solo torrent 160 GB</span><span style="--c:#3E342A">Altro 60 GB</span></div>
+    <div class="h">Cancellare <small>subito 42 GB, dopo il seed 18 GB</small><span class="act btn g">Elimina selezionati (2, 42 GB)</span></div>
+    <div class="list">
+      <div class="li"><span style="width:14px;height:14px;border:1.5px solid var(--gold);border-radius:3px;background:var(--gold)"></span><div style="flex:1"><b>Tenet</b> <span class="mu">guardato da tutti</span></div><span>24 GB</span></div>
+      <div class="li"><span style="width:14px;height:14px;border:1.5px solid var(--gold);border-radius:3px;background:var(--gold)"></span><div style="flex:1"><b>Interstellar</b> <span class="mu">guardato da tutti</span></div><span>18 GB</span></div>
+    </div>
+    <div class="h">Alleggerire <small>2</small></div>
+    <div class="list">
+      <div class="li"><div style="flex:1"><b>Dune: Parte Due</b><div class="mu">65 GB, 23 GB/ora, 48 GB in più</div></div><span class="btn">Alleggerisci</span></div>
+    </div>
+  </div>
+</div>
+<p class="note">Il pezzo forte qui è la barra dello spazio: un solo numero grande (l'occupato) e la ripartizione per tipo in sfumature d'oro. Sotto, le liste di oggi con i totali nel titolo della sezione.</p>
+
+<!-- WONDERFLIX -->
+<h3 class="tab">WonderFlix</h3>
+<div class="wf">
+  <div class="rail"><div class="srv"><span class="lamp ok"></span><span class="bebas" style="font-size:18px">WonderFlix</span></div>
+    <div class="it"><b></b>Sessioni<span class="badge">2</span></div><div class="it"><b></b>Utenti</div><div class="it"><b></b>Manutenzione<span class="badge">1</span></div><div class="it"><b></b>Attività</div><div class="it"><b></b>Download<span class="badge">3</span></div><div class="it"><b></b>Spazio</div><div class="it on"><b></b>WonderFlix<span class="badge">2</span></div></div>
+  <div class="main">
+    <div class="tt">WonderFlix</div>
+    <div class="row" style="margin-top:14px;gap:22px;border:1px solid var(--bd);border-radius:6px;padding:10px 14px">
+      <span class="row" style="gap:7px"><span class="lamp ok"></span>Sonarr</span>
+      <span class="row" style="gap:7px"><span class="lamp ok"></span>Radarr</span>
+      <span class="row" style="gap:7px"><span class="lamp ko"></span>Seerr <span class="er">non risponde</span></span>
+      <span class="row" style="gap:7px"><span class="lamp ok"></span>Discord</span>
+      <span class="row" style="gap:7px"><span class="lamp"></span><span class="mu">Email</span></span>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card"><div class="ct">Segnalazioni <span class="tag" style="margin-left:4px">2 aperte</span></div>
+        <div class="row" style="margin-bottom:8px"><div class="poster p2" style="width:24px;height:36px"></div><div style="flex:1"><b>Mushoku Tensei S3E04</b><div class="mu">giulia: audio sbagliato</div></div><span class="btn">Apri</span></div>
+        <div class="row"><div class="poster p1" style="width:24px;height:36px"></div><div style="flex:1"><b>2012</b><div class="mu">marco: sottotitoli fuori sync</div></div><span class="btn">Apri</span></div></div>
+      <div class="card"><div class="ct">Annuncio</div><div class="ta">Scrivi un messaggio per tutti…</div><span class="btn g">Invia a tutti</span></div>
+      <div class="card"><div class="ct">Novità</div><div><span class="bebas" style="font-size:26px">5</span> <span class="mu">titoli in attesa di essere annunciati</span></div><div class="row" style="margin-top:10px"><span class="mu">Avvisa delle novità: sì</span><span class="btn" style="margin-left:auto">Invia ora</span></div></div>
+      <div class="card"><div class="ct">Commenti degli utenti</div><div class="mu" style="margin-bottom:6px">“Bellissimo il finale” <span>giulia su Frieren</span></div><div class="mu">“Audio un po' basso” <span>marco su The Bear</span></div></div>
+      <div class="card"><div class="ct">Home per tutti</div><div class="mu">Righe e ordine della Home predefinita</div></div>
+    </div>
+  </div>
+</div>
+<p class="note">Le integrazioni (Sonarr, Radarr, Seerr, Discord, email) passano in una fila di spie in cima: si vede subito cosa è rotto, e il dettaglio si apre cliccando la spia. Sotto, le card ordinate per urgenza: prima le segnalazioni aperte (che il contatore conta), poi le azioni.</p>

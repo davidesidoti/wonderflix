@@ -1,0 +1,167 @@
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .wf { --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3; --mu:rgba(242,234,211,.6); --ok:#5BBF6A; --er:#C8463C;
+        background:var(--bg); color:var(--cr); font-family:Inter,sans-serif; font-size:13px; border-radius:6px; overflow:hidden; margin-bottom:28px; }
+  .wf .bebas { font-family:'Bebas Neue',sans-serif; letter-spacing:1px; line-height:1; }
+  .wf .mu { color:var(--mu); } .wf .gold { color:var(--gold); } .wf .er { color:var(--er); }
+  .wf .row { display:flex; align-items:center; gap:10px; }
+  .wf .btn { border:1px solid var(--bd); border-radius:6px; padding:6px 12px; white-space:nowrap; }
+  .wf .btn.g { border-color:var(--gold); color:var(--gold); }
+  .wf .btn.f { background:var(--gold); color:var(--bg); border-color:var(--gold); font-weight:600; }
+  .wf .lamp { width:8px; height:8px; border-radius:50%; flex:none; background:#444; display:inline-block; }
+  .wf .lamp.ok { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .wf .lamp.at { background:var(--gold); box-shadow:0 0 8px var(--gold); }
+  .wf .h { font-family:'Bebas Neue'; letter-spacing:1px; font-size:20px; margin:24px 0 10px; display:flex; align-items:baseline; gap:8px; }
+  .wf .h small { font-family:Inter; letter-spacing:0; font-size:12px; color:var(--mu); }
+  .wf .h .act { margin-left:auto; font-family:Inter; letter-spacing:0; font-size:12px; }
+
+  .hero { position:relative; height:190px; }
+  .hero .bgi { position:absolute; inset:0; background:linear-gradient(160deg,#5a3b1c,#1c120a 60%,#0A0A0A); }
+  .hero .bgi.s { background:linear-gradient(160deg,#2b4a6b,#0d1620 60%,#0A0A0A); }
+  .hero .veil { position:absolute; inset:0; background:linear-gradient(0deg,#0A0A0A 8%,rgba(10,10,10,.25)); }
+  .hero .back { position:absolute; top:14px; left:24px; color:var(--mu); }
+  .hero .in { position:absolute; left:24px; right:24px; bottom:16px; display:flex; align-items:flex-end; gap:20px; }
+  .spec { border:1px solid var(--bd); background:rgba(18,18,18,.85); border-radius:6px; padding:10px 14px; min-width:230px; }
+  .body { padding:4px 24px 24px; }
+  .meta { display:flex; gap:18px; color:var(--mu); margin:4px 0 0; flex-wrap:wrap; }
+
+  /* il righello */
+  .ruler { position:relative; height:96px; border:1px solid var(--bd); border-radius:6px; background:var(--sf); margin-top:8px; }
+  .ruler .axis { position:absolute; left:16px; right:16px; bottom:24px; height:1px; background:var(--bd); }
+  .ruler .tk { position:absolute; bottom:24px; width:3px; border-radius:2px 2px 0 0; transform:translateX(-1px); background:var(--mu); }
+  .ruler .tk.ch { background:var(--gold); width:5px; }
+  .ruler .tk.cur { background:var(--cr); }
+  .ruler .lb { position:absolute; bottom:6px; font-size:11px; color:var(--mu); transform:translateX(-50%); }
+  .ruler .flag { position:absolute; font-size:11px; white-space:nowrap; transform:translateX(-50%); }
+  .ruler .zone { position:absolute; bottom:24px; top:10px; background:rgba(200,70,60,.08); border-right:1px dashed rgba(200,70,60,.5); }
+
+  .pick { border:1px solid var(--gold); background:#2B2418; border-radius:6px; padding:14px; display:flex; gap:16px; align-items:center; }
+  .tbl { border:1px solid var(--bd); border-radius:6px; overflow:hidden; }
+  .tr { display:grid; grid-template-columns:34px 1fr 90px 74px 82px 110px 90px; gap:12px; align-items:center; padding:9px 14px; border-top:1px solid var(--bd); }
+  .tr:first-child { border-top:none; }
+  .th { background:var(--sf); color:var(--mu); font-size:11px; }
+  .rk { font-family:'Bebas Neue'; font-size:18px; color:var(--mu); }
+  .sc { display:flex; align-items:center; gap:6px; }
+  .sc i { display:block; height:4px; border-radius:2px; background:var(--gold); }
+  .rel { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { border:1px solid var(--bd); border-radius:12px; padding:3px 10px; color:var(--mu); }
+  .chip b { color:var(--cr); }
+
+  .eps { display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+  .ep { border:1px solid var(--bd); border-radius:6px; padding:9px 10px; background:var(--sf); }
+  .ep .n { font-family:'Bebas Neue'; font-size:20px; letter-spacing:1px; }
+  .ep.ok { border-color:rgba(212,166,74,.5); }
+  .ep.no { opacity:.5; border-style:dashed; }
+  .ep.have { background:transparent; }
+
+  .run { border:1px solid var(--bd); border-radius:6px; padding:18px; background:var(--sf); }
+  .film { display:flex; gap:4px; margin:12px 0 8px; overflow:hidden; }
+  .film i { flex:none; width:22px; height:8px; border-radius:1px; background:var(--sh); }
+  .film i.f { background:var(--gold); }
+  .note { font-size:14px; color:var(--text-secondary,#888); margin:-18px 2px 30px; }
+</style>
+
+<h2>La pagina della ricerca manuale, in stile Cabina</h2>
+<p class="subtitle">Sopra un film (aperto da Alleggerire), sotto una stagione con "Migliori episodi" e lo stato di attesa. Stessi dati e azioni di oggi, cambia come si leggono.</p>
+
+<!-- FILM -->
+<div class="wf">
+  <div class="hero"><div class="bgi"></div><div class="veil"></div>
+    <span class="back">← Download</span>
+    <div class="in">
+      <div style="flex:1">
+        <div class="bebas" style="font-size:44px">Oppenheimer</div>
+        <div class="meta"><span>180 min</span><span>31 risultati validi su 54</span><span>Risultati da Prowlarr</span></div>
+      </div>
+      <div class="spec"><div class="mu" style="font-size:11px">File attuale</div><div class="row" style="margin-top:4px"><span class="bebas" style="font-size:26px">78 GB</span><span class="mu">punteggio 1550, 2160p Remux</span></div><div class="gold" style="font-size:12px;margin-top:2px">26 GB/ora, sopra la soglia</div></div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="row" style="gap:8px;margin-top:6px">
+      <span class="btn">Ricerca di nuovo</span><span class="btn">Cerca con Radarr</span><span class="btn">Già al minimo</span><span class="btn" style="margin-left:auto">Cerca su MIRCrew</span>
+    </div>
+
+    <div class="h">Pesi a confronto <small>ogni tacca è una release; più alta, punteggio più alto</small></div>
+    <div class="ruler">
+      <div class="zone" style="left:16px;width:9%"></div>
+      <div class="axis"></div>
+      <div class="tk" style="left:14%;height:22px"></div>
+      <div class="tk" style="left:19%;height:30px"></div>
+      <div class="tk ch" style="left:24%;height:56px"></div>
+      <div class="flag gold" style="left:24%;bottom:84px">scelta 16 GB</div>
+      <div class="tk" style="left:28%;height:56px"></div>
+      <div class="tk" style="left:31%;height:40px"></div>
+      <div class="tk" style="left:36%;height:56px"></div>
+      <div class="tk" style="left:42%;height:48px"></div>
+      <div class="tk" style="left:49%;height:60px"></div>
+      <div class="tk" style="left:58%;height:62px"></div>
+      <div class="tk" style="left:66%;height:58px"></div>
+      <div class="tk cur" style="left:86%;height:64px"></div>
+      <div class="flag" style="left:86%;bottom:92px">attuale 78 GB</div>
+      <div class="tk" style="left:91%;height:64px"></div>
+      <span class="lb" style="left:16px;transform:none">0</span><span class="lb" style="left:12%">troppo piccoli</span><span class="lb" style="left:30%">20 GB</span><span class="lb" style="left:52%">40 GB</span><span class="lb" style="left:74%">60 GB</span><span class="lb" style="left:94%">80 GB</span>
+    </div>
+
+    <div class="h">La scelta della regola</div>
+    <div class="pick">
+      <span class="bebas gold" style="font-size:30px">1</span>
+      <div style="flex:1;min-width:0">
+        <div class="rel" style="font-weight:600">Oppenheimer.2023.1080p.BluRay.DDP7.1.x265.10bit-GalaxyRG265</div>
+        <div class="row mu" style="margin-top:5px;gap:16px"><span>punteggio <b style="color:var(--cr)">1550</b></span><span><b style="color:var(--cr)">16 GB</b>, 5,3 GB/ora</span><span class="row" style="gap:5px"><span class="lamp ok"></span>412 seeders</span><span>Knaben</span></div>
+        <div class="gold" style="margin-top:6px;font-size:12px">Il più leggero tra quelli con punteggio 1550 in 1080p. Libera 62 GB.</div>
+      </div>
+      <span class="btn f">Scarica</span>
+    </div>
+
+    <div class="h">Tutte le release <small>31</small></div>
+    <div class="tbl">
+      <div class="tr th"><span></span><span>Release</span><span>Punteggio</span><span>Peso</span><span>Seeders</span><span>Indexer</span><span></span></div>
+      <div class="tr"><span class="rk">2</span><span class="rel">Oppenheimer.2023.1080p.BluRay.x264.DTS-HD.MA.5.1-FGT</span><span class="sc"><i style="width:40px"></i>1550</span><span>18 GB</span><span class="row" style="gap:5px"><span class="lamp ok"></span>205</span><span class="mu">Il Corsaro Blu</span><span class="btn">Scarica</span></div>
+      <div class="tr"><span class="rk">3</span><span class="rel">Oppenheimer.2023.ITA.ENG.1080p.BluRay.x265-Shareisland</span><span class="sc"><i style="width:40px"></i>1550</span><span>21 GB</span><span class="row" style="gap:5px"><span class="lamp at"></span>7</span><span class="mu">Shareisland</span><span class="btn">Scarica</span></div>
+      <div class="tr"><span class="rk">4</span><span class="rel">Oppenheimer.2023.2160p.WEB-DL.DDP5.1.HDR.H.265-FLUX</span><span class="sc"><i style="width:36px"></i>1400</span><span>26 GB</span><span class="row" style="gap:5px"><span class="lamp ok"></span>96</span><span class="mu">Knaben</span><span class="btn">Scarica</span></div>
+      <div class="tr" style="opacity:.6"><span class="rk">5</span><span class="rel">Oppenheimer.2023.2160p.UHD.BluRay.REMUX.HDR.HEVC.Atmos-FGT</span><span class="sc"><i style="width:40px;background:var(--cr)"></i>1550</span><span>78 GB</span><span class="row" style="gap:5px"><span class="lamp ok"></span>58</span><span class="mu">Il Corsaro Blu</span><span class="mu" style="font-size:12px">È il file che hai già</span></div>
+    </div>
+
+    <div class="h">Scartati <small>23</small><span class="act mu">Mostra</span></div>
+    <div class="chips"><span class="chip"><b>9</b> altro titolo</span><span class="chip"><b>8</b> qualità non voluta</span><span class="chip"><b>4</b> troppo piccoli</span><span class="chip"><b>2</b> termini vietati</span></div>
+  </div>
+</div>
+<p class="note">In testa lo sfondo del titolo con il file attuale come "scheda tecnica". Il pezzo forte è il righello dei pesi: ogni release è una tacca messa per GB, alta quanto il punteggio, con la scelta in oro, il file attuale in crema e la zona "troppo piccoli" in rosso tenue. Si vede subito quanto si risparmia. Sotto, la scelta della regola da sola e poi la tabella; i seeders hanno la spia (verde tanti, oro pochi, spenta zero). Gli scartati diventano un riepilogo per motivo, apribile.</p>
+
+<!-- STAGIONE -->
+<div class="wf">
+  <div class="hero" style="height:150px"><div class="bgi s"></div><div class="veil"></div>
+    <span class="back">← Download</span>
+    <div class="in"><div style="flex:1"><div class="bebas" style="font-size:40px">Mushoku Tensei, stagione 3</div>
+      <div class="meta"><span>14 episodi, 24 min</span><span>Nessun file</span><span>Risultati da Prowlarr</span></div></div></div>
+  </div>
+  <div class="body">
+    <div class="h">Migliori episodi <small>11 su 14 con un file valido</small><span class="act btn f">Scarica tutti (11)</span></div>
+    <div class="eps">
+      <div class="ep ok"><div class="n">E01</div><div class="mu">1,1 GB</div></div>
+      <div class="ep ok"><div class="n">E02</div><div class="mu">1,2 GB</div></div>
+      <div class="ep ok"><div class="n">E03</div><div class="mu">1,1 GB</div></div>
+      <div class="ep have"><div class="n mu">E04</div><div class="mu">già c'è</div></div>
+      <div class="ep ok"><div class="n">E05</div><div class="mu">1,3 GB</div></div>
+      <div class="ep ok"><div class="n">E06</div><div class="mu">1,1 GB</div></div>
+      <div class="ep ok"><div class="n">E07</div><div class="mu">1,2 GB</div></div>
+      <div class="ep ok"><div class="n">E08</div><div class="mu">1,1 GB</div></div>
+      <div class="ep ok"><div class="n">E09</div><div class="mu">1,2 GB</div></div>
+      <div class="ep ok"><div class="n">E10</div><div class="mu">1,1 GB</div></div>
+      <div class="ep ok"><div class="n">E11</div><div class="mu">1,4 GB</div></div>
+      <div class="ep ok"><div class="n">E12</div><div class="mu">1,2 GB</div></div>
+      <div class="ep no"><div class="n">E13</div><div class="mu">nessun file valido</div></div>
+      <div class="ep no"><div class="n">E14</div><div class="mu">nessun file valido</div></div>
+    </div>
+    <p class="mu" style="margin:8px 0 0">Cliccando un episodio la tabella sotto si filtra sulle sue release.</p>
+
+    <div class="h">In attesa dei risultati</div>
+    <div class="run">
+      <div class="row"><span class="lamp at"></span><b>Ricerca su Sonarr in corso</b><span class="bebas" style="font-size:22px;margin-left:auto">1:42</span></div>
+      <div class="film"><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="mu">Le stagioni anime possono richiedere qualche minuto: puoi chiudere, i risultati restano pronti.</div>
+    </div>
+  </div>
+</div>
+<p class="note">Per le stagioni, "Migliori episodi" diventa una griglia di tessere E01–E14: oro con il peso se c'è un file valido, tratteggiata se non c'è, spenta se l'episodio c'è già. Durante l'attesa la barra indeterminata diventa una pellicola che scorre (ferma con "riduci animazioni"), con il tempo in Bebas.</p>

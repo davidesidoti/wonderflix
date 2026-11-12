@@ -1,0 +1,167 @@
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .wf { --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3; --mu:rgba(242,234,211,.6); --ok:#5BBF6A;
+        background:var(--bg); color:var(--cr); font-family:Inter,sans-serif; font-size:13px; border-radius:6px; overflow:hidden; }
+  .wf .bebas { font-family:'Bebas Neue',sans-serif; letter-spacing:1px; line-height:1; }
+  .wf .mu { color:var(--mu); }
+  .wf .gold { color:var(--gold); }
+  .wf .bar { height:4px; background:var(--sh); border-radius:2px; overflow:hidden; }
+  .wf .bar > i { display:block; height:100%; background:var(--gold); }
+  .wf .av { width:22px; height:22px; border-radius:50%; background:#3a3326; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; flex:none; }
+  .wf .poster { border-radius:3px; flex:none; }
+  .p1 { background:linear-gradient(160deg,#5a3b1c,#1c120a 70%); }
+  .p2 { background:linear-gradient(160deg,#2b4a6b,#0d1620 70%); }
+  .row { display:flex; align-items:center; gap:10px; }
+  .opt-note { font-size:14px; margin:10px 2px 0; color:var(--text-secondary,#888); }
+
+  /* A: Cabina di proiezione */
+  .a { display:flex; min-height:420px; }
+  .a .rail { width:150px; background:var(--sf); border-right:1px solid var(--bd); padding:18px 10px; flex:none; }
+  .a .rail .logo { font-size:22px; color:var(--gold); padding:0 8px 16px; }
+  .a .rail .it { padding:8px 10px; border-radius:4px; color:var(--mu); display:flex; gap:9px; align-items:center; }
+  .a .rail .it.on { background:var(--sh); color:var(--cr); box-shadow:inset 2px 0 var(--gold); }
+  .a .rail .it b { width:14px; height:14px; border:1.5px solid currentColor; border-radius:3px; }
+  .a .rail .badge { margin-left:auto; background:var(--gold); color:var(--bg); font-size:10px; font-weight:700; border-radius:8px; padding:0 6px; }
+  .a .main { flex:1; padding:20px 24px; }
+  .a .srv { display:flex; align-items:center; gap:12px; margin-bottom:18px; }
+  .a .lamp { width:10px; height:10px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 4px rgba(91,191,106,.15), 0 0 12px var(--ok); }
+  .a .sale { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .a .sala { position:relative; height:170px; border-radius:6px; overflow:hidden; border:1px solid var(--bd); }
+  .a .sala .bgi { position:absolute; inset:0; }
+  .a .sala .veil { position:absolute; inset:0; background:linear-gradient(0deg,rgba(10,10,10,.95) 25%,rgba(10,10,10,.2)); }
+  .a .sala .in { position:absolute; left:14px; right:14px; bottom:12px; }
+  .a .sala .num { position:absolute; top:10px; left:14px; font-size:15px; color:var(--gold); }
+  .a .sala .chip { position:absolute; top:10px; right:12px; font-size:11px; padding:2px 8px; border-radius:10px; background:rgba(212,166,74,.18); color:var(--gold); }
+  .a .sala .chip.dp { background:rgba(242,234,211,.1); color:var(--cr); }
+  .a .perf { display:flex; gap:3px; margin-top:8px; }
+  .a .perf i { flex:1; height:6px; border-radius:1px; background:var(--sh); }
+  .a .perf i.f { background:var(--gold); }
+  .a .h { font-size:20px; margin:20px 0 10px; color:var(--cr); }
+  .a .idle { display:flex; gap:22px; color:var(--mu); }
+
+  /* B: Tabellone */
+  .b { padding:20px 24px; min-height:420px; }
+  .b .top { display:flex; align-items:flex-end; justify-content:space-between; border-bottom:1px solid var(--bd); padding-bottom:12px; }
+  .b .tabs { display:flex; gap:20px; margin-top:12px; }
+  .b .tabs span { color:var(--mu); padding-bottom:8px; }
+  .b .tabs span.on { color:var(--gold); border-bottom:2px solid var(--gold); }
+  .b .board { margin-top:18px; border:1px solid var(--bd); border-radius:4px; overflow:hidden; }
+  .b .bh, .b .br { display:grid; grid-template-columns:140px 1fr 150px 120px 90px; gap:12px; align-items:center; padding:10px 14px; }
+  .b .bh { background:var(--sf); color:var(--mu); font-size:11px; }
+  .b .br { border-top:1px solid var(--bd); }
+  .b .br .t { font-size:22px; color:var(--gold); }
+  .b .flap { display:inline-flex; gap:2px; }
+  .b .flap span { background:var(--sh); border-radius:2px; padding:2px 3px; font-family:'Bebas Neue'; font-size:17px; color:var(--cr); border-bottom:1px solid #000; }
+  .b .st { font-size:11px; font-weight:600; }
+
+  /* C: Rifinitura */
+  .c { padding:20px 24px; min-height:420px; }
+  .c .srv { background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:14px 16px; display:flex; align-items:center; gap:14px; }
+  .c .pills { display:flex; gap:8px; margin-left:auto; }
+  .c .pill { border:1px solid var(--bd); border-radius:14px; padding:4px 10px; color:var(--mu); }
+  .c .pill b { color:var(--cr); }
+  .c .btn { border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:6px 12px; }
+  .c .tabs { display:flex; gap:6px; margin:16px 0 4px; }
+  .c .tabs span { padding:6px 12px; border-radius:16px; color:var(--mu); display:flex; gap:7px; align-items:center; }
+  .c .tabs span i { width:12px; height:12px; border:1.5px solid currentColor; border-radius:3px; }
+  .c .tabs span.on { background:var(--gold); color:var(--bg); font-weight:600; }
+  .c .h { font-size:20px; margin:18px 0 10px; display:flex; gap:8px; align-items:baseline; }
+  .c .h small { font-family:Inter; font-size:12px; color:var(--mu); letter-spacing:0; }
+  .c .card { background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:12px; display:flex; gap:14px; margin-bottom:10px; }
+</style>
+
+<h2>Tre direzioni per Amministrazione</h2>
+<p class="subtitle">Tutte nella scheda Sessioni, a larghezza desktop, con dati verosimili. Restano Noir &amp; Oro, Bebas Neue e Inter. Clicca quella che ti attira di più (anche più di una).</p>
+
+<div class="options" data-multiselect>
+
+<div class="option" data-choice="a" onclick="toggleSelect(this)">
+  <div class="letter">A</div>
+  <div class="content" style="width:100%">
+    <h3>Cabina di proiezione</h3>
+    <div class="wf a">
+      <div class="rail">
+        <div class="logo bebas">Cabina</div>
+        <div class="it on"><b></b>Sessioni<span class="badge">2</span></div>
+        <div class="it"><b></b>Utenti</div>
+        <div class="it"><b></b>Manutenzione</div>
+        <div class="it"><b></b>Attività</div>
+        <div class="it"><b></b>Download<span class="badge">3</span></div>
+        <div class="it"><b></b>Spazio</div>
+        <div class="it"><b></b>WonderFlix</div>
+      </div>
+      <div class="main">
+        <div class="srv">
+          <span class="lamp"></span>
+          <div><div class="bebas" style="font-size:24px">WonderFlix</div><div class="mu">Jellyfin 10.11.9 su Linux, in funzione</div></div>
+          <div style="margin-left:auto;border:1px solid var(--bd);border-radius:6px;padding:6px 12px">Riavvia</div>
+        </div>
+        <div class="sale">
+          <div class="sala"><div class="bgi p1"></div><div class="veil"></div>
+            <span class="num bebas">Sala 1</span><span class="chip dp">Diretta</span>
+            <div class="in">
+              <div class="bebas" style="font-size:26px">2012</div>
+              <div class="row mu" style="margin-top:4px"><span class="av">D</span>davide.sidoti, WonderFlix su Windows</div>
+              <div class="perf"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="mu" style="margin-top:4px">1:12:04 di 2:38:00</div>
+            </div></div>
+          <div class="sala"><div class="bgi p2"></div><div class="veil"></div>
+            <span class="num bebas">Sala 2</span><span class="chip">Transcodifica</span>
+            <div class="in">
+              <div class="bebas" style="font-size:26px">Mushoku Tensei S3E05</div>
+              <div class="row mu" style="margin-top:4px"><span class="av">G</span>giulia, Safari su iPhone</div>
+              <div class="perf"><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i><i></i><i></i></div>
+              <div class="mu" style="margin-top:4px">HEVC 10 bit verso H.264, il dispositivo non supporta HEVC</div>
+            </div></div>
+        </div>
+        <div class="bebas h">In sala d'attesa</div>
+        <div class="idle"><span class="row"><span class="av">M</span>marco, TV, 4 min fa</span><span class="row"><span class="av">L</span>luca, Windows, adesso</span></div>
+      </div>
+    </div>
+    <p class="opt-note">Una colonna di schede a sinistra con i contatori (cosa riproduce, cosa scarica). Ogni riproduzione è una "sala" con lo sfondo del titolo e una barra a fotogrammi. Il pezzo forte sono le sale; il resto resta sobrio.</p>
+  </div>
+</div>
+
+<div class="option" data-choice="b" onclick="toggleSelect(this)">
+  <div class="letter">B</div>
+  <div class="content" style="width:100%">
+    <h3>Tabellone</h3>
+    <div class="wf b">
+      <div class="top">
+        <div><div class="bebas" style="font-size:40px">Amministrazione</div>
+          <div class="tabs"><span class="on">Sessioni</span><span>Utenti</span><span>Manutenzione</span><span>Attività</span><span>Download</span><span>Spazio</span><span>WonderFlix</span></div></div>
+        <div style="text-align:right"><div class="row" style="justify-content:flex-end"><span style="width:8px;height:8px;border-radius:50%;background:var(--ok)"></span>WonderFlix in funzione</div><div class="mu">Jellyfin 10.11.9 su Linux</div><div class="gold" style="margin-top:6px">Riavvia</div></div>
+      </div>
+      <div class="board">
+        <div class="bh"><span>Avanzamento</span><span>Titolo</span><span>Spettatore</span><span>Dispositivo</span><span>Modo</span></div>
+        <div class="br"><span class="flap"><span>1</span><span>:</span><span>1</span><span>2</span><span>:</span><span>0</span><span>4</span></span><span><div class="bebas t">2012</div><div class="bar" style="margin-top:6px"><i style="width:46%"></i></div></span><span class="row"><span class="av">D</span>davide.sidoti</span><span class="mu">Windows</span><span class="st">Diretta</span></div>
+        <div class="br"><span class="flap"><span>0</span><span>:</span><span>1</span><span>8</span><span>:</span><span>3</span><span>0</span></span><span><div class="bebas t">Mushoku Tensei S3E05</div><div class="bar" style="margin-top:6px"><i style="width:76%"></i></div></span><span class="row"><span class="av">G</span>giulia</span><span class="mu">iPhone</span><span class="st gold">Transcodifica</span></div>
+        <div class="br mu"><span>In attesa</span><span>Nessun titolo</span><span class="row"><span class="av">M</span>marco</span><span>TV</span><span></span></div>
+      </div>
+    </div>
+    <p class="opt-note">Come il tabellone degli orari di un cinema: righe dense, cifre a palette, tutto in colonna. Si legge tutto a colpo d'occhio, va bene per Attività e Download che sono già elenchi; nello stretto le colonne diventano righe a due piani.</p>
+  </div>
+</div>
+
+<div class="option" data-choice="c" onclick="toggleSelect(this)">
+  <div class="letter">C</div>
+  <div class="content" style="width:100%">
+    <h3>Rifinitura</h3>
+    <div class="wf c">
+      <div class="bebas" style="font-size:40px;margin-bottom:12px">Amministrazione</div>
+      <div class="srv">
+        <span style="width:9px;height:9px;border-radius:50%;background:var(--ok)"></span>
+        <div><div style="font-weight:600;font-size:15px">WonderFlix</div><div class="mu">Jellyfin 10.11.9 su Linux</div></div>
+        <div class="pills"><span class="pill"><b>2</b> in riproduzione</span><span class="pill"><b>1</b> transcodifica</span><span class="pill"><b>3</b> download</span></div>
+        <span class="btn">Riavvia</span>
+      </div>
+      <div class="tabs"><span class="on"><i></i>Sessioni</span><span><i></i>Utenti</span><span><i></i>Manutenzione</span><span><i></i>Attività</span><span><i></i>Download</span><span><i></i>Spazio</span><span><i></i>WonderFlix</span></div>
+      <div class="bebas h">In riproduzione <small>2</small></div>
+      <div class="card"><div class="poster p1" style="width:48px;height:72px"></div><div style="flex:1"><div class="row"><span class="av">D</span><b>davide.sidoti</b><span class="mu">WonderFlix su Windows</span></div><div style="font-weight:600;margin:6px 0">2012</div><div class="row"><div class="bar" style="flex:1"><i style="width:46%"></i></div><span class="mu">1:12:04 / 2:38:00</span></div></div></div>
+      <div class="card"><div class="poster p2" style="width:48px;height:72px"></div><div style="flex:1"><div class="row"><span class="av">G</span><b>giulia</b><span class="mu">Safari su iPhone</span></div><div style="font-weight:600;margin:6px 0">Mushoku Tensei S3E05</div><div class="row"><div class="bar" style="flex:1"><i style="width:76%"></i></div><span class="gold">Transcodifica</span></div></div></div>
+    </div>
+    <p class="opt-note">La pagina di oggi, ripulita: schede con icona e selezione piena, riepilogo del server in pillole, titoli di sezione in Bebas con il conteggio. Cambia poco, rischia poco.</p>
+  </div>
+</div>
+
+</div>
