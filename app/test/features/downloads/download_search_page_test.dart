@@ -635,6 +635,16 @@ void main() {
       }
       expect(grabAllButton('Scarica tutti (12)'), findsOneWidget);
 
+      // Nel largo sette per riga; tutte alte uguali, anche senza file.
+      Offset tile(int n) =>
+          tester.getTopLeft(find.byKey(ValueKey('episode-tile-$n')));
+      for (var n = 2; n <= 7; n++) {
+        expect(tile(n).dy, tile(1).dy);
+      }
+      expect(tile(8).dy, greaterThan(tile(1).dy));
+      expect(tester.getSize(find.byKey(const ValueKey('episode-tile-5'))),
+          tester.getSize(find.byKey(const ValueKey('episode-tile-1'))));
+
       await tapTile(tester, 5);
       expect(find.byKey(const ValueKey('episode-5')), findsNothing);
     });
@@ -1099,6 +1109,12 @@ void main() {
           await tester.pump();
         }
         expect(find.text('Riprova'), findsOneWidget);
+        // Errore e "Riprova" stanno nello stesso riquadro, con la spia rotta.
+        final box = find.byKey(const ValueKey('search-box'));
+        expect(find.descendant(of: box, matching: find.text('Riprova')),
+            findsOneWidget);
+        expect(find.descendant(of: box, matching: find.byType(WfLamp)),
+            findsOneWidget);
 
         await tester.tap(find.text('Riprova'));
         await tester.pump();

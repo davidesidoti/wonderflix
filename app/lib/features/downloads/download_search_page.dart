@@ -251,23 +251,23 @@ class _SearchPage extends ConsumerWidget {
               ]),
             );
     } else if (search == null || search.error != null) {
-      body = Center(
-        child: Padding(
-          padding: EdgeInsets.all(margin),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Flexible(
-              child: Text(_errorText(l, state.error, search?.error),
-                  style: const TextStyle(color: WfColors.creamMuted)),
-            ),
-            const SizedBox(width: 8),
-            if (pollingFailed)
-              TextButton(
-                  onPressed: () => unawaited(ref.read(provider.notifier).retry()),
-                  child: Text(l.downloadsSearchRetry))
-            else
-              TextButton(onPressed: again, child: Text(l.retry)),
-          ]),
-        ),
+      final message = _errorText(l, state.error, search?.error);
+      body = _SearchBox(
+        child: Row(children: [
+          WfLamp(state: LampState.broken, label: message),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(color: WfColors.creamMuted)),
+          ),
+          const SizedBox(width: 8),
+          if (pollingFailed)
+            TextButton(
+                onPressed: () => unawaited(ref.read(provider.notifier).retry()),
+                child: Text(l.downloadsSearchRetry))
+          else
+            TextButton(onPressed: again, child: Text(l.retry)),
+        ]),
       );
     } else {
       // La scelta da sola sopra la tabella; con Alleggerisci, se è il file
@@ -449,57 +449,65 @@ class _SearchRunningState extends State<_SearchRunning> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     const muted = TextStyle(color: WfColors.creamMuted);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: WfColors.surface,
-              border: Border.all(color: WfColors.border),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    WfLamp(
-                        state: LampState.attention,
-                        label: l.downloadsSearchWaiting),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        switch (widget.running.waitingFor) {
-                          final w? => _waiting(l, w),
-                          null => l.downloadsSearchRunningOn(
-                              widget.running.service),
-                        },
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(_elapsed(), style: WfText.display(22)),
-                  ]),
-                  const SizedBox(height: 14),
-                  const _FilmRunStrip(),
-                  if (widget.running.reconnecting) ...[
-                    const SizedBox(height: 8),
-                    Text(l.downloadsSearchReconnecting, style: muted),
-                  ],
-                  const SizedBox(height: 8),
-                  Text(l.downloadsSearchRunningHint, style: muted),
-                ],
+    return _SearchBox(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            WfLamp(
+                state: LampState.attention, label: l.downloadsSearchWaiting),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                switch (widget.running.waitingFor) {
+                  final w? => _waiting(l, w),
+                  null => l.downloadsSearchRunningOn(widget.running.service),
+                },
+                style: const TextStyle(fontWeight: FontWeight.w600),
               ),
             ),
-          ),
-        ),
+            const SizedBox(width: 12),
+            Text(_elapsed(), style: WfText.display(22)),
+          ]),
+          const SizedBox(height: 14),
+          const _FilmRunStrip(),
+          if (widget.running.reconnecting) ...[
+            const SizedBox(height: 8),
+            Text(l.downloadsSearchReconnecting, style: muted),
+          ],
+          const SizedBox(height: 8),
+          Text(l.downloadsSearchRunningHint, style: muted),
+        ],
       ),
     );
   }
+}
+
+/// Il riquadro al centro della pagina per attesa, riconnessione ed errore.
+class _SearchBox extends StatelessWidget {
+  const _SearchBox({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: DecoratedBox(
+              key: const ValueKey('search-box'),
+              decoration: BoxDecoration(
+                color: WfColors.surface,
+                border: Border.all(color: WfColors.border),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Padding(padding: const EdgeInsets.all(18), child: child),
+            ),
+          ),
+        ),
+      );
 }
 
 /// La pellicola dell'attesa: [_filmSegments] fotogrammi, [_filmLit] accesi che
@@ -524,7 +532,9 @@ class _FilmRunStripState extends State<_FilmRunStrip>
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (WfMotion.of(context).isReduced) {
-      _controller.stop();
+      _controller
+        ..stop()
+        ..value = 0;
     } else if (!_controller.isAnimating) {
       _controller.repeat();
     }
@@ -886,21 +896,28 @@ class _BestEpisodesState extends State<_BestEpisodes> {
                         : l.downloadsGrabAllProgress(progress.$1, progress.$2)),
                   ),
           ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final c in choices)
-                _EpisodeTile(
-                  key: ValueKey('episode-tile-${c.episodeNumber}'),
-                  choice: c,
-                  selected: c == open,
-                  onTap: c.release == null
-                      ? null
-                      : () => setState(() => _selected =
-                          _selected == c.episodeNumber ? null : c.episodeNumber),
-                ),
-            ],
+          // Nel largo sette tessere per riga.
+          ConstrainedBox(
+            constraints: BoxConstraints(
+                maxWidth: FormFactor.of(context).compact
+                    ? double.infinity
+                    : 7 * _tileWidth + 6 * 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final c in choices)
+                  _EpisodeTile(
+                    key: ValueKey('episode-tile-${c.episodeNumber}'),
+                    choice: c,
+                    selected: c == open,
+                    onTap: c.release == null
+                        ? null
+                        : () => setState(() => _selected =
+                            _selected == c.episodeNumber ? null : c.episodeNumber),
+                  ),
+              ],
+            ),
           ),
           if (open != null) ...[
             const SizedBox(height: 12),
@@ -922,6 +939,8 @@ class _BestEpisodesState extends State<_BestEpisodes> {
     );
   }
 }
+
+const _tileWidth = 92.0;
 
 /// La tessera di un episodio: bordo oro tenue con il peso del singolo scelto
 /// (oro pieno se aperta); senza singolo, attenuata e senza tocco.
@@ -946,33 +965,40 @@ class _EpisodeTile extends StatelessWidget {
         : release != null
             ? WfColors.gold.withValues(alpha: 0.5)
             : WfColors.border;
-    return Opacity(
-      opacity: release == null ? 0.5 : 1,
-      child: SizedBox(
-        width: 92,
-        child: Material(
-          color: WfColors.surface,
-          shape: RoundedRectangleBorder(
+    return Semantics(
+      selected: selected,
+      child: Opacity(
+        opacity: release == null ? 0.5 : 1,
+        child: SizedBox(
+          width: _tileWidth,
+          // Alta uguale con o senza file: "nessun file valido" va su due righe.
+          height: 80,
+          child: Material(
+            color: WfColors.surface,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+                side: BorderSide(color: border)),
+            child: InkWell(
               borderRadius: BorderRadius.circular(6),
-              side: BorderSide(color: border)),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(6),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l.downloadsEpisodeShort(choice.episodeNumber),
-                      style: WfText.display(20)),
-                  const SizedBox(height: 2),
-                  Text(
-                      release == null
-                          ? l.downloadsEpisodeNone
-                          : formatGb(l, release.sizeBytes),
-                      style: const TextStyle(
-                          color: WfColors.creamMuted, fontSize: 12)),
-                ],
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l.downloadsEpisodeShort(choice.episodeNumber),
+                        style: WfText.display(20)),
+                    const SizedBox(height: 2),
+                    Text(
+                        release == null
+                            ? l.downloadsEpisodeNone
+                            : formatGb(l, release.sizeBytes),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: WfColors.creamMuted, fontSize: 12)),
+                  ],
+                ),
               ),
             ),
           ),
