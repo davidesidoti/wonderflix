@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -60,6 +62,8 @@ Future<void> _pump(
   Size size = const Size(1440, 700),
   String? section,
   bool tv = false,
+  FakeDisplayPreferencesApi? displayPrefs,
+  bool settle = true,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
@@ -76,10 +80,16 @@ Future<void> _pump(
         () => FakeSessionController(const SessionSignedIn(testUser)),
       ),
       userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
-      ...homeSettingsOverrides(),
+      ...homeSettingsOverrides(prefs: displayPrefs),
     ],
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+  }
 }
 
 void main() {
@@ -208,6 +218,65 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SettingsSectionStrip), findsOneWidget);
     expect(_pageScroll(tester).position.pixels, greaterThan(0));
+  });
+
+  testWidgets('la versione sta in fondo alla colonna, e con poca altezza '
+      'la colonna scorre', (tester) async {
+    await _pump(tester);
+    expect(
+      tester.getBottomLeft(find.text('WonderFlix 0.0.1')).dy,
+      closeTo(700 - 16, 8),
+    );
+    await _pump(tester, size: const Size(1440, 300));
+    final rail = find.descendant(
+      of: find.byType(SettingsRail),
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(rail).position;
+    expect(position.maxScrollExtent, greaterThan(0));
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    expect(
+      tester.getBottomLeft(find.text('WonderFlix 0.0.1')).dy,
+      lessThanOrEqualTo(300),
+    );
+  });
+
+  testWidgets('section=: il titolo resta in cima mentre le sezioni sopra '
+      'si caricano', (tester) async {
+    final prefs = FakeDisplayPreferencesApi()..readGate = Completer<void>();
+    await _pump(
+      tester,
+      section: 'playback',
+      displayPrefs: prefs,
+      settle: false,
+    );
+    final top = tester.getTopLeft(find.byKey(_section('playback'))).dy;
+    expect(top, lessThan(700 / 3));
+    prefs.readGate!.complete();
+    await tester.pumpAndSettle();
+    expect(
+      tester.getTopLeft(find.byKey(_section('playback'))).dy,
+      lessThan(700 / 3),
+    );
+    expect(_on(tester), ['playback']);
+  });
+
+  testWidgets('section=: uno scorrimento non da trascinamento libera il pin', (
+    tester,
+  ) async {
+    await _pump(tester, section: 'playback');
+    final position = _pageScroll(tester).position;
+    // Come Tab, PageDown o il D-pad: nessuna UserScrollNotification.
+    position.jumpTo(position.pixels + 400);
+    await tester.pump();
+    final moved = position.pixels;
+    expect(_on(tester), isNot(['playback']), reason: 'la spia riparte');
+    // Un cambio di altezza non riporta la pagina al titolo.
+    tester.view.physicalSize =
+        const Size(1440, 650) * tester.view.devicePixelRatio;
+    await tester.pumpAndSettle();
+    expect(position.pixels, moved);
   });
 
   testWidgets('TV: né colonna né fila', (tester) async {

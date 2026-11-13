@@ -77,6 +77,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// scorre lo si riporta in cima a ogni cambio di altezza.
   String? _pin;
 
+  /// Dove stava la pagina dopo l'ultimo allineamento del pin: se si e' mossa
+  /// (tastiera, D-pad, rotella) il pin cade, qualunque cosa l'abbia mossa.
+  var _pinOffset = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -126,22 +130,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // voce scelta non deve cambiare da sola.
       if (token == _scrollToken) _animating = false;
     }
-    if (_pin == id) _realign();
+    if (token == _scrollToken && _pin == id) _realign();
   }
 
   /// Riporta in cima il titolo della sezione aperta con `section=<id>`.
+  /// Senza durata: il salto e' immediato, e `_aligning` tiene lo spy fuori.
   void _realign() {
     final target = _sectionKeys[_pin]?.currentContext;
-    if (target != null) unawaited(Scrollable.ensureVisible(target));
+    if (target != null) {
+      _aligning = true;
+      unawaited(Scrollable.ensureVisible(target));
+      _aligning = false;
+    }
+    if (_scroll.hasClients) _pinOffset = _scroll.offset;
+  }
+
+  var _aligning = false;
+
+  /// Il pin vale ancora: la pagina non si e' mossa dal suo allineamento.
+  /// Altrimenti lo toglie.
+  bool _pinHolds() {
+    if (_pin == null) return false;
+    if (_scroll.hasClients && (_scroll.offset - _pinOffset).abs() > 1) {
+      _pin = null;
+    }
+    return _pin != null;
   }
 
   bool _onNotification(Notification n) {
-    if (n is ScrollNotification && n.depth != 0) return false;
-    if (n is UserScrollNotification && n.direction != ScrollDirection.idle) {
-      _pin = null;
-    } else if (n is ScrollMetricsNotification && _pin != null && !_animating) {
+    // Solo la pagina: non gli scorrevoli dentro (campi, menu, elenchi).
+    if (n is ViewportNotificationMixin && n.depth != 0) return false;
+    if (n is ScrollMetricsNotification && !_animating && _pinHolds()) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pin != null) _realign();
+        if (mounted && _pinHolds()) _realign();
       });
     }
     return false;
@@ -161,7 +182,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// La voce accesa seguendo lo scorrimento: l'ultima sezione il cui titolo è
   /// sopra un terzo dell'altezza, l'ultima in assoluto quando si è in fondo.
   void _spy() {
-    if (_animating || _pin != null) return;
+    if (_animating || _aligning || _pinHolds()) return;
     if (!_scroll.hasClients || _visible.isEmpty) return;
     final position = _scroll.position;
     var found = _visible.first;
@@ -187,17 +208,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final tv = FormFactor.of(context).tv;
     final compact = FormFactor.of(context).compact;
     // Le voci della colonna: le stesse sezioni che la pagina mostra.
-    _visible = [
-      'account',
-      if (push) 'notifications',
-      'home',
-      'playback',
-      'subtitles',
-      'app',
-      if (!kIsWeb) 'discord',
-      'support',
-    ];
-    final current = _visible.contains(_current) ? _current : _visible.first;
+    // Sulla TV niente voci: ne' spy ne' pin.
+    _visible = tv
+        ? const []
+        : [
+            'account',
+            if (push) 'notifications',
+            'home',
+            'playback',
+            'subtitles',
+            'app',
+            if (!kIsWeb) 'discord',
+            'support',
+          ];
+    final current = _visible.contains(_current) || _visible.isEmpty
+        ? _current
+        : _visible.first;
 
     // Una sezione (titolo e righe) è un elemento dell'entrata, larga al più
     // 640 px e a sinistra.

@@ -63,46 +63,60 @@ class SettingsRail extends StatelessWidget {
         color: WfColors.surface,
         border: Border(right: BorderSide(color: WfColors.border)),
       ),
-      // Con poca altezza (finestra bassa) la colonna scorre.
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(10, 20, 10, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
-              child: Text(
-                l.menuSettings.toUpperCase(),
-                style: WfText.display(28),
+      // La versione sta in fondo alla colonna; con poca altezza (finestra
+      // bassa) la colonna scorre.
+      child: CustomScrollView(
+        slivers: [
+          // Il margine sta dentro il riempimento: fuori, la colonna
+          // scorrerebbe sempre di quel margine.
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 20, 10, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+                    child: Text(
+                      l.menuSettings.toUpperCase(),
+                      style: WfText.display(28),
+                    ),
+                  ),
+                  for (var i = 0; i < sections.length; i++) ...[
+                    if (i > 0 && _group(sections[i]) != _group(sections[i - 1]))
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 10,
+                        ),
+                        child: Divider(height: 1, color: WfColors.border),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: _RailEntry(
+                        id: sections[i],
+                        selected: sections[i] == current,
+                        onTap: () => onSelect(sections[i]),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 14, 10, 0),
+                    child: Text(
+                      l.settingsNavVersion(version),
+                      style: const TextStyle(
+                        color: WfColors.creamMuted,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            for (var i = 0; i < sections.length; i++) ...[
-              if (i > 0 && _group(sections[i]) != _group(sections[i - 1]))
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                  child: Divider(height: 1, color: WfColors.border),
-                ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: _RailEntry(
-                  id: sections[i],
-                  selected: sections[i] == current,
-                  onTap: () => onSelect(sections[i]),
-                ),
-              ),
-            ],
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 14, 10, 0),
-              child: Text(
-                l.settingsNavVersion(version),
-                style: const TextStyle(
-                  color: WfColors.creamMuted,
-                  fontSize: 11.5,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
