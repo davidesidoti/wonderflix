@@ -260,7 +260,7 @@ void main() {
     await expectNoOverflow(
       tester,
       const Scaffold(body: SettingsScreen()),
-      content: find.text('Accesso come Mario'),
+      content: find.text('Mario'),
       overrides: [
         ...library(libraryApi()),
         sharedPreferencesProvider.overrideWithValue(prefs),

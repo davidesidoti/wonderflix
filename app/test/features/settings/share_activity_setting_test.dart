@@ -27,8 +27,8 @@ void main() {
     await tester.pump();
   }
 
-  SwitchListTile tile(WidgetTester tester) =>
-      tester.widget<SwitchListTile>(find.byKey(const Key('share-activity')));
+  Switch tile(WidgetTester tester) =>
+      tester.widget<Switch>(find.byKey(const Key('share-activity')));
 
   testWidgets('acceso dal plugin, con il testo sotto', (tester) async {
     await pumpSetting(tester);

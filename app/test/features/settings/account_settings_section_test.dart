@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/auth_api.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/jellyfin_http.dart';
@@ -28,17 +29,20 @@ void main() {
     bool available = true,
     JellyfinUser user = testUser,
     List<Override> extra = const [],
+    Size surfaceSize = const Size(1440, 900),
+    FakeSessionController? session,
   }) async {
     await pumpApp(
       tester,
       const Scaffold(
           body: SingleChildScrollView(child: AccountSettingsSection())),
       overrides: [
-        sessionControllerProvider
-            .overrideWith(() => FakeSessionController(SessionSignedIn(user))),
+        sessionControllerProvider.overrideWith(
+            () => session ?? FakeSessionController(SessionSignedIn(user))),
         ...accountTestOverrides(api, available: available),
         ...extra,
       ],
+      surfaceSize: surfaceSize,
     );
     // I contatti arrivano.
     await tester.pump();
@@ -49,9 +53,101 @@ void main() {
     await pumpSection(tester, available: false);
 
     expect(find.text('Cambia password'), findsOneWidget);
-    expect(find.text('Accesso come Mario'), findsOneWidget);
+    expect(find.text('Mario'), findsOneWidget);
     expect(find.text('Contatti per il recupero'), findsNothing);
     expect(api.contactsCalls, 0);
+  });
+
+  testWidgets('tessera: avatar che apre il dialogo, niente bottone',
+      (tester) async {
+    await pumpSection(tester, available: false);
+
+    expect(find.widgetWithText(OutlinedButton, 'Cambia immagine'),
+        findsNothing);
+    expect(find.byKey(const Key('settings-change-password')), findsOneWidget);
+    expect(find.byKey(const Key('settings-quick-connect')), findsOneWidget);
+    expect(find.text('Autorizza un dispositivo'), findsOneWidget);
+    expect(find.text('Cambia profilo'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('settings-change-image')));
+    await tester.pumpAndSettle();
+    expect(find.text('Immagine del profilo'), findsOneWidget);
+  });
+
+  testWidgets('avatar annunciato come Cambia immagine',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpSection(tester, available: false);
+
+    expect(find.bySemanticsLabel('Cambia immagine'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('tag Admin: assente per gli altri', (tester) async {
+    await pumpSection(tester, available: false);
+    expect(find.text('Admin'), findsNothing);
+  });
+
+  testWidgets('tag Admin: presente per gli admin', (tester) async {
+    await pumpSection(tester,
+        available: false,
+        user: const JellyfinUser(
+            id: 'u1', name: 'Mario', isAdministrator: true));
+    expect(find.text('Admin'), findsOneWidget);
+  });
+
+  testWidgets('Esci: dopo i contatti, da solo, col colore di errore',
+      (tester) async {
+    final session = FakeSessionController(const SessionSignedIn(testUser));
+    await pumpSection(tester, session: session);
+
+    final logout = find.byKey(const Key('settings-logout'));
+    expect(tester.getTopLeft(logout).dy,
+        greaterThan(tester.getBottomLeft(find.text('Non collegato').last).dy));
+    final button = tester.widget<OutlinedButton>(logout);
+    expect(button.style!.foregroundColor!.resolve({}), WfColors.error);
+    expect(button.style!.side!.resolve({})!.color, WfColors.error);
+
+    await tester.tap(logout);
+    await tester.pump();
+    expect(session.logoutCalls, 1);
+  });
+
+  testWidgets('stretto: il tagliando sta sopra il nome', (tester) async {
+    await pumpSection(tester,
+        available: false, surfaceSize: const Size(400, 900));
+    final avatar = find.byKey(const Key('settings-change-image'));
+    expect(tester.getBottomLeft(avatar).dy,
+        lessThan(tester.getTopLeft(find.text('Mario')).dy));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('largo: il tagliando sta a sinistra del nome', (tester) async {
+    await pumpSection(tester, available: false);
+    expect(
+        tester.getTopRight(find.byKey(const Key('settings-change-image'))).dx,
+        lessThan(tester.getTopLeft(find.text('Mario')).dx));
+  });
+
+  testWidgets('senza utente: solo Cambia profilo e Esci, niente tessera',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: SingleChildScrollView(child: AccountSettingsSection())),
+      overrides: [
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedOut())),
+        ...accountTestOverrides(api),
+      ],
+    );
+    await tester.pump();
+
+    expect(find.text('Cambia profilo'), findsOneWidget);
+    expect(find.byKey(const Key('settings-logout')), findsOneWidget);
+    expect(find.byKey(const Key('settings-change-image')), findsNothing);
+    expect(find.byKey(const Key('settings-change-password')), findsNothing);
+    expect(find.text('Contatti per il recupero'), findsNothing);
   });
 
   testWidgets('righe: collegato, canale spento, il testo sotto',

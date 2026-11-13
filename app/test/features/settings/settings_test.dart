@@ -77,13 +77,13 @@ void main() {
       watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
     ]);
 
-    expect(find.text('Accesso come Mario'), findsOneWidget);
+    expect(find.text('Mario'), findsOneWidget);
     expect(find.byType(UserAvatar), findsOneWidget);
     expect(find.text('Cambia password'), findsOneWidget);
     // Account è la prima sezione, App viene dopo.
     expect(tester.getTopLeft(find.byKey(_section('account'))).dy,
         lessThan(tester.getTopLeft(find.byKey(_section('app'))).dy));
-    await tester.tap(find.text('Cambia immagine'));
+    await tester.tap(find.byKey(const Key('settings-change-image')));
     await tester.pumpAndSettle();
     expect(find.text('Immagine del profilo'), findsOneWidget);
     await tester.tapAt(const Offset(5, 5));
