@@ -10,7 +10,7 @@ Comandi (da `app/`, Git Bash, prima `export PATH="/c/Users/sidot/dev/flutter/bin
 `flutter gen-l10n`, `flutter analyze`, `flutter test test/features/settings`
 (e `flutter test` intero alla fine di ogni compito).
 
-## 1. Kit delle righe e testi
+## Task 1: Kit delle righe e testi
 
 - `lib/features/settings/settings_kit.dart`:
   - `enum SettingsScope { device, account, jellyfin }` e
@@ -38,7 +38,7 @@ Comandi (da `app/`, Git Bash, prima `export PATH="/c/Users/sidot/dev/flutter/bin
   Aggiornamento). `settingsQuickConnect` cambia valore.
 - Test: `test/features/settings/settings_kit_test.dart`.
 
-## 2. Sezioni come righe, nuovo ordine
+## Task 2: Sezioni come righe, nuovo ordine
 
 - `settings_screen.dart`: sezioni nell'ordine e con gli id della decisione
   1, titolo con `SettingsSectionTitle` e scope. Il segmentato della lingua
@@ -61,7 +61,7 @@ Comandi (da `app/`, Git Bash, prima `export PATH="/c/Users/sidot/dev/flutter/bin
   voci: lingua, player, lingue di riproduzione, versione, aggiornamento).
 - Aggiornare `settings_test.dart` e gli altri test toccati.
 
-## 3. Navigazione
+## Task 3: Navigazione
 
 - `settings_nav.dart`: `SettingsRail` (largo, 208 px, come `AdminRail`:
   titolo Bebas, voci icona+nome, separatori tra gruppi, versione in fondo)
@@ -77,27 +77,27 @@ Comandi (da `app/`, Git Bash, prima `export PATH="/c/Users/sidot/dev/flutter/bin
 - `openHomeSettings` resta. Test: clic su una voce scorre; scorrendo la voce
   accesa cambia; `?section=playback` apre lì; nello stretto c'è la fila.
 
-## 4. Notifiche a gruppi
+## Task 4: Notifiche a gruppi
 
 Decisione 4 in `notifications_settings_section.dart`. Test: conteggio,
 interruttore del gruppo (accende gli spenti / spegne tutti), un errore =
 un avviso, gruppo da un tipo senza freccia, aperti/chiusi iniziali nel
 largo e nello stretto, chiavi `notification-pref-<tipo>` sulle righe.
 
-## 5. Anteprima dei sottotitoli
+## Task 5: Anteprima dei sottotitoli
 
 `lib/features/settings/subtitle_preview.dart` (decisione 5) e posto nella
 sezione Audio e sottotitoli (a destra nel largo se la larghezza lo
 permette, sotto altrimenti). Test: la grandezza del testo segue la scala.
 
-## 6. Tessera dell'account
+## Task 6: Tessera dell'account
 
 Decisione 7 in `account_settings_section.dart` (+ eventuale
 `account_card.dart`). Test: tocco sull'avatar apre il dialogo, niente
 bottone "Cambia immagine", "Autorizza un dispositivo", Esci dopo i contatti
 e con lo stile di errore, layout stretto.
 
-## 7. TV
+## Task 7: TV
 
 `lib/features/settings/tv_settings_body.dart` (+ `tv_choice_panel.dart`),
 decisione 8; `SettingsScreen` sulla TV mostra solo `TvSettingsBody`.
@@ -106,7 +106,7 @@ Rimuovere dal resto della pagina i rami `tv` diventati inutili. Test con
 cambia, Indietro no, focus torna), anteprima nel pannello della dimensione,
 riga aggiornamento, niente decodifica hardware, errore lingue.
 
-## 8. Chiusura
+## Task 8: Chiusura
 
 Review dell'intero ramo, `flutter gen-l10n && flutter analyze && flutter
 test`, riga nel checklist di `docs/RELEASING.md`, build Windows di prova e
