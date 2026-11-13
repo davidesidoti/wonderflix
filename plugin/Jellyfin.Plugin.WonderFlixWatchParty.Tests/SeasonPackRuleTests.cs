@@ -93,4 +93,60 @@ public class SeasonPackRuleTests
         Assert.Null(SeasonPackRule.ChoosePack(Singles(10).Append(Pack(11, "Unknown series")), Missing, PerEpisode));
         Assert.Null(SeasonPackRule.ChoosePack(Singles(10), Missing, PerEpisode));
     }
+
+    private static ArrRelease Pack720(string guid, double gb, int score = 100) => new()
+    {
+        Guid = guid,
+        Size = (long)(gb * Gb),
+        CustomFormatScore = score,
+        FullSeason = true,
+        Quality = new ArrQualityModel { Quality = new ArrQuality { Id = 4, Name = "HDTV-720p", Resolution = 720 } },
+        Rejections = ["HDTV-720p is not wanted in profile"],
+    };
+
+    private static ArrRelease Single720(int episode) => new()
+    {
+        Guid = "ep720-" + episode,
+        Size = Gb,
+        CustomFormatScore = 100,
+        EpisodeNumbers = [episode],
+        Quality = new ArrQualityModel { Quality = new ArrQuality { Id = 4, Name = "HDTV-720p", Resolution = 720 } },
+        Rejections = ["HDTV-720p is not wanted in profile"],
+    };
+
+    [Fact]
+    public void QualityPackWhenOnly720pPacks()
+    {
+        var result = SeasonPackRule.QualityPack([Pack720("low", 11, 10), Pack720("best", 11, 90)], Missing, PerEpisode);
+
+        Assert.NotNull(result);
+        Assert.Equal("best", DownloadRule.ChooseStopgap(result).Release?.Guid);
+    }
+
+    [Fact]
+    public void NoQualityPackWithA1080pSingle()
+    {
+        // Il singolo 1080p è ammesso anche se sotto il punteggio minimo: la stagione si divide.
+        var single = Single(1);
+        single.CustomFormatScore = 0;
+
+        Assert.Null(SeasonPackRule.QualityPack([Pack720("p", 11), single], Missing, PerEpisode));
+    }
+
+    [Fact]
+    public void NoQualityPackWithALight1080pPack() =>
+        Assert.Null(SeasonPackRule.QualityPack([Pack720("p", 11), Pack(0.5)], Missing, PerEpisode));
+
+    [Fact]
+    public void NoQualityPackFrom720pSinglesOnly() =>
+        Assert.Null(SeasonPackRule.QualityPack(Missing.Select(Single720), Missing, PerEpisode));
+
+    [Fact]
+    public void QualityPackMeasuresTheWholeSeason()
+    {
+        // 2 GB passano il peso minimo sui soli 2 episodi mancanti (90 min), non su 10 (450 min).
+        Assert.NotNull(SeasonPackRule.QualityPack([Pack720("p", 2)], [1, 2], PerEpisode));
+        Assert.Null(SeasonPackRule.QualityPack([Pack720("p", 2)], Missing, PerEpisode));
+        Assert.Null(SeasonPackRule.QualityPack([Pack720("p", 11)], [], PerEpisode));
+    }
 }

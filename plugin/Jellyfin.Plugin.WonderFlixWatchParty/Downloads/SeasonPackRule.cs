@@ -50,6 +50,29 @@ public static class SeasonPackRule
         return packs.Choice.Size <= MaxPackRatio * sum ? [.. packs.Candidates.Where(p => p.Size <= MaxPackRatio * sum)] : [];
     }
 
+    /// <summary>
+    /// Il risultato dei pack se la stagione non ha niente in una qualità ammessa (né pack né singoli, nemmeno troppo leggeri
+    /// o sotto punteggio) e il tappabuchi dei pack è un 720p scartato solo per la qualità; altrimenti null.
+    /// </summary>
+    public static RuleResult? QualityPack(IEnumerable<ArrRelease?> releases, IReadOnlyCollection<int> missingEpisodes, RuleInput perEpisode)
+    {
+        if (missingEpisodes.Count == 0)
+        {
+            return null;
+        }
+
+        var all = releases.OfType<ArrRelease>().ToList();
+        var packs = Packs(all, missingEpisodes.Count, perEpisode);
+        var singles = DownloadRule.Choose(all.Where(r => !r.FullSeason && r.SeasonEpisodeNumbers is { Count: 1 }), perEpisode);
+        return HasAllowedQuality(packs) || HasAllowedQuality(singles) || DownloadRule.ChooseStopgap(packs).Kind != DownloadStopgaps.Quality
+            ? null
+            : packs;
+    }
+
+    // Una release con qualità ammessa è o candidata o scartata per altro (peso): le sole scartate per qualità non contano.
+    private static bool HasAllowedQuality(RuleResult result) =>
+        result.Candidates.Count > 0 || result.Rejected.Any(r => r.Reason == "TooSmall");
+
     /// <summary>La regola sui soli pack completi, sulla durata di <paramref name="missingCount"/> episodi: i candidati sono i pack validi in ordine.</summary>
     public static RuleResult Packs(IEnumerable<ArrRelease?> releases, int missingCount, RuleInput perEpisode)
     {
