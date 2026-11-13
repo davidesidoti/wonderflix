@@ -34,6 +34,18 @@ List<DateTime> gridDaysOf(DateTime month) {
   );
 }
 
+/// Oggi e i sei giorni dopo, a mezzanotte locale.
+List<DateTime> calendarWeekDays(DateTime today) {
+  final t = dayKey(today);
+  return [for (var i = 0; i < 7; i++) DateTime(t.year, t.month, t.day + i)];
+}
+
+/// I 7 giorni da oggi; `end` è escluso.
+({DateTime start, DateTime end}) calendarWeekPeriod(DateTime today) {
+  final t = dayKey(today);
+  return (start: t, end: DateTime(t.year, t.month, t.day + 7));
+}
+
 enum CalendarEntryKind { movie, series }
 
 /// Una voce di un giorno: un film, o tutti gli episodi di una serie.
@@ -59,6 +71,78 @@ class CalendarEntry {
   final String? jellyfinId;
   final List<UpcomingEpisode> episodes;
   final UpcomingMovie? movie;
+}
+
+/// Se l'uscita è già arrivata, manca o deve ancora uscire.
+enum CalendarEntryState { arrived, missing, upcoming }
+
+CalendarEntryState episodeState(UpcomingEpisode e, DateTime now) =>
+    e.airDate.isAfter(now)
+    ? CalendarEntryState.upcoming
+    : e.onServer
+    ? CalendarEntryState.arrived
+    : CalendarEntryState.missing;
+
+/// [day] è la chiave del giorno della casella: un film vale da tutto il suo
+/// giorno; una serie dall'ora dei suoi episodi.
+CalendarEntryState calendarEntryState(
+  CalendarEntry entry, {
+  required DateTime day,
+  required DateTime now,
+}) {
+  if (entry.kind == CalendarEntryKind.movie || entry.episodes.isEmpty) {
+    if (day.isAfter(dayKey(now))) return CalendarEntryState.upcoming;
+    return entry.onServer
+        ? CalendarEntryState.arrived
+        : CalendarEntryState.missing;
+  }
+  final states = [for (final e in entry.episodes) episodeState(e, now)];
+  if (states.contains(CalendarEntryState.missing)) {
+    return CalendarEntryState.missing;
+  }
+  return states.contains(CalendarEntryState.upcoming)
+      ? CalendarEntryState.upcoming
+      : CalendarEntryState.arrived;
+}
+
+/// Una riga dell'elenco: un film, o un episodio (o blocco) di una serie.
+class CalendarRow {
+  const CalendarRow(this.entry, [this.episode]);
+  final CalendarEntry entry;
+  final UpcomingEpisode? episode;
+}
+
+int _byName(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
+
+int _byAirTime(UpcomingEpisode a, UpcomingEpisode b) {
+  final t = a.airDate.compareTo(b.airDate);
+  if (t != 0) return t;
+  final n = _byName(a.seriesName, b.seriesName);
+  if (n != 0) return n;
+  final s = a.seasonNumber.compareTo(b.seasonNumber);
+  return s != 0 ? s : a.episodeNumber.compareTo(b.episodeNumber);
+}
+
+/// Ordine delle righe: prima i film (per nome), poi gli episodi per ora.
+List<CalendarRow> calendarRows(List<CalendarEntry> entries) {
+  // Le serie senza episodi (solo dati di test) vanno coi film.
+  final plain = [
+    for (final e in entries)
+      if (e.kind == CalendarEntryKind.movie || e.episodes.isEmpty) e,
+  ]..sort((a, b) => _byName(a.title, b.title));
+  final episodes = [
+    for (final e in entries)
+      for (final ep in e.episodes) CalendarRow(e, ep),
+  ]..sort((a, b) => _byAirTime(a.episode!, b.episode!));
+  return [for (final e in plain) CalendarRow(e), ...episodes];
+}
+
+/// `null` per un titolo mancante o segnaposto ("TBA", "TBD").
+String? episodeTitleOrNull(String? title) {
+  final t = title?.trim();
+  if (t == null || t.isEmpty) return null;
+  final u = t.toUpperCase();
+  return u == 'TBA' || u == 'TBD' ? null : t;
 }
 
 /// Le voci per giorno. Gli episodi stanno nel giorno locale, i film nel
@@ -92,6 +176,7 @@ Map<DateTime, List<CalendarEntry>> entriesByDay(CalendarPage page) {
   final result = <DateTime, List<CalendarEntry>>{};
   final series = <DateTime, List<CalendarEntry>>{};
   groups.forEach((k, eps) {
+    eps.sort(_byAirTime);
     final first = eps.first;
     (series[k.$1] ??= []).add(
       CalendarEntry(
@@ -115,12 +200,16 @@ Map<DateTime, List<CalendarEntry>> entriesByDay(CalendarPage page) {
       ),
     );
   });
-  int byTitle(CalendarEntry a, CalendarEntry b) =>
-      a.title.toLowerCase().compareTo(b.title.toLowerCase());
+  int byTime(CalendarEntry a, CalendarEntry b) {
+    final t = a.episodes.first.airDate.compareTo(b.episodes.first.airDate);
+    return t != 0 ? t : _byName(a.title, b.title);
+  }
+
   for (final day in {...movies.keys, ...series.keys}) {
     result[day] = [
-      ...(movies[day] ?? []).toList()..sort(byTitle),
-      ...(series[day] ?? []).toList()..sort(byTitle),
+      ...(movies[day] ?? []).toList()
+        ..sort((a, b) => _byName(a.title, b.title)),
+      ...(series[day] ?? []).toList()..sort(byTime),
     ];
   }
   return result;

@@ -127,13 +127,18 @@ void main() {
     expect(other.onServer, isTrue);
   });
 
-  test('MoviesComeFirstThenSeriesByTitle', () {
+  test('MoviesComeFirstThenSeriesByTime', () {
     final day = DateTime.utc(2026, 10, 22, 12);
     final map = entriesByDay(
       CalendarPage(
         episodes: [
           testEpisode(seriesName: 'B', airDate: day, tmdbId: 2),
           testEpisode(seriesName: 'a', airDate: day, tmdbId: 1),
+          testEpisode(
+            seriesName: 'Z',
+            airDate: day.subtract(const Duration(hours: 1)),
+            tmdbId: 5,
+          ),
         ],
         movies: [
           testUpcomingMovie(
@@ -151,8 +156,216 @@ void main() {
     );
     final day22 = map[dayKey(day.toLocal())]!;
     // Il film del 22 UTC e le serie del 22 locale: stesso giorno solo se
-    // il fuso non sposta mezzogiorno UTC.
-    expect(day22.map((e) => e.title), ['A', 'b', 'a', 'B']);
+    // il fuso non sposta mezzogiorno UTC. A parità d'ora vince il nome.
+    expect(day22.map((e) => e.title), ['A', 'b', 'Z', 'a', 'B']);
+  });
+
+  test('EpisodeStateFollowsAirTimeAndServer', () {
+    final now = DateTime(2026, 11, 13, 22, 26);
+    expect(
+      episodeState(
+        testEpisode(airDate: DateTime(2026, 11, 13, 15, 30), onServer: false),
+        now,
+      ),
+      CalendarEntryState.missing,
+    );
+    expect(
+      episodeState(
+        testEpisode(airDate: DateTime(2026, 11, 13, 9), onServer: true),
+        now,
+      ),
+      CalendarEntryState.arrived,
+    );
+    expect(
+      episodeState(
+        testEpisode(airDate: DateTime(2026, 11, 13, 23), onServer: false),
+        now,
+      ),
+      CalendarEntryState.upcoming,
+    );
+  });
+
+  test('AMovieCountsFromItsWholeDay', () {
+    const odissea = CalendarEntry(
+      kind: CalendarEntryKind.movie,
+      title: 'Odissea',
+    );
+    final now = DateTime(2026, 11, 13, 0, 5);
+    expect(
+      calendarEntryState(odissea, day: DateTime(2026, 11, 13), now: now),
+      CalendarEntryState.missing,
+    );
+    expect(
+      calendarEntryState(odissea, day: DateTime(2026, 11, 14), now: now),
+      CalendarEntryState.upcoming,
+    );
+    expect(
+      calendarEntryState(
+        const CalendarEntry(
+          kind: CalendarEntryKind.movie,
+          title: 'X',
+          onServer: true,
+        ),
+        day: DateTime(2026, 11, 12),
+        now: now,
+      ),
+      CalendarEntryState.arrived,
+    );
+  });
+
+  test('AGroupIsMissingIfAnAiredEpisodeIsMissing', () {
+    final now = DateTime(2026, 11, 20, 18, 20);
+    CalendarEntry percy({required bool firstOnServer}) => CalendarEntry(
+      kind: CalendarEntryKind.series,
+      title: 'Percy Jackson',
+      count: 2,
+      episodes: [
+        testEpisode(
+          episode: 1,
+          airDate: DateTime(2026, 11, 20, 18),
+          onServer: firstOnServer,
+        ),
+        testEpisode(episode: 2, airDate: DateTime(2026, 11, 20, 18, 40)),
+      ],
+    );
+    final day = DateTime(2026, 11, 20);
+    expect(
+      calendarEntryState(percy(firstOnServer: true), day: day, now: now),
+      CalendarEntryState.upcoming,
+    );
+    expect(
+      calendarEntryState(percy(firstOnServer: false), day: day, now: now),
+      CalendarEntryState.missing,
+    );
+    // a fine serata anche il secondo è uscito e manca
+    expect(
+      calendarEntryState(
+        percy(firstOnServer: true),
+        day: day,
+        now: DateTime(2026, 11, 20, 19),
+      ),
+      CalendarEntryState.missing,
+    );
+    final done = CalendarEntry(
+      kind: CalendarEntryKind.series,
+      title: 'Done',
+      episodes: [
+        testEpisode(airDate: DateTime(2026, 11, 20, 18), onServer: true),
+      ],
+    );
+    expect(
+      calendarEntryState(done, day: day, now: now),
+      CalendarEntryState.arrived,
+    );
+  });
+
+  test('ASeriesWithoutEpisodesCountsLikeAMovie', () {
+    const s = CalendarEntry(kind: CalendarEntryKind.series, title: 'S');
+    final now = DateTime(2026, 11, 13, 12);
+    expect(
+      calendarEntryState(s, day: DateTime(2026, 11, 13), now: now),
+      CalendarEntryState.missing,
+    );
+    expect(
+      calendarEntryState(s, day: DateTime(2026, 11, 14), now: now),
+      CalendarEntryState.upcoming,
+    );
+  });
+
+  CalendarPage orderPage() => CalendarPage(
+    episodes: [
+      testEpisode(
+        seriesName: 'Overgeared',
+        airDate: DateTime(2026, 11, 13, 15, 30),
+        tmdbId: 1,
+      ),
+      testEpisode(
+        seriesName: 'Tulsa King',
+        airDate: DateTime(2026, 11, 13, 9),
+        tmdbId: 2,
+      ),
+      testEpisode(
+        seriesName: 'WAR (2026)',
+        airDate: DateTime(2026, 11, 13, 3),
+        tmdbId: 3,
+      ),
+      testEpisode(
+        seriesName: 'MobLand',
+        airDate: DateTime(2026, 11, 13, 9),
+        tmdbId: 4,
+      ),
+      testEpisode(
+        seriesName: "Grey's Anatomy",
+        airDate: DateTime(2026, 11, 13, 3),
+        tmdbId: 5,
+      ),
+    ],
+    movies: [
+      testUpcomingMovie(
+        title: 'Odissea',
+        tmdbId: 6,
+        digitalRelease: DateTime.utc(2026, 11, 13),
+      ),
+    ],
+  );
+  const orderedTitles = [
+    'Odissea',
+    "Grey's Anatomy",
+    'WAR (2026)',
+    'MobLand',
+    'Tulsa King',
+    'Overgeared',
+  ];
+
+  test('RowsAreMoviesThenEpisodesByTime', () {
+    final entries = entriesByDay(orderPage()).values.single;
+    // Sparse in ingresso: l'ordine delle righe non dipende da quello delle voci.
+    final rows = calendarRows(entries.reversed.toList());
+    expect(rows.map((r) => r.entry.title), orderedTitles);
+    expect(rows.first.episode, isNull);
+    expect(rows.last.episode!.seriesName, 'Overgeared');
+  });
+
+  test('RowsOfAGroupFollowSeasonAndEpisode', () {
+    final air = DateTime(2026, 11, 13, 20);
+    final entry = entriesByDay(
+      CalendarPage(
+        episodes: [
+          testEpisode(season: 2, episode: 1, airDate: air),
+          testEpisode(season: 1, episode: 9, airDate: air),
+          testEpisode(season: 1, episode: 2, airDate: air),
+        ],
+      ),
+    ).values.single.single;
+    expect(entry.episodes.map((e) => (e.seasonNumber, e.episodeNumber)), [
+      (1, 2),
+      (1, 9),
+      (2, 1),
+    ]);
+    expect(calendarRows([entry]), hasLength(3));
+  });
+
+  test('EntriesByDayPutsSeriesInTimeOrder', () {
+    final entries = entriesByDay(orderPage()).values.single;
+    expect(entries.map((e) => e.title), orderedTitles);
+  });
+
+  test('TbaIsNoTitle', () {
+    for (final t in [null, '', 'TBA', 'tba', ' TBA ', 'TBD']) {
+      expect(episodeTitleOrNull(t), isNull, reason: '$t');
+    }
+    expect(episodeTitleOrNull('Till I Collapse'), 'Till I Collapse');
+  });
+
+  test('WeekDaysAndPeriodCrossTheMonth', () {
+    final today = DateTime(2026, 11, 28, 21);
+    expect(calendarWeekDays(today), hasLength(7));
+    expect(calendarWeekDays(today).first, DateTime(2026, 11, 28));
+    expect(calendarWeekDays(today).last, DateTime(2026, 12, 4));
+    expect(calendarWeekPeriod(today), (
+      start: DateTime(2026, 11, 28),
+      end: DateTime(2026, 12, 5),
+    ));
   });
 
   test('LabelsAndCodes', () {
