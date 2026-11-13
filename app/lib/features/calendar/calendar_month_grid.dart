@@ -117,6 +117,8 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
   void _activate(DateTime day) {
     final select = widget.onSelectDay;
     if (select != null) {
+      // Anche la tastiera riparte dal giorno scelto col tocco.
+      setState(() => _selected = _days.indexOf(day));
       select(day);
     } else if (_entriesOf(day).isNotEmpty) {
       // Un giorno senza voci non ha niente da elencare.
@@ -437,24 +439,27 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
                           ),
                         ),
                       if (shown < entries.length)
-                        SizedBox(
-                          height: CalendarMonthGrid.entryHeight,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: ExcludeSemantics(
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 4),
-                                child: Text(
-                                  l.calendarMore(entries.length - shown),
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    color: WfColors.cream.withValues(
-                                      alpha: 0.75,
+                        _dim(
+                          opacity(),
+                          SizedBox(
+                            height: CalendarMonthGrid.entryHeight,
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: ExcludeSemantics(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    l.calendarMore(entries.length - shown),
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: WfColors.cream.withValues(
+                                        alpha: 0.75,
+                                      ),
+                                      decoration: _hovered == index
+                                          ? TextDecoration.underline
+                                          : null,
+                                      decorationColor: WfColors.cream,
                                     ),
-                                    decoration: _hovered == index
-                                        ? TextDecoration.underline
-                                        : null,
-                                    decorationColor: WfColors.cream,
                                   ),
                                 ),
                               ),

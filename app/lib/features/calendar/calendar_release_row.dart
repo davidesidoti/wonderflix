@@ -52,39 +52,42 @@ class CalendarDayList extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            key: Key(
-              'calendar-heading-${DateFormat('yyyy-MM-dd').format(day)}',
-            ),
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Flexible(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: WfText.display(
-                    24,
-                    color: isToday ? WfColors.gold : WfColors.cream,
-                  ),
-                ),
+          child: Semantics(
+            header: true,
+            child: Row(
+              key: Key(
+                'calendar-heading-${DateFormat('yyyy-MM-dd').format(day)}',
               ),
-              if (isToday || isTomorrow) ...[
-                const SizedBox(width: 10),
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
                 Flexible(
                   child: Text(
-                    date,
+                    name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: WfColors.creamMuted,
+                    style: WfText.display(
+                      24,
+                      color: isToday ? WfColors.gold : WfColors.cream,
                     ),
                   ),
                 ),
+                if (isToday || isTomorrow) ...[
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      date,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: WfColors.creamMuted,
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         if (rows.isEmpty && showEmpty)

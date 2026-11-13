@@ -293,6 +293,16 @@ void main() {
       expect(find.text('Giovedì 22 ottobre'), findsOneWidget);
     });
 
+    testWidgets('TheHeadingIsAScreenReaderHeading', (tester) async {
+      final handle = tester.ensureSemantics();
+      await list(tester, _day);
+      expect(
+        tester.getSemantics(find.text('Giovedì 22 ottobre')),
+        isSemantics(isHeader: true),
+      );
+      handle.dispose();
+    });
+
     testWidgets('AnEmptyDaySaysSo', (tester) async {
       await list(tester, _day);
       expect(find.text('Nessuna uscita'), findsOneWidget);

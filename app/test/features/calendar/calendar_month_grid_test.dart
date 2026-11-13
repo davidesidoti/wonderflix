@@ -344,6 +344,34 @@ void main() {
     expect(find.text('+${8 - shown} altre'), findsOneWidget);
   });
 
+  testWidgets('PlusNOthersIsDimmedLikeItsCell', (tester) async {
+    final movies = [
+      for (var i = 0; i < 8; i++)
+        CalendarEntry(kind: CalendarEntryKind.movie, title: 'Film $i'),
+    ];
+    await _pump(tester, entries: {DateTime(2026, 10, 20): movies});
+    final more = find.textContaining('altre');
+    expect(more, findsOneWidget);
+    expect(tester.widget<Opacity>(_dimmed(more)).opacity, 0.42);
+  });
+
+  testWidgets('TappingADayMovesTheKeyboardCursorInSelectionMode', (
+    tester,
+  ) async {
+    final selected = <DateTime>[];
+    await _pump(
+      tester,
+      onSelectDay: selected.add,
+      selectedDay: DateTime(2026, 10, 14),
+    );
+    await tester.tap(_day(DateTime(2026, 10, 7)));
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    expect(selected.last, DateTime(2026, 10, 8));
+  });
+
   testWidgets('EntriesHaveATooltip', (tester) async {
     await _pump(
       tester,
@@ -494,8 +522,8 @@ void main() {
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    // La tastiera parte dal giorno selezionato, non da oggi.
-    expect(selected.last, DateTime(2026, 10, 15));
+    // La tastiera riparte dall'ultimo giorno toccato (3 nov), non da oggi.
+    expect(selected.last, DateTime(2026, 11, 4));
     expect(opened, isEmpty);
   });
 

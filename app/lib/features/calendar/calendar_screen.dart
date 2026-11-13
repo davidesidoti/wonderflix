@@ -130,9 +130,16 @@ class CalendarScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(compact ? 16 : 32, 16, compact ? 16 : 32, 12),
-          child: Text(l.navCalendar.toUpperCase(),
-              style: WfText.display(compact ? 28 : 40)),
+          padding: EdgeInsets.fromLTRB(
+            compact ? 16 : 32,
+            16,
+            compact ? 16 : 32,
+            12,
+          ),
+          child: Text(
+            l.navCalendar.toUpperCase(),
+            style: WfText.display(compact ? 28 : 40),
+          ),
         ),
         if (compact) ...[
           Padding(
@@ -437,6 +444,8 @@ class _CompactMonthState extends State<_CompactMonth> {
             onOpenEntry: widget.onOpenEntry,
             canOpen: widget.canOpen,
             compactStatus: true,
+            // Un mese vuoto lo dice già _EmptyMonth.
+            showEmpty: !widget.emptyMonth,
           ),
           if (widget.emptyMonth) const _EmptyMonth(),
         ],

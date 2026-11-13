@@ -337,6 +337,19 @@ void main() {
     });
   });
 
+  testWidgets('OnPhonesAnEmptyMonthSaysSoOnce', (tester) async {
+    await atNow(() async {
+      await pumpScreen(
+        tester,
+        location: '/calendar?month=2026-10',
+        surfaceSize: const Size(390, 844),
+      );
+
+      expect(find.text('Nessuna uscita in questo mese'), findsOneWidget);
+      expect(find.text('Nessuna uscita'), findsNothing);
+    });
+  });
+
   testWidgets('AMonthWithEntriesIsNotEmpty', (tester) async {
     await atNow(() async {
       api.calendarPage = CalendarPage(movies: [testUpcomingMovie()]);
