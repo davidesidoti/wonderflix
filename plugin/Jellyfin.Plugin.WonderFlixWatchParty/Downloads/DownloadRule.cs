@@ -12,8 +12,9 @@ public sealed record RuleInput(int RuntimeMinutes, bool IsMovie, double MinGbPer
 /// <summary>
 /// Una release scartata. <c>Reason</c>: "Arr" (<c>Detail</c> = il primo rifiuto), "TooSmall" (<c>Detail</c> = GB all'ora) (spec T §4),
 /// o, per Prowlarr, "Blocklisted", "Restricted" (<c>Detail</c> = il termine), "NotWanted" (<c>Detail</c> = qualità, "Size", "Seeders" o "Score").
+/// <c>QualityOnly</c>: l'unico motivo è la qualità non ammessa dal profilo e il peso minimo è rispettato (candidata al tappabuchi 720p).
 /// </summary>
-public sealed record RuleRejected(ArrRelease Release, string Reason, string? Detail);
+public sealed record RuleRejected(ArrRelease Release, string Reason, string? Detail, bool QualityOnly = false);
 
 /// <summary>L'esito della regola: candidati già ordinati, scartati, scelta e se il migliore è sotto il minimo (spec T §4).</summary>
 public sealed record RuleResult(IReadOnlyList<ArrRelease> Candidates, IReadOnlyList<RuleRejected> Rejected, ArrRelease? Choice, bool BelowMinScore);
@@ -53,22 +54,27 @@ public static class DownloadRule
                 continue;
             }
 
-            var realRejection = release.Rejections?.FirstOrDefault(text => !IsIgnored(text));
-            if (realRejection is not null)
+            var gbPerHour = GbPerHour(release.Size, minutes);
+            var weightOk = gbPerHour >= input.MinGbPerHour;
+
+            var realRejections = release.Rejections?.Where(text => !IsIgnored(text)).ToList() ?? [];
+            if (realRejections.Count > 0)
             {
-                rejected.Add(new RuleRejected(release, "Arr", realRejection));
+                rejected.Add(new RuleRejected(release, "Arr", realRejections[0], weightOk && realRejections.All(IsQualityRejection)));
                 continue;
             }
 
             if (input.Checks is { } checks && release.Source == ReleaseSource.Prowlarr
                 && ReleaseChecks.Check(release, checks, input.RuntimeMinutes, SeasonMinutesOf(release, input)) is var (reason, detail))
             {
-                rejected.Add(new RuleRejected(release, reason, detail));
+                // Scartata per la qualità: se tutto il resto passa (anche il peso) è un possibile tappabuchi.
+                var qualityOnly = weightOk && IsQualityNotAllowed(release, checks)
+                    && ReleaseChecks.Check(release, checks, input.RuntimeMinutes, SeasonMinutesOf(release, input), skipQuality: true) is null;
+                rejected.Add(new RuleRejected(release, reason, detail, qualityOnly));
                 continue;
             }
 
-            var gbPerHour = GbPerHour(release.Size, minutes);
-            if (gbPerHour < input.MinGbPerHour)
+            if (!weightOk)
             {
                 rejected.Add(new RuleRejected(release, "TooSmall", gbPerHour.ToString("0.00", CultureInfo.InvariantCulture)));
                 continue;
@@ -121,6 +127,12 @@ public static class DownloadRule
         return newPosition > currentPosition || (newPosition == currentPosition && newScore > (currentScore ?? 0));
     }
 
+    /// <summary>Il testo di un rifiuto di Radarr/Sonarr che dice solo "qualità non ammessa dal profilo".</summary>
+    public static bool IsQualityRejection(string text) => text.Contains("is not wanted in profile", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsQualityNotAllowed(ArrRelease release, ChecksContext checks) =>
+        checks.Profile is { } profile && release.Quality?.Quality is { } quality && !IsAllowed(profile, quality.Id);
+
     /// <summary>La qualità è nel profilo e ammessa (una dentro un gruppo ammesso lo è).</summary>
     public static bool IsAllowed(ArrQualityProfile profile, int qualityId)
     {
@@ -133,7 +145,8 @@ public static class DownloadRule
 
     /// <summary>
     /// Il tappabuchi quando non c'è una scelta: il migliore sotto il minimo di punteggio, oppure tra i troppo piccoli quello
-    /// più pesante (a parità di punteggio e risoluzione). I rifiutati da Arr non si scelgono mai.
+    /// più pesante (a parità di punteggio e risoluzione), altrimenti il miglior 720p scartato solo per la qualità non ammessa.
+    /// Gli altri rifiutati da Arr non si scelgono mai.
     /// </summary>
     public static (ArrRelease? Release, string? Kind) ChooseStopgap(RuleResult rule)
     {
@@ -151,12 +164,35 @@ public static class DownloadRule
             .ThenByDescending(r => r.Seeders ?? 0)
             .ThenBy(r => r.Guid, StringComparer.Ordinal)
             .FirstOrDefault();
-        return heaviest is null ? (null, null) : (heaviest, DownloadStopgaps.Size);
+        if (heaviest is not null)
+        {
+            return (heaviest, DownloadStopgaps.Size);
+        }
+
+        // Solo 720p, mai SD; stesso ordine di Choose senza la priorità degli indexer (qui non c'è).
+        var quality = rule.Rejected
+            .Where(r => r.QualityOnly && r.Release.Quality?.Quality?.Resolution == 720)
+            .Select(r => r.Release)
+            .OrderByDescending(r => r.CustomFormatScore)
+            .ThenByDescending(r => r.Quality?.Quality?.Resolution ?? 0)
+            .ThenBy(r => r.Size)
+            .ThenByDescending(r => r.Seeders ?? 0)
+            .ThenBy(r => r.Guid, StringComparer.Ordinal)
+            .FirstOrDefault();
+        return quality is null ? (null, null) : (quality, DownloadStopgaps.Quality);
     }
 
-    /// <summary>Che tappabuchi sarebbe una release: "Size" se è troppo piccola, "Score" se pesa abbastanza ma è sotto il minimo, null se la regola la accetta.</summary>
-    public static string? StopgapKindOf(int score, long sizeBytes, int runtimeMinutes, bool isMovie, double minGbPerHour, int minScore)
+    /// <summary>
+    /// Che tappabuchi sarebbe una release: "Quality" se è 720p (o meno), "Size" se è troppo piccola, "Score" se pesa abbastanza ma è
+    /// sotto il minimo, null se la regola la accetta.
+    /// </summary>
+    public static string? StopgapKindOf(int score, long sizeBytes, int runtimeMinutes, bool isMovie, double minGbPerHour, int minScore, int resolution = 0)
     {
+        if (resolution is > 0 and <= 720)
+        {
+            return DownloadStopgaps.Quality;
+        }
+
         var minutes = runtimeMinutes > 0 ? runtimeMinutes : isMovie ? FallbackMovieMinutes : FallbackEpisodeMinutes;
         if (GbPerHour(sizeBytes, minutes) < minGbPerHour)
         {
@@ -171,6 +207,7 @@ public static class DownloadRule
     {
         var arr = rule.Rejected.Where(r => r.Reason == "Arr").ToList();
         var tooSmall = rule.Rejected.Count(r => r.Reason == "TooSmall");
+        var stopgap = ChooseStopgap(rule);
         return new DownloadSummary
         {
             Found = found,
@@ -180,7 +217,8 @@ public static class DownloadRule
             ArrRejected = arr.Count,
             // GroupBy tiene l'ordine di comparsa e OrderBy è stabile: a parità vince il primo incontrato.
             TopRejection = arr.Where(r => r.Detail is not null).GroupBy(r => r.Detail).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault(),
-            StopgapAvailable = ChooseStopgap(rule).Release is not null,
+            StopgapAvailable = stopgap.Release is not null,
+            StopgapKind = stopgap.Kind,
         };
     }
 

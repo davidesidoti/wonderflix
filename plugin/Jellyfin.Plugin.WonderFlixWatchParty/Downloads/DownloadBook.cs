@@ -112,7 +112,7 @@ public sealed class DownloadEntry
     /// <summary>Solo stagioni: i numeri degli episodi del pack scaricato, per cercarne gli upgrade.</summary>
     public List<int>? EpisodeNumbers { get; set; }
 
-    /// <summary>Il tappabuchi proposto per questa voce: <see cref="DownloadStopgaps.Score"/>, <see cref="DownloadStopgaps.Size"/> o null.</summary>
+    /// <summary>Il tappabuchi proposto per questa voce: <see cref="DownloadStopgaps.Score"/>, <see cref="DownloadStopgaps.Size"/>, <see cref="DownloadStopgaps.Quality"/> o null.</summary>
     public string? Stopgap { get; set; }
 
     /// <summary>L'admin ha messo la voce in pausa: non si cerca più finché non cambia qualcosa.</summary>
@@ -142,6 +142,9 @@ public static class DownloadStopgaps
 
     /// <summary>Il più pesante tra quelli troppo piccoli.</summary>
     public const string Size = "Size";
+
+    /// <summary>Il miglior 720p scartato solo perché il profilo non lo ammette.</summary>
+    public const string Quality = "Quality";
 }
 
 /// <summary>Il riassunto dell'ultima ricerca di una voce: serve a spiegare perché è in "Serve te".</summary>
@@ -166,6 +169,9 @@ public sealed class DownloadSummary
 
     /// <summary>C'è un tappabuchi da proporre (vedi <see cref="DownloadEntry.Stopgap"/>).</summary>
     public bool StopgapAvailable { get; set; }
+
+    /// <summary>Il tipo del tappabuchi proposto (<see cref="DownloadStopgaps"/>), null se non c'è.</summary>
+    public string? StopgapKind { get; set; }
 }
 
 /// <summary>Una scelta fatta (spec T §3): i campi della release sono piatti, come in <c>DownloadChoiceDto</c>.</summary>

@@ -496,4 +496,100 @@ public class DownloadRuleTests
 
         Assert.Equal("pack2", chosen?.Guid);
     }
+
+    // Profilo in cui il 720p non è ammesso ma il 1080p sì.
+    private static ChecksContext NoSeven20(IReadOnlyDictionary<int, int>? minSeeders = null) => new(
+        new ArrQualityProfile { Items = [new ArrQualityProfileItem { Allowed = false, Quality = new ArrQuality { Id = 4, Name = "HDTV-720p" } }, Single("WEBDL-1080p")] },
+        [], [], [], minSeeders ?? new Dictionary<int, int>(), []);
+
+    [Fact]
+    public void AQualityOnly720pIsTheStopgapWhenNothingElse()
+    {
+        var input = Input(100) with { Checks = NoSeven20() };
+
+        var rule = DownloadRule.Choose([Prowlarr(Release("a", "HDTV-720p", 720, 3, 10)), Prowlarr(Release("b", "HDTV-720p", 720, 2, 10))], input);
+
+        var (release, kind) = DownloadRule.ChooseStopgap(rule);
+        Assert.Equal("b", release!.Guid);
+        Assert.Equal("Quality", kind);
+        Assert.Equal(("NotWanted", "HDTV-720p"), (rule.Rejected[0].Reason, rule.Rejected[0].Detail));
+        var summary = DownloadRule.Summarize(rule, 2, 50);
+        Assert.Equal("Quality", summary.StopgapKind);
+        Assert.True(summary.StopgapAvailable);
+    }
+
+    [Fact]
+    public void ArrQualityRejectionCountsAsQualityOnly()
+    {
+        var rule = DownloadRule.Choose([Release("a", "HDTV-720p", 720, 3, 10, rejections: "HDTV-720p is not wanted in profile")], Input(100));
+
+        Assert.Equal("a", DownloadRule.ChooseStopgap(rule).Release!.Guid);
+        Assert.Equal("Quality", DownloadRule.ChooseStopgap(rule).Kind);
+        Assert.Equal("Arr", rule.Rejected[0].Reason);
+    }
+
+    [Fact]
+    public void A720pRejectedAlsoForSeedersIsNoStopgap()
+    {
+        var input = Input(100) with { Checks = NoSeven20(new Dictionary<int, int> { [1] = 5 }) };
+
+        var rule = DownloadRule.Choose([Prowlarr(Release("a", "HDTV-720p", 720, 3, 10, seeders: 1))], input);
+
+        Assert.Equal((null, null), DownloadRule.ChooseStopgap(rule));
+    }
+
+    [Fact]
+    public void A720pTooLightIsNoStopgap()
+    {
+        var input = Input(100) with { Checks = NoSeven20() };
+
+        var rule = DownloadRule.Choose(
+        [
+            Prowlarr(Release("a", "HDTV-720p", 720, 0.5, 10)),
+            Release("arr", "HDTV-720p", 720, 0.5, 10, rejections: "HDTV-720p is not wanted in profile"),
+        ], input);
+
+        Assert.Equal((null, null), DownloadRule.ChooseStopgap(rule));
+    }
+
+    [Fact]
+    public void A480pIsNeverAStopgap()
+    {
+        var checks = new ChecksContext(
+            new ArrQualityProfile { Items = [new ArrQualityProfileItem { Allowed = false, Quality = new ArrQuality { Id = 99, Name = "DVD" } }] },
+            [], [], [], new Dictionary<int, int>(), []);
+
+        var rule = DownloadRule.Choose([Prowlarr(Release("a", "DVD", 480, 3, 10))], Input(100) with { Checks = checks });
+
+        Assert.Equal((null, null), DownloadRule.ChooseStopgap(rule));
+    }
+
+    [Fact]
+    public void ScoreAndSizeStopgapsBeatQuality()
+    {
+        var input = Input(100) with { Checks = NoSeven20() };
+        var seven20 = Prowlarr(Release("q", "HDTV-720p", 720, 3, 10));
+
+        var below = DownloadRule.Choose([Prowlarr(Release("s", "WEBDL-1080p", 1080, 3, 30)), seven20], input);
+        Assert.Equal(("s", "Score"), (DownloadRule.ChooseStopgap(below).Release!.Guid, DownloadRule.ChooseStopgap(below).Kind));
+
+        var light = DownloadRule.Choose([Prowlarr(Release("l", "WEBDL-1080p", 1080, 0.5, 90)), seven20], input);
+        Assert.Equal(("l", "Size"), (DownloadRule.ChooseStopgap(light).Release!.Guid, DownloadRule.ChooseStopgap(light).Kind));
+    }
+
+    [Fact]
+    public void AnArrRejectionBesidesQualityIsNotQualityOnly()
+    {
+        var rule = DownloadRule.Choose(
+            [Release("a", "HDTV-720p", 720, 3, 10, rejections: ["HDTV-720p is not wanted in profile", "Release is blocklisted"])], Input(100));
+
+        Assert.Equal((null, null), DownloadRule.ChooseStopgap(rule));
+    }
+
+    [Fact]
+    public void StopgapKindOfKeepsQualityFor720p()
+    {
+        Assert.Equal("Quality", DownloadRule.StopgapKindOf(100, 3 * Gb, 100, true, 0.8, 100, resolution: 720));
+        Assert.Null(DownloadRule.StopgapKindOf(100, 3 * Gb, 100, true, 0.8, 100, resolution: 1080));
+    }
 }

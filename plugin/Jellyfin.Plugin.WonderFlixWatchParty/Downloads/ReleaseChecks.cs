@@ -23,8 +23,9 @@ public static class ReleaseChecks
     /// <summary>
     /// Il motivo per scartare la release (<c>Blocklisted</c>, <c>Restricted</c>, <c>NotWanted</c>) e un dettaglio breve, o null se
     /// passa. <paramref name="seasonMinutes"/>: la durata di tutta la stagione, per il peso di un pack completo.
+    /// Con <paramref name="skipQuality"/> salta solo il controllo "qualità non ammessa" (serve a riconoscere il tappabuchi 720p).
     /// </summary>
-    public static (string Reason, string? Detail)? Check(ArrRelease r, ChecksContext c, int runtimeMinutes, int? seasonMinutes = null)
+    public static (string Reason, string? Detail)? Check(ArrRelease r, ChecksContext c, int runtimeMinutes, int? seasonMinutes = null, bool skipQuality = false)
     {
         if (c.Blocklist.Any(b => string.Equals(b.SourceTitle, r.Title, StringComparison.OrdinalIgnoreCase)))
         {
@@ -49,7 +50,7 @@ public static class ReleaseChecks
         }
 
         var quality = r.Quality?.Quality;
-        if (c.Profile is { } qualityProfile && quality is not null && !DownloadRule.IsAllowed(qualityProfile, quality.Id))
+        if (!skipQuality && c.Profile is { } qualityProfile && quality is not null && !DownloadRule.IsAllowed(qualityProfile, quality.Id))
         {
             return ("NotWanted", quality.Name);
         }

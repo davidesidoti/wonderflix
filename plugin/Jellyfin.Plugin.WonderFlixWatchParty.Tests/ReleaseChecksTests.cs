@@ -168,4 +168,16 @@ public class ReleaseChecksTests
         Assert.Equal("Blocklisted", ReleaseChecks.Check(Release(qualityId: 1, quality: "SDTV"), context, 24)!.Value.Reason);
         Assert.Equal("Restricted", ReleaseChecks.Check(Release("Show other", qualityId: 1, quality: "SDTV"), context, 24)!.Value.Reason);
     }
+
+    [Fact]
+    public void SkipQualityIgnoresOnlyTheQualityCheck()
+    {
+        var seven20 = Release(qualityId: 4, quality: "HDTV-720p");
+        Assert.Equal(("NotWanted", "HDTV-720p"), ReleaseChecks.Check(seven20, Context(), 24));
+        Assert.Null(ReleaseChecks.Check(seven20, Context(), 24, skipQuality: true));
+
+        var fewSeeders = Release(qualityId: 4, quality: "HDTV-720p", seeders: 1);
+        var context = Context(minSeeders: new Dictionary<int, int> { [5] = 3 });
+        Assert.Equal(("NotWanted", "Seeders"), ReleaseChecks.Check(fewSeeders, context, 24, skipQuality: true));
+    }
 }
