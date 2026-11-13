@@ -228,6 +228,7 @@ void main() {
       header,
       isSemantics(
         isButton: true,
+        hasTapAction: true,
         hasExpandedState: true,
         isExpanded: true,
       ),

@@ -223,7 +223,6 @@ class _GroupHeader extends StatelessWidget {
   final VoidCallback onToggleAll;
 
   @override
-  @override
   Widget build(BuildContext context) => Material(
         color: WfColors.surface,
         child: Row(
@@ -237,6 +236,7 @@ class _GroupHeader extends StatelessWidget {
                 expanded: open,
                 label: '$title, $count',
                 excludeSemantics: true,
+                onTap: onToggleOpen,
                 child: InkWell(
                   onTap: onToggleOpen,
                   child: Padding(
