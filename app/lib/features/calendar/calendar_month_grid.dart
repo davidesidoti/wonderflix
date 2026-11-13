@@ -98,8 +98,13 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
   bool _focused = false;
   int? _hovered;
 
-  // Da oggi, o dal primo del mese se oggi non è nella griglia.
+  // Dal giorno selezionato, se no da oggi, o dal primo del mese se oggi non
+  // è nella griglia.
   int _startIndex() {
+    if (widget.selectedDay case final day?) {
+      final selected = _days.indexOf(dayKey(day));
+      if (selected >= 0) return selected;
+    }
     final today = _days.indexOf(dayKey(widget.today));
     return today >= 0
         ? today
@@ -347,6 +352,7 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
       container: true,
       explicitChildNodes: true,
       button: selection || entries.isNotEmpty,
+      selected: selection ? selected : null,
       label: entries.isEmpty
           ? title
           : l.calendarDayReleases(title, entries.length),
@@ -374,8 +380,11 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
               borderRadius: BorderRadius.circular(4),
               border: border,
             ),
-            // Il bordo più spesso non sposta i contenuti.
-            padding: EdgeInsets.symmetric(horizontal: 7 - borderWidth),
+            // Il bordo più spesso non sposta i contenuti. A puntini il
+            // margine è stretto: 4 puntini stanno in riga a 360 px.
+            padding: EdgeInsets.symmetric(
+              horizontal: (compact ? 4 : 7) - borderWidth,
+            ),
             child: ClipRect(
               // Una casella più bassa delle voci minime taglia invece di sforare.
               child: OverflowBox(
@@ -391,7 +400,7 @@ class _CalendarMonthGridState extends State<CalendarMonthGrid> {
                     if (compact)
                       Wrap(
                         alignment: WrapAlignment.center,
-                        spacing: 3,
+                        spacing: 2,
                         children: [
                           for (var i = 0; i < min(entries.length, _maxDots); i++)
                             _dim(

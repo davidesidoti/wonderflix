@@ -426,6 +426,8 @@
   "calendarNotArrived": "Not here yet",
   "calendarNoReleases": "No releases",
   "calendarWeekEmpty": "No releases in the next 7 days",
+  "calendarViewMonth": "Month",
+  "calendarViewWeek": "Next 7 days",
   "calendarDaySummary": "{count, plural, =1{1 release} other{{count} releases}}",
   "calendarDayOnServer": "{count} already on the server",
   "calendarPreviousMonth": "Previous month",

@@ -18,3 +18,18 @@ String calendarRoute(DateTime month) =>
 
 void openCalendarMonth(BuildContext context, DateTime month) =>
     context.go(calendarRoute(month));
+
+/// Le due viste del calendario (spec §4.7).
+enum CalendarView { month, week }
+
+/// La vista dell'indirizzo: `view=week` vince, poi un `month` valido; null =
+/// la vista di partenza secondo lo schermo.
+CalendarView? parseCalendarView(Map<String, String> query) {
+  if (query['view'] == 'week') return CalendarView.week;
+  if (parseCalendarMonth(query['month']) != null) return CalendarView.month;
+  return null;
+}
+
+const calendarWeekRoute = '/calendar?view=week';
+
+void openCalendarWeek(BuildContext context) => context.go(calendarWeekRoute);

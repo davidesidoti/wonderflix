@@ -15,4 +15,17 @@ void main() {
     expect(calendarRoute(DateTime(2026, 3)), '/calendar?month=2026-03');
     expect(calendarRoute(DateTime(2026, 11, 9)), '/calendar?month=2026-11');
   });
+
+  test('parseCalendarView', () {
+    expect(parseCalendarView({'view': 'week'}), CalendarView.week);
+    expect(
+      parseCalendarView({'view': 'week', 'month': '2026-11'}),
+      CalendarView.week,
+    );
+    expect(parseCalendarView({'month': '2026-11'}), CalendarView.month);
+    expect(parseCalendarView({'month': '2026-13'}), isNull);
+    expect(parseCalendarView({'view': 'boh'}), isNull);
+    expect(parseCalendarView({}), isNull);
+    expect(calendarWeekRoute, '/calendar?view=week');
+  });
 }

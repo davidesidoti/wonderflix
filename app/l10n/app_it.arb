@@ -516,6 +516,8 @@
   "calendarNotArrived": "Non ancora arrivato",
   "calendarNoReleases": "Nessuna uscita",
   "calendarWeekEmpty": "Nessuna uscita nei prossimi 7 giorni",
+  "calendarViewMonth": "Mese",
+  "calendarViewWeek": "Prossimi 7 giorni",
   "calendarDaySummary": "{count, plural, =1{1 uscita} other{{count} uscite}}",
   "@calendarDaySummary": {"placeholders": {"count": {"type": "int"}}},
   "calendarDayOnServer": "{count} già sul server",

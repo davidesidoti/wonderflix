@@ -46,9 +46,14 @@ void main() {
     WidgetTester tester, {
     String location = '/calendar',
     bool admin = false,
+    Size surfaceSize = const Size(1440, 900),
   }) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.binding.setSurfaceSize(surfaceSize);
+    tester.view.physicalSize = surfaceSize * tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      return tester.binding.setSurfaceSize(null);
+    });
     final router = GoRouter(
       initialLocation: location,
       routes: [
@@ -60,6 +65,7 @@ void main() {
               body: CalendarScreen(
                 key: ValueKey(state.uri.toString()),
                 month: parseCalendarMonth(state.uri.queryParameters['month']),
+                view: parseCalendarView(state.uri.queryParameters),
               ),
             ),
           ),
@@ -139,7 +145,8 @@ void main() {
 
   testWidgets('TodayButtonIsAFingerTargetOnPhones', (tester) async {
     await atNow(() async {
-      await pumpScreen(tester);
+      // Sul telefono senza `month` si apre la settimana.
+      await pumpScreen(tester, location: '/calendar?month=2026-10');
       tester.view.physicalSize =
           const Size(390, 844) * tester.view.devicePixelRatio;
       addTearDown(tester.view.resetPhysicalSize);
@@ -219,7 +226,9 @@ void main() {
       final handle = tester.ensureSemantics();
       final router = await pumpScreen(tester);
 
-      final chip = tester.getSemantics(find.bySemanticsLabel(RegExp('^Film, Hope')));
+      final chip = tester.getSemantics(
+        find.bySemanticsLabel(RegExp('^Film, Hope')),
+      );
       expect(chip.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
       // Il tocco apre l'elenco del giorno; lì la riga non apre niente.
       await tester.tap(find.text('Hope'));
@@ -344,6 +353,143 @@ void main() {
       availability.set(const SocialFeatures(known: true));
       await tester.pumpAndSettle();
       expect(address(router), '/home');
+    });
+  });
+
+  testWidgets('WideStartsOnTheMonthPhoneOnTheWeek', (tester) async {
+    await atNow(() async {
+      await pumpScreen(tester);
+      expect(find.byKey(const Key('calendar-day-2026-10-22')), findsOneWidget);
+      expect(
+        find.byKey(const Key('calendar-heading-2026-10-22')),
+        findsNothing,
+      );
+
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      tester.view.physicalSize =
+          const Size(390, 844) * tester.view.devicePixelRatio;
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('calendar-day-2026-10-22')), findsNothing);
+      expect(
+        find.byKey(const Key('calendar-heading-2026-10-22')),
+        findsOneWidget,
+      );
+      expect(find.text('Oggi'), findsOneWidget);
+      expect(api.calendarCalls.last, (
+        DateTime(2026, 10, 22),
+        DateTime(2026, 10, 29),
+      ));
+    });
+  });
+
+  testWidgets('TheViewButtonChangesTheAddress', (tester) async {
+    await atNow(() async {
+      final router = await pumpScreen(tester);
+
+      await tester.tap(find.byKey(const Key('calendar-view-week')));
+      await tester.pumpAndSettle();
+      expect(address(router), '/calendar?view=week');
+
+      await tester.tap(find.byKey(const Key('calendar-view-month')));
+      await tester.pumpAndSettle();
+      expect(address(router), '/calendar?month=2026-10');
+    });
+  });
+
+  testWidgets('TheWeekHidesMonthArrowsKeepsTheTitle', (tester) async {
+    await atNow(() async {
+      await pumpScreen(tester, location: '/calendar?view=week');
+
+      expect(find.text('CALENDARIO'), findsOneWidget);
+      expect(find.byKey(const Key('calendar-previous')), findsNothing);
+      expect(find.byKey(const Key('calendar-today')), findsNothing);
+      expect(find.text('Ottobre 2026'), findsNothing);
+      expect(find.byKey(const Key('calendar-view-week')), findsOneWidget);
+    });
+  });
+
+  testWidgets('TheLegendIsOnlyOnWideScreens', (tester) async {
+    await atNow(() async {
+      await pumpScreen(tester);
+      expect(find.text('Non ancora arrivato'), findsOneWidget);
+      // Alla finestra più stretta fuori dallo stretto la riga ci sta.
+      await pumpScreen(tester, surfaceSize: const Size(1024, 768));
+      expect(find.text('Non ancora arrivato'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await pumpScreen(tester, surfaceSize: const Size(390, 844));
+      expect(find.text('Non ancora arrivato'), findsNothing);
+    });
+  });
+
+  testWidgets('OnPhonesADayShowsItsReleasesUnderTheGrid', (tester) async {
+    await atNow(() async {
+      api.calendarPage = CalendarPage(
+        movies: [testUpcomingMovie(title: 'Hope')],
+      );
+      await pumpScreen(
+        tester,
+        location: '/calendar?month=2026-10',
+        surfaceSize: const Size(390, 844),
+      );
+      // Il pulsante della vista è largo quanto la pagina.
+      expect(
+        tester.getSize(find.byType(SegmentedButton<CalendarView>)).width,
+        390 - 2 * 16,
+      );
+      // All'apertura è selezionato oggi.
+      expect(
+        find.byKey(const Key('calendar-heading-2026-10-22')),
+        findsOneWidget,
+      );
+      expect(find.text('Hope'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('calendar-day-2026-10-13')));
+      await tester.pumpAndSettle();
+      final heading = find.byKey(const Key('calendar-heading-2026-10-13'));
+      expect(heading, findsOneWidget);
+      expect(
+        find.byKey(const Key('calendar-heading-2026-10-22')),
+        findsNothing,
+      );
+      expect(find.text('Hope'), findsOneWidget);
+      expect(find.byType(Dialog), findsNothing);
+      // L'elenco sta sotto la griglia.
+      expect(
+        tester.getTopLeft(heading).dy,
+        greaterThan(
+          tester
+              .getBottomLeft(find.byKey(const Key('calendar-day-2026-11-08')))
+              .dy,
+        ),
+      );
+    });
+  });
+
+  testWidgets('AFailingServiceDoesNotSayTheWeekIsEmpty', (tester) async {
+    await atNow(() async {
+      api.calendarPage = const CalendarPage(
+        seriesError: UpcomingError.unreachable,
+      );
+      await pumpScreen(tester, location: '/calendar?view=week');
+
+      expect(find.text('Le serie non si possono caricare ora'), findsOneWidget);
+      expect(find.text('Nessuna uscita nei prossimi 7 giorni'), findsNothing);
+    });
+  });
+
+  testWidgets('EveryServiceFailingIsAnErrorInTheWeek', (tester) async {
+    await atNow(() async {
+      api.calendarPage = const CalendarPage(
+        seriesError: UpcomingError.unreachable,
+        moviesError: UpcomingError.unauthorized,
+      );
+      await pumpScreen(tester, location: '/calendar?view=week');
+
+      expect(find.byType(ErrorView), findsOneWidget);
+      await tester.tap(find.text('Riprova'));
+      await tester.pumpAndSettle();
+      expect(api.calendarCalls, hasLength(2));
     });
   });
 }

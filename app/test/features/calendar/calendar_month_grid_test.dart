@@ -26,21 +26,24 @@ const _weapons = CalendarEntry(
 
 final _today = DateTime(2026, 10, 22);
 
-CalendarEntry _series(String title, DateTime airDate, {bool onServer = false}) =>
-    CalendarEntry(
-      kind: CalendarEntryKind.series,
-      title: title,
+CalendarEntry _series(
+  String title,
+  DateTime airDate, {
+  bool onServer = false,
+}) => CalendarEntry(
+  kind: CalendarEntryKind.series,
+  title: title,
+  onServer: onServer,
+  episodes: [
+    UpcomingEpisode(
+      seriesName: title,
+      seasonNumber: 1,
+      episodeNumber: 1,
+      airDate: airDate,
       onServer: onServer,
-      episodes: [
-        UpcomingEpisode(
-          seriesName: title,
-          seasonNumber: 1,
-          episodeNumber: 1,
-          airDate: airDate,
-          onServer: onServer,
-        ),
-      ],
-    );
+    ),
+  ],
+);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -228,7 +231,9 @@ void main() {
     );
     expect(tester.widget<Opacity>(_dimmed(find.text('Vecchio'))).opacity, 0.42);
     expect(tester.widget<Opacity>(_dimmed(find.text('20'))).opacity, 0.42);
-    final missing = find.byKey(const Key('calendar-entry-2026-10-20-1-missing'));
+    final missing = find.byKey(
+      const Key('calendar-entry-2026-10-20-1-missing'),
+    );
     expect(missing, findsOneWidget);
     expect(_dimmed(find.text('Perso')), findsNothing);
     expect(_dimmed(missing), findsNothing);
@@ -473,7 +478,10 @@ void main() {
       24 + 6 * 48 + 5 * 4,
     );
     // Il giorno selezionato ha il suo fondo.
-    expect(_cell(tester, DateTime(2026, 10, 14)).color, const Color(0xFF2A2418));
+    expect(
+      _cell(tester, DateTime(2026, 10, 14)).color,
+      const Color(0xFF2A2418),
+    );
     expect(_cell(tester, DateTime(2026, 10, 15)).color, WfColors.surface);
     // Ogni giorno si seleziona: vuoto, pieno, di un mese vicino.
     await tester.tap(_day(DateTime(2026, 10, 14)));
@@ -486,8 +494,56 @@ void main() {
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    expect(selected.last, DateTime(2026, 10, 23));
+    // La tastiera parte dal giorno selezionato, non da oggi.
+    expect(selected.last, DateTime(2026, 10, 15));
     expect(opened, isEmpty);
+  });
+
+  testWidgets('TheSelectedDayIsSelectedForScreenReaders', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      onSelectDay: (_) {},
+      selectedDay: DateTime(2026, 10, 14),
+    );
+    expect(
+      tester.getSemantics(_day(DateTime(2026, 10, 14))),
+      isSemantics(isSelected: true),
+    );
+    expect(
+      tester.getSemantics(_day(DateTime(2026, 10, 15))),
+      isSemantics(isSelected: false),
+    );
+    handle.dispose();
+  });
+
+  testWidgets('FourDotsFitOnOneLineOnA360Phone', (tester) async {
+    // 360 px meno i 16 px di margine della pagina per lato.
+    await _pump(
+      tester,
+      entries: {
+        _today: [
+          _weapons,
+          _series('Beta', DateTime(2026, 10, 22, 21)),
+          _andor,
+          const CalendarEntry(kind: CalendarEntryKind.movie, title: 'Perso'),
+        ],
+        DateTime(2026, 10, 23): const [_weapons, _andor, _weapons, _andor],
+      },
+      onSelectDay: (_) {},
+      selectedDay: _today,
+      surfaceSize: const Size(328, 800),
+    );
+    for (final day in ['2026-10-22', '2026-10-23']) {
+      final top = tester.getTopLeft(find.byKey(Key('calendar-dot-$day-0'))).dy;
+      for (var i = 1; i < 4; i++) {
+        expect(
+          tester.getTopLeft(find.byKey(Key('calendar-dot-$day-$i'))).dy,
+          top,
+          reason: '$day, puntino $i',
+        );
+      }
+    }
   });
 
   testWidgets('ArrowsAndEnterOpenTheChosenDay', (tester) async {

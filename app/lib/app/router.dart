@@ -270,7 +270,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   CalendarScreen(
                       key: ValueKey(state.uri.toString()),
                       month: parseCalendarMonth(
-                          state.uri.queryParameters['month'])),
+                          state.uri.queryParameters['month']),
+                      view: parseCalendarView(state.uri.queryParameters)),
                   underBar: true)),
           GoRoute(
               path: '/search',

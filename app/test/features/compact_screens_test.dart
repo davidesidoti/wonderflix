@@ -18,6 +18,7 @@ import 'package:wonderflix/core/syncplay/party_mode.dart';
 import 'package:wonderflix/features/admin/admin_navigation.dart';
 import 'package:wonderflix/features/admin/admin_screen.dart';
 import 'package:wonderflix/features/calendar/calendar_month_grid.dart';
+import 'package:wonderflix/features/calendar/calendar_navigation.dart';
 import 'package:wonderflix/features/calendar/calendar_screen.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/match/match_actions.dart';
@@ -715,19 +716,30 @@ void main() {
       await withClock(Clock.fixed(DateTime(2026, 10, 22, 12)), () async {
         await expectNoOverflow(
           tester,
-          const Scaffold(body: CalendarScreen()),
+          const Scaffold(body: CalendarScreen(view: CalendarView.month)),
           overrides: calendar(),
           content: find.text('Ottobre 2026'),
         );
       });
     });
 
-    testWidgets('calendario a 844x390: celle alte almeno 44, la griglia '
-        'scorre', (tester) async {
+    testWidgets('calendario, prossimi 7 giorni', (tester) async {
+      await withClock(Clock.fixed(DateTime(2026, 10, 22, 12)), () async {
+        await expectNoOverflow(
+          tester,
+          const Scaffold(body: CalendarScreen()),
+          overrides: calendar(),
+          content: find.byKey(const Key('calendar-heading-2026-10-22')),
+        );
+      });
+    });
+
+    testWidgets('calendario a 844x390: celle alte almeno 44, la pagina '
+        'scorre con la griglia', (tester) async {
       await withClock(Clock.fixed(DateTime(2026, 10, 22, 12)), () async {
         await pumpApp(
           tester,
-          const Scaffold(body: CalendarScreen()),
+          const Scaffold(body: CalendarScreen(view: CalendarView.month)),
           overrides: calendar(),
           surfaceSize: const Size(844, 390),
           touch: true,
@@ -737,8 +749,15 @@ void main() {
         expect(find.text('Ottobre 2026'), findsOneWidget);
         final cell = find.byKey(const Key('calendar-day-2026-10-12'));
         expect(tester.getSize(cell).height, greaterThanOrEqualTo(44));
+        // Nello stretto la griglia non scorre da sola: scorre la colonna
+        // con l'elenco del giorno sotto.
         expect(
             find.descendant(
+                of: find.byType(CalendarMonthGrid),
+                matching: find.byType(Scrollable)),
+            findsNothing);
+        expect(
+            find.ancestor(
                 of: find.byType(CalendarMonthGrid),
                 matching: find.byType(Scrollable)),
             findsOneWidget);
