@@ -251,6 +251,43 @@ public sealed class DownloadServiceSeasonTests : IDisposable
             _arr.SearchReleaseCalls.Skip(1).Select(c => c.Query).Order(StringComparer.Ordinal));
     }
 
+    // Un 720p scartato solo per la qualità (Sonarr non lo ammette nel profilo).
+    private static ArrRelease Pack720(string guid, double gb, int score)
+    {
+        var release = Release(guid, Hdtv720, "HDTV-720p", gb, score);
+        release.FullSeason = true;
+        release.SeasonNumber = 2;
+        release.Rejections = ["HDTV-720p is not wanted in profile"];
+        return release;
+    }
+
+    [Fact]
+    public async Task ASeasonWithOnly720pPacksWaitsForYou()
+    {
+        WholeSeason();
+        _releases = [Pack720("p720", 3, 80)];
+
+        await Cycle();
+
+        // Non si divide e non si scarica niente da solo: il tappabuchi lo sceglie l'admin.
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(["season:7:2"], SavedKeys());
+        var entry = Saved("season:7:2")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.NothingFound, DownloadStopgaps.Quality), (entry.State, entry.Reason, entry.Summary?.StopgapKind));
+    }
+
+    [Fact]
+    public async Task ASeasonWithA1080pSingleStillSplits()
+    {
+        WholeSeason();
+        _releases = [Pack720("p720", 3, 80), Single("e1", 1, 1, 50)];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(["episode:201", "episode:202", "episode:203"], SavedKeys());
+    }
+
     [Fact]
     public async Task ASeasonSearchWithoutAnAnswerSplitsIntoEpisodes()
     {

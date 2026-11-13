@@ -388,6 +388,14 @@ public sealed partial class DownloadService
             }
             else if (!item.Upgrade)
             {
+                // Solo pack 720p: la stagione non si divide e resta in "Serve te", con il tappabuchi per l'admin.
+                if (SeasonPackRule.QualityPack(releases, episodes, input) is { } qualityPack)
+                {
+                    rule = qualityPack;
+                    NothingValid();
+                    return false;
+                }
+
                 FoundLittle();
                 Split(item);
                 return false;

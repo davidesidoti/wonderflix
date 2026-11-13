@@ -33,7 +33,8 @@ public static class DownloadActions
             return entry.State == DownloadStates.Downloading && entry.MetadataSince is not null ? [Pick, SearchNow, Discard] : [Pick, SearchNow];
         }
 
-        var canGrab = entry.Kind != DownloadKinds.Season;
+        // Una stagione si scarica "intanto" solo con un pack 720p; gli altri tappabuchi sono per film ed episodi.
+        var canGrab = entry.Kind != DownloadKinds.Season || entry.Summary?.StopgapKind == DownloadStopgaps.Quality;
         switch (entry.Reason)
         {
             case DownloadReasons.BelowMinScore:

@@ -26,6 +26,17 @@ public sealed class DownloadActionsTests
             DownloadActions.For(NeedsYou(DownloadReasons.NothingFound, DownloadKinds.Episode, new DownloadSummary { Found = 3, StopgapAvailable = true })));
 
     [Fact]
+    public void ASeasonOffersGrabBestOnlyForAQualityStopgap()
+    {
+        Assert.Equal(
+            ["GrabBest", "Pick", "SearchNow", "Snooze"],
+            DownloadActions.For(NeedsYou(DownloadReasons.NothingFound, DownloadKinds.Season, new DownloadSummary { Found = 3, StopgapAvailable = true, StopgapKind = DownloadStopgaps.Quality })));
+        Assert.Equal(
+            ["Pick", "SearchNow", "Snooze"],
+            DownloadActions.For(NeedsYou(DownloadReasons.NothingFound, DownloadKinds.Season, new DownloadSummary { Found = 3, StopgapAvailable = true, StopgapKind = DownloadStopgaps.Size })));
+    }
+
+    [Fact]
     public void NothingFoundWithReleasesButNoStopgapOffersPick() =>
         Assert.Equal(["Pick", "SearchNow", "Snooze"], DownloadActions.For(NeedsYou(DownloadReasons.NothingFound, summary: new DownloadSummary { Found = 3 })));
 
