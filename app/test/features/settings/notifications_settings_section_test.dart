@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -34,8 +35,10 @@ void main() {
       types: const [
         NotificationTypePref(type: 'Invite', enabled: true),
         NotificationTypePref(type: 'NewTitles', enabled: false),
+        NotificationTypePref(type: 'RequestAvailable', enabled: true),
         NotificationTypePref(type: 'RequestPending', enabled: true),
         NotificationTypePref(type: 'DiskAlmostFull', enabled: true),
+        NotificationTypePref(type: 'ReportPending', enabled: true),
         NotificationTypePref(type: 'FutureType', enabled: true),
       ],
     ),
@@ -51,37 +54,47 @@ void main() {
     ),
   ];
 
-  Future<void> pumpSection(WidgetTester tester) async {
+  Future<void> pumpSection(
+    WidgetTester tester, {
+    Size size = const Size(1440, 1700),
+  }) async {
     await pumpApp(
       tester,
       const Scaffold(
         body: SingleChildScrollView(child: NotificationsSettingsSection()),
       ),
       overrides: overrides(),
-      surfaceSize: const Size(1440, 1700),
+      surfaceSize: size,
     );
     await tester.pump();
   }
 
-  SwitchListTile tile(WidgetTester tester, String type) =>
-      tester.widget<SwitchListTile>(find.byKey(Key('notification-pref-$type')));
+  bool on(WidgetTester tester, Key key) =>
+      tester.widget<Switch>(find.byKey(key)).value;
+  bool tile(WidgetTester tester, String type) =>
+      on(tester, Key('notification-pref-$type'));
+
+  const forYouSwitch = Key('notification-group-forYou');
+  Finder count(String text) => find.textContaining(text, findRichText: true);
+  Iterable<String> sets() => api.calls.where((c) => c.startsWith('setEnabled'));
 
   testWidgets('solo i tipi del plugin, con le etichette e i gruppi', (
     tester,
   ) async {
     await pumpSection(tester);
-    expect(find.text('Per te'), findsOneWidget);
-    // Il gruppo e l'etichetta del suo unico tipo.
-    expect(find.text('Richieste da approvare'), findsNWidgets(2));
-    expect(find.text('Admin'), findsOneWidget);
+    expect(count('Per te'), findsOneWidget);
+    // Un gruppo da un solo tipo è la riga: il nome compare una volta.
+    expect(find.text('Richieste da approvare'), findsOneWidget);
+    expect(count('Admin'), findsOneWidget);
     expect(find.text('Inviti ai watch party'), findsOneWidget);
     expect(find.text('Nuovi titoli'), findsOneWidget);
-    expect(find.text('Disco quasi pieno'), findsOneWidget);
+    // "Admin" è chiuso nel largo.
+    expect(find.text('Disco quasi pieno'), findsNothing);
     expect(find.text('Annunci'), findsNothing);
     expect(find.text('Segnalazioni nuove'), findsNothing);
     expect(find.byKey(const Key('notification-pref-FutureType')), findsNothing);
-    expect(tile(tester, 'Invite').value, isTrue);
-    expect(tile(tester, 'NewTitles').value, isFalse);
+    expect(tile(tester, 'Invite'), isTrue);
+    expect(tile(tester, 'NewTitles'), isFalse);
   });
 
   testWidgets('senza tipi admin o richieste non ci sono i loro gruppi', (
@@ -89,17 +102,127 @@ void main() {
   ) async {
     api.types = const [NotificationTypePref(type: 'Invite', enabled: true)];
     await pumpSection(tester);
-    expect(find.text('Per te'), findsOneWidget);
-    expect(find.text('Admin'), findsNothing);
+    expect(count('Admin'), findsNothing);
     expect(find.text('Richieste da approvare'), findsNothing);
+    // Un solo tipo anche in "Per te": è la riga, con il nome del gruppo.
+    expect(find.text('Per te'), findsOneWidget);
+    expect(find.byKey(forYouSwitch), findsNothing);
+    expect(tile(tester, 'Invite'), isTrue);
   });
 
-  testWidgets('un interruttore spento manda setEnabled false', (tester) async {
+  testWidgets('il conteggio del gruppo e l interruttore misto', (tester) async {
+    await pumpSection(tester);
+    expect(count('2 di 3 attive'), findsOneWidget);
+    expect(count('2 di 2 attive'), findsOneWidget);
+    expect(on(tester, forYouSwitch), isFalse);
+    await tester.tap(find.byKey(const Key('notification-pref-NewTitles')));
+    await tester.pump();
+    expect(count('3 di 3 attive'), findsOneWidget);
+    expect(on(tester, forYouSwitch), isTrue);
+  });
+
+  testWidgets('interruttore del gruppo con un tipo spento: accende solo gli '
+      'spenti', (tester) async {
+    await pumpSection(tester);
+    await tester.tap(find.byKey(forYouSwitch));
+    await tester.pump();
+    expect(sets(), ['setEnabled NewTitles true']);
+    expect(tile(tester, 'NewTitles'), isTrue);
+    expect(on(tester, forYouSwitch), isTrue);
+    // Toccare l'interruttore non chiude il gruppo.
+    expect(find.text('Nuovi titoli'), findsOneWidget);
+  });
+
+  testWidgets('interruttore del gruppo tutto acceso: li spegne tutti', (
+    tester,
+  ) async {
+    await pumpSection(tester);
+    await tester.tap(find.byKey(forYouSwitch));
+    await tester.pump();
+    api.calls.clear();
+    await tester.tap(find.byKey(forYouSwitch));
+    await tester.pump();
+    expect(sets().toSet(), {
+      'setEnabled Invite false',
+      'setEnabled NewTitles false',
+      'setEnabled RequestAvailable false',
+    });
+    expect(tile(tester, 'Invite'), isFalse);
+    expect(on(tester, forYouSwitch), isFalse);
+    expect(count('0 di 3 attive'), findsOneWidget);
+  });
+
+  testWidgets('due tipi su tre non salvati: un solo avviso', (tester) async {
+    await pumpSection(tester);
+    await tester.tap(find.byKey(forYouSwitch));
+    await tester.pump();
+    api.failingTypes.addAll({'Invite', 'NewTitles'});
+    await tester.tap(find.byKey(forYouSwitch));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Impostazione non salvata'), findsOneWidget);
+    // Chi è fallito torna acceso, l'altro resta spento.
+    expect(tile(tester, 'Invite'), isTrue);
+    expect(tile(tester, 'NewTitles'), isTrue);
+    expect(tile(tester, 'RequestAvailable'), isFalse);
+    // Un secondo avviso in coda comparirebbe dopo il primo: un solo avviso
+    // è già sparito dopo tre passi (arriva, aspetta, esce).
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 5));
+    }
+    expect(find.text('Impostazione non salvata'), findsNothing);
+  });
+
+  testWidgets('gruppo da un tipo: riga normale, senza freccia', (tester) async {
+    await pumpSection(tester);
+    expect(find.byKey(const Key('notification-group-requests')), findsNothing);
+    expect(tile(tester, 'RequestPending'), isTrue);
+    await tester.tap(find.text('Richieste da approvare'));
+    await tester.pump();
+    expect(api.calls, contains('setEnabled RequestPending false'));
+    expect(tile(tester, 'RequestPending'), isFalse);
+  });
+
+  testWidgets('largo: "Per te" aperto, gli altri chiusi', (tester) async {
+    await pumpSection(tester);
+    expect(find.text('Inviti ai watch party'), findsOneWidget);
+    expect(find.text('Disco quasi pieno'), findsNothing);
+    expect(find.byIcon(LucideIcons.chevronDown), findsOneWidget);
+    expect(find.byIcon(LucideIcons.chevronRight), findsOneWidget);
+  });
+
+  testWidgets('stretto: tutti i gruppi chiusi', (tester) async {
+    await pumpSection(tester, size: const Size(500, 1700));
+    expect(find.text('Inviti ai watch party'), findsNothing);
+    expect(find.text('Disco quasi pieno'), findsNothing);
+    expect(find.byIcon(LucideIcons.chevronDown), findsNothing);
+    expect(find.byIcon(LucideIcons.chevronRight), findsNWidgets(2));
+    expect(tile(tester, 'RequestPending'), isTrue);
+  });
+
+  testWidgets('toccare l intestazione apre e chiude il gruppo', (tester) async {
+    await pumpSection(tester);
+    await tester.tap(count('Admin'));
+    await tester.pump();
+    expect(find.text('Disco quasi pieno'), findsOneWidget);
+    expect(tile(tester, 'DiskAlmostFull'), isTrue);
+    await tester.tap(count('Per te'));
+    await tester.pump();
+    expect(find.text('Inviti ai watch party'), findsNothing);
+    expect(find.byKey(forYouSwitch), findsOneWidget);
+    await tester.tap(count('Per te'));
+    await tester.pump();
+    expect(find.text('Inviti ai watch party'), findsOneWidget);
+  });
+
+  testWidgets('un interruttore di un tipo spento manda setEnabled false', (
+    tester,
+  ) async {
     await pumpSection(tester);
     await tester.tap(find.byKey(const Key('notification-pref-Invite')));
     await tester.pump();
     expect(api.calls, contains('setEnabled Invite false'));
-    expect(tile(tester, 'Invite').value, isFalse);
+    expect(tile(tester, 'Invite'), isFalse);
   });
 
   testWidgets('errore: torna acceso e dice che non e salvato', (tester) async {
@@ -108,7 +231,7 @@ void main() {
     await tester.tap(find.byKey(const Key('notification-pref-Invite')));
     await tester.pump();
     await tester.pump();
-    expect(tile(tester, 'Invite').value, isTrue);
+    expect(tile(tester, 'Invite'), isTrue);
     expect(find.text('Impostazione non salvata'), findsOneWidget);
   });
 
@@ -164,7 +287,7 @@ void main() {
     );
     final next = await c.read(notificationPrefsProvider.future);
     expect(api.calls, ['get']);
-    expect(next.types, hasLength(5));
+    expect(next.types, hasLength(7));
   });
 
   test('senza utente non chiede niente', () async {

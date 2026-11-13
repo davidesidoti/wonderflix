@@ -13,6 +13,9 @@ class FakeNotificationsApi implements NotificationsApi {
 
   List<NotificationTypePref> types;
   ApiException? failure;
+
+  /// I tipi per cui [setEnabled] fallisce (gli altri riescono).
+  final failingTypes = <String>{};
   final calls = <String>[];
 
   /// Se c'è, [get] / [setEnabled] aspettano che si completi (la chiamata
@@ -33,6 +36,7 @@ class FakeNotificationsApi implements NotificationsApi {
     calls.add('setEnabled $type $enabled');
     if (setGate case final gate?) await gate.future;
     if (failure case final error?) throw error;
+    if (failingTypes.contains(type)) throw const ServerUnreachableException();
   }
 
   @override

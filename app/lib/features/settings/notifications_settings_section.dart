@@ -2,11 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
+import '../../core/social/notifications_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
+import '../admin/admin_kit.dart';
 import 'device_push_tile.dart';
 import 'notification_prefs_controller.dart';
+import 'settings_kit.dart';
 
 /// Larghezza massima della sezione, come le altre impostazioni.
 const _notificationsMaxWidth = 640.0;
@@ -63,25 +68,47 @@ String _label(AppLocalizations l, String type) => switch (type) {
       _ => type,
     };
 
-/// Impostazioni → Notifiche (spec V §4.2): un interruttore per ogni tipo che
-/// il plugin offre all'utente. Si monta solo con la funzione `push`.
-class NotificationsSettingsSection extends ConsumerWidget {
+/// Impostazioni → Notifiche (spec V §4.2): i tipi che il plugin offre
+/// all'utente, a gruppi che si aprono e si accendono insieme. Si monta solo
+/// con la funzione `push`.
+class NotificationsSettingsSection extends ConsumerStatefulWidget {
   const NotificationsSettingsSection({super.key});
 
-  Future<void> _set(
-      BuildContext context, WidgetRef ref, String type, bool enabled) async {
+  @override
+  ConsumerState<NotificationsSettingsSection> createState() =>
+      _NotificationsSettingsSectionState();
+}
+
+class _NotificationsSettingsSectionState
+    extends ConsumerState<NotificationsSettingsSection> {
+  /// I gruppi aperti: lo stato vive solo qui. Nel largo parte aperto "Per te".
+  Set<String>? _open;
+
+  /// Un solo avviso per tocco, anche se più tipi non si salvano.
+  Future<void> _save(Iterable<(String, bool)> changes) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.maybeOf(context);
-    if (!await ref
-        .read(notificationPrefsProvider.notifier)
-        .setEnabled(type, enabled)) {
+    final notifier = ref.read(notificationPrefsProvider.notifier);
+    final results = await Future.wait([
+      for (final (type, enabled) in changes) notifier.setEnabled(type, enabled),
+    ]);
+    if (results.contains(false)) {
       messenger?.showSnackBar(
           SnackBar(content: Text(l.settingsShareActivitySaveError)));
     }
   }
 
+  /// Tutti accesi: li spegne tutti; altrimenti accende quelli spenti.
+  Future<void> _setGroup(List<NotificationTypePref> shown) {
+    final next = !shown.every((p) => p.enabled);
+    return _save([
+      for (final p in shown)
+        if (p.enabled != next) (p.type, next),
+    ]);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final prefs = ref.watch(notificationPrefsProvider);
     final Widget child;
@@ -105,42 +132,55 @@ class NotificationsSettingsSection extends ConsumerWidget {
       );
     } else {
       final types = prefs.value?.types ?? const [];
+      final open =
+          _open ??= FormFactor.of(context).compact ? <String>{} : {'forYou'};
+      Widget typeRow(NotificationTypePref pref, String label,
+              {double indent = 0}) =>
+          SettingsSwitchRow(
+            key: Key('notification-pref-${pref.type}'),
+            label: label,
+            indent: indent,
+            value: pref.enabled,
+            onChanged: (next) => unawaited(_save([(pref.type, next)])),
+          );
       // Un gruppo si vede solo se ha tipi; dentro, l'ordine del plugin.
-      Widget group(String title, Set<String> members) {
+      List<Widget> group(String id, String title, Set<String> members) {
         final shown = [
           for (final pref in types)
             if (members.contains(pref.type)) pref,
         ];
-        if (shown.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 12, bottom: 4),
-              child: Text(title,
-                  style: const TextStyle(
-                      color: WfColors.creamMuted, fontWeight: FontWeight.w600)),
-            ),
+        if (shown.isEmpty) return const [];
+        // Un solo tipo: una riga normale col nome del gruppo, senza freccia.
+        if (shown.length == 1) return [typeRow(shown.first, title)];
+        final isOpen = open.contains(id);
+        return [
+          _GroupHeader(
+            switchKey: Key('notification-group-$id'),
+            title: title,
+            count: l.notifPrefsGroupCount(
+                shown.where((p) => p.enabled).length, shown.length),
+            open: isOpen,
+            allOn: shown.every((p) => p.enabled),
+            onToggleOpen: () =>
+                setState(() => isOpen ? open.remove(id) : open.add(id)),
+            onToggleAll: () => unawaited(_setGroup(shown)),
+          ),
+          if (isOpen)
             for (final pref in shown)
-              SwitchListTile(
-                key: Key('notification-pref-${pref.type}'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(_label(l, pref.type)),
-                value: pref.enabled,
-                onChanged: (next) =>
-                    unawaited(_set(context, ref, pref.type, next)),
-              ),
-          ],
-        );
+              typeRow(pref, _label(l, pref.type), indent: 20),
+        ];
       }
 
+      final rows = [
+        ...group('forYou', l.notifPrefsGroupForYou, _forYou),
+        ...group('requests', l.notifPrefsGroupRequests, _requests),
+        ...group('admin', l.notifPrefsGroupAdmin, _admin),
+      ];
       child = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const DevicePushTile(),
-          group(l.notifPrefsGroupForYou, _forYou),
-          group(l.notifPrefsGroupRequests, _requests),
-          group(l.notifPrefsGroupAdmin, _admin),
+          if (rows.isNotEmpty) AdminList(children: rows),
         ],
       );
     }
@@ -152,4 +192,76 @@ class NotificationsSettingsSection extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// L'intestazione di un gruppo: toccarla (fuori dall'interruttore) apre o
+/// chiude; l'interruttore accende o spegne tutto il gruppo.
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({
+    required this.switchKey,
+    required this.title,
+    required this.count,
+    required this.open,
+    required this.allOn,
+    required this.onToggleOpen,
+    required this.onToggleAll,
+  });
+
+  final Key switchKey;
+  final String title;
+  final String count;
+  final bool open;
+  final bool allOn;
+  final VoidCallback onToggleOpen;
+  final VoidCallback onToggleAll;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        expanded: open,
+        child: Material(
+          color: WfColors.surface,
+          child: InkWell(
+            onTap: onToggleOpen,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+              child: ConstrainedBox(
+                constraints:
+                    const BoxConstraints(minHeight: minTouchTarget - 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      open ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                      size: 16,
+                      color: WfColors.creamMuted,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          text: title,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          children: [
+                            TextSpan(
+                              text: '  $count',
+                              style: const TextStyle(
+                                color: WfColors.creamMuted,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Switch(
+                      key: switchKey,
+                      value: allOn,
+                      onChanged: (_) => onToggleAll(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
