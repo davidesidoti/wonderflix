@@ -541,14 +541,14 @@ void main() {
     expect(dx('Mostra la locandina'), dx('Mostra il titolo'));
   });
 
-  testWidgets('in una finestra larga le sezioni non vanno oltre i 640 px, a '
+  testWidgets('in una finestra larga le sezioni non vanno oltre i 1040 px, a '
       'sinistra', (tester) async {
     await pumpSettings(tester);
     await tester.pump();
     // Le sezioni stanno in una colonna che le allarga a tutta la pagina
     // (1440 - 2 * 32): il tetto vale solo se la sezione non è allargata.
     final list = find.byType(HomeRowsEditor);
-    expect(tester.getSize(list).width, lessThanOrEqualTo(640));
+    expect(tester.getSize(list).width, settingsContentMaxWidth);
     expect(tester.getTopLeft(list).dx, SettingsRail.width + 32,
         reason: 'a sinistra, come il resto');
     // Lo stesso per le sezioni accanto.
@@ -556,7 +556,7 @@ void main() {
     expect(lists, findsWidgets);
     for (final list in tester.widgetList(lists)) {
       final size = tester.getSize(find.byWidget(list));
-      expect(size.width, lessThanOrEqualTo(640));
+      expect(size.width, lessThanOrEqualTo(settingsContentMaxWidth));
       expect(tester.getTopLeft(find.byWidget(list)).dx, SettingsRail.width + 32);
     }
   });

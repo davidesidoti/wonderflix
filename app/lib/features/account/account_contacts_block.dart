@@ -14,9 +14,8 @@ import 'unlink_contact_dialog.dart';
 
 const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 12.5);
 
-/// Larghezza massima delle righe: su uno schermo largo le azioni restano
-/// vicine al contatto.
-const _rowsMaxWidth = 640.0;
+/// Larghezza massima delle righe, come le sezioni delle Impostazioni.
+const _rowsMaxWidth = 1040.0;
 
 /// Larghezza della colonna del nome del canale, perché gli stati si
 /// allineino.

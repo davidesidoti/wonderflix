@@ -196,12 +196,12 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('righe: su uno schermo largo restano vicine al contatto',
+  testWidgets('righe: su uno schermo largo non vanno oltre le sezioni',
       (tester) async {
     await pumpSection(tester);
 
     final row = find.byKey(const Key('account-contact-Discord'));
-    expect(tester.getSize(row).width, lessThanOrEqualTo(640));
+    expect(tester.getSize(row).width, lessThanOrEqualTo(1040));
   });
 
   testWidgets('canale spento con il contatto: si può scollegare',

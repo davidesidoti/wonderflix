@@ -21,14 +21,14 @@ import 'subtitle_preview.dart';
 class LanguageSettingsSection extends ConsumerWidget {
   const LanguageSettingsSection({super.key});
 
-  /// Larghezza dell'elenco, dell'anteprima e dello spazio tra i due.
-  static const listWidth = 640.0;
-  static const previewWidth = 300.0;
+  /// Larghezza dell'anteprima accanto all'elenco e spazio tra i due.
+  static const previewWidth = 360.0;
   static const _gap = 32.0;
 
-  /// Larghezza da cui l'anteprima sta accanto all'elenco: la pagina la dà alla
-  /// sezione.
-  static const wideWidth = listWidth + _gap + previewWidth;
+  /// Da questa larghezza l'anteprima sta accanto all'elenco (che prende il
+  /// resto); sotto, l'anteprima va sotto l'elenco, larga al più 640.
+  static const wideWidth = 900.0;
+  static const _narrowMaxWidth = 640.0;
 
   /// Salva sul server; se non riesce, lo dice in basso (anche sulla TV).
   static Future<void> save(
@@ -126,7 +126,7 @@ class LanguageSettingsSection extends ConsumerWidget {
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: listWidth, child: list),
+                Expanded(child: list),
                 const SizedBox(width: _gap),
                 SizedBox(width: previewWidth, child: preview),
               ],
@@ -134,7 +134,7 @@ class LanguageSettingsSection extends ConsumerWidget {
           : Align(
               alignment: Alignment.centerLeft,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: listWidth),
+                constraints: const BoxConstraints(maxWidth: _narrowMaxWidth),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [list, const SizedBox(height: 20), preview],

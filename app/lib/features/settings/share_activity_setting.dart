@@ -9,7 +9,7 @@ import '../social/share_activity.dart';
 import 'settings_kit.dart';
 
 /// L'interruttore "Mostra agli amici cosa guardo" (spec O §7.3), una riga in
-/// elenco. La larghezza la dà la pagina (640 px).
+/// elenco. La larghezza la dà la pagina.
 class ShareActivitySetting extends ConsumerWidget {
   const ShareActivitySetting({super.key});
 

@@ -13,9 +13,6 @@ import 'device_push_tile.dart';
 import 'notification_prefs_controller.dart';
 import 'settings_kit.dart';
 
-/// Larghezza massima della sezione, come le altre impostazioni.
-const _notificationsMaxWidth = 640.0;
-
 /// I tipi per gruppo, come le destinazioni del plugin: i 10 per tutti, le
 /// richieste da approvare e i 9 solo per gli admin. Un tipo che l'app non
 /// conosce non ha etichetta e non si mostra.
@@ -191,13 +188,8 @@ class _NotificationsSettingsSectionState
         ],
       );
     }
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _notificationsMaxWidth),
-        child: child,
-      ),
-    );
+    // La larghezza la dà la pagina.
+    return child;
   }
 }
 

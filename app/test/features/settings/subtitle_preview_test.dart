@@ -96,15 +96,15 @@ void main() {
         .first,
   );
 
-  testWidgets('nel largo l\'anteprima sta a destra dell\'elenco, larga 300', (
+  testWidgets('nel largo l\'anteprima sta a destra dell\'elenco, larga 360', (
     tester,
   ) async {
     await _pumpSettings(tester, const Size(1440, 2400));
     expect(find.text('Anteprima dei sottotitoli'), findsOneWidget);
     final list = listOf(tester);
     final box = tester.getRect(find.byType(SubtitlePreview));
-    expect(list.width, 640);
-    expect(box.width, 300);
+    expect(list.width, 1040 - 32 - 360);
+    expect(box.width, 360);
     expect(box.left, list.right + 32);
     expect(box.top, lessThan(list.bottom));
   });

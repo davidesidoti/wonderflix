@@ -25,6 +25,11 @@ import 'settings_nav.dart';
 import 'support_section.dart';
 import 'tv_settings_body.dart';
 
+/// Larghezza massima delle sezioni: su una finestra larga occupano quasi
+/// tutto lo spazio a destra della colonna, oltre le righe sarebbero troppo
+/// lunghe da leggere.
+const settingsContentMaxWidth = 1040.0;
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, this.section});
 
@@ -234,38 +239,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         : _visible.first;
 
     // Una sezione (titolo e righe) è un elemento dell'entrata, larga al più
-    // 640 px e a sinistra.
+    // [settingsContentMaxWidth] e a sinistra.
     Widget section(
       int index,
       String id,
       String title,
       SettingsScope? scope,
-      Widget body, {
-      double bodyWidth = 640,
-    }) => StaggerItem(
+      Widget body,
+    ) => StaggerItem(
       index: index,
       child: Align(
         alignment: Alignment.centerLeft,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: bodyWidth),
+          constraints: const BoxConstraints(maxWidth: settingsContentMaxWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Il titolo resta largo 640 anche se il corpo è più largo.
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 640),
-                  // La `GlobalKey` serve a scorrere qui; la `ValueKey` ai test.
-                  child: KeyedSubtree(
-                    key: _sectionKeys[id],
-                    child: SettingsSectionTitle(
-                      key: ValueKey('settings-section-$id'),
-                      title: title,
-                      scope: scope,
-                    ),
-                  ),
+              // La `GlobalKey` serve a scorrere qui; la `ValueKey` ai test.
+              KeyedSubtree(
+                key: _sectionKeys[id],
+                child: SettingsSectionTitle(
+                  key: ValueKey('settings-section-$id'),
+                  title: title,
+                  scope: scope,
                 ),
               ),
               body,
@@ -334,8 +331,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 l.settingsSectionSubtitles,
                 SettingsScope.jellyfin,
                 const LanguageSettingsSection(),
-                // Nel largo l'anteprima sta a destra dell'elenco.
-                bodyWidth: LanguageSettingsSection.wideWidth,
               ),
               section(
                 6,
