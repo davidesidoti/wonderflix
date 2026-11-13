@@ -158,6 +158,7 @@ void main() {
       int arrRejected = 0,
       String? top,
       bool stopgap = false,
+      String? stopgapKind,
     }) =>
         DownloadSummary(
           found: found,
@@ -167,6 +168,7 @@ void main() {
           arrRejected: arrRejected,
           topRejection: top,
           stopgapAvailable: stopgap,
+          stopgapKind: stopgapKind,
         );
 
     test('punteggio basso', () {
@@ -190,6 +192,27 @@ void main() {
       expect(text, contains('9 troppo piccoli'));
       expect(text, contains('5 rifiutati da Radarr (Not English)'));
       expect(text, contains(it.downloadsExplainStopgapHint));
+    });
+
+    test('tappabuchi di qualità: spiega il 720p anche senza scartati elencabili',
+        () {
+      final i = item(DownloadReason.nothingFound,
+          summary: summary(3, stopgap: true, stopgapKind: 'Quality'));
+      expect(downloadExplanation(it, i, 'Radarr'),
+          contains(it.downloadsExplainQualityStopgapHint));
+      expect(downloadExplanation(en, i, 'Radarr'),
+          contains(en.downloadsExplainQualityStopgapHint));
+    });
+
+    test('tappabuchi di peso: il suggerimento di sempre', () {
+      final text = downloadExplanation(
+          it,
+          item(DownloadReason.nothingFound,
+              summary: summary(3,
+                  tooSmall: 2, stopgap: true, stopgapKind: 'Size')),
+          'Radarr');
+      expect(text, contains(it.downloadsExplainStopgapHint));
+      expect(text, isNot(contains(it.downloadsExplainQualityStopgapHint)));
     });
 
     test('nessun risultato', () {

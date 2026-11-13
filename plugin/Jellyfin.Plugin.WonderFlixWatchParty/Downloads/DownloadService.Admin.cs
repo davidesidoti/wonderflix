@@ -1222,7 +1222,7 @@ public sealed partial class DownloadService
         return new(
             e.Key, e.Kind, e.Title, e.PosterUrl, e.State, e.Reason, e.AvailableSince, e.LastSearchAt, e.NextSearchAt,
             DownloadActions.For(e, external),
-            e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable) : null,
+            e.Summary is { } s ? new DownloadSummaryDto(s.Found, s.BestScore, s.MinScore, s.TooSmall, s.ArrRejected, s.TopRejection, s.StopgapAvailable, s.StopgapKind) : null,
             e.Reason == DownloadReasons.ImportBlocked ? e.BlockedMessage : null,
             e.Snoozed,
             null,

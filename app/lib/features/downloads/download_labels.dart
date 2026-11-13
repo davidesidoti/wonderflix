@@ -124,12 +124,16 @@ String downloadExplanation(
           l.downloadsExplainArrRejected(summary.arrRejected, service) +
               (top == null ? '' : ' ($top)'),
       ];
-      // Scartati per altri motivi (es. punteggio): niente da elencare.
-      if (parts.isEmpty) return '';
+      final quality =
+          summary.stopgapAvailable && summary.stopgapKind == 'Quality';
+      final hint = quality
+          ? l.downloadsExplainQualityStopgapHint
+          : l.downloadsExplainStopgapHint;
+      // Scartati per altri motivi (es. punteggio): niente da elencare. Un
+      // 720p scartato per qualità non è né troppo piccolo né rifiutato da Arr.
+      if (parts.isEmpty) return quality ? hint : '';
       final text = l.downloadsExplainAllRejected(summary.found, parts.join(', '));
-      return summary.stopgapAvailable
-          ? '$text ${l.downloadsExplainStopgapHint}'
-          : text;
+      return summary.stopgapAvailable ? '$text $hint' : text;
     case DownloadReason.importBlocked:
       final blocked = l.downloadsExplainBlocked(service);
       return item.blockedMessage == null

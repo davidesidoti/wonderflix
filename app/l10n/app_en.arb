@@ -1093,6 +1093,7 @@
   "downloadsExplainTooSmall": "{count} too small",
   "downloadsExplainArrRejected": "{count} rejected by {service}",
   "downloadsExplainStopgapHint": "The largest of the small ones will do for now.",
+  "downloadsExplainQualityStopgapHint": "Nothing in 1080p: there's a 720p to take for now.",
   "downloadsExplainNoResults": "No results on the indexers. Often it isn't out digitally yet: I'll keep searching.",
   "downloadsExplainBlocked": "The file is downloaded but {service} won't import it.",
   "downloadsExplainBlockedWhy": "{service} says:",

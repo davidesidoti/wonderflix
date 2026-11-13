@@ -239,6 +239,7 @@ class DownloadSummary {
     required this.arrRejected,
     this.topRejection,
     required this.stopgapAvailable,
+    this.stopgapKind,
   });
 
   final int found;
@@ -248,6 +249,9 @@ class DownloadSummary {
   final int arrRejected;
   final String? topRejection;
   final bool stopgapAvailable;
+
+  /// "Score", "Size" o "Quality" (plugin 1.31.0), null se non c'è tappabuchi.
+  final String? stopgapKind;
 
   static DownloadSummary? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
@@ -260,6 +264,7 @@ class DownloadSummary {
         arrRejected: (json['ArrRejected'] as num).toInt(),
         topRejection: json['TopRejection'] as String?,
         stopgapAvailable: json['StopgapAvailable'] as bool,
+        stopgapKind: json['StopgapKind'] as String?,
       );
     } on Object {
       return null;

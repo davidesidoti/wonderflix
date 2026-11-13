@@ -450,6 +450,7 @@ void main() {
         'ArrRejected': 2,
         'TopRejection': 'Not enough seeders',
         'StopgapAvailable': true,
+        'StopgapKind': 'Quality',
       },
       'BlockedMessage': 'Bloccato',
       'Snoozed': true,
@@ -468,6 +469,7 @@ void main() {
     expect(item.summary!.arrRejected, 2);
     expect(item.summary!.topRejection, 'Not enough seeders');
     expect(item.summary!.stopgapAvailable, isTrue);
+    expect(item.summary!.stopgapKind, 'Quality');
     expect(item.blockedMessage, 'Bloccato');
     expect(item.snoozed, isTrue);
   });

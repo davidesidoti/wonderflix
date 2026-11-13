@@ -1270,6 +1270,7 @@
   "downloadsExplainArrRejected": "{count, plural, =1{1 rifiutato da {service}} other{{count} rifiutati da {service}}}",
   "@downloadsExplainArrRejected": {"placeholders": {"count": {"type": "int"}, "service": {"type": "String"}}},
   "downloadsExplainStopgapHint": "Il più grande tra i piccoli va bene come tappabuchi.",
+  "downloadsExplainQualityStopgapHint": "Non c'è in 1080p: c'è un 720p da prendere intanto.",
   "downloadsExplainNoResults": "Nessun risultato sugli indexer. Spesso succede perché non è ancora uscito in digitale: continuo a cercare.",
   "downloadsExplainBlocked": "Il file è scaricato ma {service} non lo importa.",
   "@downloadsExplainBlocked": {"placeholders": {"service": {"type": "String"}}},

@@ -829,13 +829,14 @@ public sealed class DownloadServiceAdminTests : IDisposable
         {
             e.Snoozed = true;
             e.BlockedMessage = "vecchio messaggio";
-            e.Summary = new DownloadSummary { Found = 4, BestScore = 20, MinScore = 50, TooSmall = 1, ArrRejected = 2, TopRejection = "Not an upgrade", StopgapAvailable = true };
+            e.Summary = new DownloadSummary { Found = 4, BestScore = 20, MinScore = 50, TooSmall = 1, ArrRejected = 2, TopRejection = "Not an upgrade", StopgapAvailable = true, StopgapKind = DownloadStopgaps.Quality };
         });
 
         var item = Assert.Single((await _service.OverviewAsync(CancellationToken.None)).Waiting);
 
         Assert.True(item.Snoozed);
         Assert.Equal(["GrabBest", "Pick", "SearchNow", "Snooze"], item.Actions);
+        Assert.Equal(DownloadStopgaps.Quality, item.Summary!.StopgapKind);
         Assert.Equal((4, (int?)20, 50, 1, 2, "Not an upgrade", true), (item.Summary!.Found, item.Summary.BestScore, item.Summary.MinScore, item.Summary.TooSmall, item.Summary.ArrRejected, item.Summary.TopRejection, item.Summary.StopgapAvailable));
         Assert.Null(item.BlockedMessage); // il messaggio vecchio non esce se il motivo non è ImportBlocked
         var json = System.Text.Json.JsonSerializer.Serialize(item, new System.Text.Json.JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull });

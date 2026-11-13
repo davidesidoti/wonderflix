@@ -65,7 +65,8 @@ public sealed record DownloadSummaryDto(
     [property: JsonPropertyName("TooSmall")] int TooSmall,
     [property: JsonPropertyName("ArrRejected")] int ArrRejected,
     [property: JsonPropertyName("TopRejection")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? TopRejection,
-    [property: JsonPropertyName("StopgapAvailable")] bool StopgapAvailable);
+    [property: JsonPropertyName("StopgapAvailable")] bool StopgapAvailable,
+    [property: JsonPropertyName("StopgapKind")][property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]  string? StopgapKind);
 
 /// <summary>Un titolo da ripassare con il file di adesso (spec T §6).</summary>
 public sealed record ReviewItemDto(
