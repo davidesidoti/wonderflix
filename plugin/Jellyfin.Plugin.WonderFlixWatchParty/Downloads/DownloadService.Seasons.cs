@@ -12,7 +12,8 @@ public sealed partial class DownloadService
     // Una stagione (> 0) con episodi mancanti, letta fuori dal lock; se diventa una voce lo decide GroupSeasons.
     // Whole: finita (ogni episodio ha una messa in onda passata) e con tutti i monitorati mancanti.
     // EpisodeIds: tutti gli episodi della stagione (vuoto se la serie non si è letta); Missing: i numeri dei mancanti, senza doppioni.
-    private sealed record ArrSeason(ArrTitle Title, bool Whole, IReadOnlyList<int> EpisodeIds, IReadOnlyList<ArrTitle> Episodes, IReadOnlyList<int> Missing);
+    // NoFiles: nessun episodio della stagione ha un file (un pack 720p non sostituisce mai un file che c'è).
+    private sealed record ArrSeason(ArrTitle Title, bool Whole, IReadOnlyList<int> EpisodeIds, IReadOnlyList<ArrTitle> Episodes, IReadOnlyList<int> Missing, bool NoFiles = false);
 
     // Fuori dal lock: gli episodi di ogni serie con episodi mancanti, una lettura per serie e per giro.
     private async Task<Dictionary<string, ArrSeason>> ReadSeasonsAsync(
@@ -62,7 +63,8 @@ public sealed partial class DownloadService
                     whole,
                     [.. episodes.Select(e => e.Id)],
                     episodeTitles,
-                    [.. season.Select(e => e.EpisodeNumber).Distinct().Order()]);
+                    [.. season.Select(e => e.EpisodeNumber).Distinct().Order()],
+                    episodes.Count > 0 && !episodes.Any(e => e.HasFile));
             }
         }
 

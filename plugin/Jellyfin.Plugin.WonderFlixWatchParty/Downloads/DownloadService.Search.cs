@@ -30,7 +30,8 @@ public sealed partial class DownloadService
         int TitleId,
         IReadOnlyList<int> Tags,
         IReadOnlyList<int>? Episodes = null,
-        IReadOnlyList<ArrTitle>? SplitInto = null);
+        IReadOnlyList<ArrTitle>? SplitInto = null,
+        bool SeasonNoFiles = false);
 
     // Quante release rifiutate dal client si ricordano per voce.
     private const int MaxRefusedReleases = 20;
@@ -317,7 +318,7 @@ public sealed partial class DownloadService
         // Gli episodi che mancano, o per un upgrade quelli del pack scaricato.
         var season = view.Seasons?.GetValueOrDefault(entry.Key);
         var episodes = upgrade ? entry.EpisodeNumbers : season?.Missing;
-        return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes } : null;
+        return episodes is { Count: > 0 } ? item with { Episodes = episodes, SplitInto = season?.Episodes, SeasonNoFiles = season?.NoFiles == true } : null;
     }
 
     // Una ricerca e quello che ne segue; true se ha scaricato.
@@ -389,7 +390,8 @@ public sealed partial class DownloadService
             else if (!item.Upgrade)
             {
                 // Solo pack 720p: la stagione non si divide e resta in "Serve te", con il tappabuchi per l'admin.
-                if (SeasonPackRule.QualityPack(releases, episodes, input) is { } qualityPack)
+                // Solo se nessun episodio ha un file: il pack li importerebbe tutti, e Sonarr cancella i file sostituiti.
+                if (item.SeasonNoFiles && SeasonPackRule.QualityPack(releases, episodes, input) is { } qualityPack)
                 {
                     rule = qualityPack;
                     NothingValid();

@@ -1510,9 +1510,10 @@ public sealed class DownloadServiceAdminTests : IDisposable
         return release;
     }
 
-    private void SeasonNeedsYou(string? stopgapKind)
+    // Senza punteggi tre episodi tutti mancanti.
+    private void SeasonNeedsYou(string? stopgapKind, params int?[] scores)
     {
-        SeasonOf(null, null, null);
+        SeasonOf(scores.Length > 0 ? scores : [null, null, null]);
         var book = new DownloadBook();
         book.Put(new DownloadEntry
         {
@@ -1577,6 +1578,36 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Empty(qbit.Added);
         Assert.Empty(_arr.PushCalls);
         Assert.Equal(DownloadStates.NeedsYou, Store().Load().Get("season:7:2")!.State);
+    }
+
+    [Fact]
+    public async Task GrabBestOnASeasonWithAFileGrabsNothing()
+    {
+        // Il 3 ha già il suo file 1080p: il pack 720p lo sostituirebbe, e Sonarr non ha un cestino.
+        SeasonNeedsYou(DownloadStopgaps.Quality, null, null, 150);
+        _releases = [Only720p("p720", 3, fullSeason: true)];
+        var (service, qbit) = No720pWithProwlarr();
+
+        Assert.Equal(GrabOutcome.NothingToGrab, await service.GrabBestAsync("season:7:2"));
+
+        Assert.Empty(qbit.Added);
+        Assert.Empty(_arr.PushCalls);
+    }
+
+    [Fact]
+    public async Task GrabBestOnASeasonMeasuresThePackOnTheMissingEpisodes()
+    {
+        // Mancano 1 e 2, il 3 non è ancora uscito: il pack si misura su 2 episodi (100 minuti), come nel giro.
+        // 1,4 GB sono 0,84 GB all'ora su 2 episodi, 0,56 su 3 (troppo leggero).
+        SeasonNeedsYou(DownloadStopgaps.Quality);
+        var episodes = _arr.SeriesEpisodes;
+        _arr.SeriesEpisodes = async id => [.. (await episodes(id)).Select(e => { if (e!.EpisodeNumber == 3) { e.AirDateUtc = T0 + TimeSpan.FromDays(7); } return e; })];
+        _releases = [Only720p("p720", 1.4, fullSeason: true)];
+        var (service, qbit) = No720pWithProwlarr();
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabBestAsync("season:7:2"));
+
+        Assert.Equal("https://prowlarr.example/p720.torrent", Assert.Single(qbit.Added).Link);
     }
 
     [Fact]

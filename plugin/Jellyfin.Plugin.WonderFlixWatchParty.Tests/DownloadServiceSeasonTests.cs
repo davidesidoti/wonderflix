@@ -277,6 +277,23 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task ASeasonWithAFileTakesNo720pPack()
+    {
+        // Il 4 non è monitorato ma ha il suo file 1080p: la stagione è "intera", però il pack 720p lo sostituirebbe.
+        WholeSeason();
+        var present = Ep(204, 4, T0 - TimeSpan.FromDays(9));
+        (present.Monitored, present.HasFile, present.EpisodeFileId) = (false, true, 304);
+        _seriesEpisodes = [.. _seriesEpisodes, present];
+        _releases = [Pack720("p720", 3, 80)];
+
+        await Cycle();
+
+        // Si divide come oggi, senza tappabuchi Quality.
+        Assert.Empty(_arr.GrabCalls);
+        Assert.Equal(["episode:201", "episode:202", "episode:203"], SavedKeys());
+    }
+
+    [Fact]
     public async Task ASeasonWithA1080pSingleStillSplits()
     {
         WholeSeason();

@@ -74,7 +74,7 @@ public sealed partial class DownloadService
 
     // Una ricerca dell'admin: il titolo come lo vede il giro, il file, il profilo, le release, il risultato e i dati della regola.
     // Solo stagioni: SeasonEpisodes i numeri di tutti i loro episodi (quelli di un pack intero), Episodes gli episodi
-    // (con la serie) e Files i loro file.
+    // (con la serie), Files i loro file e RuleEpisodes quelli su cui si misura un pack (i mancanti, come nel giro).
     private sealed record AdminSearch(
         ArrTitle Title,
         CurrentFile? Current,
@@ -85,7 +85,8 @@ public sealed partial class DownloadService
         DateTimeOffset At,
         IReadOnlyList<SonarrEpisode>? Episodes,
         IReadOnlyList<ArrFile> Files,
-        RuleInput Input);
+        RuleInput Input,
+        IReadOnlyList<int>? RuleEpisodes);
 
     // Il titolo di una chiave in Radarr/Sonarr e il file da leggere. Solo stagioni: gli episodi su cui misurare il pack, i
     // numeri di tutti e gli episodi.
@@ -276,8 +277,11 @@ public sealed partial class DownloadService
             string? stopgap;
             if (parsed.Kind == DownloadKinds.Season)
             {
-                // Una stagione: solo il pack 720p, mai singoli o altri tappabuchi (QualityPack c'è solo se il tappabuchi è Quality).
-                (release, stopgap) = search.SeasonEpisodes is { } all && SeasonPackRule.QualityPack(releases, all, search.Input) is { } packs
+                // Una stagione: solo il pack 720p, mai singoli o altri tappabuchi (QualityPack c'è solo se il tappabuchi è Quality),
+                // misurato sugli episodi della regola come nel giro. Mai se un episodio ha un file: il pack lo sostituirebbe.
+                (release, stopgap) = search.RuleEpisodes is { } ruleEpisodes
+                    && search.Episodes is { Count: > 0 } episodes && !episodes.Any(e => e.HasFile)
+                    && SeasonPackRule.QualityPack(releases, ruleEpisodes, search.Input) is { } packs
                     ? DownloadRule.ChooseStopgap(packs)
                     : (null, null);
             }
@@ -1294,7 +1298,7 @@ public sealed partial class DownloadService
             // "Trovato poco" (spec ricerche-prowlarr §7): niente di valido o, per una stagione, nessun pack completo.
             rule.Candidates.Count == 0 || (key.Kind == DownloadKinds.Season && !rule.Candidates.Any(r => r.FullSeason)));
 
-        var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files, input);
+        var search = new AdminSearch(title, current, profile, target.SeasonEpisodes, releases, result, time.GetUtcNow(), target.Episodes, files, input, target.RuleEpisodes);
         lock (_lock)
         {
             _lastSearch[title.Key] = search;
