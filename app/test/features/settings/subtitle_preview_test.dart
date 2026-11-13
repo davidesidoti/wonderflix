@@ -17,16 +17,14 @@ import '../../support/test_data.dart';
 
 Future<void> _pumpSettings(
   WidgetTester tester,
-  Size size, {
-  bool tv = false,
-}) async {
+  Size size,
+) async {
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   await pumpApp(
     tester,
     const Scaffold(body: SettingsScreen()),
     surfaceSize: size,
-    tv: tv,
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
       accountAvailableProvider.overrideWithValue(false),
@@ -120,10 +118,5 @@ void main() {
     expect(box.left, list.left);
     expect(box.width, lessThanOrEqualTo(640));
     expect(box.width, greaterThan(300));
-  });
-
-  testWidgets('sulla TV non c\'è', (tester) async {
-    await _pumpSettings(tester, const Size(1280, 2400), tv: true);
-    expect(find.byType(SubtitlePreview), findsNothing);
   });
 }

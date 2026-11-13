@@ -30,7 +30,8 @@ class LanguageSettingsSection extends ConsumerWidget {
   /// sezione.
   static const wideWidth = listWidth + _gap + previewWidth;
 
-  Future<void> _save(
+  /// Salva sul server; se non riesce, lo dice in basso (anche sulla TV).
+  static Future<void> save(
       BuildContext context, WidgetRef ref, LanguagePreferences next) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -53,9 +54,7 @@ class LanguageSettingsSection extends ConsumerWidget {
     // misura leggibile: un menu.
     final size = SettingsRow(
       label: l.settingsSubtitleSize,
-      hint: FormFactor.of(context).tv
-          ? l.settingsSubtitleSizeHintTv
-          : kIsWeb
+      hint: kIsWeb
           ? l.settingsSubtitleSizeHintWeb
           : l.settingsSubtitleSizeHint,
       wideTrailing: true,
@@ -109,8 +108,6 @@ class LanguageSettingsSection extends ConsumerWidget {
         size,
       ],
     );
-    // Sulla TV l'anteprima non c'è (per ora).
-    if (FormFactor.of(context).tv) return list;
     final preview = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -175,7 +172,7 @@ class LanguageSettingsSection extends ConsumerWidget {
           key: const Key('audio-language'),
           value: preferences.audioLanguage,
           items: languages(preferences.audioLanguage),
-          onChanged: (value) => unawaited(_save(
+          onChanged: (value) => unawaited(save(
               context, ref, preferences.copyWith(audioLanguage: value ?? ''))),
         ),
       ),
@@ -186,7 +183,7 @@ class LanguageSettingsSection extends ConsumerWidget {
           key: const Key('subtitle-language'),
           value: preferences.subtitleLanguage,
           items: languages(preferences.subtitleLanguage),
-          onChanged: (value) => unawaited(_save(context, ref,
+          onChanged: (value) => unawaited(save(context, ref,
               preferences.copyWith(subtitleLanguage: value ?? ''))),
         ),
       ),
@@ -201,7 +198,7 @@ class LanguageSettingsSection extends ConsumerWidget {
               DropdownMenuItem(value: entry.key, child: Text(entry.value)),
           ],
           onChanged: (value) => unawaited(
-              _save(context, ref, preferences.copyWith(subtitleMode: value))),
+              save(context, ref, preferences.copyWith(subtitleMode: value))),
         ),
       ),
     ];

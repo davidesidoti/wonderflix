@@ -68,15 +68,21 @@ class SubtitlePreview extends StatelessWidget {
                 left: 8,
                 right: 8,
                 bottom: box.maxHeight * 0.1,
-                child: Text(
-                  AppLocalizations.of(context).settingsSubtitlePreviewSample,
-                  key: const Key('subtitle-preview-text'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: size,
-                    fontWeight: FontWeight.w600,
-                    shadows: outline,
+                // Solo un esempio: chi legge lo schermo non lo sente.
+                child: ExcludeSemantics(
+                  child: Text(
+                    AppLocalizations.of(context).settingsSubtitlePreviewSample,
+                    key: const Key('subtitle-preview-text'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: size,
+                      fontWeight: FontWeight.w600,
+                      shadows: outline,
+                      // Fuori da un Material (il pannello della TV) niente
+                      // sottolineatura gialla di ripiego.
+                      decoration: TextDecoration.none,
+                    ),
                   ),
                 ),
               ),

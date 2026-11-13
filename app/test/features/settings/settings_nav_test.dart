@@ -283,7 +283,7 @@ void main() {
     await _pump(tester, tv: true, size: const Size(1280, 720));
     expect(find.byType(SettingsRail), findsNothing);
     expect(find.byType(SettingsSectionStrip), findsNothing);
-    expect(find.text('IMPOSTAZIONI'), findsOneWidget);
-    expect(find.text('Versione 0.0.1'), findsOneWidget);
+    expect(find.text('Impostazioni'), findsOneWidget);
+    expect(find.text('0.0.1'), findsOneWidget);
   });
 }

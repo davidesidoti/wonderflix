@@ -10,10 +10,8 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
-import '../update/tv_update_tile.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
-import '../../ui/tv_focusable.dart';
 import '../social/social_providers.dart';
 import 'account_settings_section.dart';
 import 'appearance_settings_section.dart';
@@ -25,6 +23,7 @@ import 'player_settings_section.dart';
 import 'settings_kit.dart';
 import 'settings_nav.dart';
 import 'support_section.dart';
+import 'tv_settings_body.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, this.section});
@@ -200,27 +199,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sulla TV un altro corpo, solo per il telecomando (decisione 8): niente
+    // voci, ne' spy ne' pin.
+    if (FormFactor.of(context).tv) {
+      _visible = const [];
+      return const TvSettingsBody();
+    }
     final l = AppLocalizations.of(context);
     final version = ref.watch(clientInfoProvider).version;
     final push = ref.watch(socialAvailabilityProvider.select((f) => f.push));
-    // Sulla TV solo riproduzione, audio e sottotitoli e lingua dell'app: il
-    // resto si imposta dal PC o dal telefono.
-    final tv = FormFactor.of(context).tv;
     final compact = FormFactor.of(context).compact;
     // Le voci della colonna: le stesse sezioni che la pagina mostra.
-    // Sulla TV niente voci: ne' spy ne' pin.
-    _visible = tv
-        ? const []
-        : [
-            'account',
-            if (push) 'notifications',
-            'home',
-            'playback',
-            'subtitles',
-            'app',
-            if (!kIsWeb) 'discord',
-            'support',
-          ];
+    _visible = [
+      'account',
+      if (push) 'notifications',
+      'home',
+      'playback',
+      'subtitles',
+      'app',
+      if (!kIsWeb) 'discord',
+      'support',
+    ];
     final current = _visible.contains(_current) || _visible.isEmpty
         ? _current
         : _visible.first;
@@ -267,14 +266,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
 
-    Widget appSection(int index) => section(
-      index,
-      'app',
-      l.settingsSectionApp,
-      SettingsScope.device,
-      const AppearanceSettingsSection(),
-    );
-
     // Non una ListView: le sezioni uscite dallo schermo verrebbero
     // smontate, e quella delle lingue (provider autoDispose) ricaricata
     // dal server a ogni passaggio.
@@ -283,14 +274,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: SingleChildScrollView(
         controller: _scroll,
         // Nel largo il titolo di ogni sezione ha già 32 px sopra.
-        padding: EdgeInsets.fromLTRB(32, compact || tv ? 32 : 0, 32, 32),
+        padding: EdgeInsets.fromLTRB(32, compact ? 32 : 0, 32, 32),
         child: StaggerGroup(
           count: _sectionCount,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Nel largo il titolo sta nella colonna.
-              if (compact || tv)
+              if (compact)
                 StaggerItem(
                   index: 0,
                   child: Text(
@@ -298,16 +289,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     style: WfText.display(40),
                   ),
                 ),
-              if (!tv)
-                section(
-                  1,
-                  'account',
-                  l.settingsAccount,
-                  SettingsScope.account,
-                  const AccountSettingsSection(),
-                ),
+              section(
+                1,
+                'account',
+                l.settingsAccount,
+                SettingsScope.account,
+                const AccountSettingsSection(),
+              ),
               // Solo con le notifiche push nel plugin (spec V §4.1).
-              if (push && !tv)
+              if (push)
                 section(
                   2,
                   'notifications',
@@ -315,16 +305,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   SettingsScope.account,
                   const NotificationsSettingsSection(),
                 ),
-              if (!tv)
-                section(
-                  3,
-                  'home',
-                  l.settingsHome,
-                  SettingsScope.account,
-                  const HomeSettingsSection(),
-                ),
-              // La TV parte dalla lingua dell'app, come il suo elenco.
-              if (tv) appSection(3),
+              section(
+                3,
+                'home',
+                l.settingsHome,
+                SettingsScope.account,
+                const HomeSettingsSection(),
+              ),
               section(
                 4,
                 'playback',
@@ -339,11 +326,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SettingsScope.jellyfin,
                 const LanguageSettingsSection(),
                 // Nel largo l'anteprima sta a destra dell'elenco.
-                bodyWidth: tv ? 640 : LanguageSettingsSection.wideWidth,
+                bodyWidth: LanguageSettingsSection.wideWidth,
               ),
-              if (!tv) appSection(6),
+              section(
+                6,
+                'app',
+                l.settingsSectionApp,
+                SettingsScope.device,
+                const AppearanceSettingsSection(),
+              ),
               // Nel browser la Rich Presence è spenta (spec 1b §4.6).
-              if (!kIsWeb && !tv)
+              if (!kIsWeb)
                 section(
                   7,
                   'discord',
@@ -351,14 +344,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   SettingsScope.device,
                   const DiscordSettingsSection(),
                 ),
-              if (!tv)
-                section(
-                  8,
-                  'support',
-                  l.settingsSupport,
-                  null,
-                  const SupportSection(),
-                ),
+              section(
+                8,
+                'support',
+                l.settingsSupport,
+                null,
+                const SupportSection(),
+              ),
               StaggerItem(
                 index: 9,
                 child: Column(
@@ -366,27 +358,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 40),
-                    // Sulla TV si scorre solo col focus: senza, la versione e
-                    // l'aggiornamento sotto i sottotitoli restano fuori schermo.
                     // Nel largo la versione sta in fondo alla colonna.
-                    if (compact || tv)
+                    if (compact)
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: TvFocusable(
-                          onActivate: () {},
-                          child: Padding(
-                            padding: EdgeInsets.all(tv ? 6 : 0),
-                            child: Text(
-                              l.settingsVersion(version),
-                              style: const TextStyle(
-                                color: WfColors.creamMuted,
-                                fontSize: 12.5,
-                              ),
-                            ),
+                        child: Text(
+                          l.settingsVersion(version),
+                          style: const TextStyle(
+                            color: WfColors.creamMuted,
+                            fontSize: 12.5,
                           ),
                         ),
                       ),
-                    const TvUpdateTile(),
                   ],
                 ),
               ),
@@ -395,7 +378,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
-    if (tv) return page;
     // Un solo `Flex` per i due schermi: passando dal largo allo stretto la
     // pagina non si ricrea e non perde lo scorrimento.
     return Flex(

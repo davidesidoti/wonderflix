@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
 import '../admin/admin_kit.dart';
 import 'appearance_settings.dart';
 import 'locale_controller.dart';
@@ -42,34 +41,32 @@ class AppearanceSettingsSection extends ConsumerWidget {
             },
           ),
         ),
-        // La TV non ha animazioni da scegliere.
-        if (!FormFactor.of(context).tv)
-          SettingsRow(
-            label: l.settingsAnimations,
-            hint:
-                kIsWeb ? l.settingsAnimationsHintWeb : l.settingsAnimationsHint,
-            wideTrailing: true,
-            trailing: SegmentedButton<MotionSetting>(
-              key: const Key('appearance-motion'),
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment(
-                    value: MotionSetting.system,
-                    label: Text(kIsWeb
-                        ? l.settingsAnimationsSystemWeb
-                        : l.settingsAnimationsSystem)),
-                ButtonSegment(
-                    value: MotionSetting.full,
-                    label: Text(l.settingsAnimationsFull)),
-                ButtonSegment(
-                    value: MotionSetting.reduced,
-                    label: Text(l.settingsAnimationsReduced)),
-              ],
-              selected: {setting},
-              onSelectionChanged: (selection) => unawaited(
-                  ref.read(motionSettingProvider.notifier).set(selection.first)),
-            ),
+        SettingsRow(
+          label: l.settingsAnimations,
+          hint:
+              kIsWeb ? l.settingsAnimationsHintWeb : l.settingsAnimationsHint,
+          wideTrailing: true,
+          trailing: SegmentedButton<MotionSetting>(
+            key: const Key('appearance-motion'),
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(
+                  value: MotionSetting.system,
+                  label: Text(kIsWeb
+                      ? l.settingsAnimationsSystemWeb
+                      : l.settingsAnimationsSystem)),
+              ButtonSegment(
+                  value: MotionSetting.full,
+                  label: Text(l.settingsAnimationsFull)),
+              ButtonSegment(
+                  value: MotionSetting.reduced,
+                  label: Text(l.settingsAnimationsReduced)),
+            ],
+            selected: {setting},
+            onSelectionChanged: (selection) => unawaited(
+                ref.read(motionSettingProvider.notifier).set(selection.first)),
           ),
+        ),
       ],
     );
   }

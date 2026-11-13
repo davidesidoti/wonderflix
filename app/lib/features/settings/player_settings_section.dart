@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
 import '../admin/admin_kit.dart';
 import '../player/player_settings.dart';
 import 'settings_kit.dart';
@@ -67,9 +66,8 @@ class PlayerSettingsSection extends ConsumerWidget {
               onChanged: (value) =>
                   save(settings.copyWith(autoSkipIntro: value)),
             ),
-            // Nel browser la decodifica la sceglie il browser; la TV decodifica
-            // sempre in hardware (Media3).
-            if (!kIsWeb && !FormFactor.of(context).tv)
+            // Nel browser la decodifica la sceglie il browser.
+            if (!kIsWeb)
               SettingsSwitchRow(
                 label: l.settingsHardwareDecoding,
                 hint: l.settingsHardwareDecodingHint,

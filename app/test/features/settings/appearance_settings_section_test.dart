@@ -35,17 +35,4 @@ void main() {
     await tester.pump();
     expect(prefs.getString('locale'), 'en');
   });
-
-  testWidgets('sulla TV c\'è la sola lingua, senza animazioni', (tester) async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = await SharedPreferences.getInstance();
-    await pumpApp(
-      tester,
-      const Scaffold(body: AppearanceSettingsSection()),
-      tv: true,
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-    );
-    expect(find.text('Lingua dell\'app'), findsOneWidget);
-    expect(find.text('Animazioni'), findsNothing);
-  });
 }

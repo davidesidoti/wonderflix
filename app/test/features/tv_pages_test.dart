@@ -273,8 +273,9 @@ void main() {
         ]);
     await tester.pump();
 
-    // Sotto la versione, l'aggiornamento pronto.
-    expect(find.text('WonderFlix 0.2.0 disponibile'), findsOneWidget);
+    // In cima l'aggiornamento pronto (col focus: anche nel riquadro a
+    // destra).
+    expect(find.text('WonderFlix 0.2.0 disponibile'), findsWidgets);
     expect(find.text('Aggiorna'), findsOneWidget);
     for (final title in ['App', 'Riproduzione', 'Audio e sottotitoli']) {
       expect(find.text(title), findsOneWidget, reason: title);
