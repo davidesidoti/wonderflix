@@ -59,20 +59,28 @@ class CalendarDayList extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(
-                name,
-                style: WfText.display(
-                  24,
-                  color: isToday ? WfColors.gold : WfColors.cream,
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: WfText.display(
+                    24,
+                    color: isToday ? WfColors.gold : WfColors.cream,
+                  ),
                 ),
               ),
               if (isToday || isTomorrow) ...[
                 const SizedBox(width: 10),
-                Text(
-                  date,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: WfColors.creamMuted,
+                Flexible(
+                  child: Text(
+                    date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: WfColors.creamMuted,
+                    ),
                   ),
                 ),
               ],
@@ -132,9 +140,7 @@ class CalendarReleaseRow extends StatelessWidget {
     final entry = row.entry;
     final episode = row.episode;
     final isMovie = episode == null;
-    final state = isMovie
-        ? calendarEntryState(entry, day: day, now: now)
-        : episodeState(episode, now);
+    final state = calendarRowState(row, day: day, now: now);
     final poster = entry.posterUrl;
     const muted = TextStyle(fontSize: 13, color: WfColors.creamMuted);
     final subtitle = episode == null

@@ -112,6 +112,15 @@ class CalendarRow {
   final UpcomingEpisode? episode;
 }
 
+/// Lo stato di una riga: un film come la sua casella, un episodio dalla sua ora.
+CalendarEntryState calendarRowState(
+  CalendarRow row, {
+  required DateTime day,
+  required DateTime now,
+}) => row.episode == null
+    ? calendarEntryState(row.entry, day: day, now: now)
+    : episodeState(row.episode!, now);
+
 int _byName(String a, String b) => a.toLowerCase().compareTo(b.toLowerCase());
 
 int _byAirTime(UpcomingEpisode a, UpcomingEpisode b) {

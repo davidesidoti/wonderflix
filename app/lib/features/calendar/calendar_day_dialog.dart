@@ -25,12 +25,13 @@ Future<void> showCalendarDay(
       ? l.calendarTomorrow
       : null;
   final rows = calendarRows(entries);
-  final here = rows.where((r) {
-    final state = r.episode == null
-        ? calendarEntryState(r.entry, day: day, now: now)
-        : episodeState(r.episode!, now);
-    return state == CalendarEntryState.arrived;
-  }).length;
+  final here = rows
+      .where(
+        (r) =>
+            calendarRowState(r, day: day, now: now) ==
+            CalendarEntryState.arrived,
+      )
+      .length;
   final summary = [
     l.calendarDaySummary(rows.length),
     if (here > 0) l.calendarDayOnServer(here),

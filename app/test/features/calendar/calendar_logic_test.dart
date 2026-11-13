@@ -185,6 +185,31 @@ void main() {
     );
   });
 
+  test('ARowStateIsTheMovieDayOrTheEpisodeTime', () {
+    final day = DateTime(2026, 11, 13);
+    final now = DateTime(2026, 11, 13, 22, 26);
+    const movie = CalendarEntry(
+      kind: CalendarEntryKind.movie,
+      title: 'Odissea',
+      onServer: true,
+    );
+    expect(
+      calendarRowState(const CalendarRow(movie), day: day, now: now),
+      CalendarEntryState.arrived,
+    );
+    final late = testEpisode(airDate: DateTime(2026, 11, 13, 23));
+    final show = CalendarEntry(
+      kind: CalendarEntryKind.series,
+      title: 'The Bear',
+      episodes: [late],
+    );
+    // una riga-episodio guarda l'ora del suo episodio
+    expect(
+      calendarRowState(CalendarRow(show, late), day: day, now: now),
+      CalendarEntryState.upcoming,
+    );
+  });
+
   test('AMovieCountsFromItsWholeDay', () {
     const odissea = CalendarEntry(
       kind: CalendarEntryKind.movie,

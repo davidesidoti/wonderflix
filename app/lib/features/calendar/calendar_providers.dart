@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
@@ -37,6 +38,22 @@ final calendarPageProvider = FutureProvider.autoDispose
       _logError('film', page.moviesError);
       return page;
     });
+
+/// Le uscite dei prossimi 7 giorni da oggi, a cavallo dei mesi: una sola
+/// richiesta, con gli stessi cancelli della griglia.
+final calendarWeekProvider = FutureProvider.autoDispose<CalendarPage>((
+  ref,
+) async {
+  if (!ref.watch(calendarAvailableProvider)) return const CalendarPage();
+  ref.watch(currentUserIdProvider);
+  final period = calendarWeekPeriod(clock.now());
+  final page = await ref
+      .watch(homeApiProvider)
+      .calendar(period.start, period.end);
+  _logError('serie', page.seriesError);
+  _logError('film', page.moviesError);
+  return page;
+});
 
 void _logError(String what, UpcomingError? error) {
   if (error != null) _log.info('$what del calendario non disponibili: ${error.wire}');
