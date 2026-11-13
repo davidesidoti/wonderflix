@@ -674,7 +674,8 @@ public sealed partial class DownloadService
 
         (entry.State, entry.Reason) =
             belowMinScore ? (DownloadStates.NeedsYou, DownloadReasons.BelowMinScore)
-            : now - entry.AvailableSince >= DownloadSchedule.NeedsYouAfter ? (DownloadStates.NeedsYou, DownloadReasons.NothingFound)
+            // Un tappabuchi 720p proposto da questa ricerca va subito in "Serve te": l'admin non deve aspettare 7 giorni.
+            : (rule is not null && entry.Summary?.StopgapKind == DownloadStopgaps.Quality) || now - entry.AvailableSince >= DownloadSchedule.NeedsYouAfter ? (DownloadStates.NeedsYou, DownloadReasons.NothingFound)
             : (DownloadStates.Waiting, (string?)null);
     }
 

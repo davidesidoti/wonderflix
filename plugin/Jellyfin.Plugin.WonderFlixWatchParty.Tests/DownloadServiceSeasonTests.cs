@@ -277,6 +277,21 @@ public sealed class DownloadServiceSeasonTests : IDisposable
     }
 
     [Fact]
+    public async Task AFreshSeasonWithOnly720pPacksNeedsYouAtOnce()
+    {
+        // Appena uscita: niente attesa di 7 giorni, la proposta 720p è subito in "Serve te".
+        _seriesEpisodes = [Ep(201, 1, T0 - TimeSpan.FromDays(2)), Ep(202, 2, T0 - TimeSpan.FromDays(1))];
+        _missing = [.. _seriesEpisodes];
+        _releases = [Pack720("p720", 3, 80)];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+        var entry = Saved("season:7:2")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.NothingFound, DownloadStopgaps.Quality), (entry.State, entry.Reason, entry.Summary?.StopgapKind));
+    }
+
+    [Fact]
     public async Task ASeasonWithAFileTakesNo720pPack()
     {
         // Il 4 non è monitorato ma ha il suo file 1080p: la stagione è "intera", però il pack 720p lo sostituirebbe.

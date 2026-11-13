@@ -128,7 +128,7 @@ Prima di ogni release, su un utente di prova:
 - [ ] Pannello media di Windows con il nome "WonderFlix" (app installata).
 - [ ] "Copia diagnostica" e cartella dei log.
 - [ ] Amministrazione Cabina (app 0.41.0, un admin, su PC e su telefono web): colonna delle schede con i contatori (Sessioni, Manutenzione, Download, WonderFlix) e il server in cima con spia e Riavvia; nello stretto fila orizzontale che scorre con la scheda; sale con lo sfondo in Sessioni; tessere in Utenti con il recupero password; spie in Manutenzione, Download e WonderFlix (clic sulla spia apre il dettaglio); Registro per giorni; barra dello spazio; ricerca manuale con testa, righello dei pesi, scelta in evidenza, scartati per motivo, migliori episodi a tessere. Con il server spento il blocco del server dice l'errore e Riavvia resta raggiungibile.
-- [ ] Tappabuchi 720p (app 0.42.0, plugin 1.31.0): un film/episodio che esiste solo in 720p compare in "Serve te" con "Non c'è in 1080p: c'è un 720p da prendere intanto." e "Scarica il migliore intanto" lo scarica (diretto in qBittorrent, importato); una stagione con solo pack 720p non si divide e propone il pack; il giro non scarica mai un 720p da solo; dopo, un 1080p con punteggio almeno uguale lo sostituisce.
+- [ ] Tappabuchi 720p (app 0.42.0, plugin 1.31.0): un film/episodio che esiste solo in 720p compare in "Serve te" subito (senza aspettare i 7 giorni) con "Non c'è in 1080p: c'è un 720p da prendere intanto." e "Scarica il migliore intanto" lo scarica (diretto in qBittorrent, importato); una stagione con solo pack 720p non si divide e propone il pack; il giro non scarica mai un 720p da solo; dopo, un 1080p con punteggio almeno uguale lo sostituisce.
 
 ## Sito web
 

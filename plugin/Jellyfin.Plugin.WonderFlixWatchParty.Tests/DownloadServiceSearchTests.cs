@@ -176,6 +176,51 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Single(_arr.SearchReleaseCalls);
     }
 
+    // Un 720p scartato solo perché il profilo non lo ammette.
+    private static ArrRelease Quality720(string guid)
+    {
+        var release = Release(guid, Hdtv720, "HDTV-720p", 3, 150);
+        release.Rejections = ["HDTV-720p is not wanted in profile"];
+        return release;
+    }
+
+    [Fact]
+    public async Task AFreshTitleWithOnlyAQuality720pNeedsYouAtOnce()
+    {
+        _movies = [Movie(12)];
+        _releases = [Quality720("p720")];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.NeedsYou, DownloadReasons.NothingFound, DownloadStopgaps.Quality), (entry.State, entry.Reason, entry.Summary?.StopgapKind));
+    }
+
+    [Fact]
+    public async Task AFreshTitleWithOnlyASizeStopgapKeepsWaiting()
+    {
+        _movies = [Movie(12)];
+        _releases = [Release("small", WebRip1080, "WEBRip-1080p", 0.5, 150)];
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, DownloadStopgaps.Size), (entry.State, entry.Summary?.StopgapKind));
+    }
+
+    [Fact]
+    public async Task ASnoozedTitleWithAQuality720pStaysWaiting()
+    {
+        await SeedSnoozed();
+        _releases = [Quality720("p720")];
+
+        await Cycle();
+
+        var entry = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.Waiting, true, DownloadStopgaps.Quality), (entry.State, entry.Snoozed, entry.Summary?.StopgapKind));
+    }
+
     [Fact]
     public async Task AfterAWeekNothingNeedsYou()
     {
