@@ -656,13 +656,13 @@ public sealed class DownloadServiceCycleTests : IDisposable
     }
 
     // Il film 12 scritto a mano su disco (tappabuchi, coda, scelta), poi riletto da un servizio nuovo.
-    private void Seed(DownloadEntry entry, DateTimeOffset? chosenAt = null)
+    private void Seed(DownloadEntry entry, DateTimeOffset? chosenAt = null, int resolution = 0)
     {
         var book = Store().Load();
         book.Put(entry);
         if (chosenAt is { } at)
         {
-            book.AddChoice(new DownloadChoice { Key = entry.Key, Kind = entry.Kind, At = at });
+            book.AddChoice(new DownloadChoice { Key = entry.Key, Kind = entry.Kind, At = at, Resolution = resolution });
         }
 
         Store().Save(book);
@@ -735,6 +735,24 @@ public sealed class DownloadServiceCycleTests : IDisposable
         var saved = Saved("movie:12")!;
         Assert.Equal((DownloadStates.UpgradeWatch, (string?)null), (saved.State, saved.Stopgap));
         Assert.Equal(chosenAt + DownloadSchedule.UpgradeWindow, saved.UpgradeUntil);
+    }
+
+    [Theory]
+    [InlineData(720, DownloadStopgaps.Quality)]
+    [InlineData(1080, null)]
+    public async Task AQualityStopgapFollowsTheResolutionOfTheImport(int resolution, string? expected)
+    {
+        // Peso e punteggio in regola: solo la risoluzione dell'ultima scelta decide se resta tappabuchi.
+        _settings.Thresholds[(ArrKind.Radarr, 4)] = new ProfileThresholds(100, 150);
+        var entry = Stopgap(DownloadStopgaps.Quality, DownloadStates.Downloading, 120, 4);
+        entry.QueueId = 90;
+        Seed(entry, T0 - TimeSpan.FromDays(2), resolution);
+        _movies = [Movie(12, hasFile: true)];
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        var saved = Saved("movie:12")!;
+        Assert.Equal((DownloadStates.UpgradeWatch, expected), (saved.State, saved.Stopgap));
     }
 
     [Fact]

@@ -491,7 +491,10 @@ public sealed partial class DownloadService
                 var wouldImport = profile is not null
                     && DownloadRule.WouldImport(profile, choice.Quality?.Quality?.Id ?? 0, choice.CustomFormatScore, item.CurrentQualityId, item.CurrentScore);
                 var current = item.CurrentScore ?? 0;
-                var accepted = stopgap == DownloadStopgaps.Size ? choice.CustomFormatScore >= current : choice.CustomFormatScore > current && wouldImport;
+                // Per qualità (un 720p): anche pari, purché lo importino, così non si perde l'audio italiano con un punteggio più basso.
+                var accepted = stopgap == DownloadStopgaps.Size ? choice.CustomFormatScore >= current
+                    : stopgap == DownloadStopgaps.Quality ? choice.CustomFormatScore >= current && wouldImport
+                    : choice.CustomFormatScore > current && wouldImport;
                 return accepted ? !wouldImport : null;
             }
 

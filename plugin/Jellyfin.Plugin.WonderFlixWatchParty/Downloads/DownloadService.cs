@@ -625,7 +625,7 @@ public sealed partial class DownloadService(
         if (entry.Stopgap is not null)
         {
             entry.Stopgap = DownloadRule.StopgapKindOf(
-                entry.CurrentScore ?? 0, entry.CurrentSizeBytes ?? 0, entry.RuntimeMinutes, service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore);
+                entry.CurrentScore ?? 0, entry.CurrentSizeBytes ?? 0, entry.RuntimeMinutes, service == ArrKind.Radarr, settings.MinGbPerHour, thresholds.MinScore, LatestChoice(entry.Key)?.Resolution ?? 0);
         }
 
         // CurrentScore c'è solo per una scelta di WonderFlix: gli altri download non hanno upgrade (spec T §11).

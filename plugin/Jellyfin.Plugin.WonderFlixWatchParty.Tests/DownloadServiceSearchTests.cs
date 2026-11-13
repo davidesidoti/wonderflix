@@ -289,6 +289,39 @@ public sealed class DownloadServiceSearchTests : IDisposable
         Assert.Empty(_arr.GrabCalls);
     }
 
+    // Come SeedStopgap, ma il file è un 720p: il tappabuchi per qualità.
+    private async Task SeedQualityStopgap()
+    {
+        await SeedStopgap(DownloadStopgaps.Quality, 100, 4);
+        var book = Store().Load();
+        book.Get("movie:12")!.CurrentQualityId = Hdtv720;
+        Store().Save(book);
+        _service = NewService();
+    }
+
+    [Fact]
+    public async Task AQualityStopgapUpgradesToA1080pWithTheSameScore()
+    {
+        await SeedQualityStopgap();
+        _releases = [Release("hd", WebRip1080, "WEBRip-1080p", 5, 100)];
+
+        await Cycle();
+
+        Assert.Equal("hd", Assert.Single(_arr.GrabCalls).Guid);
+        Assert.False(Saved("movie:12")!.ManualImportPending);
+    }
+
+    [Fact]
+    public async Task AQualityStopgapKeepsThe720pOverALowerScore1080p()
+    {
+        await SeedQualityStopgap();
+        _releases = [Release("hd", WebRip1080, "WEBRip-1080p", 5, 50)];
+
+        await Cycle();
+
+        Assert.Empty(_arr.GrabCalls);
+    }
+
     [Fact]
     public async Task ASizeStopgapTakesAnEqualScoreAndForcesTheImport()
     {
