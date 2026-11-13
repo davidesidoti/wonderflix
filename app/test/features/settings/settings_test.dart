@@ -18,6 +18,7 @@ import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
 import 'package:wonderflix/features/settings/settings_kit.dart';
+import 'package:wonderflix/features/settings/settings_nav.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/ui/tv_focusable.dart';
 import 'package:wonderflix/ui/user_avatar.dart';
@@ -30,6 +31,15 @@ import '../../support/test_data.dart';
 
 /// Il titolo di una sezione, per id.
 Key _section(String id) => ValueKey('settings-section-$id');
+
+
+/// Lo scorrimento della pagina (la colonna ne ha uno suo).
+ScrollableState _pageScroll(WidgetTester tester) => tester.state(find
+    .descendant(
+        of: find.byWidgetPredicate((w) =>
+            w is SingleChildScrollView && w.controller != null),
+        matching: find.byType(Scrollable))
+    .first);
 
 void main() {
   test('LocaleController salva e rilegge la lingua', () async {
@@ -78,7 +88,8 @@ void main() {
     expect(find.text('Immagine del profilo'), findsOneWidget);
     await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
-    expect(find.text('Versione 0.0.1'), findsOneWidget);
+    // Nel largo la versione sta in fondo alla colonna.
+    expect(find.text('WonderFlix 0.0.1'), findsOneWidget);
 
     await tester.ensureVisible(find.text('English'));
     await tester.tap(find.text('English'));
@@ -198,7 +209,7 @@ void main() {
     ]);
 
     expect(find.byKey(_section('playback')), findsOneWidget);
-    expect(find.text('Riproduzione'), findsOneWidget);
+    expect(find.text('Riproduzione'), findsNWidgets(2));
     await tester.tap(find.byKey(const Key('player-quality')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Media (8 Mbps)').last);
@@ -267,7 +278,8 @@ void main() {
   testWidgets('lingue: valori dal server, salvataggio completo',
       (tester) async {
     final configApi = await pumpSettings(tester);
-    expect(find.text('Audio e sottotitoli'), findsOneWidget);
+    expect(find.text('Audio e sottotitoli'), findsNWidgets(2),
+        reason: 'la voce della colonna e il titolo');
     expect(find.text('Italiano'), findsWidgets);
 
     await tester.tap(find.byKey(const Key('subtitle-mode')));
@@ -620,14 +632,15 @@ void main() {
     // (1440 - 2 * 32): il tetto vale solo se la sezione non è allargata.
     final list = find.byType(HomeRowsEditor);
     expect(tester.getSize(list).width, lessThanOrEqualTo(640));
-    expect(tester.getTopLeft(list).dx, 32, reason: 'a sinistra, come il resto');
+    expect(tester.getTopLeft(list).dx, SettingsRail.width + 32,
+        reason: 'a sinistra, come il resto');
     // Lo stesso per le sezioni accanto.
     final lists = find.byType(AdminList);
     expect(lists, findsWidgets);
     for (final list in tester.widgetList(lists)) {
       final size = tester.getSize(find.byWidget(list));
       expect(size.width, lessThanOrEqualTo(640));
-      expect(tester.getTopLeft(find.byWidget(list)).dx, 32);
+      expect(tester.getTopLeft(find.byWidget(list)).dx, SettingsRail.width + 32);
     }
   });
 
@@ -648,9 +661,8 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    final scroll =
-        tester.state<ScrollableState>(find.byType(Scrollable).first);
-    expect(scroll.position.pixels, greaterThan(0));
-    expect(tester.getTopLeft(find.text('Home')).dy, inInclusiveRange(0, 600));
+    expect(_pageScroll(tester).position.pixels, greaterThan(0));
+    expect(tester.getTopLeft(find.byKey(_section('home'))).dy,
+        inInclusiveRange(0, 600));
   });
 }

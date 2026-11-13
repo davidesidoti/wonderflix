@@ -281,7 +281,8 @@ void main() {
         find.byType(NotificationsSettingsSection),
         push ? findsOneWidget : findsNothing,
       );
-      expect(find.text('Notifiche'), push ? findsOneWidget : findsNothing);
+      // Col push: la voce della colonna e il titolo della sezione.
+      expect(find.text('Notifiche'), push ? findsNWidgets(2) : findsNothing);
       expect(api.calls.contains('get'), push);
     });
   }

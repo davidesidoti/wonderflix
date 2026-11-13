@@ -105,6 +105,8 @@
   "@settingsSignedInAs": {"placeholders": {"name": {"type": "String"}}},
   "settingsVersion": "Versione {version}",
   "@settingsVersion": {"placeholders": {"version": {"type": "String"}}},
+  "settingsNavVersion": "WonderFlix {version}",
+  "@settingsNavVersion": {"placeholders": {"version": {"type": "String"}}},
   "playerTranscoding": "Il server sta convertendo questo video.",
   "playerErrorTitle": "Impossibile riprodurre il video",
   "playerBack": "Torna indietro",

@@ -86,6 +86,7 @@
   "settingsAccount": "Account",
   "settingsSignedInAs": "Signed in as {name}",
   "settingsVersion": "Version {version}",
+  "settingsNavVersion": "WonderFlix {version}",
   "playerTranscoding": "The server is converting this video.",
   "playerErrorTitle": "Can't play this video",
   "playerBack": "Go back",

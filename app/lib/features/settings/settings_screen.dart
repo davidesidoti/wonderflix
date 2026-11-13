@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/motion.dart';
@@ -22,13 +23,14 @@ import 'language_settings_section.dart';
 import 'notifications_settings_section.dart';
 import 'player_settings_section.dart';
 import 'settings_kit.dart';
+import 'settings_nav.dart';
 import 'support_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key, this.section});
 
-  /// La sezione da mostrare all'apertura (`/settings?section=…`): per ora
-  /// solo [homeSettingsSection]. Le altre si ignorano.
+  /// La sezione da mostrare all'apertura (`/settings?section=<id>`): uno degli
+  /// id delle sezioni. Uno sconosciuto o non visibile si ignora.
   final String? section;
 
   @override
@@ -53,14 +55,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   final _scroll = SmoothScrollController();
 
-  /// I titoli delle sezioni, dove scorrere con `section=<id>`.
+  /// I titoli delle sezioni, dove scorrere con la voce o con `section=<id>`.
   final _sectionKeys = {
     for (final id in _sectionIds) id: GlobalKey(debugLabel: 'settings-$id'),
   };
 
+  /// La sezione accesa nella colonna o nella fila.
+  late String _current = widget.section ?? _sectionIds.first;
+
+  /// Le sezioni visibili ora, per lo scroll spy (le riempie `build`).
+  var _visible = <String>[];
+
+  /// Un clic ha fatto partire uno scorrimento animato: finché dura, lo scroll
+  /// spy non tocca la voce scelta. [_scrollToken] distingue un clic dal
+  /// successivo, che interrompe il primo.
+  var _animating = false;
+  var _scrollToken = 0;
+
+  /// La sezione aperta con `section=<id>`: le sezioni sopra si caricano dopo
+  /// (la Home dal server) e spostano il titolo, quindi finché l'utente non
+  /// scorre lo si riporta in cima a ogni cambio di altezza.
+  String? _pin;
+
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_spy);
     _scrollToSection();
   }
 
@@ -79,16 +99,82 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Dopo il fotogramma, quando la sezione ha la sua posizione (decisione
   /// 16 del piano 19c).
   void _scrollToSection() {
-    if (widget.section != homeSettingsSection) return;
+    final section = widget.section;
+    if (section == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final target = _sectionKeys[homeSettingsSection]?.currentContext;
-      if (!mounted || target == null) return;
-      unawaited(Scrollable.ensureVisible(
+      if (!mounted || !_visible.contains(section)) return;
+      unawaited(_select(section, pin: true));
+    });
+  }
+
+  /// Accende la voce e scorre al titolo della sezione.
+  Future<void> _select(String id, {bool pin = false}) async {
+    final target = _sectionKeys[id]?.currentContext;
+    if (target == null) return;
+    setState(() => _current = id);
+    _pin = pin ? id : null;
+    final token = ++_scrollToken;
+    _animating = true;
+    try {
+      await Scrollable.ensureVisible(
         target,
         duration: WfMotion.of(context).duration(WfMotion.medium),
         curve: WfMotion.emphasized,
-      ));
-    });
+      );
+    } finally {
+      // Niente `_spy` alla fine: una sezione in fondo non arriva in cima, e la
+      // voce scelta non deve cambiare da sola.
+      if (token == _scrollToken) _animating = false;
+    }
+    if (_pin == id) _realign();
+  }
+
+  /// Riporta in cima il titolo della sezione aperta con `section=<id>`.
+  void _realign() {
+    final target = _sectionKeys[_pin]?.currentContext;
+    if (target != null) unawaited(Scrollable.ensureVisible(target));
+  }
+
+  bool _onNotification(Notification n) {
+    if (n is ScrollNotification && n.depth != 0) return false;
+    if (n is UserScrollNotification && n.direction != ScrollDirection.idle) {
+      _pin = null;
+    } else if (n is ScrollMetricsNotification && _pin != null && !_animating) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pin != null) _realign();
+      });
+    }
+    return false;
+  }
+
+  /// Dove sta il titolo di una sezione rispetto alla cima dell'area visibile.
+  double? _titleTop(String id) {
+    final box = _sectionKeys[id]?.currentContext?.findRenderObject();
+    if (box is! RenderBox) return null;
+    if (!box.attached) return null;
+    final viewport = RenderAbstractViewport.maybeOf(box);
+    return viewport == null
+        ? null
+        : box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+  }
+
+  /// La voce accesa seguendo lo scorrimento: l'ultima sezione il cui titolo è
+  /// sopra un terzo dell'altezza, l'ultima in assoluto quando si è in fondo.
+  void _spy() {
+    if (_animating || _pin != null) return;
+    if (!_scroll.hasClients || _visible.isEmpty) return;
+    final position = _scroll.position;
+    var found = _visible.first;
+    if (position.maxScrollExtent > 0 &&
+        position.pixels >= position.maxScrollExtent - 1) {
+      found = _visible.last;
+    } else {
+      for (final id in _visible) {
+        final top = _titleTop(id);
+        if (top != null && top <= position.viewportDimension / 3) found = id;
+      }
+    }
+    if (found != _current) setState(() => _current = found);
   }
 
   @override
@@ -99,6 +185,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Sulla TV solo riproduzione, audio e sottotitoli e lingua dell'app: il
     // resto si imposta dal PC o dal telefono.
     final tv = FormFactor.of(context).tv;
+    final compact = FormFactor.of(context).compact;
+    // Le voci della colonna: le stesse sezioni che la pagina mostra.
+    _visible = [
+      'account',
+      if (push) 'notifications',
+      'home',
+      'playback',
+      'subtitles',
+      'app',
+      if (!kIsWeb) 'discord',
+      'support',
+    ];
+    final current = _visible.contains(_current) ? _current : _visible.first;
 
     // Una sezione (titolo e righe) è un elemento dell'entrata, larga al più
     // 640 px e a sinistra.
@@ -134,77 +233,153 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
 
-    Widget appSection(int index) => section(index, 'app', l.settingsSectionApp,
-        SettingsScope.device, const AppearanceSettingsSection());
+    Widget appSection(int index) => section(
+      index,
+      'app',
+      l.settingsSectionApp,
+      SettingsScope.device,
+      const AppearanceSettingsSection(),
+    );
 
     // Non una ListView: le sezioni uscite dallo schermo verrebbero
     // smontate, e quella delle lingue (provider autoDispose) ricaricata
     // dal server a ogni passaggio.
-    return SingleChildScrollView(
-      controller: _scroll,
-      padding: const EdgeInsets.all(32),
-      child: StaggerGroup(
-        count: _sectionCount,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            StaggerItem(
-              index: 0,
-              child: Text(l.menuSettings.toUpperCase(),
-                  style: WfText.display(40)),
-            ),
-            if (!tv)
-              section(1, 'account', l.settingsAccount, SettingsScope.account,
-                  const AccountSettingsSection()),
-            // Solo con le notifiche push nel plugin (spec V §4.1).
-            if (push && !tv)
-              section(2, 'notifications', l.settingsNotifications,
-                  SettingsScope.account, const NotificationsSettingsSection()),
-            if (!tv)
-              section(3, 'home', l.settingsHome, SettingsScope.account,
-                  const HomeSettingsSection()),
-            // La TV parte dalla lingua dell'app, come il suo elenco.
-            if (tv) appSection(3),
-            section(4, 'playback', l.settingsSectionPlayback,
-                SettingsScope.device, const PlayerSettingsSection()),
-            section(5, 'subtitles', l.settingsSectionSubtitles,
-                SettingsScope.jellyfin, const LanguageSettingsSection()),
-            if (!tv) appSection(6),
-            // Nel browser la Rich Presence è spenta (spec 1b §4.6).
-            if (!kIsWeb && !tv)
-              section(7, 'discord', l.settingsDiscord, SettingsScope.device,
-                  const DiscordSettingsSection()),
-            if (!tv)
-              section(8, 'support', l.settingsSupport, null,
-                  const SupportSection()),
-            StaggerItem(
-              index: 9,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 40),
-                  // Sulla TV si scorre solo col focus: senza, la versione e
-                  // l'aggiornamento sotto i sottotitoli restano fuori schermo.
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TvFocusable(
-                      onActivate: () {},
-                      child: Padding(
-                        padding: EdgeInsets.all(tv ? 6 : 0),
-                        child: Text(l.settingsVersion(version),
-                            style: const TextStyle(
-                                color: WfColors.creamMuted, fontSize: 12.5)),
-                      ),
-                    ),
+    final page = NotificationListener<Notification>(
+      onNotification: _onNotification,
+      child: SingleChildScrollView(
+        controller: _scroll,
+        // Nel largo il titolo di ogni sezione ha già 32 px sopra.
+        padding: EdgeInsets.fromLTRB(32, compact || tv ? 32 : 0, 32, 32),
+        child: StaggerGroup(
+          count: _sectionCount,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Nel largo il titolo sta nella colonna.
+              if (compact || tv)
+                StaggerItem(
+                  index: 0,
+                  child: Text(
+                    l.menuSettings.toUpperCase(),
+                    style: WfText.display(40),
                   ),
-                  const TvUpdateTile(),
-                ],
+                ),
+              if (!tv)
+                section(
+                  1,
+                  'account',
+                  l.settingsAccount,
+                  SettingsScope.account,
+                  const AccountSettingsSection(),
+                ),
+              // Solo con le notifiche push nel plugin (spec V §4.1).
+              if (push && !tv)
+                section(
+                  2,
+                  'notifications',
+                  l.settingsNotifications,
+                  SettingsScope.account,
+                  const NotificationsSettingsSection(),
+                ),
+              if (!tv)
+                section(
+                  3,
+                  'home',
+                  l.settingsHome,
+                  SettingsScope.account,
+                  const HomeSettingsSection(),
+                ),
+              // La TV parte dalla lingua dell'app, come il suo elenco.
+              if (tv) appSection(3),
+              section(
+                4,
+                'playback',
+                l.settingsSectionPlayback,
+                SettingsScope.device,
+                const PlayerSettingsSection(),
               ),
-            ),
-          ],
+              section(
+                5,
+                'subtitles',
+                l.settingsSectionSubtitles,
+                SettingsScope.jellyfin,
+                const LanguageSettingsSection(),
+              ),
+              if (!tv) appSection(6),
+              // Nel browser la Rich Presence è spenta (spec 1b §4.6).
+              if (!kIsWeb && !tv)
+                section(
+                  7,
+                  'discord',
+                  l.settingsDiscord,
+                  SettingsScope.device,
+                  const DiscordSettingsSection(),
+                ),
+              if (!tv)
+                section(
+                  8,
+                  'support',
+                  l.settingsSupport,
+                  null,
+                  const SupportSection(),
+                ),
+              StaggerItem(
+                index: 9,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 40),
+                    // Sulla TV si scorre solo col focus: senza, la versione e
+                    // l'aggiornamento sotto i sottotitoli restano fuori schermo.
+                    // Nel largo la versione sta in fondo alla colonna.
+                    if (compact || tv)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TvFocusable(
+                          onActivate: () {},
+                          child: Padding(
+                            padding: EdgeInsets.all(tv ? 6 : 0),
+                            child: Text(
+                              l.settingsVersion(version),
+                              style: const TextStyle(
+                                color: WfColors.creamMuted,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    const TvUpdateTile(),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+    if (tv) return page;
+    // Un solo `Flex` per i due schermi: passando dal largo allo stretto la
+    // pagina non si ricrea e non perde lo scorrimento.
+    return Flex(
+      direction: compact ? Axis.vertical : Axis.horizontal,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        compact
+            ? SettingsSectionStrip(
+                sections: _visible,
+                current: current,
+                onSelect: _select,
+              )
+            : SettingsRail(
+                sections: _visible,
+                current: current,
+                version: version,
+                onSelect: _select,
+              ),
+        Expanded(child: page),
+      ],
     );
   }
 }
