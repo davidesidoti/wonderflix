@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/error_text.dart';
+import '../../app/theme.dart';
 import '../../core/jellyfin/user_config_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
@@ -12,12 +13,22 @@ import '../admin/admin_kit.dart';
 import '../player/player_settings.dart';
 import 'language_preferences.dart';
 import 'settings_kit.dart';
+import 'subtitle_preview.dart';
 
 /// Lingue di audio e sottotitoli e quando mostrare i sottotitoli (salvate sul
 /// server, che le usa per scegliere le tracce), più la dimensione, che resta
 /// su questo PC.
 class LanguageSettingsSection extends ConsumerWidget {
   const LanguageSettingsSection({super.key});
+
+  /// Larghezza dell'elenco, dell'anteprima e dello spazio tra i due.
+  static const listWidth = 640.0;
+  static const previewWidth = 300.0;
+  static const _gap = 32.0;
+
+  /// Larghezza da cui l'anteprima sta accanto all'elenco: la pagina la dà alla
+  /// sezione.
+  static const wideWidth = listWidth + _gap + previewWidth;
 
   Future<void> _save(
       BuildContext context, WidgetRef ref, LanguagePreferences next) async {
@@ -72,7 +83,7 @@ class LanguageSettingsSection extends ConsumerWidget {
               onSelectionChanged: (selection) => saveScale(selection.first),
             ),
     );
-    return AdminList(
+    final list = AdminList(
       children: [
         ...switch (ref.watch(languagePreferencesProvider)) {
           AsyncData(:final value) => _languageRows(context, ref, value),
@@ -97,6 +108,42 @@ class LanguageSettingsSection extends ConsumerWidget {
         },
         size,
       ],
+    );
+    // Sulla TV l'anteprima non c'è (per ora).
+    if (FormFactor.of(context).tv) return list;
+    final preview = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            l.settingsSubtitlePreview,
+            style: const TextStyle(color: WfColors.creamMuted, fontSize: 12),
+          ),
+        ),
+        SubtitlePreview(scale: settings.subtitleScale),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, box) => box.maxWidth >= wideWidth
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: listWidth, child: list),
+                const SizedBox(width: _gap),
+                SizedBox(width: previewWidth, child: preview),
+              ],
+            )
+          : Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: listWidth),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [list, const SizedBox(height: 20), preview],
+                ),
+              ),
+            ),
     );
   }
 

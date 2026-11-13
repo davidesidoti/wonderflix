@@ -232,24 +232,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       String id,
       String title,
       SettingsScope? scope,
-      Widget body,
-    ) => StaggerItem(
+      Widget body, {
+      double bodyWidth = 640,
+    }) => StaggerItem(
       index: index,
       child: Align(
         alignment: Alignment.centerLeft,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
+          constraints: BoxConstraints(maxWidth: bodyWidth),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // La `GlobalKey` serve a scorrere qui; la `ValueKey` ai test.
-              KeyedSubtree(
-                key: _sectionKeys[id],
-                child: SettingsSectionTitle(
-                  key: ValueKey('settings-section-$id'),
-                  title: title,
-                  scope: scope,
+              // Il titolo resta largo 640 anche se il corpo è più largo.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  // La `GlobalKey` serve a scorrere qui; la `ValueKey` ai test.
+                  child: KeyedSubtree(
+                    key: _sectionKeys[id],
+                    child: SettingsSectionTitle(
+                      key: ValueKey('settings-section-$id'),
+                      title: title,
+                      scope: scope,
+                    ),
+                  ),
                 ),
               ),
               body,
@@ -330,6 +338,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 l.settingsSectionSubtitles,
                 SettingsScope.jellyfin,
                 const LanguageSettingsSection(),
+                // Nel largo l'anteprima sta a destra dell'elenco.
+                bodyWidth: tv ? 640 : LanguageSettingsSection.wideWidth,
               ),
               if (!tv) appSection(6),
               // Nel browser la Rich Presence è spenta (spec 1b §4.6).
