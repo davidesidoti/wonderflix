@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/error_text.dart';
 import '../../core/jellyfin/user_config_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../admin/admin_kit.dart';
 import '../player/player_settings.dart';
 import 'language_preferences.dart';
@@ -32,24 +34,43 @@ class LanguageSettingsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final settings = ref.watch(playerSettingsProvider);
+    void saveScale(double scale) => unawaited(ref
+        .read(playerSettingsProvider.notifier)
+        .update(settings.copyWith(subtitleScale: scale)));
     // La dimensione non viene dal server: c'è anche mentre le lingue caricano
-    // o se non si leggono.
+    // o se non si leggono. Nello stretto cinque segmenti non ci stanno a una
+    // misura leggibile: un menu.
     final size = SettingsRow(
       label: l.settingsSubtitleSize,
-      hint: l.settingsSubtitleSizeHint,
+      hint: FormFactor.of(context).tv
+          ? l.settingsSubtitleSizeHintTv
+          : kIsWeb
+          ? l.settingsSubtitleSizeHintWeb
+          : l.settingsSubtitleSizeHint,
       wideTrailing: true,
-      trailing: SegmentedButton<double>(
-        showSelectedIcon: false,
-        segments: [
-          for (final scale in subtitleScaleOptions)
-            ButtonSegment(
-                value: scale, label: Text(subtitleScaleLabel(l, scale))),
-        ],
-        selected: {settings.subtitleScale},
-        onSelectionChanged: (selection) => unawaited(ref
-            .read(playerSettingsProvider.notifier)
-            .update(settings.copyWith(subtitleScale: selection.first))),
-      ),
+      trailing: FormFactor.of(context).compact
+          ? SettingsDropdown<double>(
+              key: const Key('subtitle-size'),
+              value: settings.subtitleScale,
+              items: [
+                for (final scale in subtitleScaleOptions)
+                  DropdownMenuItem(
+                      value: scale, child: Text(subtitleScaleLabel(l, scale))),
+              ],
+              onChanged: (scale) {
+                if (scale != null) saveScale(scale);
+              },
+            )
+          : SegmentedButton<double>(
+              showSelectedIcon: false,
+              segments: [
+                for (final scale in subtitleScaleOptions)
+                  ButtonSegment(
+                      value: scale, label: Text(subtitleScaleLabel(l, scale))),
+              ],
+              selected: {settings.subtitleScale},
+              onSelectionChanged: (selection) => saveScale(selection.first),
+            ),
     );
     return AdminList(
       children: [

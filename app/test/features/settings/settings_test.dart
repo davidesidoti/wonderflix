@@ -17,6 +17,7 @@ import 'package:wonderflix/features/settings/diagnostics.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/locale_controller.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
+import 'package:wonderflix/features/settings/settings_kit.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/ui/tv_focusable.dart';
 import 'package:wonderflix/ui/user_avatar.dart';
@@ -174,6 +175,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pumpAndSettle();
 
+    expect(find.text('Solo su questa TV'), findsOneWidget);
     final version = find.text('Versione 0.0.1');
     expect(Focus.of(tester.element(version)).hasFocus, isTrue);
     expect(tester.getBottomLeft(version).dy, lessThanOrEqualTo(720));
@@ -560,6 +562,44 @@ void main() {
     await tester.tap(find.text('Molto piccoli'));
     await tester.pump();
     expect(prefs.getDouble('player.subtitleScale'), 0.45);
+  });
+
+  testWidgets('a 360 px la dimensione dei sottotitoli è un menu leggibile, non '
+      'cinque segmenti rimpiccioliti', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: const Size(360, 3000),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+      ...homeSettingsOverrides(),
+    ]);
+    await tester.pump();
+    await tester.pump();
+
+    final size = find.byKey(const Key('subtitle-size'));
+    expect(size, findsOneWidget);
+    expect(find.byType(SegmentedButton<double>), findsNothing);
+    // Nessuna scala: il testo resta alla misura vera.
+    expect(find.ancestor(of: size, matching: find.byType(FittedBox)),
+        findsNothing);
+    final row = find.ancestor(of: size, matching: find.byType(SettingsRow));
+    final rowWidth = tester.getSize(row.first).width;
+    expect(tester.getSize(size).width, closeTo(rowWidth - 28 - 20, 1),
+        reason: 'riempie la riga (meno il riquadro del menu)');
+    await tester.ensureVisible(size);
+    await tester.pumpAndSettle();
+    await tester.tap(size);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grandi').last);
+    await tester.pumpAndSettle();
+    expect(prefs.getDouble('player.subtitleScale'), 1.0);
+    expect(find.text('Solo su questo PC'), findsOneWidget);
   });
 
   testWidgets('Discord: titolo e locandina sono rientrati sotto la prima voce',

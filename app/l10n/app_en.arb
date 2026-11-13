@@ -1551,6 +1551,8 @@
   "settingsScopeAccount": "Your account",
   "settingsScopeJellyfin": "Your account, in every Jellyfin client",
   "settingsSubtitleSizeHint": "Only on this PC",
+  "settingsSubtitleSizeHintWeb": "Only on this device",
+  "settingsSubtitleSizeHintTv": "Only on this TV",
   "settingsLanguageApp": "App language",
   "settingsQualityHint": "Lower it if playback stutters",
   "settingsHardwareDecodingHint": "Turn it off if video stutters or shows wrong colours",

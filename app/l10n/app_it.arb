@@ -1744,6 +1744,8 @@
   "settingsScopeAccount": "Il tuo account",
   "settingsScopeJellyfin": "Il tuo account, in tutti i client Jellyfin",
   "settingsSubtitleSizeHint": "Solo su questo PC",
+  "settingsSubtitleSizeHintWeb": "Solo su questo dispositivo",
+  "settingsSubtitleSizeHintTv": "Solo su questa TV",
   "settingsLanguageApp": "Lingua dell'app",
   "settingsQualityHint": "Più bassa se la connessione scatta",
   "settingsHardwareDecodingHint": "Spegnila se il video si vede a scatti o con colori sbagliati",

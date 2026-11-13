@@ -152,7 +152,11 @@ class SettingsRow extends StatelessWidget {
             children: [
               text,
               const SizedBox(height: 10),
-              fit(trailing!, Alignment.centerLeft),
+              // Un menu riempie la riga (non si scala mai: il testo resterebbe
+              // illeggibile); il resto si rimpicciolisce solo se non ci sta.
+              trailing is SettingsDropdown
+                  ? trailing!
+                  : fit(trailing!, Alignment.centerLeft),
             ],
           )
         : wideTrailing
@@ -250,7 +254,8 @@ class SettingsSwitchRow extends StatelessWidget {
 
 /// Un menu a tendina da riga: riquadro con bordo, senza la linea sotto.
 ///
-/// La [key] sta sul `DropdownButton`.
+/// La [key] sta sul `DropdownButton`. Nello stretto riempie la larghezza: va
+/// messo in una riga con `wideTrailing` (sotto l'etichetta), non accanto.
 class SettingsDropdown<T> extends StatelessWidget {
   // La chiave va sul `DropdownButton`, non sul widget.
   // ignore: use_key_in_widget_constructors
@@ -278,6 +283,8 @@ class SettingsDropdown<T> extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<T>(
+            // Nello stretto la riga lo mette sotto l'etichetta, a tutta larghezza.
+            isExpanded: FormFactor.of(context).compact,
             key: _dropdownKey,
             value: value,
             items: items,
