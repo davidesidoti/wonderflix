@@ -219,7 +219,7 @@ void main() {
       final handle = tester.ensureSemantics();
       final router = await pumpScreen(tester);
 
-      final chip = tester.getSemantics(find.bySemanticsLabel('Film, Hope'));
+      final chip = tester.getSemantics(find.bySemanticsLabel(RegExp('^Film, Hope')));
       expect(chip.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
       // Il tocco apre l'elenco del giorno; lì la riga non apre niente.
       await tester.tap(find.text('Hope'));

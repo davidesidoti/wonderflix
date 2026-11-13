@@ -62,8 +62,8 @@ void main() {
         'Prossimo episodio il 2 novembre');
     expect(it.calendarSeriesCount('Andor', 4), 'Andor ×4');
     expect(en.calendarSeriesCount('Andor', 4), 'Andor ×4');
-    expect(it.calendarMore(3), '+3');
-    expect(en.calendarMore(3), '+3');
+    expect(it.calendarMore(3), '+3 altre');
+    expect(en.calendarMore(3), '+3 more');
     expect(it.calendarMovieDigital, 'Film · in digitale');
     expect(en.calendarMovieDigital, 'Movie · digital');
     expect(it.calendarOnServer, 'Sul server');

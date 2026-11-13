@@ -415,7 +415,7 @@
   "requestsNextEpisode": "Next episode: {episode} on {date}",
   "requestsNextEpisodeDate": "Next episode on {date}",
   "calendarSeriesCount": "{name} ×{count}",
-  "calendarMore": "+{count}",
+  "calendarMore": "+{count} more",
   "calendarMovieDigital": "Movie · digital",
   "calendarOnServer": "On the server",
   "calendarDayReleases": "{date}: {count, plural, =1{1 release} other{{count} releases}}",

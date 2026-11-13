@@ -503,7 +503,7 @@
   "@requestsNextEpisodeDate": {"placeholders": {"date": {"type": "String"}}},
   "calendarSeriesCount": "{name} ×{count}",
   "@calendarSeriesCount": {"placeholders": {"name": {"type": "String"}, "count": {"type": "int"}}},
-  "calendarMore": "+{count}",
+  "calendarMore": "+{count} altre",
   "@calendarMore": {"placeholders": {"count": {"type": "int"}}},
   "calendarMovieDigital": "Film · in digitale",
   "calendarOnServer": "Sul server",

@@ -201,6 +201,7 @@ class _CalendarBody extends ConsumerWidget {
             child: CalendarMonthGrid(
               month: month,
               today: today,
+              now: clock.now(),
               entries: entries,
               onOpenDay: (day) {
                 final list = entries[day];

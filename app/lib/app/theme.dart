@@ -17,8 +17,8 @@ abstract final class WfColors {
   /// Fondo delle voci dei film nel calendario (oro scuro, piano 25b).
   static const calendarMovie = Color(0xFF2B2418);
 
-  /// Fondo delle voci delle serie nel calendario (blu scuro, piano 25b).
-  static const calendarSeries = Color(0xFF1D2630);
+  /// Barretta e puntino delle serie nel calendario (azzurro).
+  static const calendarSeriesMark = Color(0xFF7E9CBD);
 }
 
 abstract final class WfText {
