@@ -150,8 +150,15 @@ class _NotificationsSettingsSectionState
             if (members.contains(pref.type)) pref,
         ];
         if (shown.isEmpty) return const [];
-        // Un solo tipo: una riga normale col nome del gruppo, senza freccia.
-        if (shown.length == 1) return [typeRow(shown.first, title)];
+        // Un solo tipo: una riga normale, senza freccia. Col nome del gruppo
+        // solo per le richieste da approvare (il gruppo è il tipo); un altro
+        // gruppo con un tipo solo ha l'etichetta del tipo.
+        if (shown.length == 1) {
+          return [
+            typeRow(shown.first,
+                id == 'requests' ? title : _label(l, shown.first.type)),
+          ];
+        }
         final isOpen = open.contains(id);
         return [
           _GroupHeader(
@@ -216,52 +223,75 @@ class _GroupHeader extends StatelessWidget {
   final VoidCallback onToggleAll;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        expanded: open,
-        child: Material(
-          color: WfColors.surface,
-          child: InkWell(
-            onTap: onToggleOpen,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
-              child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(minHeight: minTouchTarget - 12),
-                child: Row(
-                  children: [
-                    Icon(
-                      open ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                      size: 16,
-                      color: WfColors.creamMuted,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          text: title,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                          children: [
-                            TextSpan(
-                              text: '  $count',
-                              style: const TextStyle(
-                                color: WfColors.creamMuted,
-                                fontWeight: FontWeight.w400,
+  @override
+  Widget build(BuildContext context) => Material(
+        color: WfColors.surface,
+        child: Row(
+          children: [
+            Expanded(
+              // Un nodo solo per chi legge lo schermo: nome, conteggio e se è
+              // aperto. L'interruttore è un altro nodo, col nome del gruppo.
+              child: Semantics(
+                container: true,
+                button: true,
+                expanded: open,
+                label: '$title, $count',
+                excludeSemantics: true,
+                child: InkWell(
+                  onTap: onToggleOpen,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
+                    child: ConstrainedBox(
+                      constraints:
+                          const BoxConstraints(minHeight: minTouchTarget - 12),
+                      child: Row(
+                        children: [
+                          Icon(
+                            open
+                                ? LucideIcons.chevronDown
+                                : LucideIcons.chevronRight,
+                            size: 16,
+                            color: WfColors.creamMuted,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                text: title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
+                                children: [
+                                  TextSpan(
+                                    text: '  $count',
+                                    style: const TextStyle(
+                                      color: WfColors.creamMuted,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                    Switch(
-                      key: switchKey,
-                      value: allOn,
-                      onChanged: (_) => onToggleAll(),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.only(left: 14, right: 14),
+              child: Semantics(
+                container: true,
+                label: title,
+                child: Switch(
+                  key: switchKey,
+                  value: allOn,
+                  onChanged: (_) => onToggleAll(),
+                ),
+              ),
+            ),
+          ],
         ),
       );
 }

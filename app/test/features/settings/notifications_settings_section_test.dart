@@ -104,8 +104,10 @@ void main() {
     await pumpSection(tester);
     expect(count('Admin'), findsNothing);
     expect(find.text('Richieste da approvare'), findsNothing);
-    // Un solo tipo anche in "Per te": è la riga, con il nome del gruppo.
-    expect(find.text('Per te'), findsOneWidget);
+    // Un solo tipo in "Per te": la riga ha l'etichetta del tipo, non il
+    // nome del gruppo.
+    expect(find.text('Inviti ai watch party'), findsOneWidget);
+    expect(find.text('Per te'), findsNothing);
     expect(find.byKey(forYouSwitch), findsNothing);
     expect(tile(tester, 'Invite'), isTrue);
   });
@@ -165,7 +167,8 @@ void main() {
     expect(tile(tester, 'Invite'), isTrue);
     expect(tile(tester, 'NewTitles'), isTrue);
     expect(tile(tester, 'RequestAvailable'), isFalse);
-    // Un secondo avviso in coda comparirebbe dopo il primo: un solo avviso
+    // Conta sulla durata di default dello SnackBar (4 s): un secondo avviso
+    // in coda comparirebbe dopo il primo, mentre un solo avviso
     // è già sparito dopo tre passi (arriva, aspetta, esce).
     for (var i = 0; i < 4; i++) {
       await tester.pump(const Duration(seconds: 5));
@@ -213,6 +216,33 @@ void main() {
     await tester.tap(count('Per te'));
     await tester.pump();
     expect(find.text('Inviti ai watch party'), findsOneWidget);
+  });
+
+  testWidgets('semantica: l intestazione dice se e aperta, l interruttore ha '
+      'il nome del gruppo', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await pumpSection(tester);
+    final header = find.semantics.byLabel('Per te, 2 di 3 attive');
+    expect(header, findsOneWidget);
+    expect(
+      header,
+      isSemantics(
+        isButton: true,
+        hasExpandedState: true,
+        isExpanded: true,
+      ),
+    );
+    expect(
+      find.semantics.byLabel('Per te'),
+      isSemantics(hasToggledState: true, isToggled: false),
+    );
+    await tester.tap(count('Per te'));
+    await tester.pump();
+    expect(
+      find.semantics.byLabel('Per te, 2 di 3 attive'),
+      isSemantics(hasExpandedState: true, isExpanded: false),
+    );
+    semantics.dispose();
   });
 
   testWidgets('un interruttore di un tipo spento manda setEnabled false', (
