@@ -87,7 +87,8 @@ class _TvSettingsBodyState extends ConsumerState<TvSettingsBody> {
   }
 
   /// Come nella barra laterale: la ricerca geometrica uscirebbe dall'elenco.
-  /// Mai `goBack` qui: Indietro lo fa il `PopScope` della rotta.
+  /// Mai `goBack` qui: Indietro chiude la rotta con il pop normale del navigatore
+  /// radice.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final step = switch (event.logicalKey) {
@@ -234,6 +235,12 @@ class _TvSettingsBodyState extends ConsumerState<TvSettingsBody> {
                 row.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                style: row.update
+                    ? const TextStyle(
+                        color: WfColors.gold,
+                        fontWeight: FontWeight.w600,
+                      )
+                    : null,
               ),
             ),
             if (row.value case final value?) ...[
@@ -298,13 +305,17 @@ class _TvSettingsBodyState extends ConsumerState<TvSettingsBody> {
     final update = ref.watch(updateControllerProvider);
     final release = update.release;
     if (release == null) return const [];
+    // Mentre scarica OK non fa niente: il testo non lo promette.
+    final updateHint = update.ready
+        ? l.tvSettingsUpdateHint
+        : l.tvSettingsUpdateDownloadingHint;
     return [
       _Row(
         id: 'update',
         label: l.tvUpdateAvailable(release.version.toString()),
         hint: update.installPermissionNeeded
-            ? '${l.tvSettingsUpdateHint}\n${l.tvUpdatePermission}'
-            : l.tvSettingsUpdateHint,
+            ? '$updateHint\n${l.tvUpdatePermission}'
+            : updateHint,
         value: update.ready
             ? l.tvUpdateInstall
             : '${((update.progress ?? 0) * 100).round()}%',

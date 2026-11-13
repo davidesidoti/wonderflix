@@ -6,7 +6,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../account/account_contacts_block.dart';
 import '../account/account_providers.dart';
@@ -126,18 +125,13 @@ class _LogoutButton extends StatelessWidget {
       child: OutlinedButton.icon(
         key: const Key('settings-logout'),
         onPressed: onPressed,
-        style:
-            OutlinedButton.styleFrom(
-              minimumSize: const Size(0, 44),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-              foregroundColor: WfColors.error,
-              side: side,
-            ).copyWith(
-              side: tvButtonSide(FormFactor.of(context).tv, side),
-            ),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          foregroundColor: WfColors.error,
+          side: side,
+        ),
         icon: const Icon(LucideIcons.logOut, size: 18),
         label: Text(AppLocalizations.of(context).menuLogout),
       ),

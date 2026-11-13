@@ -44,18 +44,6 @@ void main() {
       expect(find.byIcon(LucideIcons.cloud), findsNWidgets(2));
     });
 
-    testWidgets('sulla TV il dispositivo è la TV', (tester) async {
-      await pumpApp(
-        tester,
-        _page(const [
-          SettingsSectionTitle(title: 'App', scope: SettingsScope.device),
-        ]),
-        tv: true,
-      );
-      expect(find.text('Questa TV'), findsOneWidget);
-      expect(find.text('Questo PC'), findsNothing);
-    });
-
     testWidgets('accetta una GlobalKey', (tester) async {
       final key = GlobalKey();
       await pumpApp(

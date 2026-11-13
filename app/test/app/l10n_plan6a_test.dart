@@ -6,8 +6,6 @@ void main() {
   test('stringhe del Piano 6a', () {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
-    expect(it.settingsAppearance, 'Aspetto');
-    expect(en.settingsAppearance, 'Appearance');
     expect(it.settingsAnimations, 'Animazioni');
     expect(it.settingsAnimationsSystem, 'Come Windows');
     expect(it.settingsAnimationsFull, 'Complete');

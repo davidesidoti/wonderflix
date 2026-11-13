@@ -76,9 +76,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// scorre lo si riporta in cima a ogni cambio di altezza.
   String? _pin;
 
-  /// Dove stava la pagina dopo l'ultimo allineamento del pin: se si e' mossa
+  /// Dove stava la pagina dopo l'ultimo allineamento del pin: se si è mossa
   /// (tastiera, D-pad, rotella) il pin cade, qualunque cosa l'abbia mossa.
   var _pinOffset = 0.0;
+
+  /// `_realign` sta saltando: lo spy resta fuori.
+  var _aligning = false;
 
   @override
   void initState() {
@@ -133,7 +136,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   /// Riporta in cima il titolo della sezione aperta con `section=<id>`.
-  /// Senza durata: il salto e' immediato, e `_aligning` tiene lo spy fuori.
+  /// Senza durata: il salto è immediato, e `_aligning` tiene lo spy fuori.
   void _realign() {
     final target = _sectionKeys[_pin]?.currentContext;
     if (target != null) {
@@ -144,9 +147,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (_scroll.hasClients) _pinOffset = _scroll.offset;
   }
 
-  var _aligning = false;
-
-  /// Il pin vale ancora: la pagina non si e' mossa dal suo allineamento.
+  /// Il pin vale ancora: la pagina non si è mossa dal suo allineamento.
   /// Altrimenti lo toglie.
   bool _pinHolds() {
     if (_pin == null) return false;
@@ -159,9 +160,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _onNotification(Notification n) {
     // Solo la pagina: non gli scorrevoli dentro (campi, menu, elenchi).
     if (n is ViewportNotificationMixin && n.depth != 0) return false;
-    if (n is ScrollMetricsNotification && !_animating && _pinHolds()) {
+    if (n is ScrollMetricsNotification && !_animating) {
+      final pinned = _pinHolds();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pinHolds()) _realign();
+        if (!mounted) return;
+        // Senza pin, un cambio di altezza senza scorrimento sposta i titoli:
+        // lo spy non riceve altre notifiche e va ricalcolato.
+        if (pinned) {
+          if (_pinHolds()) _realign();
+        } else {
+          _spy();
+        }
       });
     }
     return false;

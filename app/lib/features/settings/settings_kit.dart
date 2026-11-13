@@ -79,9 +79,7 @@ class SettingsSectionTitle extends StatelessWidget {
                       Flexible(
                         child: Text(switch (scope) {
                           SettingsScope.device =>
-                            FormFactor.of(context).tv
-                                ? l.settingsScopeDeviceTv
-                                : kIsWeb
+                            kIsWeb
                                 ? l.settingsScopeDeviceWeb
                                 : l.settingsScopeDevice,
                           SettingsScope.account => l.settingsScopeAccount,

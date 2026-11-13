@@ -19,8 +19,8 @@ Future<T?> showTvChoicePanel<T>(
   required T current,
   Widget Function(T focused)? background,
 }) {
-  // Sul navigatore radice: copre anche la barra laterale. Indietro lo chiude
-  // il `PopScope` della rotta (mai `goBack` nei tasti).
+  // Sul navigatore radice: copre anche la barra laterale. Indietro chiude la
+  // rotta con il pop normale del navigatore radice (mai `goBack` nei tasti).
   return Navigator.of(context, rootNavigator: true).push(
     PageRouteBuilder<T>(
       opaque: false,

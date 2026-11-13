@@ -95,9 +95,9 @@ class LanguageSettingsSection extends ConsumerWidget {
                 ),
               ),
             ],
-          _ => const [
+          _ => [
               SettingsRow(
-                label: '',
+                label: l.settingsLoading,
                 trailing: SizedBox(
                     width: 20,
                     height: 20,

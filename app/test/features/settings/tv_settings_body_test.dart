@@ -264,6 +264,8 @@ void main() {
       ),
     );
     expect(_shows('update', '40%'), isTrue);
+    expect(find.textContaining('Si sta scaricando'), findsOneWidget);
+    expect(find.textContaining('Premi OK'), findsNothing);
     expect(find.textContaining('Installa app sconosciute'), findsOneWidget);
     await _key(tester, LogicalKeyboardKey.select);
     expect(_update.installs, 0);

@@ -162,9 +162,6 @@ void main() {
     tester,
   ) async {
     await _pump(tester, section: 'playback');
-    debugPrint(
-      'DBG px=${_pageScroll(tester).position.pixels} max=${_pageScroll(tester).position.maxScrollExtent} top=${tester.getTopLeft(find.byKey(_section('playback'))).dy} acc=${tester.getTopLeft(find.byKey(_section('account'))).dy} home=${tester.getTopLeft(find.byKey(_section('home'))).dy}',
-    );
     expect(_on(tester), ['playback']);
     expect(_pageScroll(tester).position.pixels, greaterThan(0));
     expect(
@@ -277,6 +274,24 @@ void main() {
         const Size(1440, 650) * tester.view.devicePixelRatio;
     await tester.pumpAndSettle();
     expect(position.pixels, moved);
+  });
+
+  testWidgets('la voce accesa segue una pagina che cambia altezza senza '
+      'scorrere', (tester) async {
+    final prefs = FakeDisplayPreferencesApi()..readGate = Completer<void>();
+    await _pump(tester, displayPrefs: prefs, settle: false);
+    await _jumpTo(tester, 'playback');
+    expect(_on(tester), ['playback']);
+    final offset = _pageScroll(tester).position.pixels;
+    // Le sezioni sopra si caricano e spingono giù il titolo, senza scorrere.
+    prefs.readGate!.complete();
+    await tester.pumpAndSettle();
+    expect(_pageScroll(tester).position.pixels, offset);
+    expect(
+      tester.getTopLeft(find.byKey(_section('playback'))).dy,
+      greaterThan(700 / 3),
+    );
+    expect(_on(tester), isNot(['playback']));
   });
 
   testWidgets('TV: né colonna né fila', (tester) async {
