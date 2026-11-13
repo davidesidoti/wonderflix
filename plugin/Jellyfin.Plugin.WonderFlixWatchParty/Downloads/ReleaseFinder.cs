@@ -14,8 +14,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
     // Il parse non mette niente in cache e un parallelismo piccolo basta (1640 release in 6 s in sequenza).
     private const int ParseParallelism = 4;
 
-    // I rifiuti del push per file, coda o monitoraggio (e la qualità fuori dal profilo, il tappabuchi 720p): per un download
-    // voluto non contano.
+    // I rifiuti del push per file, coda o monitoraggio: per un download voluto non contano (la qualità solo con outsideProfile).
     private static readonly string[] IntentionalRejections =
     [
         "Existing file on disk",
@@ -67,7 +66,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
         return await SearchProwlarrAsync(key, service, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken)
+    public async Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken, bool outsideProfile = false)
     {
         if (release.Source != ReleaseSource.Prowlarr)
         {
@@ -116,7 +115,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
 
         var reasons = decision.Rejections?.Where(r => !string.IsNullOrWhiteSpace(r)).ToList() ?? [];
         if (!intentional || reasons.Count == 0
-            || !reasons.All(r => IntentionalRejections.Any(p => r.StartsWith(p, StringComparison.OrdinalIgnoreCase)) || DownloadRule.IsQualityRejection(r)))
+            || !reasons.All(r => IntentionalRejections.Any(p => r.StartsWith(p, StringComparison.OrdinalIgnoreCase)) || (outsideProfile && DownloadRule.IsQualityRejection(r))))
         {
             return new GrabResult(GrabKind.RuleRefused, reasons.FirstOrDefault(), null);
         }

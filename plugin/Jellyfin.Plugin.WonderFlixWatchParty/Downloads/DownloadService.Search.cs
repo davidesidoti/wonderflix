@@ -508,7 +508,7 @@ public sealed partial class DownloadService
                 FoundLittle();
             }
 
-            // Il riassunto solo per film ed episodi, e non per un upgrade che non conviene.
+            // Il riassunto (anche di una stagione, col suo pack 720p), ma non per un upgrade che non conviene.
             var count = releases.Count(r => !string.IsNullOrEmpty(r?.Guid));
             Update(item.Key, (entry, now) => NothingChosen(entry, item.Upgrade ? null : rule, thresholds.MinScore, count, now));
         }

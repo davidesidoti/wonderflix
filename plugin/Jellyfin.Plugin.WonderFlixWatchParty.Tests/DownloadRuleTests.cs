@@ -592,4 +592,17 @@ public class DownloadRuleTests
         Assert.Equal("Quality", DownloadRule.StopgapKindOf(100, 3 * Gb, 100, true, 0.8, 100, resolution: 720));
         Assert.Null(DownloadRule.StopgapKindOf(100, 3 * Gb, 100, true, 0.8, 100, resolution: 1080));
     }
+
+    [Fact]
+    public void AnEpisodeSearchTakesNo720pPackAsStopgap()
+    {
+        // Un episodio di una stagione divisa: un pack 720p sostituirebbe anche gli altri episodi (spec §3).
+        var pack = Release("p", "HDTV-720p", 720, 3, 10, rejections: "HDTV-720p is not wanted in profile");
+        pack.FullSeason = true;
+
+        var rule = DownloadRule.Choose([pack], Input(50, movie: false));
+
+        Assert.Equal((null, null), DownloadRule.ChooseStopgap(rule));
+        Assert.Equal("Quality", DownloadRule.ChooseStopgap(SeasonPackRule.Packs([pack], 3, Input(50, movie: false))).Kind);
+    }
 }

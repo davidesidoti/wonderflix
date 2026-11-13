@@ -411,8 +411,18 @@ public class ReleaseFinderTests
         Assert.Equal(GrabKind.RuleRefused, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None)).Kind);
         Assert.Empty(_qbit.Added);
 
-        Assert.Equal(GrabKind.Direct, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None)).Kind);
+        Assert.Equal(GrabKind.Direct, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None, outsideProfile: true)).Kind);
         Assert.Single(_qbit.Added);
+    }
+
+    [Fact]
+    public async Task AnIntentionalCycleGrabRefusedForQualityIsRuleRefused()
+    {
+        // Il giro (un tappabuchi Size con ForceImport) non scarica mai una qualità fuori dal profilo: solo l'admin.
+        Rejects("HDTV-720p is not wanted in profile");
+
+        Assert.Equal(GrabKind.RuleRefused, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None)).Kind);
+        Assert.Empty(_qbit.Added);
     }
 
     [Fact]

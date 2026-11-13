@@ -1498,7 +1498,7 @@ public sealed class DownloadServiceAdminTests : IDisposable
         var qbit = new FakeQbitClient();
         var (service, finder) = WithProwlarr(qbit: qbit);
         var real = new ReleaseFinder(_arr, new FakeProwlarrClient(), _arrSettings, NullLogger<ReleaseFinder>.Instance, qbit, _time);
-        finder.Grab = (kind, release, intentional) => real.GrabAsync(kind, release, intentional, CancellationToken.None);
+        finder.Real = real;
         return (service, qbit);
     }
 
@@ -1593,6 +1593,20 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         Assert.Empty(qbit.Added);
         Assert.Empty(_arr.PushCalls);
+    }
+
+    [Fact]
+    public async Task A720pPackPickedOnASeasonWithAFileIsRefused()
+    {
+        // Scelto a mano: il 3 ha già il suo file 1080p, il pack 720p lo sostituirebbe (Sonarr non ha un cestino).
+        SeasonNeedsYou(DownloadStopgaps.Quality, null, null, 150);
+        _releases = [Only720p("p720", 3, fullSeason: true)];
+        var (service, qbit) = No720pWithProwlarr();
+        await service.SearchAsync("season:7:2", CancellationToken.None);
+
+        Assert.Equal(GrabOutcome.Refused, await service.GrabAsync("season:7:2", "p720", 1, CancellationToken.None));
+
+        Assert.Empty(qbit.Added);
     }
 
     [Fact]

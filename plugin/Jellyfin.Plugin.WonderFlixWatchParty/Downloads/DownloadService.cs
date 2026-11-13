@@ -518,7 +518,13 @@ public sealed partial class DownloadService(
             return;
         }
 
-        var (files, error) = await ImportFolderAsync(parsed, torrent).ConfigureAwait(false);
+        bool stopgap;
+        lock (_lock)
+        {
+            stopgap = Book.Get(key)?.Stopgap == DownloadStopgaps.Quality;
+        }
+
+        var (files, error) = await ImportFolderAsync(parsed, torrent, skipWithFile: stopgap).ConfigureAwait(false);
         if (files is null && error != "NoFiles")
         {
             logger.LogWarning("Download automatici: {Key}, import del torrent diretto non riuscito ({Error}): si riprova", key, error);
@@ -550,6 +556,10 @@ public sealed partial class DownloadService(
         {
             // Nessun file del titolo nel torrent: senza file la voce torna da cercare dopo un giro, come un download sparito.
             logger.LogWarning("Download automatici: {Key}, nel torrent diretto non c'è nessun file del titolo", key);
+        }
+        else if (files.Count == 0)
+        {
+            logger.LogInformation("Download automatici: {Key}, il titolo ha già i suoi file: il torrent diretto del tappabuchi non si importa", key);
         }
         else
         {

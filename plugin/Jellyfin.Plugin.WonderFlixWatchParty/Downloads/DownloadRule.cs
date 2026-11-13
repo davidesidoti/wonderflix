@@ -16,8 +16,11 @@ public sealed record RuleInput(int RuntimeMinutes, bool IsMovie, double MinGbPer
 /// </summary>
 public sealed record RuleRejected(ArrRelease Release, string Reason, string? Detail, bool QualityOnly = false);
 
-/// <summary>L'esito della regola: candidati già ordinati, scartati, scelta e se il migliore è sotto il minimo (spec T §4).</summary>
-public sealed record RuleResult(IReadOnlyList<ArrRelease> Candidates, IReadOnlyList<RuleRejected> Rejected, ArrRelease? Choice, bool BelowMinScore);
+/// <summary>
+/// L'esito della regola: candidati già ordinati, scartati, scelta e se il migliore è sotto il minimo (spec T §4). <c>Season</c>:
+/// la regola di un pack, misurata sugli episodi (<c>RuleInput.EpisodeMinutes</c> > 0).
+/// </summary>
+public sealed record RuleResult(IReadOnlyList<ArrRelease> Candidates, IReadOnlyList<RuleRejected> Rejected, ArrRelease? Choice, bool BelowMinScore, bool Season = false);
 
 /// <summary>La regola con cui l'admin sceglie la release, e "lo importerebbero?" (spec T §4 e §5).</summary>
 public static class DownloadRule
@@ -94,7 +97,7 @@ public static class DownloadRule
 
         var best = ordered.Count > 0 ? ordered[0] : null;
         var meetsMinimum = best is not null && best.CustomFormatScore >= input.MinScore;
-        return new RuleResult(ordered, rejected, meetsMinimum ? best : null, best is not null && !meetsMinimum);
+        return new RuleResult(ordered, rejected, meetsMinimum ? best : null, best is not null && !meetsMinimum, input.EpisodeMinutes > 0);
     }
 
     // Un pack completo copre tutti gli episodi della stagione: il parse di Sonarr li elenca tutti, non solo i mancanti.
@@ -145,8 +148,9 @@ public static class DownloadRule
 
     /// <summary>
     /// Il tappabuchi quando non c'è una scelta: il migliore sotto il minimo di punteggio, oppure tra i troppo piccoli quello
-    /// più pesante (a parità di punteggio e risoluzione), altrimenti il miglior 720p scartato solo per la qualità non ammessa.
-    /// Gli altri rifiutati da Arr non si scelgono mai.
+    /// più pesante (a parità di punteggio e risoluzione), altrimenti il miglior 720p scartato solo per la qualità non ammessa
+    /// (un pack solo nella regola di una stagione: in quella di un episodio sostituirebbe anche gli altri). Gli altri rifiutati
+    /// da Arr non si scelgono mai.
     /// </summary>
     public static (ArrRelease? Release, string? Kind) ChooseStopgap(RuleResult rule)
     {
@@ -171,10 +175,9 @@ public static class DownloadRule
 
         // Solo 720p, mai SD; stesso ordine di Choose senza la priorità degli indexer (qui non c'è).
         var quality = rule.Rejected
-            .Where(r => r.QualityOnly && r.Release.Quality?.Quality?.Resolution == 720)
+            .Where(r => r.QualityOnly && r.Release.Quality?.Quality?.Resolution == 720 && (rule.Season || !r.Release.FullSeason))
             .Select(r => r.Release)
             .OrderByDescending(r => r.CustomFormatScore)
-            .ThenByDescending(r => r.Quality?.Quality?.Resolution ?? 0)
             .ThenBy(r => r.Size)
             .ThenByDescending(r => r.Seeders ?? 0)
             .ThenBy(r => r.Guid, StringComparer.Ordinal)

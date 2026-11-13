@@ -75,6 +75,63 @@ public sealed class DownloadServiceDirectGrabTests : IDisposable
         Assert.Empty(_arr.SearchReleaseCalls);
     }
 
+    [Theory]
+    [InlineData(DownloadStopgaps.Quality, false)]
+    [InlineData(null, true)]
+    public async Task ADirect720pStopgapDoesNotOverwriteAFileArrivedMeanwhile(string? stopgap, bool imported)
+    {
+        // Intanto Radarr ha preso e importato un 1080p dal suo RSS: il 720p non lo sovrascrive. Un download voluto
+        // (Alleggerisci, un peggioramento scelto) invece si importa come sempre.
+        var book = Store().Load();
+        book.Get("movie:12")!.Stopgap = stopgap;
+        Store().Save(book);
+        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([Movie(12, hasFile: true, title: "Animals", year: 2025, runtime: 106)]);
+        Torrent(1);
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(imported, _arr.ManualImportCalls.Count == 1);
+        Assert.Null(Store().Load().Get("movie:12")!.DirectHash);
+    }
+
+    [Fact]
+    public async Task ADirect720pPackSkipsOnlyTheEpisodesWithAFile()
+    {
+        // Il pack 720p di una stagione senza file: intanto Sonarr ha importato il 2 in 1080p. Si importa solo l'1.
+        _arr.LibraryMovies = () => Task.FromResult<IReadOnlyList<RadarrMovie?>>([]);
+        _arr.SeriesEpisodes = _ => Task.FromResult<IReadOnlyList<SonarrEpisode?>>(
+        [
+            new SonarrEpisode { Id = 201, SeriesId = 7, SeasonNumber = 2, EpisodeNumber = 1, Monitored = true },
+            new SonarrEpisode { Id = 202, SeriesId = 7, SeasonNumber = 2, EpisodeNumber = 2, Monitored = true, HasFile = true, EpisodeFileId = 302 },
+        ]);
+        var quality = System.Text.Json.JsonDocument.Parse("{}").RootElement;
+        _arr.ManualImportFolderItems = (_, _) => Task.FromResult<IReadOnlyList<ArrManualImportItem?>>(
+        [
+            new ArrManualImportItem { Path = "/dl/S02/e1.mkv", Series = new ArrFileRef { Id = 7 }, SeasonNumber = 2, Episodes = [new ArrFileRef { Id = 201 }], Quality = quality, Size = Gb },
+            new ArrManualImportItem { Path = "/dl/S02/e2.mkv", Series = new ArrFileRef { Id = 7 }, SeasonNumber = 2, Episodes = [new ArrFileRef { Id = 202 }], Quality = quality, Size = Gb },
+        ]);
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry
+        {
+            Key = "season:7:2",
+            Kind = DownloadKinds.Season,
+            Title = "Severance S02",
+            SeriesId = 7,
+            State = DownloadStates.Downloading,
+            AvailableSince = T0,
+            LastSearchAt = T0 - TimeSpan.FromHours(1),
+            DirectHash = Hash,
+            Stopgap = DownloadStopgaps.Quality,
+        });
+        book.DirectGrabs[Hash] = "season:7:2";
+        Store().Save(book);
+        _qbit.Torrents.Add(new QbitTorrent { Hash = Hash, Name = "S02", Progress = 1, ContentPath = "/dl/S02" });
+
+        await _service.RunCycleAsync(CancellationToken.None);
+
+        Assert.Equal(["/dl/S02/e1.mkv"], Assert.Single(_arr.ManualImportCalls).Items.Select(i => i.Path));
+    }
+
     [Fact]
     public async Task DirectGrabStillDownloadingIsLeftAlone()
     {

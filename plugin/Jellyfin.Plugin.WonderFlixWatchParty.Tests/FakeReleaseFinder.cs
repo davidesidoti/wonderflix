@@ -28,16 +28,19 @@ internal sealed class FakeReleaseFinder : IReleaseFinder
     public Func<ArrKind, ArrRelease, bool, Task<GrabResult>> Grab { get; set; } =
         (_, _, _) => Task.FromResult(new GrabResult(GrabKind.Grabbed, null, null));
 
-    public List<(ArrKind Service, ArrRelease Release, bool Intentional)> GrabCalls { get; } = [];
+    public List<(ArrKind Service, ArrRelease Release, bool Intentional, bool OutsideProfile)> GrabCalls { get; } = [];
 
-    public Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken)
+    /// <summary>Se c'è, il grab va davvero in questo finder (con tutti i parametri) invece che in <see cref="Grab"/>.</summary>
+    public IReleaseFinder? Real { get; set; }
+
+    public Task<GrabResult> GrabAsync(ArrKind service, ArrRelease release, bool intentional, CancellationToken cancellationToken, bool outsideProfile = false)
     {
         lock (_lock)
         {
-            GrabCalls.Add((service, release, intentional));
+            GrabCalls.Add((service, release, intentional, outsideProfile));
         }
 
-        return Grab(service, release, intentional);
+        return Real?.GrabAsync(service, release, intentional, cancellationToken, outsideProfile) ?? Grab(service, release, intentional);
     }
 
     public Func<ArrKind, ArrRelease, Task<string>> AddDirect { get; set; } = (_, _) => Task.FromResult("direct-hash");

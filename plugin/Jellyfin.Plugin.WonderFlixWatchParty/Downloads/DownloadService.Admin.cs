@@ -555,9 +555,11 @@ public sealed partial class DownloadService
 
     /// <summary>
     /// Importa in copia (il torrent resta a seminare) i file del titolo dalla cartella di un torrent finito, anche dove Sonarr li
-    /// giudica peggiori di quelli in libreria. Null e il motivo ("NoFiles" o il codice dell'errore) se non riesce.
+    /// giudica peggiori di quelli in libreria. Null e il motivo ("NoFiles" o il codice dell'errore) se non riesce. Con
+    /// <paramref name="skipWithFile"/> (un tappabuchi 720p) salta i file di film o episodi che intanto hanno un file: senza
+    /// nessun file rimasto non importa niente e restituisce una lista vuota.
     /// </summary>
-    private async Task<(List<ArrManualImportItem>? Files, string? Error)> ImportFolderAsync(DownloadKey key, QbitTorrent torrent)
+    private async Task<(List<ArrManualImportItem>? Files, string? Error)> ImportFolderAsync(DownloadKey key, QbitTorrent torrent, bool skipWithFile = false)
     {
         var service = ServiceOf(key.Kind);
         try
@@ -571,6 +573,15 @@ public sealed partial class DownloadService
                 return (null, "NoFiles");
             }
 
+            if (skipWithFile)
+            {
+                files = await WithoutFileAsync(service, files).ConfigureAwait(false);
+                if (files.Count == 0)
+                {
+                    return (files, null);
+                }
+            }
+
             // Token mai annullato: il lavoro deve finire anche se l'app si chiude. Copia: il torrent deve restare a seminare.
             await arr.ManualImportAsync(service, files, CancellationToken.None, copy: true).ConfigureAwait(false);
             return (files, null);
@@ -579,6 +590,20 @@ public sealed partial class DownloadService
         {
             return (null, ErrorOf(ex));
         }
+    }
+
+    // I file il cui film o i cui episodi non hanno ancora un file in Radarr/Sonarr (letti adesso): un tappabuchi 720p non
+    // sovrascrive un 1080p arrivato intanto dal loro RSS.
+    private async Task<List<ArrManualImportItem>> WithoutFileAsync(ArrKind service, List<ArrManualImportItem> files)
+    {
+        if (service == ArrKind.Radarr)
+        {
+            return (await arr.GetMovieAsync(files[0].Movie!.Id, CancellationToken.None).ConfigureAwait(false)).HasFile ? [] : files;
+        }
+
+        var withFile = (await arr.GetSeriesEpisodesAsync(files[0].Series!.Id, CancellationToken.None).ConfigureAwait(false))
+            .Where(e => e?.HasFile == true).Select(e => e!.Id).ToHashSet();
+        return [.. files.Where(f => f.Episodes!.All(e => e is null || !withFile.Contains(e.Id)))];
     }
 
     // Un file del titolo della chiave: il film; l'episodio tra quelli del file; la serie e la stagione.
@@ -790,12 +815,14 @@ public sealed partial class DownloadService
 
             // Un download voluto (Alleggerisci, un file che Radarr/Sonarr non sostituirebbero, qualcosa che non seguono, una qualità
             // fuori dal profilo): se il push lo scarta solo per file, coda, monitoraggio o qualità va direttamente in qBittorrent.
-            var intentional = lighten || (target.Current is not null && !WouldImport(search.Profile, target.Current, release)) || !target.Monitored
-                || (search.Profile is { } profile && release.Quality?.Quality is { } quality && !DownloadRule.IsAllowed(profile, quality.Id));
+            // La qualità mai per una stagione con un file: il pack lo sostituirebbe, e Sonarr non ha un cestino.
+            var outsideProfile = search.Profile is { } profile && release.Quality?.Quality is { } quality && !DownloadRule.IsAllowed(profile, quality.Id)
+                && !(parsed.Kind == DownloadKinds.Season && search.Episodes?.Any(e => e.HasFile) == true);
+            var intentional = lighten || (target.Current is not null && !WouldImport(search.Profile, target.Current, release)) || !target.Monitored || outsideProfile;
             GrabResult result;
             try
             {
-                result = await _finder.GrabAsync(service, release, intentional, cancellationToken).ConfigureAwait(false);
+                result = await _finder.GrabAsync(service, release, intentional, cancellationToken, outsideProfile).ConfigureAwait(false);
                 if (result.Kind == GrabKind.RuleRefused && replaced)
                 {
                     // Il download di prima è già tolto: l'admin non resta senza niente, il torrent va direttamente in qBittorrent.
