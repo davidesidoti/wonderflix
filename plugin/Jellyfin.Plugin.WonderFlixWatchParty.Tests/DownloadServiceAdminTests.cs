@@ -943,8 +943,8 @@ public sealed class DownloadServiceAdminTests : IDisposable
         Assert.Equal(GrabOutcome.NothingToGrab, await GrabBest());
         Assert.Empty(_arr.GrabCalls);
 
-        // Una stagione o una chiave non valida: Invalid, senza cercare.
-        Assert.Equal(GrabOutcome.Invalid, await GrabBest("season:7:2"));
+        // Una stagione senza voce: niente da prendere; una chiave non valida: Invalid. Senza cercare.
+        Assert.Equal(GrabOutcome.NothingToGrab, await GrabBest("season:7:2"));
         Assert.Equal(GrabOutcome.Invalid, await GrabBest("film:12"));
         Assert.Single(_arr.SearchReleaseCalls);
     }
@@ -1486,6 +1486,111 @@ public sealed class DownloadServiceAdminTests : IDisposable
 
         Assert.Equal(["x40", "x35", "x30"], finder.GrabCalls.Select(c => c.Release.Guid));
         Assert.Empty(Saved("movie:12")!.RefusedReleases ?? []);
+    }
+
+    // I profili senza HDTV-720p: il push rifiuta un 720p "is not wanted in profile"; il grab va davvero nel ReleaseFinder.
+    private (DownloadService Service, FakeQbitClient Qbit) No720pWithProwlarr()
+    {
+        _arr.QualityProfiles = _ => Task.FromResult<IReadOnlyList<ArrQualityProfile?>>(
+            [.. new[] { 4, 6 }.Select(id => { var p = MainProfile(id); p.Items![0].Allowed = false; return (ArrQualityProfile?)p; })]);
+        _arr.Push = (_, _) => Task.FromResult(new ArrPushResult { Rejected = true, Rejections = ["HDTV-720p is not wanted in profile"] });
+        var qbit = new FakeQbitClient();
+        var (service, finder) = WithProwlarr(qbit: qbit);
+        var real = new ReleaseFinder(_arr, new FakeProwlarrClient(), _arrSettings, NullLogger<ReleaseFinder>.Instance, qbit, _time);
+        finder.Grab = (kind, release, intentional) => real.GrabAsync(kind, release, intentional, CancellationToken.None);
+        return (service, qbit);
+    }
+
+    private static ArrRelease Only720p(string guid, double gb, bool fullSeason = false)
+    {
+        var release = Release(guid, Hdtv720, "HDTV-720p", gb, 150);
+        release.Rejections = ["HDTV-720p is not wanted in profile"];
+        release.DownloadUrl = $"https://prowlarr.example/{guid}.torrent";
+        release.FullSeason = fullSeason;
+        return release;
+    }
+
+    private void SeasonNeedsYou(string? stopgapKind)
+    {
+        SeasonOf(null, null, null);
+        var book = new DownloadBook();
+        book.Put(new DownloadEntry
+        {
+            Key = "season:7:2",
+            Kind = DownloadKinds.Season,
+            Title = "Severance S02",
+            SeriesId = 7,
+            State = DownloadStates.NeedsYou,
+            Reason = DownloadReasons.NothingFound,
+            ProfileId = 6,
+            RuntimeMinutes = 50,
+            AvailableSince = T0 - TimeSpan.FromDays(10),
+            NextSearchAt = T0 + TimeSpan.FromDays(1),
+            Summary = new DownloadSummary { Found = 1, StopgapAvailable = true, StopgapKind = stopgapKind },
+        });
+        Store().Save(book);
+    }
+
+    [Fact]
+    public async Task GrabBestTakesThe720pWhenNothingElse()
+    {
+        NeedsYou(DownloadReasons.NothingFound, e => e.Summary = new DownloadSummary { Found = 1, StopgapAvailable = true, StopgapKind = DownloadStopgaps.Quality });
+        _releases = [Only720p("q", 3)];
+        var (service, qbit) = No720pWithProwlarr();
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabBestAsync("movie:12"));
+
+        Assert.Equal("https://prowlarr.example/q.torrent", Assert.Single(qbit.Added).Link);
+        var book = Store().Load();
+        var entry = book.Get("movie:12")!;
+        Assert.Equal((DownloadStates.Downloading, DownloadStopgaps.Quality, qbit.AddedHash), (entry.State, entry.Stopgap, entry.DirectHash));
+        Assert.Equal("movie:12", book.DirectGrabs[qbit.AddedHash]);
+    }
+
+    [Fact]
+    public async Task GrabBestTakesThe720pPackOfASeason()
+    {
+        SeasonNeedsYou(DownloadStopgaps.Quality);
+        _releases = [Only720p("p720", 3, fullSeason: true)];
+        var (service, qbit) = No720pWithProwlarr();
+
+        Assert.Equal(GrabOutcome.Ok, await service.GrabBestAsync("season:7:2"));
+
+        Assert.Equal("https://prowlarr.example/p720.torrent", Assert.Single(qbit.Added).Link);
+        var book = Store().Load();
+        var entry = book.Get("season:7:2")!;
+        Assert.Equal((DownloadStates.Downloading, DownloadStopgaps.Quality, qbit.AddedHash), (entry.State, entry.Stopgap, entry.DirectHash));
+        Assert.Equal("season:7:2", book.DirectGrabs[qbit.AddedHash]);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(DownloadStopgaps.Size)]
+    public async Task GrabBestOnASeasonWithoutQualityStopgapGrabsNothing(string? stopgapKind)
+    {
+        SeasonNeedsYou(stopgapKind);
+        _releases = [Only720p("p720", 3, fullSeason: true)];
+        var (service, qbit) = No720pWithProwlarr();
+
+        Assert.Equal(GrabOutcome.NothingToGrab, await service.GrabBestAsync("season:7:2"));
+
+        Assert.Empty(qbit.Added);
+        Assert.Empty(_arr.PushCalls);
+        Assert.Equal(DownloadStates.NeedsYou, Store().Load().Get("season:7:2")!.State);
+    }
+
+    [Fact]
+    public async Task GrabBestOnASeasonTakesNoSingles()
+    {
+        // Il tappabuchi della stagione è il pack 720p: un singolo sotto punteggio non si scarica al suo posto.
+        SeasonNeedsYou(DownloadStopgaps.Quality);
+        _releases = [Single("s1", 1, 1, 10)];
+        var (service, qbit) = No720pWithProwlarr();
+
+        Assert.Equal(GrabOutcome.NothingToGrab, await service.GrabBestAsync("season:7:2"));
+
+        Assert.Empty(qbit.Added);
+        Assert.Empty(_arr.PushCalls);
     }
 
     [Fact]

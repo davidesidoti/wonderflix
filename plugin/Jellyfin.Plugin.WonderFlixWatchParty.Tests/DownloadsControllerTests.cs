@@ -325,7 +325,8 @@ public sealed class DownloadsControllerTests : IDisposable
         Assert.Equal(StatusCodes.Status409Conflict, Status(nothing));
         Assert.Equal("NothingToGrab", Reason(nothing));
 
-        Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.GrabBest(Key("season:7:2"))));
+        // Una stagione senza tappabuchi 720p non ha niente da prendere.
+        Assert.Equal(StatusCodes.Status409Conflict, Status(await _controller.GrabBest(Key("season:7:2"))));
         Assert.Equal(StatusCodes.Status400BadRequest, Status(await _controller.GrabBest(null)));
     }
 

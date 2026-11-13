@@ -403,6 +403,17 @@ public class ReleaseFinderTests
     }
 
     [Fact]
+    public async Task AnIntentionalGrabRefusedForQualityGoesDirect()
+    {
+        // Il tappabuchi 720p: il profilo non lo ammette, ma l'admin lo vuole intanto.
+        Rejects("HDTV-720p is not wanted in profile");
+
+        Assert.Equal(GrabKind.Direct, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), true, CancellationToken.None)).Kind);
+        Assert.Equal(GrabKind.RuleRefused, (await Finder().GrabAsync(ArrKind.Sonarr, Pushed(), false, CancellationToken.None)).Kind);
+        Assert.Single(_qbit.Added);
+    }
+
+    [Fact]
     public async Task MixedRejectionsAreRuleRefused()
     {
         Rejects("Release in queue already meets cutoff", "Quality not wanted");

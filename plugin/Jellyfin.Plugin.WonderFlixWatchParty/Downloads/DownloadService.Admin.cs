@@ -234,12 +234,13 @@ public sealed partial class DownloadService
     /// <summary>
     /// "Scarica il migliore intanto" (spec §4.1, §4.2a, §5.5): una ricerca nuova (Radarr/Sonarr scaricano solo dalla loro cache
     /// recente), la regola senza le release rifiutate dal client (§5.3), poi il tappabuchi: il migliore sotto il minimo o il più
-    /// pesante tra i troppo piccoli. Se nel frattempo c'è una scelta valida si scarica quella, senza tappabuchi. Solo film ed
-    /// episodi. Ricerca e grab vanno fino in fondo anche se l'admin chiude la richiesta.
+    /// pesante tra i troppo piccoli, o il miglior 720p scartato solo per la qualità. Se nel frattempo c'è una scelta valida si
+    /// scarica quella, senza tappabuchi. Una stagione prende solo il suo pack 720p. Ricerca e grab vanno fino in fondo anche se
+    /// l'admin chiude la richiesta.
     /// </summary>
     public async Task<GrabOutcome> GrabBestAsync(string key)
     {
-        if (!DownloadKey.TryParse(key, out var parsed) || parsed.Kind == DownloadKinds.Season)
+        if (!DownloadKey.TryParse(key, out var parsed))
         {
             return GrabOutcome.Invalid;
         }
@@ -270,8 +271,21 @@ public sealed partial class DownloadService
         var ruleRefused = new HashSet<ArrRelease>();
         while (ruleRefused.Count < MaxGrabAttempts)
         {
-            var rule = DownloadRule.Choose(search.Releases.Where(r => !ruleRefused.Contains(r) && !refused.Contains(DownloadRule.ReleaseId(r.Guid ?? "", r.IndexerId))), search.Input);
-            var (release, stopgap) = rule.Choice is { } choice ? (choice, null) : DownloadRule.ChooseStopgap(rule);
+            var releases = search.Releases.Where(r => !ruleRefused.Contains(r) && !refused.Contains(DownloadRule.ReleaseId(r.Guid ?? "", r.IndexerId)));
+            ArrRelease? release;
+            string? stopgap;
+            if (parsed.Kind == DownloadKinds.Season)
+            {
+                // Una stagione: solo il pack 720p, mai singoli o altri tappabuchi (QualityPack c'è solo se il tappabuchi è Quality).
+                (release, stopgap) = search.SeasonEpisodes is { } all && SeasonPackRule.QualityPack(releases, all, search.Input) is { } packs
+                    ? DownloadRule.ChooseStopgap(packs)
+                    : (null, null);
+            }
+            else
+            {
+                var rule = DownloadRule.Choose(releases, search.Input);
+                (release, stopgap) = rule.Choice is { } choice ? (choice, null) : DownloadRule.ChooseStopgap(rule);
+            }
 
             // Di nuovo dopo la ricerca: intanto il giro o un altro admin può aver fatto partire un download.
             if (release is null || !CanGrabBest(parsed))
@@ -770,9 +784,10 @@ public sealed partial class DownloadService
 
             oldRemoved = true;
 
-            // Un download voluto (Alleggerisci, un file che Radarr/Sonarr non sostituirebbero, qualcosa che non seguono): se il
-            // push lo scarta solo per file, coda o monitoraggio va direttamente in qBittorrent.
-            var intentional = lighten || (target.Current is not null && !WouldImport(search.Profile, target.Current, release)) || !target.Monitored;
+            // Un download voluto (Alleggerisci, un file che Radarr/Sonarr non sostituirebbero, qualcosa che non seguono, una qualità
+            // fuori dal profilo): se il push lo scarta solo per file, coda, monitoraggio o qualità va direttamente in qBittorrent.
+            var intentional = lighten || (target.Current is not null && !WouldImport(search.Profile, target.Current, release)) || !target.Monitored
+                || (search.Profile is { } profile && release.Quality?.Quality is { } quality && !DownloadRule.IsAllowed(profile, quality.Id));
             GrabResult result;
             try
             {

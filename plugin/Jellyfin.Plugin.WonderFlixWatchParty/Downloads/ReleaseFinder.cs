@@ -14,7 +14,8 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
     // Il parse non mette niente in cache e un parallelismo piccolo basta (1640 release in 6 s in sequenza).
     private const int ParseParallelism = 4;
 
-    // I rifiuti del push per file, coda o monitoraggio: per un download voluto non contano.
+    // I rifiuti del push per file, coda o monitoraggio (e la qualità fuori dal profilo, il tappabuchi 720p): per un download
+    // voluto non contano.
     private static readonly string[] IntentionalRejections =
     [
         "Existing file on disk",
@@ -115,7 +116,7 @@ public sealed class ReleaseFinder(IArrClient arr, IProwlarrClient? prowlarr, IAr
 
         var reasons = decision.Rejections?.Where(r => !string.IsNullOrWhiteSpace(r)).ToList() ?? [];
         if (!intentional || reasons.Count == 0
-            || !reasons.All(r => IntentionalRejections.Any(p => r.StartsWith(p, StringComparison.OrdinalIgnoreCase))))
+            || !reasons.All(r => IntentionalRejections.Any(p => r.StartsWith(p, StringComparison.OrdinalIgnoreCase)) || DownloadRule.IsQualityRejection(r)))
         {
             return new GrabResult(GrabKind.RuleRefused, reasons.FirstOrDefault(), null);
         }
