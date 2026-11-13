@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendario, bozza</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+    --mu:rgba(242,234,211,.6); --ok:#5BBF6A; --series:#7E9CBD;
+    --page:#1c1c1c; --note:#b9b4a6;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+  .doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+  .doc > h1 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+  .doc > p.lead { max-width:72ch; margin:0 0 36px; }
+  section { margin-bottom:56px; }
+  section > h2 { font:400 26px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+  section > p { max-width:76ch; margin:0 0 16px; }
+  .refs { display:flex; flex-wrap:wrap; gap:6px 18px; margin:14px 0 0; padding:0; list-style:none; font-size:13px; max-width:110ch; }
+  .refs li::before { content:attr(data-n) "  "; color:var(--gold); font-weight:600; }
+  details { margin-top:14px; }
+  details summary { cursor:pointer; color:var(--cr); }
+  details img { display:block; width:100%; max-width:1280px; margin-top:10px; border-radius:6px; }
+  .scroll { overflow-x:auto; padding-bottom:6px; }
+
+  /* ---------- l'app ---------- */
+  .app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; }
+  .app.desk { width:1280px; }
+  .nav { display:flex; align-items:center; gap:22px; height:56px; padding:0 32px; }
+  .nav .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+  .nav a { color:var(--cr); text-decoration:none; padding:18px 0 15px; border-bottom:2px solid transparent; }
+  .nav a.on { color:var(--gold); border-color:var(--gold); }
+  .nav .me { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .nav .av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#6b4a8a,#2a1d38); }
+
+  .head { display:flex; align-items:center; gap:6px; padding:14px 32px 14px; }
+  .head h3 { font:400 44px/1 'Bebas Neue'; letter-spacing:1px; margin:0 14px 0 0; min-width:250px; }
+  .ib { width:36px; height:36px; border-radius:50%; border:0; background:transparent; color:var(--cr); font-size:20px; cursor:pointer; }
+  .ib:hover { background:var(--sh); }
+  .tb { border:1px solid var(--bd); background:transparent; color:var(--cr); border-radius:6px; padding:6px 12px; font:inherit; margin-left:8px; }
+  .tb:disabled { opacity:.35; }
+  .legend { margin-left:auto; display:flex; gap:16px; color:var(--mu); font-size:12px; align-items:center; }
+  .legend i { display:inline-block; vertical-align:-1px; margin-right:6px; }
+  .bar-f, .bar-s { width:3px; height:12px; border-radius:2px; }
+  .bar-f { background:var(--gold); } .bar-s { background:var(--series); }
+  .ring { width:9px; height:9px; border-radius:50%; border:1.5px solid var(--gold); flex:none; }
+  .seg { display:flex; border:1px solid var(--bd); border-radius:6px; overflow:hidden; margin-left:20px; }
+  .seg button { border:0; background:transparent; color:var(--mu); font:inherit; padding:7px 14px; cursor:pointer; }
+  .seg button[aria-pressed="true"] { background:var(--sh); color:var(--cr); box-shadow:inset 0 -2px var(--gold); }
+
+  /* griglia */
+  .grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; padding:0 32px 28px; }
+  .wd { font-size:12px; color:var(--mu); padding:0 8px 6px; }
+  .wd.we { color:rgba(242,234,211,.45); }
+  .cell { height:128px; background:var(--sh); border-radius:5px; padding:6px 6px 0; border:1px solid transparent; overflow:hidden; cursor:default; }
+  .cell.has { cursor:pointer; }
+  .cell.has:hover { border-color:#3a3a3a; }
+  .cell .num { display:flex; align-items:center; gap:8px; height:22px; padding:0 2px; font-weight:600; font-size:13px; }
+  .cell.past { background:var(--sf); }
+  .cell.past .num, .cell.past .e:not(.miss) { opacity:.42; }
+  .cell.out { background:transparent; border-color:var(--sf); }
+  .cell.out .num { opacity:.3; }
+  .cell.out .e { opacity:.3; }
+  .cell.today { border:2px solid var(--gold); padding:5px 5px 0; }
+  .cell.today .num b { background:var(--gold); color:var(--bg); border-radius:11px; min-width:26px; height:22px; display:inline-flex; align-items:center; justify-content:center; padding:0 7px; }
+  .cell.today .num span { color:var(--gold); font-weight:500; font-size:12px; }
+  .e { display:flex; align-items:center; gap:7px; height:19px; padding:0 5px 0 0; border-radius:3px; font-size:12.5px; white-space:nowrap; }
+  .e:hover { background:#262626; }
+  .e::before { content:""; width:3px; align-self:stretch; margin:3px 0; border-radius:2px; background:var(--series); flex:none; }
+  .e.f::before { background:var(--gold); }
+  .e .t { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .e .x { color:var(--mu); flex:none; }
+  .e .r { margin-left:auto; flex:none; color:var(--mu); font-size:11.5px; font-variant-numeric:tabular-nums; display:flex; align-items:center; gap:4px; }
+  .e .ck { color:var(--ok); font-size:11px; }
+  .more { height:19px; padding-left:10px; font-size:12.5px; color:var(--cr); opacity:.75; }
+  .cell.has:hover .more { opacity:1; text-decoration:underline; }
+
+  /* elenco (7 giorni) */
+  .agenda { padding:0 32px 32px; max-width:720px; }
+  .day { margin-top:22px; }
+  .day:first-child { margin-top:4px; }
+  .day h4 { margin:0 0 6px; display:flex; align-items:baseline; gap:10px; font-weight:400; }
+  .day h4 b { font:400 24px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .day h4 b.gold { color:var(--gold); }
+  .day h4 span { color:var(--mu); font-size:13px; }
+  .row { display:flex; align-items:center; gap:14px; padding:8px 10px; border-radius:6px; cursor:pointer; }
+  .row:hover { background:var(--sh); }
+  .poster { width:40px; height:60px; border-radius:4px; flex:none; }
+  .row .tx { min-width:0; flex:1; }
+  .row .tx b { display:block; font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row .tx span { color:var(--mu); font-size:13px; }
+  .row .tm { font-variant-numeric:tabular-nums; color:var(--mu); width:44px; text-align:right; flex:none; }
+  .st { display:flex; align-items:center; gap:6px; font-size:12px; width:150px; flex:none; justify-content:flex-end; }
+  .st.ok { color:var(--ok); }
+  .st.miss { color:var(--gold); }
+  .empty-day { color:var(--mu); padding:4px 10px; font-size:13px; }
+  .p0 { background:linear-gradient(160deg,#5a3b1c,#1c120a 75%); } .p1 { background:linear-gradient(160deg,#2b4a6b,#0d1620 75%); }
+  .p2 { background:linear-gradient(160deg,#4b2b5a,#140d1c 75%); } .p3 { background:linear-gradient(160deg,#2f5a3a,#0c1a10 75%); }
+  .p4 { background:linear-gradient(160deg,#6b2b2b,#1a0c0c 75%); } .p5 { background:linear-gradient(160deg,#5a5a2b,#17170b 75%); }
+
+  /* finestra del giorno */
+  .stage { position:relative; width:1280px; height:560px; overflow:hidden; border-radius:8px; }
+  .stage .shot { position:absolute; inset:0; background:url(oggi.jpg) top left / 1280px auto; filter:brightness(.3); }
+  .dlg { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:520px; background:var(--sf); border:1px solid var(--bd); border-radius:10px; padding:20px 18px 14px; color:var(--cr); }
+  .dlg h5 { margin:0 0 2px 10px; font:400 26px/1 'Bebas Neue'; letter-spacing:1px; display:flex; align-items:center; gap:10px; }
+  .dlg h5 small { font:500 12px Inter; letter-spacing:0; background:var(--gold); color:var(--bg); border-radius:10px; padding:2px 8px; }
+  .dlg .sub { margin:0 0 10px 10px; color:var(--mu); font-size:13px; }
+  .dlg .st { width:auto; min-width:120px; }
+
+  /* telefono */
+  .phones { display:flex; gap:32px; flex-wrap:wrap; align-items:flex-start; }
+  .app.phone { width:375px; border:8px solid #2a2a2a; border-radius:28px; }
+  .phone .ph { display:flex; align-items:center; justify-content:space-between; padding:16px 16px 6px; }
+  .phone .ph h3 { font:400 30px/1 'Bebas Neue'; letter-spacing:1px; margin:0; }
+  .phone .seg { margin:6px 16px 4px; }
+  .phone .seg button { flex:1; }
+  .phone .agenda { padding:0 8px 16px; }
+  .phone .row { gap:12px; padding:7px 8px; }
+  .phone .poster { width:34px; height:51px; }
+  .phone .st { width:auto; }
+  .phone .st .lbl { display:none; }
+  .phone .tabbar { display:flex; justify-content:space-around; border-top:1px solid var(--bd); padding:10px 0 14px; color:var(--mu); font-size:11px; }
+  .phone .tabbar .on { color:var(--gold); }
+  .phone .mgrid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; padding:4px 8px 10px; }
+  .phone .mgrid .wd { padding:0 0 4px; text-align:center; font-size:11px; }
+  .mc { height:48px; background:var(--sh); border-radius:4px; display:flex; flex-direction:column; align-items:center; padding-top:5px; gap:5px; font-size:12px; font-weight:600; }
+  .mc.past { background:var(--sf); } .mc.past > * { opacity:.42; } .mc.out { background:transparent; } .mc.out > * { opacity:.25; }
+  .mc.today { border:2px solid var(--gold); padding-top:3px; } .mc.today b { color:var(--gold); }
+  .mc.sel { background:#2a2418; }
+  .mc .dots { display:flex; gap:3px; } .mc .dots i { width:5px; height:5px; border-radius:50%; background:var(--series); } .mc .dots i.f { background:var(--gold); }
+  .mc .dots i.miss { background:transparent; border:1.2px solid var(--gold); width:6px; height:6px; opacity:1; }
+  .hidden { display:none !important; }
+
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Calendario, bozza</h1>
+  <p class="lead">Novembre 2026 con i dati veri del server, visto venerdì 13 alle 22:26. I numeri in oro rimandano ai punti dell'analisi. Colori e caratteri restano quelli dell'app (Noir &amp; Oro, Bebas Neue e Inter): cambia la gerarchia, non lo stile.</p>
+
+  <section>
+    <h2>1. Il mese</h2>
+    <p>Il passato si spegne, oggi è l'unica casella con il bordo pieno e il numero in pillola, e nel futuro le voci sono a piena luce. Film e serie si distinguono dalla barretta a sinistra, non dal fondo. Il puntino verde sparisce: resta solo il cerchio oro per ciò che doveva arrivare e non c'è (Overgeared, oggi alle 15:30). Il pulsante in alto a destra passa alla vista dei prossimi 7 giorni.</p>
+    <div class="scroll">
+      <div class="app desk" id="desk">
+        <div class="nav"><span class="logo">WonderFlix</span><a>Home</a><a>Film</a><a>Serie</a><a>La mia lista</a><a>Richieste</a><a class="on">Calendario</a><a>Cerca</a><span class="me"><span class="av"></span>davide.sidoti</span></div>
+        <div class="head">
+          <h3 id="desk-title">Novembre 2026</h3>
+          <span id="month-nav"><button class="ib" aria-label="Mese precedente">‹</button>
+          <button class="ib" aria-label="Mese successivo">›</button>
+          <button class="tb" disabled>Oggi</button></span>
+          <div class="legend"><span><i class="bar-f"></i>Film</span><span><i class="bar-s"></i>Serie</span><span><i class="ring"></i>Non ancora arrivato</span></div>
+          <div class="seg" role="group" aria-label="Vista">
+            <button aria-pressed="true" data-view="month">Mese</button>
+            <button aria-pressed="false" data-view="week">Prossimi 7 giorni</button>
+          </div>
+        </div>
+        <div class="grid" id="grid"></div>
+        <div class="agenda hidden" id="agenda-desk"></div>
+      </div>
+    </div>
+    <ul class="refs">
+      <li data-n="3">titolo intero al passaggio del mouse</li>
+      <li data-n="4">casella e voce si illuminano al passaggio</li>
+      <li data-n="5">passato e mesi vicini spenti</li>
+      <li data-n="6">cerchio oro al posto del puntino verde</li>
+      <li data-n="7">barretta film/serie e legenda</li>
+      <li data-n="8">oggi in pillola oro, con l'ora delle uscite</li>
+      <li data-n="9">un solo titolo: il mese</li>
+      <li data-n="10">testo da 12,5 px invece di 11</li>
+      <li data-n="11">"+2 altre" leggibile</li>
+      <li data-n="12">giorni della settimana allineati a sinistra</li>
+      <li data-n="13">vista "Prossimi 7 giorni"</li>
+    </ul>
+    <details><summary>Com'è oggi (0.41.0)</summary><img src="oggi.jpg" alt="Il Calendario attuale, novembre 2026"></details>
+  </section>
+
+  <section>
+    <h2>2. L'elenco del giorno</h2>
+    <p>Le righe vanno in ordine di ora, i film in cima. "TBA" non si mostra più. A destra c'è lo stato: arrivato o non ancora. Sotto il titolo c'è la distanza da oggi ("Oggi", "Domani", "Tra 7 giorni").</p>
+    <div class="scroll"><div class="stage"><div class="shot"></div><div class="dlg" id="dlg"></div></div></div>
+    <ul class="refs"><li data-n="1">ordine per ora</li><li data-n="2">niente "TBA"</li><li data-n="6">stato per riga</li></ul>
+  </section>
+
+  <section>
+    <h2>3. Telefono</h2>
+    <p>Sul telefono la vista d'ingresso è l'elenco dei prossimi 7 giorni, con le locandine. La griglia del mese resta a un tocco: un giorno toccato mostra le sue uscite sotto la griglia, senza aprire una finestra.</p>
+    <div class="phones">
+      <div class="app phone">
+        <div class="ph"><h3>Calendario</h3></div>
+        <div class="seg"><button aria-pressed="false">Mese</button><button aria-pressed="true">Prossimi 7 giorni</button></div>
+        <div class="agenda" id="agenda-phone"></div>
+        <div class="tabbar"><span>Home</span><span>Film</span><span>Serie</span><span class="on">Calendario</span><span>Altro</span></div>
+      </div>
+      <div class="app phone">
+        <div class="ph"><h3>Novembre 2026</h3><span><button class="ib" aria-label="Mese precedente">‹</button><button class="ib" aria-label="Mese successivo">›</button></span></div>
+        <div class="seg"><button aria-pressed="true">Mese</button><button aria-pressed="false">Prossimi 7 giorni</button></div>
+        <div class="mgrid" id="mgrid"></div>
+        <div class="agenda" id="phone-day"></div>
+        <div class="tabbar"><span>Home</span><span>Film</span><span>Serie</span><span class="on">Calendario</span><span>Altro</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Dati dal server, novembre 2026. k: f film, s serie. n: episodi raggruppati.
+// on: già sul server. tm: ora locale. ep: episodio (inventato dove lo screenshot non lo dava).
+const S = (t, extra = {}) => ({ k: 's', t, on: true, ...extra });
+const F = (t, extra = {}) => ({ k: 'f', t, on: true, ...extra });
+const greys = (on, ep) => S("Grey's Anatomy", { tm: '03:00', on, ep });
+const war = (on, ep) => S('WAR (2026)', { tm: '03:00', on, ep });
+const mob = (on, ep) => S('MobLand', { tm: '09:00', on, ep });
+const tulsa = (on, ep) => S('Tulsa King', { tm: '09:00', on, ep });
+const over = (on, ep) => S('Overgeared', { tm: '15:30', on, ep });
+const percy = () => S('Percy Jackson and the Olympians', { tm: '18:00', on: false, n: 2, ep: 'S03E01–E02' });
+
+const DATA = {
+  '2026-10-26': [S('American Hostage')],
+  '2026-10-27': [F('Drive - Cuori in pista'), F('The Dog Stars - Le stelle dopo la fine'), F('Verity')],
+  '2026-10-28': [F('Ali G: Who Iz I?'), S('Brothers (2026)'), S('VisionQuest', { n: 2 })],
+  '2026-10-30': [greys(true), war(true), mob(true), tulsa(true), over(true)],
+  '2026-10-31': [F('A Story of Derry'), S('Black Clover')],
+  '2026-11-02': [S('American Hostage'), S('Dexter: Resurrection')],
+  '2026-11-03': [F('Model Citizen'), F('Resident Evil')],
+  '2026-11-04': [F("Mongoose - L'ultimo soldato"), S('Best Medicine'), S('Brothers (2026)'), S('VisionQuest'), S('Winter (2026)')],
+  '2026-11-06': [greys(true), war(true), mob(true), tulsa(true), over(true)],
+  '2026-11-07': [S('Black Clover')],
+  '2026-11-08': [S('The Institute')],
+  '2026-11-09': [S('Dexter: Resurrection')],
+  '2026-11-10': [F('Mammina')],
+  '2026-11-11': [S('Best Medicine'), S('VisionQuest'), S('Winter (2026)')],
+  '2026-11-13': [greys(true, 'S23E05 · Ghosts of Our Past'), war(true, 'S01E07'), mob(true, 'S02E09 · Blood Ties'), tulsa(true, 'S04E05 · Bad Medicine'), over(false, 'S01E07')],
+  '2026-11-14': [S('Black Clover', { on: false, tm: '17:30', ep: 'S05E12 · Il voto del capitano' })],
+  '2026-11-15': [S('The Institute', { on: false, tm: '03:00', ep: 'S02E04 · Il corridoio' })],
+  '2026-11-16': [S('Dexter: Resurrection', { on: false, tm: '03:00', ep: 'S02E08 · Notte di caccia' })],
+  '2026-11-17': [F('Odissea', { on: false })],
+  '2026-11-18': [S('Best Medicine', { on: false, tm: '02:00', ep: 'S02E03 · Seconda opinione' })],
+  '2026-11-20': [greys(false, 'S23E06 · Till I Collapse'), war(false, 'S01E08'), mob(false, 'S02E10 · The Queen is Dead'), tulsa(false, 'S04E06 · Racket Club'), over(false, 'S01E08'), percy()],
+  '2026-11-21': [S('Black Clover', { on: false })],
+  '2026-11-22': [S('The Institute', { on: false })],
+  '2026-11-23': [F('The Social - Il prezzo della verità', { on: false }), S('Dexter: Resurrection', { on: false })],
+  '2026-11-27': [over(false), percy(), tulsa(false)],
+  '2026-11-28': [S('Black Clover', { on: false })],
+  '2026-11-29': [S('The Institute', { on: false })],
+  '2026-11-30': [S('Dexter: Resurrection', { on: false })],
+  '2026-12-02': [S('Best Medicine', { on: false })],
+  '2026-12-04': [over(false), percy(), tulsa(false)],
+  '2026-12-05': [S('Black Clover', { on: false })],
+  '2026-12-06': [S('The Institute', { on: false })],
+};
+
+const NOW = new Date(2026, 10, 13, 22, 26);
+const TODAY = new Date(2026, 10, 13);
+const MONTH = 10; // novembre
+const key = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const DAYS = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+const MONTHS = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+const cap = s => s[0].toUpperCase() + s.slice(1);
+const longDate = d => `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+
+// Film in cima, poi per ora, poi per nome (punto 1).
+const sorted = list => [...list].sort((a, b) =>
+  (a.k === 'f' ? 0 : 1) - (b.k === 'f' ? 0 : 1) || (a.tm || '99').localeCompare(b.tm || '99') || a.t.localeCompare(b.t));
+
+// Uscita già passata? I film valgono dal mattino del loro giorno.
+function aired(day, e) {
+  if (day < TODAY) return true;
+  if (day > TODAY) return false;
+  if (!e.tm) return true;
+  const [h, m] = e.tm.split(':').map(Number);
+  return new Date(2026, 10, 13, h, m) <= NOW;
+}
+const state = (day, e) => !aired(day, e) ? 'next' : e.on ? 'ok' : 'miss';
+const hash = s => [...s].reduce((n, c) => n + c.charCodeAt(0), 0) % 6;
+
+// ---------- griglia del mese ----------
+const ROWS = 5;
+function cellHtml(day) {
+  const list = sorted(DATA[key(day)] || []);
+  const today = +day === +TODAY;
+  const cls = ['cell', list.length ? 'has' : '', day.getMonth() !== MONTH ? 'out' : day < TODAY ? 'past' : '', today ? 'today' : ''].join(' ');
+  const shown = list.length > ROWS ? ROWS - 1 : list.length;
+  const entries = list.slice(0, shown).map(e => {
+    const st = state(day, e);
+    let right = '';
+    if (st === 'miss') right = '<i class="ring" title="Non ancora arrivato"></i>';
+    else if (today && st === 'ok') right = '<span class="ck" aria-label="Sul server">✓</span>';
+    else if (today && e.tm) right = e.tm;
+    const kind = e.k === 'f' ? 'Film' : 'Serie';
+    return `<div class="e ${e.k} ${st === 'miss' ? 'miss' : ''}" title="${kind}: ${esc(e.t)}${e.n ? ' ×' + e.n : ''}">
+      <span class="t">${esc(e.t)}</span>${e.n ? `<span class="x">×${e.n}</span>` : ''}<span class="r">${right}</span></div>`;
+  }).join('');
+  const more = list.length > shown ? `<div class="more">+${list.length - shown} altre</div>` : '';
+  const num = today ? `<b>${day.getDate()}</b><span>Oggi</span>` : day.getDate();
+  return `<div class="${cls}" ${list.length ? 'tabindex="0" role="button"' : ''}><div class="num">${num}</div>${entries}${more}</div>`;
+}
+function gridDays() {
+  const first = new Date(2026, MONTH, 1);
+  const start = addDays(first, -((first.getDay() + 6) % 7));
+  return Array.from({ length: 42 }, (_, i) => addDays(start, i));
+}
+const WD = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+document.getElementById('grid').innerHTML =
+  WD.map((w, i) => `<div class="wd ${i > 4 ? 'we' : ''}">${w}</div>`).join('') + gridDays().map(cellHtml).join('');
+
+// ---------- elenco ----------
+function statusHtml(st) {
+  if (st === 'ok') return `<span class="st ok">✓<span class="lbl"> Sul server</span></span>`;
+  if (st === 'miss') return `<span class="st miss"><i class="ring"></i><span class="lbl">Non ancora arrivato</span></span>`;
+  return `<span class="st"></span>`;
+}
+function rowHtml(day, e) {
+  const sub = e.k === 'f' ? 'Film · in digitale' : (e.ep || '');
+  return `<div class="row" tabindex="0"><span class="poster p${hash(e.t)}"></span>
+    <span class="tx"><b>${esc(e.t)}</b><span>${esc(sub)}</span></span>
+    <span class="tm">${e.tm || ''}</span>${statusHtml(state(day, e))}</div>`;
+}
+function dayTitle(day) {
+  const diff = Math.round((day - TODAY) / 864e5);
+  if (diff === 0) return `<b class="gold">Oggi</b><span>${longDate(day)}</span>`;
+  if (diff === 1) return `<b>Domani</b><span>${longDate(day)}</span>`;
+  return `<b>${cap(longDate(day))}</b>`;
+}
+function agendaHtml() {
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const day = addDays(TODAY, i);
+    const list = sorted(DATA[key(day)] || []);
+    html += `<div class="day"><h4>${dayTitle(day)}</h4>${list.length ? list.map(e => rowHtml(day, e)).join('') : '<div class="empty-day">Nessuna uscita</div>'}</div>`;
+  }
+  return html;
+}
+document.getElementById('agenda-desk').innerHTML = agendaHtml();
+document.getElementById('agenda-phone').innerHTML = agendaHtml();
+
+// ---------- finestra del giorno ----------
+const dlgList = sorted(DATA['2026-11-13']);
+document.getElementById('dlg').innerHTML =
+  `<h5>Venerdì 13 novembre <small>Oggi</small></h5><p class="sub">5 uscite · 4 già sul server</p>` +
+  dlgList.map(e => rowHtml(TODAY, e)).join('');
+
+// ---------- telefono, mese ----------
+const SEL = new Date(2026, 10, 20);
+document.getElementById('mgrid').innerHTML =
+  WD.map(w => `<div class="wd">${w[0].toUpperCase()}</div>`).join('') +
+  gridDays().map(day => {
+    const list = sorted(DATA[key(day)] || []);
+    const cls = ['mc', day.getMonth() !== MONTH ? 'out' : day < TODAY ? 'past' : '', +day === +TODAY ? 'today' : '', +day === +SEL ? 'sel' : ''].join(' ');
+    const dots = list.slice(0, 4).map(e => `<i class="${e.k === 'f' ? 'f' : ''} ${state(day, e) === 'miss' ? 'miss' : ''}"></i>`).join('');
+    return `<div class="${cls}"><b>${day.getDate()}</b><span class="dots">${dots}</span></div>`;
+  }).join('');
+document.getElementById('phone-day').innerHTML =
+  `<div class="day"><h4>${dayTitle(SEL)}</h4>${sorted(DATA[key(SEL)]).slice(0, 3).map(e => rowHtml(SEL, e)).join('')}</div>`;
+
+// ---------- cambio vista ----------
+document.querySelectorAll('#desk .seg button').forEach(b => b.addEventListener('click', () => {
+  const week = b.dataset.view === 'week';
+  document.querySelectorAll('#desk .seg button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  document.getElementById('grid').classList.toggle('hidden', week);
+  document.getElementById('agenda-desk').classList.toggle('hidden', !week);
+  document.getElementById('month-nav').classList.toggle('hidden', week);
+  document.getElementById('desk-title').textContent = week ? 'Prossimi 7 giorni' : 'Novembre 2026';
+}));
+</script>
+</body>
+</html>
