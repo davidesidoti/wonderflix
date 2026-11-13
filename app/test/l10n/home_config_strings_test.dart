@@ -16,7 +16,6 @@ void main() {
     expect(en.homeRowsMoveDown, 'Move down');
     expect(it.homeRowsReset, 'Ripristina la Home predefinita');
     expect(it.homeRowsSaveFailed, 'Non salvato, riprova');
-    expect(it.homeRowsAllPcs, 'Vale per questo account su tutti i PC.');
     expect(it.homeRowUnavailableSeerr, 'Collega il tuo account a Seerr');
     expect(en.homeRowUnavailableSagas, 'Needs plugin 1.5.0');
   });

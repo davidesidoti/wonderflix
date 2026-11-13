@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -41,43 +43,58 @@ class SettingsSectionTitle extends StatelessWidget {
     final scope = this.scope;
     return Padding(
       padding: const EdgeInsets.only(top: 32, bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Expanded(child: Text(title, style: WfText.display(24))),
-          if (scope != null) ...[
-            const SizedBox(width: 12),
-            // Nello stretto il testo lungo di `jellyfin` va a capo, non sfora.
-            Flexible(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    scope == SettingsScope.device
-                        ? LucideIcons.monitor
-                        : LucideIcons.cloud,
-                    size: 13,
-                    color: WfColors.creamMuted,
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(switch (scope) {
-                      SettingsScope.device =>
-                        FormFactor.of(context).tv
-                            ? l.settingsScopeDeviceTv
-                            : kIsWeb
-                            ? l.settingsScopeDeviceWeb
-                            : l.settingsScopeDevice,
-                      SettingsScope.account => l.settingsScopeAccount,
-                      SettingsScope.jellyfin => l.settingsScopeJellyfin,
-                    }, style: _mutedStyle),
-                  ),
-                ],
+      child: LayoutBuilder(
+        builder: (context, box) => Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            // Il titolo tiene la sua larghezza: a stringersi è solo il "dove si
+            // salva", il cui testo lungo (`jellyfin`) va a capo nello stretto.
+            ConstrainedBox(
+              // Al "dove si salva" restano almeno 96 px, anche con un titolo
+              // più largo del solito (font grande).
+              constraints: BoxConstraints(
+                maxWidth: scope == null
+                    ? box.maxWidth
+                    : math.max(0, box.maxWidth - 12 - 96),
               ),
+              child: Text(title, style: WfText.display(24)),
             ),
+            if (scope != null) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        scope == SettingsScope.device
+                            ? LucideIcons.monitor
+                            : LucideIcons.cloud,
+                        size: 13,
+                        color: WfColors.creamMuted,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(switch (scope) {
+                          SettingsScope.device =>
+                            FormFactor.of(context).tv
+                                ? l.settingsScopeDeviceTv
+                                : kIsWeb
+                                ? l.settingsScopeDeviceWeb
+                                : l.settingsScopeDevice,
+                          SettingsScope.account => l.settingsScopeAccount,
+                          SettingsScope.jellyfin => l.settingsScopeJellyfin,
+                        }, textAlign: TextAlign.end, style: _mutedStyle),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -120,12 +137,39 @@ class SettingsRow extends StatelessWidget {
       ],
     );
     final stacked = wideTrailing && FormFactor.of(context).compact;
+    // Un controllo largo (bottoni segmentati) non sfora mai: se non ci sta,
+    // si rimpicciolisce (testo del sistema grande, lingua con parole lunghe).
+    Widget fit(Widget child, Alignment alignment) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: alignment,
+      child: child,
+    );
     final content = trailing == null
         ? text
         : stacked
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [text, const SizedBox(height: 10), trailing!],
+            children: [
+              text,
+              const SizedBox(height: 10),
+              fit(trailing!, Alignment.centerLeft),
+            ],
+          )
+        : wideTrailing
+        ? LayoutBuilder(
+            builder: (context, box) => Row(
+              children: [
+                Expanded(child: text),
+                const SizedBox(width: 14),
+                ConstrainedBox(
+                  // All'etichetta restano almeno 120 px.
+                  constraints: BoxConstraints(
+                    maxWidth: math.max(0, box.maxWidth - 14 - 120),
+                  ),
+                  child: fit(trailing!, Alignment.centerRight),
+                ),
+              ],
+            ),
           )
         : Row(
             children: [
@@ -134,21 +178,28 @@ class SettingsRow extends StatelessWidget {
               trailing!,
             ],
           );
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(14 + indent, 11, 14, 11),
-        child: ConstrainedBox(
-          // Nello stretto ogni riga è un bersaglio da dito.
-          constraints: BoxConstraints(
-            minHeight: FormFactor.of(context).compact
-                ? minTouchTarget - 22
-                : 24,
+    // Il `Material` trasparente: la scia del tocco ha una tela dove
+    // disegnarsi anche fuori da uno `Scaffold`.
+    final row = Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(14 + indent, 11, 14, 11),
+          child: ConstrainedBox(
+            // Nello stretto ogni riga è un bersaglio da dito.
+            constraints: BoxConstraints(
+              minHeight: FormFactor.of(context).compact
+                  ? minTouchTarget - 22
+                  : 24,
+            ),
+            child: Align(alignment: Alignment.centerLeft, child: content),
           ),
-          child: Align(alignment: Alignment.centerLeft, child: content),
         ),
       ),
     );
+    // Una riga col controllo dentro (menu) ha già il suo bordo oro.
+    return onTap == null ? row : TvFocusBorder(child: row);
   }
 }
 
@@ -178,16 +229,19 @@ class SettingsSwitchRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onChanged = this.onChanged;
-    return Opacity(
-      opacity: onChanged == null ? 0.45 : 1,
-      child: SettingsRow(
-        label: label,
-        hint: hint,
-        indent: indent,
-        onTap: onChanged == null ? null : () => onChanged(!value),
-        trailing: ExcludeFocus(
-          // La riga prende già il focus: non due tappe per lo stesso comando.
-          child: Switch(key: _switchKey, value: value, onChanged: onChanged),
+    // Un solo controllo per chi legge lo schermo: etichetta, aiuto e stato.
+    return MergeSemantics(
+      child: Opacity(
+        opacity: onChanged == null ? 0.45 : 1,
+        child: SettingsRow(
+          label: label,
+          hint: hint,
+          indent: indent,
+          onTap: onChanged == null ? null : () => onChanged(!value),
+          trailing: ExcludeFocus(
+            // La riga prende già il focus: non due tappe per lo stesso comando.
+            child: Switch(key: _switchKey, value: value, onChanged: onChanged),
+          ),
         ),
       ),
     );

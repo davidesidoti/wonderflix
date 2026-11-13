@@ -19,9 +19,9 @@ import 'appearance_settings_section.dart';
 import 'discord_settings_section.dart';
 import 'home_settings_section.dart';
 import 'language_settings_section.dart';
-import 'locale_controller.dart';
 import 'notifications_settings_section.dart';
 import 'player_settings_section.dart';
+import 'settings_kit.dart';
 import 'support_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -36,13 +36,27 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  /// Elementi dell'entrata: il titolo e le nove sezioni.
+  /// Elementi dell'entrata: il titolo, le otto sezioni e il piede.
   static const _sectionCount = 10;
+
+  /// Gli id delle sezioni, nell'ordine della pagina.
+  static const _sectionIds = [
+    'account',
+    'notifications',
+    'home',
+    'playback',
+    'subtitles',
+    'app',
+    'discord',
+    'support',
+  ];
 
   final _scroll = SmoothScrollController();
 
-  /// Il titolo della sezione Home, dove scorrere con `section=home`.
-  final _homeKey = GlobalKey(debugLabel: 'settings-home');
+  /// I titoli delle sezioni, dove scorrere con `section=<id>`.
+  final _sectionKeys = {
+    for (final id in _sectionIds) id: GlobalKey(debugLabel: 'settings-$id'),
+  };
 
   @override
   void initState() {
@@ -67,7 +81,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _scrollToSection() {
     if (widget.section != homeSettingsSection) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final target = _homeKey.currentContext;
+      final target = _sectionKeys[homeSettingsSection]?.currentContext;
       if (!mounted || target == null) return;
       unawaited(Scrollable.ensureVisible(
         target,
@@ -80,28 +94,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final locale = ref.watch(localeProvider);
     final version = ref.watch(clientInfoProvider).version;
     final push = ref.watch(socialAvailabilityProvider.select((f) => f.push));
-    // Sulla TV solo lingua dell'app, player e lingue di riproduzione: il
+    // Sulla TV solo riproduzione, audio e sottotitoli e lingua dell'app: il
     // resto si imposta dal PC o dal telefono.
     final tv = FormFactor.of(context).tv;
 
-    Widget section(String title, {Key? key}) => Padding(
-          key: key,
-          padding: const EdgeInsets.only(top: 32, bottom: 12),
-          child: Text(title, style: WfText.display(24)),
-        );
-
-    // Una sezione (titolo e contenuto) è un elemento dell'entrata.
-    Widget item(int index, List<Widget> children) => StaggerItem(
-          index: index,
+    // Una sezione (titolo e righe) è un elemento dell'entrata, larga al più
+    // 640 px e a sinistra.
+    Widget section(
+      int index,
+      String id,
+      String title,
+      SettingsScope? scope,
+      Widget body,
+    ) => StaggerItem(
+      index: index,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
+            children: [
+              // La `GlobalKey` serve a scorrere qui; la `ValueKey` ai test.
+              KeyedSubtree(
+                key: _sectionKeys[id],
+                child: SettingsSectionTitle(
+                  key: ValueKey('settings-section-$id'),
+                  title: title,
+                  scope: scope,
+                ),
+              ),
+              body,
+            ],
           ),
-        );
+        ),
+      ),
+    );
+
+    Widget appSection(int index) => section(index, 'app', l.settingsSectionApp,
+        SettingsScope.device, const AppearanceSettingsSection());
 
     // Non una ListView: le sezioni uscite dallo schermo verrebbero
     // smontate, e quella delle lingue (provider autoDispose) ricaricata
@@ -120,84 +154,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: WfText.display(40)),
             ),
             if (!tv)
-              item(1, [
-                section(l.settingsAccount),
-                const AccountSettingsSection(),
-              ]),
+              section(1, 'account', l.settingsAccount, SettingsScope.account,
+                  const AccountSettingsSection()),
             // Solo con le notifiche push nel plugin (spec V §4.1).
             if (push && !tv)
-              item(2, [
-                section(l.settingsNotifications),
-                const NotificationsSettingsSection(),
-              ]),
-            item(3, [
-              section(l.settingsLanguage),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: [
-                    ButtonSegment(
-                        value: 'system', label: Text(l.settingsLanguageSystem)),
-                    const ButtonSegment(value: 'it', label: Text('Italiano')),
-                    const ButtonSegment(value: 'en', label: Text('English')),
-                  ],
-                  selected: {locale?.languageCode ?? 'system'},
-                  onSelectionChanged: (selection) {
-                    final code = selection.first;
-                    unawaited(ref
-                        .read(localeProvider.notifier)
-                        .set(code == 'system' ? null : Locale(code)));
-                  },
-                ),
-              ),
-            ]),
-            if (!tv) ...[
-              item(4, [
-                section(l.settingsAppearance),
-                const AppearanceSettingsSection(),
-              ]),
-              item(5, [
-                section(l.settingsHome, key: _homeKey),
-                const HomeSettingsSection(),
-              ]),
-            ],
-            item(6, [
-              section(l.settingsPlayer),
-              const PlayerSettingsSection(),
-            ]),
-            item(7, [
-              section(l.settingsLanguages),
-              const LanguageSettingsSection(),
-            ]),
+              section(2, 'notifications', l.settingsNotifications,
+                  SettingsScope.account, const NotificationsSettingsSection()),
+            if (!tv)
+              section(3, 'home', l.settingsHome, SettingsScope.account,
+                  const HomeSettingsSection()),
+            // La TV parte dalla lingua dell'app, come il suo elenco.
+            if (tv) appSection(3),
+            section(4, 'playback', l.settingsSectionPlayback,
+                SettingsScope.device, const PlayerSettingsSection()),
+            section(5, 'subtitles', l.settingsSectionSubtitles,
+                SettingsScope.jellyfin, const LanguageSettingsSection()),
+            if (!tv) appSection(6),
             // Nel browser la Rich Presence è spenta (spec 1b §4.6).
             if (!kIsWeb && !tv)
-              item(8, [
-                section(l.settingsDiscord),
-                const DiscordSettingsSection(),
-              ]),
-            item(9, [
-              if (!tv) ...[
-                section(l.settingsSupport),
-                const SupportSection(),
-              ],
-              const SizedBox(height: 40),
-              // Sulla TV si scorre solo col focus: senza, la versione e
-              // l'aggiornamento sotto i sottotitoli restano fuori schermo.
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TvFocusable(
-                  onActivate: () {},
-                  child: Padding(
-                    padding: EdgeInsets.all(tv ? 6 : 0),
-                    child: Text(l.settingsVersion(version),
-                        style: const TextStyle(
-                            color: WfColors.creamMuted, fontSize: 12.5)),
+              section(7, 'discord', l.settingsDiscord, SettingsScope.device,
+                  const DiscordSettingsSection()),
+            if (!tv)
+              section(8, 'support', l.settingsSupport, null,
+                  const SupportSection()),
+            StaggerItem(
+              index: 9,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 40),
+                  // Sulla TV si scorre solo col focus: senza, la versione e
+                  // l'aggiornamento sotto i sottotitoli restano fuori schermo.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TvFocusable(
+                      onActivate: () {},
+                      child: Padding(
+                        padding: EdgeInsets.all(tv ? 6 : 0),
+                        child: Text(l.settingsVersion(version),
+                            style: const TextStyle(
+                                color: WfColors.creamMuted, fontSize: 12.5)),
+                      ),
+                    ),
                   ),
-                ),
+                  const TvUpdateTile(),
+                ],
               ),
-              const TvUpdateTile(),
-            ]),
+            ),
           ],
         ),
       ),

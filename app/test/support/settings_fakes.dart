@@ -12,6 +12,9 @@ class FakeUserConfigApi implements UserConfigApi {
     'HidePlayedInLatest': true,
   };
 
+  /// Se valorizzato, [configuration] lancia questo errore.
+  Object? loadError;
+
   /// Se valorizzato, [saveConfiguration] lancia questo errore.
   Object? saveError;
 
@@ -26,6 +29,8 @@ class FakeUserConfigApi implements UserConfigApi {
   @override
   Future<Map<String, dynamic>> configuration() async {
     configurationCalls++;
+    final failure = loadError;
+    if (failure != null) throw failure;
     return Map<String, dynamic>.of(config);
   }
 

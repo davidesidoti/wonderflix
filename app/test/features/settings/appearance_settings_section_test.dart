@@ -21,4 +21,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(prefs.getString('appearance.motion'), 'reduced');
   });
+
+  testWidgets('la lingua dell\'app sta nella sezione e si salva', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(
+      tester,
+      const Scaffold(body: AppearanceSettingsSection()),
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    expect(find.text('Lingua dell\'app'), findsOneWidget);
+    await tester.tap(find.text('English'));
+    await tester.pump();
+    expect(prefs.getString('locale'), 'en');
+  });
+
+  testWidgets('sulla TV c\'è la sola lingua, senza animazioni', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(
+      tester,
+      const Scaffold(body: AppearanceSettingsSection()),
+      tv: true,
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    expect(find.text('Lingua dell\'app'), findsOneWidget);
+    expect(find.text('Animazioni'), findsNothing);
+  });
 }

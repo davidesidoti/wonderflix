@@ -110,8 +110,6 @@ class HomeSettingsSection extends ConsumerWidget {
                 ? () => unawaited(notifier.reset())
                 : null,
           ),
-          const SizedBox(height: 8),
-          Text(l.homeRowsAllPcs, style: muted),
         ],
       );
     }

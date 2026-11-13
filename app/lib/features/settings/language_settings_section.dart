@@ -4,47 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/error_text.dart';
-import '../../app/theme.dart';
 import '../../core/jellyfin/user_config_api.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/form_factor.dart';
-import '../../ui/tv_focusable.dart';
+import '../admin/admin_kit.dart';
+import '../player/player_settings.dart';
 import 'language_preferences.dart';
+import 'settings_kit.dart';
 
-/// Lingue di audio e sottotitoli e quando mostrare i sottotitoli: sono
-/// salvate sul server e il server le usa per scegliere le tracce.
+/// Lingue di audio e sottotitoli e quando mostrare i sottotitoli (salvate sul
+/// server, che le usa per scegliere le tracce), più la dimensione, che resta
+/// su questo PC.
 class LanguageSettingsSection extends ConsumerWidget {
   const LanguageSettingsSection({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
-    return switch (ref.watch(languagePreferencesProvider)) {
-      AsyncData(:final value) => _LanguageForm(preferences: value),
-      AsyncError(:final error) => Row(
-          children: [
-            Flexible(child: Text(describeError(l, error))),
-            TextButton(
-              onPressed: () => ref.invalidate(languagePreferencesProvider),
-              child: Text(l.retry),
-            ),
-          ],
-        ),
-      _ => const Padding(
-          padding: EdgeInsets.all(8),
-          child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2)),
-        ),
-    };
-  }
-}
-
-class _LanguageForm extends ConsumerWidget {
-  const _LanguageForm({required this.preferences});
-
-  final LanguagePreferences preferences;
 
   Future<void> _save(
       BuildContext context, WidgetRef ref, LanguagePreferences next) async {
@@ -59,6 +30,57 @@ class _LanguageForm extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final settings = ref.watch(playerSettingsProvider);
+    // La dimensione non viene dal server: c'è anche mentre le lingue caricano
+    // o se non si leggono.
+    final size = SettingsRow(
+      label: l.settingsSubtitleSize,
+      hint: l.settingsSubtitleSizeHint,
+      wideTrailing: true,
+      trailing: SegmentedButton<double>(
+        showSelectedIcon: false,
+        segments: [
+          for (final scale in subtitleScaleOptions)
+            ButtonSegment(
+                value: scale, label: Text(subtitleScaleLabel(l, scale))),
+        ],
+        selected: {settings.subtitleScale},
+        onSelectionChanged: (selection) => unawaited(ref
+            .read(playerSettingsProvider.notifier)
+            .update(settings.copyWith(subtitleScale: selection.first))),
+      ),
+    );
+    return AdminList(
+      children: [
+        ...switch (ref.watch(languagePreferencesProvider)) {
+          AsyncData(:final value) => _languageRows(context, ref, value),
+          AsyncError(:final error) => [
+              SettingsRow(
+                label: describeError(l, error),
+                trailing: TextButton(
+                  onPressed: () => ref.invalidate(languagePreferencesProvider),
+                  child: Text(l.retry),
+                ),
+              ),
+            ],
+          _ => const [
+              SettingsRow(
+                label: '',
+                trailing: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            ],
+        },
+        size,
+      ],
+    );
+  }
+
+  List<Widget> _languageRows(
+      BuildContext context, WidgetRef ref, LanguagePreferences preferences) {
     final l = AppLocalizations.of(context);
     List<DropdownMenuItem<String>> languages(String current) => [
           DropdownMenuItem(value: '', child: Text(l.settingsLanguageAny)),
@@ -77,75 +99,43 @@ class _LanguageForm extends ConsumerWidget {
     final mode = subtitleModes.contains(preferences.subtitleMode)
         ? preferences.subtitleMode
         : 'Default';
-
-    // Nello stretto i menu riempiono la riga: col testo lungo non sforano.
-    final fill = FormFactor.of(context).compact;
-
-    Widget labeled(String label, Widget field) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [Text(label), const SizedBox(height: 6), field],
-          ),
-        );
-
-    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
-    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l.settingsLanguagesHint,
-                style: const TextStyle(color: WfColors.creamMuted)),
-            const SizedBox(height: 16),
-            labeled(
-              l.settingsAudioLanguage,
-              TvFocusBorder(
-                child: DropdownButton<String>(
-                  isExpanded: fill,
-                  key: const Key('audio-language'),
-                  value: preferences.audioLanguage,
-                  items: languages(preferences.audioLanguage),
-                  onChanged: (value) => unawaited(_save(context, ref,
-                      preferences.copyWith(audioLanguage: value ?? ''))),
-                ),
-              ),
-            ),
-            labeled(
-              l.settingsSubtitleLanguage,
-              TvFocusBorder(
-                child: DropdownButton<String>(
-                  isExpanded: fill,
-                  key: const Key('subtitle-language'),
-                  value: preferences.subtitleLanguage,
-                  items: languages(preferences.subtitleLanguage),
-                  onChanged: (value) => unawaited(_save(context, ref,
-                      preferences.copyWith(subtitleLanguage: value ?? ''))),
-                ),
-              ),
-            ),
-            labeled(
-              l.settingsSubtitleMode,
-              TvFocusBorder(
-                child: DropdownButton<String>(
-                  isExpanded: fill,
-                  key: const Key('subtitle-mode'),
-                  value: mode,
-                  items: [
-                    for (final entry in modes.entries)
-                      DropdownMenuItem(value: entry.key, child: Text(entry.value)),
-                  ],
-                  onChanged: (value) => unawaited(_save(
-                      context, ref, preferences.copyWith(subtitleMode: value))),
-                ),
-              ),
-            ),
-          ],
+    return [
+      SettingsRow(
+        label: l.settingsAudioLanguage,
+        wideTrailing: true,
+        trailing: SettingsDropdown<String>(
+          key: const Key('audio-language'),
+          value: preferences.audioLanguage,
+          items: languages(preferences.audioLanguage),
+          onChanged: (value) => unawaited(_save(
+              context, ref, preferences.copyWith(audioLanguage: value ?? ''))),
         ),
       ),
-    );
+      SettingsRow(
+        label: l.settingsSubtitleLanguage,
+        wideTrailing: true,
+        trailing: SettingsDropdown<String>(
+          key: const Key('subtitle-language'),
+          value: preferences.subtitleLanguage,
+          items: languages(preferences.subtitleLanguage),
+          onChanged: (value) => unawaited(_save(context, ref,
+              preferences.copyWith(subtitleLanguage: value ?? ''))),
+        ),
+      ),
+      SettingsRow(
+        label: l.settingsSubtitleMode,
+        wideTrailing: true,
+        trailing: SettingsDropdown<String>(
+          key: const Key('subtitle-mode'),
+          value: mode,
+          items: [
+            for (final entry in modes.entries)
+              DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+          ],
+          onChanged: (value) => unawaited(
+              _save(context, ref, preferences.copyWith(subtitleMode: value))),
+        ),
+      ),
+    ];
   }
 }

@@ -27,7 +27,7 @@ void main() {
           ),
           SettingsSectionTitle(title: 'Home', scope: SettingsScope.account),
           SettingsSectionTitle(
-            title: 'Sottotitoli',
+            title: 'Sottotit',
             scope: SettingsScope.jellyfin,
           ),
           SettingsSectionTitle(title: 'Supporto'),
@@ -64,6 +64,30 @@ void main() {
       );
       expect(key.currentContext, isNotNull);
     });
+
+    testWidgets('nello stretto il titolo tiene una riga e a stringersi è '
+        'il dove si salva', (tester) async {
+      await pumpApp(
+        tester,
+        _page(const [
+          SettingsSectionTitle(title: 'Home'),
+          SettingsSectionTitle(
+            title: 'Sottotit',
+            scope: SettingsScope.jellyfin,
+          ),
+        ]),
+        surfaceSize: const Size(330, 900),
+      );
+      expect(tester.takeException(), isNull);
+      // Una riga come "Home": il titolo non è ridotto a metà della riga (nel
+      // test il font è largo: 8 lettere sono 192 px, oltre la metà di 330).
+      expect(
+        tester.getSize(find.text('Sottotit')).height,
+        tester.getSize(find.text('Home')).height,
+      );
+      expect(find.text('Il tuo account, in tutti i client Jellyfin'),
+          findsOneWidget);
+    });
   });
 
   group('SettingsRow', () {
@@ -90,6 +114,28 @@ void main() {
       expect(find.text('Valore'), findsOneWidget);
       await tester.tap(find.text('Etichetta'));
       expect(taps, 1);
+    });
+
+    testWidgets('la scia del tocco ha una tela anche in un AdminList', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        _page([
+          AdminList(children: [SettingsRow(label: 'Riga', onTap: () {})]),
+        ]),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(SettingsRow),
+          matching: find.byType(Material),
+        ),
+        findsWidgets,
+      );
+      final materials = tester.widgetList<Material>(
+        find.ancestor(of: find.byType(InkWell), matching: find.byType(Material)),
+      );
+      expect(materials.first.type, MaterialType.transparency);
     });
 
     testWidgets('indent sposta l\'etichetta a destra', (tester) async {
@@ -167,6 +213,30 @@ void main() {
       expect(values, [true, true]);
     });
 
+    testWidgets('chi legge lo schermo trova un solo controllo', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpApp(
+        tester,
+        _page([
+          SettingsSwitchRow(
+            label: 'Interruttore',
+            value: false,
+            onChanged: (_) {},
+          ),
+        ]),
+      );
+      expect(
+        tester.getSemantics(find.byType(SettingsSwitchRow)),
+        isSemantics(
+          label: 'Interruttore',
+          hasToggledState: true,
+          isToggled: false,
+          hasTapAction: true,
+        ),
+      );
+      handle.dispose();
+    });
+
     testWidgets('onChanged nullo: riga spenta e senza risposta', (
       tester,
     ) async {
@@ -222,10 +292,6 @@ void main() {
         ]),
       );
       expect(find.byType(DropdownButtonHideUnderline), findsOneWidget);
-      expect(
-        tester.widget<DropdownButton<String>>(find.byKey(const Key('d'))),
-        isNotNull,
-      );
       await tester.tap(find.byKey(const Key('d')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Beta').last);

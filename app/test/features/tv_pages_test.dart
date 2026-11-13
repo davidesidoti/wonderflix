@@ -251,8 +251,8 @@ void main() {
     }
   });
 
-  testWidgets('Impostazioni: sulla TV solo lingua, player e lingue di '
-      'riproduzione', (tester) async {
+  testWidgets('Impostazioni: sulla TV solo app, riproduzione e audio e '
+      'sottotitoli', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await pumpApp(tester, const Scaffold(body: SettingsScreen()),
@@ -276,13 +276,13 @@ void main() {
     // Sotto la versione, l'aggiornamento pronto.
     expect(find.text('WonderFlix 0.2.0 disponibile'), findsOneWidget);
     expect(find.text('Aggiorna'), findsOneWidget);
-    for (final title in ['Lingua', 'Player', 'Lingue di riproduzione']) {
+    for (final title in ['App', 'Riproduzione', 'Audio e sottotitoli']) {
       expect(find.text(title), findsOneWidget, reason: title);
     }
     for (final title in [
       'Account',
       'Notifiche',
-      'Aspetto',
+      'Animazioni',
       'Home',
       'Discord',
       'Supporto',

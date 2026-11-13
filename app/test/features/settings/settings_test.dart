@@ -11,6 +11,7 @@ import 'package:wonderflix/app/window_setup.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/features/account/account_providers.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/home/home_rows_editor.dart';
 import 'package:wonderflix/features/settings/diagnostics.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
@@ -25,6 +26,9 @@ import '../../support/home_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/settings_fakes.dart';
 import '../../support/test_data.dart';
+
+/// Il titolo di una sezione, per id.
+Key _section(String id) => ValueKey('settings-section-$id');
 
 void main() {
   test('LocaleController salva e rilegge la lingua', () async {
@@ -65,9 +69,9 @@ void main() {
     expect(find.text('Accesso come Mario'), findsOneWidget);
     expect(find.byType(UserAvatar), findsOneWidget);
     expect(find.text('Cambia password'), findsOneWidget);
-    // Account è la prima sezione.
-    expect(tester.getTopLeft(find.text('Account')).dy,
-        lessThan(tester.getTopLeft(find.text('Aspetto')).dy));
+    // Account è la prima sezione, App viene dopo.
+    expect(tester.getTopLeft(find.byKey(_section('account'))).dy,
+        lessThan(tester.getTopLeft(find.byKey(_section('app'))).dy));
     await tester.tap(find.text('Cambia immagine'));
     await tester.pumpAndSettle();
     expect(find.text('Immagine del profilo'), findsOneWidget);
@@ -75,10 +79,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Versione 0.0.1'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('English'));
     await tester.tap(find.text('English'));
     await tester.pump();
     expect(prefs.getString('locale'), 'en');
 
+    await tester.ensureVisible(find.text('Cambia profilo'));
     await tester.tap(find.text('Cambia profilo'));
     await tester.pump();
     expect(session.switchCalls, 1);
@@ -86,6 +92,7 @@ void main() {
     session.set(const SessionSignedIn(testUser));
     await tester.pump();
 
+    await tester.ensureVisible(find.text('Esci'));
     await tester.tap(find.text('Esci'));
     await tester.pump();
     expect(session.logoutCalls, 1);
@@ -123,12 +130,14 @@ void main() {
     }
 
     final quality = find.byKey(const Key('player-quality'));
-    final decoding = find.text('Decodifica hardware');
+    // Sulla TV niente decodifica hardware: l'ultima riga è "Salta intro".
+    expect(find.text('Decodifica hardware'), findsNothing);
+    final decoding = find.text('Salta automaticamente intro e riassunti');
     expect(ring(decoding), isNot(tvFocusColor));
     Focus.of(tester.element(decoding)).requestFocus();
     await tester.pumpAndSettle();
     expect(ring(decoding), tvFocusColor);
-    // Su: le dimensioni dei sottotitoli, poi il menu della qualità.
+    // Su: il prossimo episodio, poi il menu della qualità.
     expect(ring(quality), isNot(tvFocusColor));
     for (var i = 0; i < 2; i++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
@@ -138,7 +147,7 @@ void main() {
     expect(ring(decoding), isNot(tvFocusColor));
   });
 
-  testWidgets('TV: da "Quando mostrare i sottotitoli" Giù arriva alla versione',
+  testWidgets('TV: dalla dimensione dei sottotitoli Giù arriva alla versione',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -156,16 +165,11 @@ void main() {
     ]);
     await tester.pumpAndSettle();
 
-    final mode = find.byKey(const Key('subtitle-mode'));
-    await tester.ensureVisible(mode);
+    // L'ultima riga della pagina è la dimensione dei sottotitoli.
+    final size = find.text('Grandi');
+    await tester.ensureVisible(size);
     await tester.pumpAndSettle();
-    // Il FocusNode del menu è sotto la chiave (il testo scelto ne ha uno
-    // non focalizzabile): il primo che lo è.
-    tester
-        .widgetList<Focus>(find.descendant(of: mode, matching: find.byType(Focus)))
-        .map((f) => f.focusNode)
-        .firstWhere((n) => n != null && n.canRequestFocus)!
-        .requestFocus();
+    Focus.of(tester.element(size)).requestFocus();
     await tester.pumpAndSettle();
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pumpAndSettle();
@@ -175,7 +179,7 @@ void main() {
     expect(tester.getBottomLeft(version).dy, lessThanOrEqualTo(720));
   });
 
-  testWidgets('sezione Player: qualità, sottotitoli, interruttori',
+  testWidgets('sezione Riproduzione: qualità, interruttori; dimensione dei sottotitoli',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -191,7 +195,8 @@ void main() {
       ...homeSettingsOverrides(),
     ]);
 
-    expect(find.text('Player'), findsOneWidget);
+    expect(find.byKey(_section('playback')), findsOneWidget);
+    expect(find.text('Riproduzione'), findsOneWidget);
     await tester.tap(find.byKey(const Key('player-quality')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Media (8 Mbps)').last);
@@ -260,7 +265,7 @@ void main() {
   testWidgets('lingue: valori dal server, salvataggio completo',
       (tester) async {
     final configApi = await pumpSettings(tester);
-    expect(find.text('Lingue di riproduzione'), findsOneWidget);
+    expect(find.text('Audio e sottotitoli'), findsOneWidget);
     expect(find.text('Italiano'), findsWidgets);
 
     await tester.tap(find.byKey(const Key('subtitle-mode')));
@@ -420,12 +425,12 @@ void main() {
     await tester.pump();
     expect(prefs.getBool('discord.showTitle'), isFalse);
     // Senza titolo la locandina non si può attivare.
-    expect(tester.widget<SwitchListTile>(showPoster).onChanged, isNull);
+    expect(tester.widget<Switch>(showPoster).onChanged, isNull);
 
     await tester.tap(enabled);
     await tester.pump();
     expect(prefs.getBool('discord.enabled'), isFalse);
-    expect(tester.widget<SwitchListTile>(showTitle).onChanged, isNull);
+    expect(tester.widget<Switch>(showTitle).onChanged, isNull);
   });
 
   testWidgets('sezione Supporto: copia la diagnostica e apre i log',
@@ -505,15 +510,66 @@ void main() {
     expect(warnings, hasLength(1));
   });
 
-  testWidgets('sezione Home dopo Aspetto, con l\'elenco delle righe',
+  testWidgets('le sezioni sono nell\'ordine della decisione 1, ognuna col suo '
+      'dove si salva', (tester) async {
+    await pumpSettings(tester);
+    await tester.pump();
+    // Notifiche sta fuori: serve il push nel plugin.
+    const ids = ['account', 'home', 'playback', 'subtitles', 'app', 'discord'];
+    final tops = [
+      for (final id in ids) tester.getTopLeft(find.byKey(_section(id))).dy,
+    ];
+    expect(tops, orderedEquals([...tops]..sort()));
+    expect(tops.toSet(), hasLength(ids.length));
+    expect(find.byKey(_section('support')), findsOneWidget);
+    expect(find.byKey(_section('notifications')), findsNothing);
+    expect(find.text('Questo PC'), findsNWidgets(3),
+        reason: 'Riproduzione, App, Discord');
+    expect(find.text('Il tuo account'), findsNWidgets(2),
+        reason: 'Account, Home');
+    expect(find.text('Il tuo account, in tutti i client Jellyfin'),
+        findsOneWidget);
+    expect(find.byType(HomeRowsEditor), findsOneWidget);
+    // Le frasi sostituite dal "dove si salva" non ci sono più.
+    expect(find.text('Vale per questo account su tutti i PC.'), findsNothing);
+    expect(find.textContaining('Salvate sul server'), findsNothing);
+  });
+
+  testWidgets('la dimensione dei sottotitoli c\'è anche se le lingue non '
+      'si leggono', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await pumpApp(tester, const Scaffold(body: SettingsScreen()),
+        surfaceSize: const Size(1440, 2400),
+        overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      accountAvailableProvider.overrideWithValue(false),
+      clientInfoProvider.overrideWithValue(testClientInfo),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+      userConfigApiProvider.overrideWithValue(
+          FakeUserConfigApi()..loadError = const ServerUnreachableException()),
+      ...homeSettingsOverrides(),
+    ]);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(find.byKey(const Key('subtitle-mode')), findsNothing);
+    expect(find.text('Dimensione dei sottotitoli'), findsOneWidget);
+    expect(find.text('Solo su questo PC'), findsOneWidget);
+    await tester.tap(find.text('Molto piccoli'));
+    await tester.pump();
+    expect(prefs.getDouble('player.subtitleScale'), 0.45);
+  });
+
+  testWidgets('Discord: titolo e locandina sono rientrati sotto la prima voce',
       (tester) async {
     await pumpSettings(tester);
     await tester.pump();
-    final appearance = tester.getTopLeft(find.text('Aspetto')).dy;
-    final home = tester.getTopLeft(find.text('Home')).dy;
-    expect(appearance, lessThan(home));
-    expect(home, lessThan(tester.getTopLeft(find.text('Player')).dy));
-    expect(find.byType(HomeRowsEditor), findsOneWidget);
+    double dx(String label) => tester.getTopLeft(find.text(label)).dx;
+    expect(dx('Mostra il titolo') - dx('Mostra su Discord cosa sto guardando'),
+        20);
+    expect(dx('Mostra la locandina'), dx('Mostra il titolo'));
   });
 
   testWidgets('in una finestra larga le sezioni non vanno oltre i 640 px, a '
@@ -526,8 +582,13 @@ void main() {
     expect(tester.getSize(list).width, lessThanOrEqualTo(640));
     expect(tester.getTopLeft(list).dx, 32, reason: 'a sinistra, come il resto');
     // Lo stesso per le sezioni accanto.
-    expect(tester.getSize(find.byKey(const Key('discord-enabled'))).width,
-        lessThanOrEqualTo(640));
+    final lists = find.byType(AdminList);
+    expect(lists, findsWidgets);
+    for (final list in tester.widgetList(lists)) {
+      final size = tester.getSize(find.byWidget(list));
+      expect(size.width, lessThanOrEqualTo(640));
+      expect(tester.getTopLeft(find.byWidget(list)).dx, 32);
+    }
   });
 
   testWidgets('section=home scorre fino alla sezione Home', (tester) async {

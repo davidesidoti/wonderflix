@@ -4,11 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
+import '../admin/admin_kit.dart';
 import 'appearance_settings.dart';
+import 'locale_controller.dart';
+import 'settings_kit.dart';
 
-/// Voce "Animazioni" (spec C §4.3).
+/// Sezione App: lingua dell'app e "Animazioni" (spec C §4.3).
 class AppearanceSettingsSection extends ConsumerWidget {
   const AppearanceSettingsSection({super.key});
 
@@ -16,18 +19,37 @@ class AppearanceSettingsSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final setting = ref.watch(motionSettingProvider);
-    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
-    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l.settingsAnimations),
-            const SizedBox(height: 6),
-            SegmentedButton<MotionSetting>(
+    final locale = ref.watch(localeProvider);
+    return AdminList(
+      children: [
+        SettingsRow(
+          label: l.settingsLanguageApp,
+          wideTrailing: true,
+          trailing: SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: [
+              ButtonSegment(
+                  value: 'system', label: Text(l.settingsLanguageSystem)),
+              const ButtonSegment(value: 'it', label: Text('Italiano')),
+              const ButtonSegment(value: 'en', label: Text('English')),
+            ],
+            selected: {locale?.languageCode ?? 'system'},
+            onSelectionChanged: (selection) {
+              final code = selection.first;
+              unawaited(ref
+                  .read(localeProvider.notifier)
+                  .set(code == 'system' ? null : Locale(code)));
+            },
+          ),
+        ),
+        // La TV non ha animazioni da scegliere.
+        if (!FormFactor.of(context).tv)
+          SettingsRow(
+            label: l.settingsAnimations,
+            hint:
+                kIsWeb ? l.settingsAnimationsHintWeb : l.settingsAnimationsHint,
+            wideTrailing: true,
+            trailing: SegmentedButton<MotionSetting>(
               key: const Key('appearance-motion'),
               showSelectedIcon: false,
               segments: [
@@ -37,7 +59,8 @@ class AppearanceSettingsSection extends ConsumerWidget {
                         ? l.settingsAnimationsSystemWeb
                         : l.settingsAnimationsSystem)),
                 ButtonSegment(
-                    value: MotionSetting.full, label: Text(l.settingsAnimationsFull)),
+                    value: MotionSetting.full,
+                    label: Text(l.settingsAnimationsFull)),
                 ButtonSegment(
                     value: MotionSetting.reduced,
                     label: Text(l.settingsAnimationsReduced)),
@@ -46,12 +69,8 @@ class AppearanceSettingsSection extends ConsumerWidget {
               onSelectionChanged: (selection) => unawaited(
                   ref.read(motionSettingProvider.notifier).set(selection.first)),
             ),
-            const SizedBox(height: 8),
-            Text(kIsWeb ? l.settingsAnimationsHintWeb : l.settingsAnimationsHint,
-                style: const TextStyle(color: WfColors.creamMuted, fontSize: 12.5)),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 }

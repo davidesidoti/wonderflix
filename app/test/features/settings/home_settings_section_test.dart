@@ -67,7 +67,6 @@ void main() {
     expect(find.text('Collega il tuo account a Seerr'), findsOneWidget);
     expect(find.text('Sonarr non è configurato'), findsOneWidget);
     expect(find.text('Radarr non è configurato'), findsOneWidget);
-    expect(find.text('Vale per questo account su tutti i PC.'), findsOneWidget);
   });
 
   testWidgets('mentre /Me si legge, Le mie richieste non ha un motivo',

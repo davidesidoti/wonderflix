@@ -7,8 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
-import '../../ui/tv_focusable.dart';
+import '../admin/admin_kit.dart';
 import '../player/player_settings.dart';
+import 'settings_kit.dart';
 
 /// "Massima (originale)", "Alta (20 Mbps)", "Media (8 Mbps)", "Bassa (4 Mbps)".
 String qualityLabel(AppLocalizations l, StreamQuality quality) {
@@ -21,7 +22,8 @@ String qualityLabel(AppLocalizations l, StreamQuality quality) {
   };
 }
 
-/// Impostazioni del player salvate su questo PC.
+/// Riproduzione: qualità, prossimo episodio, salta intro, decodifica. Salvate
+/// su questo PC.
 class PlayerSettingsSection extends ConsumerWidget {
   const PlayerSettingsSection({super.key});
 
@@ -32,24 +34,16 @@ class PlayerSettingsSection extends ConsumerWidget {
     void save(PlayerSettings next) =>
         unawaited(ref.read(playerSettingsProvider.notifier).update(next));
 
-    // L'`Align` toglie la larghezza fissa che la `Column` delle sezioni (con
-    // `stretch`) darebbe a questo blocco: senza, il suo tetto non varrebbe.
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AdminList(
           children: [
-            Text(l.settingsPlayerHint,
-                style: const TextStyle(color: WfColors.creamMuted)),
-            const SizedBox(height: 16),
-            Text(l.settingsQuality),
-            const SizedBox(height: 6),
-            TvFocusBorder(
-              child: DropdownButton<StreamQuality>(
-                // Nello stretto riempie la riga: col testo lungo non sfora.
-                isExpanded: FormFactor.of(context).compact,
+            SettingsRow(
+              label: l.settingsQuality,
+              hint: l.settingsQualityHint,
+              wideTrailing: true,
+              trailing: SettingsDropdown<StreamQuality>(
                 key: const Key('player-quality'),
                 value: settings.quality,
                 items: [
@@ -62,51 +56,33 @@ class PlayerSettingsSection extends ConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(height: 16),
-            Text(l.settingsSubtitleSize),
-            const SizedBox(height: 6),
-            SegmentedButton<double>(
-              showSelectedIcon: false,
-              segments: [
-                for (final scale in subtitleScaleOptions)
-                  ButtonSegment(
-                      value: scale, label: Text(subtitleScaleLabel(l, scale))),
-              ],
-              selected: {settings.subtitleScale},
-              onSelectionChanged: (selection) =>
-                  save(settings.copyWith(subtitleScale: selection.first)),
+            SettingsSwitchRow(
+              label: l.settingsAutoplayNext,
+              value: settings.autoplayNext,
+              onChanged: (value) => save(settings.copyWith(autoplayNext: value)),
             ),
-            const SizedBox(height: 8),
-            // Nel browser la decodifica la sceglie il browser.
-            if (!kIsWeb)
-              TvFocusBorder(
-                child: SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l.settingsHardwareDecoding),
-                  value: settings.hardwareDecoding,
-                  onChanged: (value) =>
-                      save(settings.copyWith(hardwareDecoding: value)),
-                ),
-              ),
-            TvFocusBorder(
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l.settingsAutoSkipIntro),
-                value: settings.autoSkipIntro,
-                onChanged: (value) => save(settings.copyWith(autoSkipIntro: value)),
-              ),
+            SettingsSwitchRow(
+              label: l.settingsAutoSkipIntro,
+              value: settings.autoSkipIntro,
+              onChanged: (value) =>
+                  save(settings.copyWith(autoSkipIntro: value)),
             ),
-            TvFocusBorder(
-              child: SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l.settingsAutoplayNext),
-                value: settings.autoplayNext,
-                onChanged: (value) => save(settings.copyWith(autoplayNext: value)),
+            // Nel browser la decodifica la sceglie il browser; la TV decodifica
+            // sempre in hardware (Media3).
+            if (!kIsWeb && !FormFactor.of(context).tv)
+              SettingsSwitchRow(
+                label: l.settingsHardwareDecoding,
+                hint: l.settingsHardwareDecodingHint,
+                value: settings.hardwareDecoding,
+                onChanged: (value) =>
+                    save(settings.copyWith(hardwareDecoding: value)),
               ),
-            ),
           ],
         ),
-      ),
+        const SizedBox(height: 10),
+        Text(l.settingsPlayerHint,
+            style: const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
+      ],
     );
   }
 }
