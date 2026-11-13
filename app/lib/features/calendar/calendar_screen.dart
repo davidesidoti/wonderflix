@@ -209,6 +209,8 @@ class _CalendarBody extends ConsumerWidget {
                   showCalendarDay(
                     context,
                     day: day,
+                    today: today,
+                    now: clock.now(),
                     entries: list,
                     onOpenEntry: openEntry,
                     canOpen: canOpen,
