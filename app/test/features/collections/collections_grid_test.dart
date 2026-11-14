@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/catalog/catalog_genre_index.dart';
 import 'package:wonderflix/features/catalog/catalog_navigation.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
 import 'package:wonderflix/features/collections/collections_providers.dart';
@@ -85,7 +86,7 @@ void main() {
     expect(find.text('2 saghe'), findsOneWidget);
     expect(find.text('Matrix - Collezione'), findsOneWidget);
     expect(find.text('3 film'), findsOneWidget);
-    expect(find.text('Tutti i generi'), findsNothing,
+    expect(find.byType(CatalogGenreIndex), findsNothing,
         reason: 'generi e anni non valgono per le saghe');
   });
 
@@ -247,7 +248,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('Dune'), findsOneWidget);
-    expect(find.text('Tutti i generi'), findsOneWidget);
+    expect(find.byType(CatalogGenreIndex), findsOneWidget);
     expect(find.text('Matrix - Collezione'), findsNothing);
   });
 

@@ -230,7 +230,7 @@ void main() {
     await expectNoOverflow(
       tester,
       const Scaffold(body: CatalogScreen(kind: ItemKind.movie)),
-      content: find.textContaining('FILM'),
+      content: find.text('Tutti i film'),
       overrides: library(libraryApi()),
     );
   });

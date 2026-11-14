@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/features/catalog/catalog_band.dart';
@@ -40,7 +41,7 @@ void main() {
         sort: CatalogSort.rating,
         reversed: false,
         totals: const CatalogTotals(243, 211),
-      ),
+      ).toPlainText(),
       '243 film, 211 già visti. I più votati per primi.',
     );
     expect(
@@ -49,7 +50,7 @@ void main() {
         kind: ItemKind.movie,
         sort: CatalogSort.rating,
         reversed: false,
-      ),
+      ).toPlainText(),
       'I più votati per primi.',
     );
     expect(
@@ -59,7 +60,7 @@ void main() {
         sort: CatalogSort.dateAdded,
         reversed: true,
         totals: const CatalogTotals(138, 41),
-      ),
+      ).toPlainText(),
       '138 serie, 41 in corso. Le ferme da più tempo per prime.',
     );
     expect(
@@ -68,7 +69,7 @@ void main() {
         kind: ItemKind.series,
         sort: CatalogSort.dateAdded,
         reversed: false,
-      ),
+      ).toPlainText(),
       'Nuovi episodi per prime.',
     );
     expect(
@@ -77,9 +78,23 @@ void main() {
         kind: ItemKind.movie,
         sort: CatalogSort.title,
         reversed: true,
-      ),
+      ).toPlainText(),
       'Dalla Z alla A.',
     );
+  });
+
+  test('catalogBandLine: il conteggio in grassetto crema', () {
+    final line = catalogBandLine(
+      it,
+      kind: ItemKind.movie,
+      sort: CatalogSort.rating,
+      reversed: false,
+      totals: const CatalogTotals(243, 211),
+    );
+    final bold = line.children!.first as TextSpan;
+    expect(bold.text, '243 film');
+    expect(bold.style?.fontWeight, FontWeight.w600);
+    expect(bold.style?.color, WfColors.cream);
   });
 
   testWidgets('senza titolo con fondale: solo testo, nessuna immagine', (
@@ -89,7 +104,7 @@ void main() {
     await pumpApp(
       tester,
       const Scaffold(
-        body: CatalogBand(title: 'Western', height: 320, line: 'Riga.'),
+        body: CatalogBand(title: 'Western', height: 320, line: TextSpan(text: 'Riga.')),
       ),
       overrides: [
         imageBuilderProvider.overrideWithValue((image, fit) {

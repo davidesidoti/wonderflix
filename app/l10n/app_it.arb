@@ -1834,5 +1834,9 @@
   "catalogHideWatchedSeries": "Nascondi le viste",
   "catalogSearchMovies": "Cerca tra i film",
   "catalogSearchSeries": "Cerca tra le serie",
-  "catalogSearchClose": "Chiudi"
+  "catalogSearchClose": "Chiudi",
+  "catalogEmptyMovies": "Nessun film con questi filtri.",
+  "catalogEmptyMoviesGenre": "Nessun film di questo genere con questi filtri.",
+  "catalogEmptySeries": "Nessuna serie con questi filtri.",
+  "catalogEmptySeriesGenre": "Nessuna serie di questo genere con questi filtri."
 }

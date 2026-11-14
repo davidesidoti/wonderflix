@@ -25,9 +25,10 @@ JellyfinItem? catalogBandHero(List<JellyfinItem> items) {
   return null;
 }
 
-/// "243 film, 211 già visti. I più votati per primi." Senza [totals]
-/// (ancora in lettura) solo la frase dell'ordine.
-String catalogBandLine(
+/// "**243 film**, 211 già visti. I più votati per primi." (il conteggio in
+/// grassetto crema). Senza [totals] (ancora in lettura) solo la frase
+/// dell'ordine.
+TextSpan catalogBandLine(
   AppLocalizations l, {
   required ItemKind kind,
   required CatalogSort sort,
@@ -47,12 +48,25 @@ String catalogBandLine(
     CatalogSort.rating =>
       reversed ? l.catalogOrderRatingReversed : l.catalogOrderRating,
   };
-  final count = totals == null
-      ? null
-      : series
+  if (totals == null) return TextSpan(text: '$order.');
+  final count = series
       ? l.catalogBandSeries(totals.total, totals.secondary)
       : l.catalogBandMovies(totals.total, totals.secondary);
-  return [?count, '$order.'].join(' ');
+  // Il grassetto è il pezzo prima della virgola: "243 film", "138 serie".
+  final comma = count.indexOf(',');
+  final bold = comma < 0 ? count : count.substring(0, comma);
+  return TextSpan(
+    children: [
+      TextSpan(
+        text: bold,
+        style: const TextStyle(
+          color: WfColors.cream,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      TextSpan(text: '${count.substring(bold.length)} $order.'),
+    ],
+  );
 }
 
 /// Il cartellone della sala: fondale del primo titolo, sfumature, [tabs] in
@@ -71,7 +85,7 @@ class CatalogBand extends ConsumerWidget {
   final String title;
   final double height;
   final JellyfinItem? hero;
-  final String? line;
+  final InlineSpan? line;
   final Widget? tabs;
 
   @override
@@ -79,8 +93,9 @@ class CatalogBand extends ConsumerWidget {
     final form = FormFactor.of(context);
     final (side, tabsTop, textBottom, titleSize, lineSize, lineGap) = form.tv
         ? (24.0, 14.0, 8.0, 64.0, 12.5, 6.0)
+        // Stretto: le schede sotto la barra in alto (56), che c'è anche lì.
         : form.compact
-        ? (16.0, 18.0, 14.0, 64.0, 12.5, 8.0)
+        ? (16.0, 74.0, 14.0, 64.0, 12.5, 8.0)
         : (32.0, 76.0, 22.0, 112.0, 14.0, 12.0);
     final image = hero == null
         ? null
@@ -133,18 +148,21 @@ class CatalogBand extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: WfText.display(
-                          titleSize,
-                        ).copyWith(height: 0.82, letterSpacing: 1),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: WfText.display(
+                            titleSize,
+                          ).copyWith(height: 0.82, letterSpacing: 1),
+                        ),
                       ),
                       if (line != null)
                         Padding(
                           padding: EdgeInsets.only(top: lineGap),
-                          child: Text(
+                          child: Text.rich(
                             line,
                             style: TextStyle(
                               color: WfColors.creamMuted,
