@@ -154,6 +154,36 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets('cambiando un filtro il nuovo stato entra in dissolvenza',
+      (tester) async {
+    await pumpCatalog(tester, motion: MotionLevel.full);
+    await tester.pump(const Duration(seconds: 1));
+    double opacity() => tester
+        .widget<SliverFadeTransition>(find.byType(SliverFadeTransition))
+        .opacity
+        .value;
+    expect(opacity(), 1);
+
+    await tester.tap(find.text('Nascondi i visti'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(opacity(), lessThan(1));
+    await tester.pump(const Duration(seconds: 1));
+    expect(opacity(), 1);
+    expect(find.text('Nessun film con questi filtri.'), findsOneWidget);
+  });
+
+  testWidgets('riscegliere la voce già scelta non ricarica il catalogo',
+      (tester) async {
+    await pumpCatalog(tester);
+    expect(gridQueries, hasLength(1));
+    await tester.tap(find.text('Ordina: Aggiunti'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ordina: Aggiunti').last);
+    await tester.pumpAndSettle();
+    expect(gridQueries, hasLength(1));
+  });
+
   testWidgets('errore con riprova', (tester) async {
     api.error = const ServerUnreachableException();
     await pumpCatalog(tester);

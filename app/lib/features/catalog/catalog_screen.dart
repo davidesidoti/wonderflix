@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_shell.dart';
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
@@ -14,7 +16,6 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/tv_focusable.dart';
-import '../../ui/wf_switcher.dart';
 import '../collections/collections_grid.dart';
 import '../collections/collections_providers.dart';
 import '../social/social_providers.dart';
@@ -47,12 +48,20 @@ class CatalogScreen extends ConsumerStatefulWidget {
   ConsumerState<CatalogScreen> createState() => _CatalogScreenState();
 }
 
-class _CatalogScreenState extends ConsumerState<CatalogScreen> {
+class _CatalogScreenState extends ConsumerState<CatalogScreen>
+    with SingleTickerProviderStateMixin {
   final _scroll = SmoothScrollController();
+
+  /// Dissolvenza di entrata di ogni stato nuovo della griglia (scheletro,
+  /// errore, vuoto, titoli): sono sliver, [WfSwitcher] non ci va.
+  late final _fade = AnimationController(vsync: this, value: 1);
 
   /// Numero di elementi al momento dell'ultimo caricamento automatico: evita
   /// un ciclo infinito se il server risponde con pagine vuote.
   int _autoLoadedAt = -1;
+
+  /// La query a cui si riferisce [_autoLoadedAt].
+  ItemQuery? _autoLoadedQuery;
 
   @override
   void initState() {
@@ -91,6 +100,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   void dispose() {
     _scroll.dispose();
+    _fade.dispose();
     super.dispose();
   }
 
@@ -154,6 +164,12 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     final kind = widget.kind;
     final provider = catalogControllerProvider(kind);
     final state = ref.watch(provider);
+    ref.listen(provider, (previous, next) {
+      if (previous == null || _bodyKind(previous) == _bodyKind(next)) return;
+      _fade
+        ..duration = WfMotion.of(context).duration(WfMotion.medium)
+        ..forward(from: 0);
+    });
     final controller = ref.read(provider.notifier);
     final genres = ref.watch(catalogGenresProvider(kind));
     final all = ref.watch(catalogTotalsProvider((kind, null))).value;
@@ -174,7 +190,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
       final current = ref.read(provider);
-      if (current.items.isEmpty) _autoLoadedAt = -1; // nuova query
+      if (current.query != _autoLoadedQuery) {
+        _autoLoadedQuery = current.query; // nuova query
+        _autoLoadedAt = -1;
+      }
       if (_scroll.position.extentAfter < 800 &&
           current.hasMore &&
           !current.loading &&
@@ -260,15 +279,28 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             SliverToBoxAdapter(child: bar)
           else
             PinnedHeaderSliver(child: bar),
-          ..._body(context, l, state, controller),
+          SliverFadeTransition(
+            opacity: _fade,
+            sliver: SliverMainAxisGroup(
+                slivers: _body(context, l, state, controller, side)),
+          ),
         ],
       ),
     );
   }
 
+  /// Quale stato mostra il corpo: cambiandolo, il corpo entra in dissolvenza.
+  static String _bodyKind(CatalogState state) => state.items.isNotEmpty
+      ? 'data'
+      : state.loading
+          ? 'loading'
+          : state.error != null
+              ? 'error'
+              : 'empty';
+
   /// La griglia, o lo scheletro, l'errore, il vuoto (spec §12).
   List<Widget> _body(BuildContext context, AppLocalizations l,
-      CatalogState state, CatalogController controller) {
+      CatalogState state, CatalogController controller, double side) {
     if (state.items.isEmpty) {
       final Widget child;
       final error = state.error;
@@ -315,13 +347,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
       return [
         SliverPadding(
           padding: const EdgeInsets.only(top: 16),
-          sliver: SliverToBoxAdapter(child: WfSwitcher(child: child)),
+          sliver: SliverToBoxAdapter(child: child),
         ),
       ];
     }
     return [
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+        padding: EdgeInsets.fromLTRB(side, 16, side, 24),
         sliver: SliverGrid(
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 180,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/app_shell.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
@@ -91,12 +92,15 @@ class CatalogBand extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final form = FormFactor.of(context);
+    // Fuori dalla TV le schede stanno sotto la barra in alto della shell.
+    final barBottom =
+        (form.compact ? shellCompactBarHeight : shellBarHeight) +
+        MediaQuery.paddingOf(context).top;
     final (side, tabsTop, textBottom, titleSize, lineSize, lineGap) = form.tv
         ? (24.0, 14.0, 8.0, 64.0, 12.5, 6.0)
-        // Stretto: le schede sotto la barra in alto (56), che c'è anche lì.
         : form.compact
-        ? (16.0, 74.0, 14.0, 64.0, 12.5, 8.0)
-        : (32.0, 76.0, 22.0, 112.0, 14.0, 12.0);
+        ? (16.0, barBottom + 18, 14.0, 64.0, 12.5, 8.0)
+        : (32.0, barBottom + 12, 22.0, 112.0, 14.0, 12.0);
     final image = hero == null
         ? null
         : ref.watch(imageUrlsProvider).backdrop(hero!, maxWidth: 1920);
