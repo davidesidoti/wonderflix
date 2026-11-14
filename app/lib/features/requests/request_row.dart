@@ -24,6 +24,7 @@ class RequestRow extends StatelessWidget {
     required this.onTap,
     this.showRequester = false,
     this.trailing,
+    this.separator = true,
   });
 
   /// Misure della locandina piccola (2:3), larga e stretta.
@@ -48,6 +49,9 @@ class RequestRow extends StatelessWidget {
 
   /// Al posto del percorso e dell'etichetta di stato (Approva e Rifiuta).
   final Widget? trailing;
+
+  /// La linea sotto la riga; l'ultima riga di un gruppo non ce l'ha.
+  final bool separator;
 
   @override
   Widget build(BuildContext context) {
@@ -110,8 +114,10 @@ class RequestRow extends StatelessWidget {
     return TvFocusable(
       onActivate: onTap,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: WfColors.surface)),
+        decoration: BoxDecoration(
+          border: separator
+              ? const Border(bottom: BorderSide(color: WfColors.surface))
+              : null,
         ),
         child: InkWell(
           onTap: onTap,

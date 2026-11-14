@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
+import 'package:wonderflix/features/requests/request_shelf.dart';
 import 'package:wonderflix/features/requests/request_track.dart';
 import 'package:wonderflix/features/requests/requests_list_controller.dart';
 import 'package:wonderflix/features/requests/requests_navigation.dart';
@@ -18,6 +20,7 @@ import 'package:wonderflix/features/requests/requests_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/form_factor.dart';
+import 'package:wonderflix/ui/states.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/pump_app.dart';
@@ -52,6 +55,9 @@ void main() {
   }) async {
     await tester.binding.setSurfaceSize(surfaceSize);
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    // Senza, `MediaQuery` resta a 800×600 (lo stretto).
+    tester.view.physicalSize = surfaceSize * tester.view.devicePixelRatio;
+    addTearDown(tester.view.resetPhysicalSize);
     final router = GoRouter(
       initialLocation: location,
       routes: [
@@ -70,6 +76,15 @@ void main() {
         GoRoute(
           path: '/home',
           builder: (context, state) => const Scaffold(body: Text('home')),
+        ),
+        GoRoute(
+          path: '/search',
+          builder: (context, state) => const Scaffold(body: Text('cerca')),
+        ),
+        GoRoute(
+          path: '/item/:id',
+          builder: (context, state) =>
+              Scaffold(body: Text('libreria ${state.pathParameters['id']}')),
         ),
         GoRoute(
           path: '/tmdb/:type/:tmdbId',
@@ -104,6 +119,241 @@ void main() {
     await tester.pumpAndSettle();
     return router;
   }
+
+  /// Le richieste dei tre gruppi di [filter] (con la funzione dei gruppi).
+  void groups(RequestsFilter filter,
+      {List<MediaRequest> open = const [],
+      List<MediaRequest> done = const [],
+      List<MediaRequest> closed = const []}) {
+    availability = FakeSocialAvailability(
+        const SocialFeatures(requests: true, requestsGroups: true));
+    api.groupLists
+      ..[(filter, RequestsGroup.open)] = open
+      ..[(filter, RequestsGroup.done)] = done
+      ..[(filter, RequestsGroup.closed)] = closed;
+  }
+
+  List<MediaRequest> arrived(int count, {int from = 100}) => [
+        for (var i = 0; i < count; i++)
+          testMediaRequest(
+              id: from + i, title: 'Arrivato $i', status: RequestStatus.available),
+      ];
+
+  group('gruppi', () {
+    testWidgets('In corso, Arrivate e Chiuse con i conteggi; Chiuse si apre '
+        'al tocco', (tester) async {
+      groups(RequestsFilter.mine,
+          open: [
+            testMediaRequest(id: 1, title: 'Dune', status: RequestStatus.approved),
+            testMediaRequest(id: 2, title: 'Alien', status: RequestStatus.pending),
+          ],
+          done: arrived(3),
+          closed: [
+            testMediaRequest(id: 9, title: 'Rifiutato', status: RequestStatus.declined),
+          ]);
+      await pumpScreen(tester);
+
+      expect(find.text('IN CORSO'), findsOneWidget);
+      expect(find.text('ARRIVATE'), findsOneWidget);
+      expect(find.text('CHIUSE'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('Dune (2024)'), findsOneWidget);
+      expect(find.text('Arrivato 0'), findsOneWidget);
+      expect(find.text('Rifiutato (2024)'), findsNothing);
+
+      await tester.tap(find.text('CHIUSE'));
+      await tester.pumpAndSettle();
+      expect(find.text('Rifiutato (2024)'), findsOneWidget);
+      expect(find.text('Rifiutata'), findsOneWidget);
+    });
+
+    testWidgets('un gruppo vuoto non si mostra', (tester) async {
+      groups(RequestsFilter.mine,
+          open: [testMediaRequest(id: 1, title: 'Dune', status: RequestStatus.approved)]);
+      await pumpScreen(tester);
+
+      expect(find.text('IN CORSO'), findsOneWidget);
+      expect(find.text('ARRIVATE'), findsNothing);
+      expect(find.text('CHIUSE'), findsNothing);
+    });
+
+    testWidgets('"Mostra altre" carica la pagina dopo', (tester) async {
+      groups(RequestsFilter.mine, done: arrived(25));
+      await pumpScreen(tester, surfaceSize: const Size(1440, 2000));
+
+      expect(find.byType(RequestShelfPoster), findsNWidgets(20));
+      await tester.tap(find.text('Mostra altre'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RequestShelfPoster), findsNWidgets(25));
+      expect(find.text('Mostra altre'), findsNothing);
+      expect(api.calls, isNot(contains('list:mine:closed:20:20')));
+    });
+
+    testWidgets("l'errore di un gruppo lascia gli altri", (tester) async {
+      groups(RequestsFilter.mine,
+          open: [testMediaRequest(id: 1, title: 'Dune', status: RequestStatus.approved)],
+          done: arrived(3));
+      api.failingLists.add('list:mine:done:0:20');
+      await pumpScreen(tester);
+
+      expect(find.text('Dune (2024)'), findsOneWidget);
+      expect(find.text('ARRIVATE'), findsOneWidget);
+      expect(find.byType(RequestShelfPoster), findsNothing);
+
+      api.failingLists.clear();
+      await tester.tap(find.text('Riprova'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RequestShelfPoster), findsNWidgets(3));
+    });
+
+    testWidgets("tutti i gruppi in errore: la pagina d'errore", (tester) async {
+      groups(RequestsFilter.mine);
+      api.failure = RequestsFailure.network;
+      await pumpScreen(tester);
+
+      expect(find.byType(ErrorView), findsOneWidget);
+      expect(find.text('IN CORSO'), findsNothing);
+    });
+
+    testWidgets('"Le mie" vuota invita a chiedere; "Richiedi un titolo" apre '
+        'Cerca', (tester) async {
+      groups(RequestsFilter.mine);
+      final router = await pumpScreen(tester);
+
+      expect(find.text('NON HAI ANCORA CHIESTO NIENTE'), findsOneWidget);
+      // Un pulsante solo: quello della pagina vuota.
+      expect(find.text('Richiedi un titolo'), findsOneWidget);
+      await tester.tap(find.text('Richiedi un titolo'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/search');
+    });
+
+    testWidgets('"Tutte" vuota: nessuna richiesta', (tester) async {
+      api.meValue = manager;
+      groups(RequestsFilter.all);
+      await pumpScreen(tester, location: '/requests?tab=all');
+
+      expect(find.text('Nessuna richiesta'), findsOneWidget);
+      expect(find.text('Richiedi un titolo'), findsOneWidget);
+    });
+
+    testWidgets("senza la funzione dei gruppi: l'elenco unico", (tester) async {
+      api.lists[RequestsFilter.mine] = [
+        testMediaRequest(id: 1, title: 'Dune', status: RequestStatus.approved),
+        testMediaRequest(id: 2, title: 'Arrivato', status: RequestStatus.available),
+      ];
+      await pumpScreen(tester);
+
+      expect(api.calls.where((c) => c.startsWith('list:') && c.split(':').length > 4),
+          isEmpty);
+      expect(find.text('IN CORSO'), findsNothing);
+      expect(find.text('Dune (2024)'), findsOneWidget);
+      expect(find.text('Arrivato (2024)'), findsOneWidget);
+      expect(find.byType(RequestTrack), findsOneWidget);
+    });
+
+    testWidgets('"Da approvare" resta l\'elenco con Approva e Rifiuta',
+        (tester) async {
+      api.meValue = manager;
+      groups(RequestsFilter.mine);
+      api.lists[RequestsFilter.pending] = [
+        testMediaRequest(id: 1, title: 'Dune', requester: 'Garg'),
+      ];
+      await pumpScreen(tester, location: '/requests?tab=pending');
+
+      expect(find.text('Approva'), findsOneWidget);
+      expect(find.text('Rifiuta'), findsOneWidget);
+      expect(find.text('IN CORSO'), findsNothing);
+      expect(
+          api.calls.where(
+              (c) => c.startsWith('list:pending:') && c.split(':').length > 4),
+          isEmpty);
+    });
+
+    testWidgets('una locandina apre la scheda della libreria', (tester) async {
+      groups(RequestsFilter.mine, done: [
+        testMediaRequest(
+            id: 5,
+            title: 'Arrivato',
+            status: RequestStatus.available,
+            jellyfinItemId: 'abc'),
+      ]);
+      final router = await pumpScreen(tester);
+
+      await tester.tap(find.byType(RequestShelfPoster));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/item/abc');
+    });
+
+    testWidgets('TV: con le frecce il fuoco passa per righe, locandine, '
+        '"Mostra altre", "Chiuse" e "Richiedi un titolo"', (tester) async {
+      api.meValue = manager;
+      groups(RequestsFilter.mine,
+          open: [testMediaRequest(id: 1, title: 'Dune', status: RequestStatus.approved)],
+          done: arrived(25),
+          closed: [
+            testMediaRequest(id: 9, title: 'Rifiutato', status: RequestStatus.declined),
+          ]);
+      await pumpScreen(tester, tv: true, surfaceSize: const Size(1920, 3000));
+      expect(find.text('Approva'), findsNothing);
+      expect(find.text('Tutte'), findsNothing);
+
+      bool focused(Finder finder) {
+        final target = primaryFocus?.context;
+        if (target == null) return false;
+        // Il fuoco è sul controllo o dentro (la cornice della locandina).
+        bool within(Element inner, Element outer) {
+          if (inner == outer) return true;
+          var hit = false;
+          inner.visitAncestorElements((e) {
+            if (e == outer) hit = true;
+            return !hit;
+          });
+          return hit;
+        }
+
+        return finder.evaluate().any((element) =>
+            within(element, target as Element) ||
+            within(target, element));
+      }
+
+      final targets = {
+        'ask': find.text('Richiedi un titolo'),
+        'row': find.text('Dune (2024)'),
+        'poster': find.byType(RequestShelfPoster),
+        'more': find.text('Mostra altre'),
+        'closed': find.text('CHIUSE'),
+      };
+      final reached = <String>{};
+      void look() {
+        for (final e in targets.entries) {
+          if (focused(e.value)) reached.add(e.key);
+        }
+      }
+
+      for (final key in [
+        for (var i = 0; i < 10; i++) LogicalKeyboardKey.arrowDown,
+        for (var i = 0; i < 10; i++) LogicalKeyboardKey.arrowUp,
+      ]) {
+        await tester.sendKeyEvent(key);
+        await tester.pumpAndSettle();
+        look();
+      }
+      expect(reached, targets.keys.toSet());
+
+      // OK su "Chiuse" la apre.
+      for (var i = 0; i < 10 && !focused(targets['closed']!); i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.text('Rifiutato (2024)'), findsOneWidget);
+    });
+  });
 
   testWidgets('utente normale: le sue richieste, senza schede', (tester) async {
     api.lists[RequestsFilter.mine] = [

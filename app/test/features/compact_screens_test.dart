@@ -28,6 +28,7 @@ import 'package:wonderflix/features/match/match_screen.dart';
 import 'package:wonderflix/features/match/match_swipe_deck.dart';
 import 'package:wonderflix/features/requests/requests_navigation.dart';
 import 'package:wonderflix/features/requests/requests_screen.dart';
+import 'package:wonderflix/features/requests/request_row.dart';
 import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
 import 'package:wonderflix/features/watch_party/party_mode_menu.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
@@ -675,7 +676,9 @@ void main() {
       expect(title, findsOneWidget);
       expect(tester.getSize(title).width, greaterThanOrEqualTo(390 / 2));
       final decline = find.byKey(const Key('request-decline'));
-      final approve = find.byType(WfButton);
+      // La WfButton della riga, non "Richiedi un titolo" in alto.
+      final approve = find.descendant(
+          of: find.byType(RequestRow), matching: find.byType(WfButton));
       for (final button in [decline, approve]) {
         final size = tester.getSize(button);
         expect(size.width, greaterThanOrEqualTo(44));

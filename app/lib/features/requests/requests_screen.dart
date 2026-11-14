@@ -12,9 +12,11 @@ import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
+import '../settings/settings_screen.dart';
 import 'approve_dialog.dart';
 import 'pending_request_actions.dart';
 import 'request_row.dart';
+import 'requests_groups_view.dart';
 import 'requests_list_controller.dart';
 import 'requests_navigation.dart';
 import 'requests_providers.dart';
@@ -94,13 +96,35 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
 
     final compact = FormFactor.of(context).compact;
     final side = compact ? 16.0 : 32.0;
+    // "Le mie" e "Tutte" divise in gruppi, se il plugin li sa fare (spec
+    // §5.2); "Da approvare" e il ripiego restano l'elenco unico.
+    final grouped = ref.watch(requestsGroupsProvider) && tab != RequestsTab.pending;
+    // "Le mie" vuota ha il suo pulsante: quello in alto non si ripete.
+    final emptyMine = ready &&
+        grouped &&
+        tab == RequestsTab.mine &&
+        RequestsGroup.values.every((group) => ref.watch(
+            requestsListControllerProvider(
+                    requestsGroupKey(tab, group, language))
+                .select((s) => !s.loading && s.items.isEmpty && s.error == null)));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
-          child: Text(l.navRequests.toUpperCase(),
-              style: WfText.display(compact ? 28 : 40)),
+        ConstrainedBox(
+          constraints:
+              BoxConstraints(maxWidth: settingsContentMaxWidth + 2 * side),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(side, 16, side, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(l.navRequests.toUpperCase(),
+                      style: WfText.display(compact ? 28 : 40)),
+                ),
+                if (ready && !emptyMine) const RequestsAskButton(),
+              ],
+            ),
+          ),
         ),
         if (!ready)
           const Expanded(child: LoadingView())
@@ -126,11 +150,14 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
             ),
           const SizedBox(height: 8),
           Expanded(
-            child: _RequestsList(
-              key: ValueKey(tab),
-              tab: tab,
-              listKey: (filter: tab.filter, group: null, language: language),
-            ),
+            child: grouped
+                ? RequestsGroupsView(
+                    key: ValueKey(tab), tab: tab, language: language)
+                : _RequestsList(
+                    key: ValueKey(tab),
+                    tab: tab,
+                    listKey: (filter: tab.filter, group: null, language: language),
+                  ),
           ),
         ],
       ],
