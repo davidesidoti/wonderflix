@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sala per genere, bozza</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+    --mu:rgba(242,234,211,.6); --dim:rgba(242,234,211,.32);
+    --page:#1c1c1c; --note:#b9b4a6;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+  .doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+  .doc > h1 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+  .doc p { max-width:78ch; }
+  section.s { margin:48px 0; }
+  section.s > h2 { font:400 28px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+  section.s > p { margin:0 0 16px; }
+  .scroll { overflow-x:auto; padding-bottom:6px; }
+  button { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .pair { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .cap { color:var(--note); font-size:13px; margin:0; max-width:56ch; }
+  .cap b { color:var(--cr); font-weight:600; }
+
+  .app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; position:relative; }
+  .app.desk { width:1280px; height:800px; }
+  .app.phone { width:390px; height:780px; }
+  .app.tv { width:960px; height:540px; }
+  .nav { position:absolute; left:0; right:0; top:0; z-index:5; display:flex; align-items:center; gap:22px; height:56px; padding:0 32px; background:linear-gradient(180deg,rgba(10,10,10,.85),rgba(10,10,10,0)); transition:background .2s; }
+  .app.solid .nav { background:var(--bg); }
+  .nav .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+  .nav a { color:var(--cr); text-decoration:none; padding:18px 0 15px; border-bottom:2px solid transparent; }
+  .nav a.on { color:var(--gold); border-color:var(--gold); }
+  .nav .me { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .nav .av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#6b4a8a,#2a1d38); }
+  .body { position:absolute; inset:0; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#333 transparent; }
+
+  /* cartellone */
+  .band { position:relative; height:320px; background:#000 center 25%/cover; transition:background-image .3s; }
+  .band::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.75) 38%,rgba(10,10,10,.12) 75%), linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 55%); }
+  .band .tabs { position:absolute; left:32px; top:76px; display:flex; gap:20px; }
+  .band .tabs button { font:400 30px/1 'Bebas Neue'; letter-spacing:1px; background:none; border:0; padding:0; cursor:pointer; color:var(--dim); }
+  .band .tabs button[aria-selected="true"] { color:var(--cr); cursor:default; }
+  .band .txt { position:absolute; left:32px; bottom:22px; right:32px; }
+  .band h3 { margin:0; font:400 112px/0.82 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .band p { margin:12px 0 0; color:var(--mu); font-size:14px; }
+  .band p b { color:var(--cr); font-weight:600; }
+
+  /* barra ferma */
+  .bar { position:sticky; top:56px; z-index:4; background:var(--bg); padding:0 32px; }
+  .gidx { position:relative; }
+  .gidx .in { display:flex; gap:22px; overflow-x:auto; scrollbar-width:none; padding:10px 48px 6px 0; }
+  .gidx .in::-webkit-scrollbar { display:none; }
+  .gidx::after { content:''; position:absolute; right:0; top:0; bottom:6px; width:56px; background:linear-gradient(90deg,rgba(10,10,10,0),var(--bg)); pointer-events:none; }
+  .g { flex:none; background:none; border:0; padding:4px 0 6px; cursor:pointer; color:var(--mu); font-size:14px; font-weight:500; border-bottom:2px solid transparent; white-space:nowrap; }
+  .g sup { font-size:10.5px; color:var(--dim); margin-left:3px; font-variant-numeric:tabular-nums; vertical-align:4px; }
+  .g:hover { color:var(--cr); }
+  .g[aria-pressed="true"] { color:var(--gold); border-color:var(--gold); }
+  .g[aria-pressed="true"] sup { color:var(--gold); }
+  .tools { display:flex; align-items:center; gap:10px; padding:10px 0 12px; border-top:1px solid var(--sf); }
+  .pick { height:32px; display:inline-flex; align-items:center; gap:6px; padding:0 10px; border:1px solid var(--bd); border-radius:6px; background:var(--sh); color:var(--cr); font-size:13px; cursor:pointer; flex:none; }
+  .pick span { color:var(--mu); }
+  .pick select { background:none; border:0; color:var(--cr); font:inherit; cursor:pointer; outline:none; }
+  .pick select option { background:var(--sf); }
+  .icon { width:32px; justify-content:center; padding:0; }
+  .icon[aria-pressed="true"] { background:var(--gold); color:var(--bg); border-color:var(--gold); }
+  .tog { display:inline-flex; align-items:center; gap:8px; background:none; border:0; color:var(--mu); cursor:pointer; font-size:13px; flex:none; }
+  .tog i { width:30px; height:18px; border-radius:9px; background:var(--bd); position:relative; }
+  .tog i::after { content:''; position:absolute; left:2px; top:2px; width:14px; height:14px; border-radius:50%; background:var(--cr); transition:transform .15s; }
+  .tog[aria-pressed="true"] { color:var(--cr); }
+  .tog[aria-pressed="true"] i { background:var(--gold); }
+  .tog[aria-pressed="true"] i::after { transform:translateX(12px); background:var(--bg); }
+  .seg { display:inline-flex; border:1px solid var(--bd); border-radius:6px; overflow:hidden; flex:none; }
+  .seg button { background:var(--sh); border:0; padding:0 12px; height:30px; cursor:pointer; color:var(--mu); font-size:13px; }
+  .seg button + button { border-left:1px solid var(--bd); }
+  .seg button[aria-pressed="true"] { background:var(--gold); color:var(--bg); font-weight:600; }
+  .search { margin-left:auto; display:flex; align-items:center; gap:8px; width:260px; height:32px; padding:0 12px; border:1px solid var(--bd); border-radius:6px; background:var(--sf); color:var(--mu); }
+  .search input { flex:1; min-width:0; background:none; border:0; color:var(--cr); font:inherit; font-size:13px; outline:none; }
+  .search input::placeholder { color:var(--mu); }
+  .search:focus-within { border-color:var(--gold); }
+  .clear { background:none; border:0; color:var(--gold); cursor:pointer; font-size:13px; flex:none; }
+
+  /* griglia e card */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:24px 16px; padding:14px 32px 36px; }
+  .card { display:block; color:inherit; text-decoration:none; min-width:0; cursor:pointer; outline:none; }
+  .pst { position:relative; aspect-ratio:2/3; border-radius:6px; background:var(--sh) center/cover; transition:transform .18s, box-shadow .18s, filter .18s; }
+  .card:hover .pst, .card:focus-visible .pst, .card.focus .pst { transform:translateY(-3px); box-shadow:0 0 0 2px var(--gold); }
+  .card b { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-weight:600; font-size:13px; line-height:1.3; margin-top:8px; }
+  .card .l2 { display:block; color:var(--mu); font-size:12px; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .card .l2 .on { color:var(--gold); }
+  .card.seen .pst { filter:saturate(.55) brightness(.8); }
+  .card.seen:hover .pst, .card.seen:focus-visible .pst { filter:none; }
+  .chk { position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--gold); color:var(--bg); display:grid; place-items:center; }
+  .barp { position:absolute; left:6px; right:6px; bottom:6px; height:3px; border-radius:2px; background:rgba(0,0,0,.6); }
+  .barp i { display:block; height:100%; background:var(--gold); border-radius:2px; }
+  .empty { padding:56px 32px; color:var(--mu); text-align:center; }
+  .empty button { display:block; margin:12px auto 0; background:none; border:1px solid var(--gold); color:var(--gold); border-radius:6px; padding:7px 14px; cursor:pointer; }
+
+  /* saghe */
+  .sagas { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:30px 22px; padding:22px 32px 36px; }
+  .saga { cursor:pointer; }
+  .fan { position:relative; height:200px; }
+  .fan i { position:absolute; bottom:0; width:118px; aspect-ratio:2/3; border-radius:6px; background:var(--sh) center/cover; box-shadow:-6px 0 14px rgba(0,0,0,.6); transition:transform .2s; }
+  .saga:hover .fan i:nth-child(1) { transform:translateX(-6px) rotate(-2deg); }
+  .saga:hover .fan i:nth-child(3) { transform:translateX(6px) rotate(2deg); }
+  .saga b { display:block; font-weight:600; font-size:14px; margin-top:12px; }
+  .saga .l2 { color:var(--mu); font-size:12px; }
+  .segs { display:flex; gap:3px; margin-top:7px; }
+  .segs i { flex:1; height:3px; border-radius:2px; background:var(--bd); }
+  .segs i.on { background:var(--gold); }
+
+  /* telefono */
+  .phone .nav { display:none; }
+  .phone .band { height:220px; }
+  .phone .band .tabs { left:16px; top:18px; gap:14px; }
+  .phone .band .tabs button { font-size:26px; }
+  .phone .band .txt { left:16px; right:16px; bottom:14px; }
+  .phone .band h3 { font-size:64px; }
+  .phone .band p { font-size:12.5px; margin-top:8px; }
+  .phone .bar { top:0; padding:0 16px; }
+  .phone .tools { gap:8px; }
+  .phone .grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 10px; padding:12px 16px 80px; }
+  .phonenav { position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-around; height:56px; align-items:center; border-top:1px solid var(--sf); color:var(--mu); font-size:11px; background:var(--bg); }
+  .phonenav .on { color:var(--gold); }
+
+  /* tv */
+  .tv .nav { display:none; }
+  .tv .side { position:absolute; left:0; top:0; bottom:0; width:64px; z-index:6; background:linear-gradient(90deg,var(--bg) 60%,rgba(10,10,10,0)); display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:28px; color:var(--mu); }
+  .tv .side i { width:20px; height:20px; border-radius:4px; border:2px solid currentColor; opacity:.8; }
+  .tv .side i.on { color:var(--gold); opacity:1; }
+  .tv .body { left:64px; overflow:hidden; }
+  .tv .band { height:160px; }
+  .tv .band .tabs { top:14px; left:24px; }
+  .tv .band .tabs button { font-size:22px; }
+  .tv .band .txt { left:24px; bottom:8px; }
+  .tv .band h3 { font-size:64px; }
+  .tv .band p { font-size:12.5px; margin-top:6px; }
+  .tv .bar { position:relative; top:auto; padding:0 24px; }
+  .tv .gidx .in { padding:6px 48px 4px 0; }
+  .tv .tools { padding:6px 0 8px; }
+  .tv .grid { transition:none; }
+  .tv .g.focus { color:var(--cr); outline:2px solid var(--gold); outline-offset:4px; border-radius:3px; }
+  .tv .grid { grid-template-columns:repeat(7,1fr); padding:12px 24px; gap:16px 12px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Sala per genere, bozza</h1>
+  <p>La strada C scelta, con le decisioni della spec (<code>2026-11-14-catalogo-ui-design.md</code>). Locandine, voti, generi, visti ed episodi da vedere veri del server; nella bozza ci sono circa 100 film e 30 serie, i conteggi sono quelli reali (i film visti per genere e le saghe finite sono inventati). Prova i generi, Ordina e il verso, "Nascondi i visti", la ricerca, e scorri: la riga dei generi resta ferma in cima.</p>
+
+  <section class="s">
+    <h2>Film</h2>
+    <p>Si apre su <b>Tutti</b>, dagli ultimi arrivati: il cartellone mostra il primo titolo della lista che ha un'immagine di fondo. Scegliendo un genere l'ordine passa a Voto, e il cartellone diventa il più votato del genere. Le schede FILM / SAGHE stanno nel cartellone.</p>
+    <div class="scroll"><div class="app desk" id="F"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Serie</h2>
+    <p>Stessa pagina. Al posto del decennio c'è anche Tutte / In corso / Concluse; sulle card lo stato e gli episodi da vedere, senza il numero sulla locandina. L'ordine di default è "Nuovi episodi".</p>
+    <div class="scroll"><div class="app desk" id="S"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Saghe</h2>
+    <p>Stesso cartellone, senza generi. Ogni saga mostra tre locandine dei suoi film e un tratto per film, oro se l'hai visto; il nome perde "- Collezione".</p>
+    <div class="scroll"><div class="app desk" id="G"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Telefono e TV</h2>
+    <div class="pair">
+      <div class="app phone" id="P"></div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <p class="cap"><b>Telefono.</b> Cartellone più basso, attrezzi su una riga: Ordina, verso, Decennio, l'occhio per "Nascondi i visti" e la lente, che apre la ricerca al posto della riga. Nelle serie In corso / Concluse entrano nel menu Decennio, che diventa "Filtri".</p>
+        <div class="app tv" id="T"></div>
+        <p class="cap"><b>TV (960×540), all'apertura.</b> Cartellone basso (160 px), generi e attrezzi compatti: la prima fila di locandine si vede già intera. Niente ricerca (c'è nella barra laterale). Il focus parte dal genere scelto: sinistra/destra cambia genere, giù va agli attrezzi e poi alla griglia, su dalla riga dei generi raggiunge le schede FILM / SAGHE.</p>
+        <div class="app tv" id="T2"></div>
+        <p class="cap"><b>TV, con il focus nella griglia.</b> Cartellone e barra escono dallo schermo e la griglia lo prende tutto. Su dalla prima fila si torna agli attrezzi e la pagina risale.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const D = {"counts":{"movies":801,"series":188},"letters":{"#":14,"A":55,"B":37,"C":39,"D":27,"E":20,"F":28,"G":27,"H":24,"I":77,"J":14,"K":16,"L":66,"M":63,"N":24,"O":14,"P":32,"Q":3,"R":25,"S":92,"T":39,"U":23,"V":5,"W":22,"X":9,"Y":3,"Z":3},"seriesLetters":{"#":1,"A":4,"B":12,"C":9,"D":13,"E":4,"F":7,"G":6,"H":8,"I":8,"J":1,"K":3,"L":13,"M":22,"N":1,"O":7,"P":11,"R":6,"S":27,"T":8,"U":5,"V":1,"W":8,"X":2,"Y":1},"genres":[["Azione",330],["Avventura",283],["Fantascienza",243],["Thriller",217],["Dramma",212],["Commedia",185],["Horror",128],["Crime",114],["Fantasy",111],["Animazione",93],["Famiglia",91],["Romance",82],["Mistero",66],["Storia",28],["Guerra",26],["Anime",9],["Musica",8],["Western",6],["Documentario",5],["televisione film",4],["Soprannaturale",2],["Psychological",1],["Sport",1],["Slice of Life",1]],"seriesGenres":[["Dramma",138],["Azione",67],["Fantascienza",63],["Thriller",55],["Avventura",54],["Crime",46],["Mistero",42],["Fantasy",39],["Commedia",37],["Miniserie",24],["Anime",18],["Romance",16],["Horror",14],["Storia",8],["Animazione",7],["Documentario",5],["Guerra",4],["Slice of Life",4],["Sport",2],["Famiglia",2],["Food",1],["Western",1],["Psychological",1],["Medical",1],["Martial Arts",1],["Ecchi",1],["Mecha",1]],"decades":[[2020,344],[2010,243],[2000,138],[1990,46],[1980,17],[1970,8],[1960,5]],"watched":317,"seriesStatus":[["Ended",122],["Continuing",66]],"az":[{"n":"Avatar Aang: L’ultimo dominatore dell’aria","s":"avatar aang lultimo dominatore dellaria","y":2026,"r":9.1,"g":["Animazione","Avventura","Azione","Fantasy"],"d":"2026-07-29","w":false,"pp":0,"p":"/4Nil4DQfBGymHuL2Q9nQwg27orY.jpg","b":"/ezbrL1dMymKQZw7mDEWa2ZTzN7d.jpg"},{"n":"Avatar: Fuoco e cenere","s":"avatar: fuoco e cenere","y":2025,"r":7.6,"g":["Avventura","Fantascienza","Fantasy"],"d":"2026-03-31","w":true,"pp":0,"p":"/kvivMhuEuzXuaj0UMjAAmrXVvWn.jpg","b":"/u8DU5fkLoM5tTRukzPC31oGPxaQ.jpg"},{"n":"Avatar: La via dell'acqua","s":"avatar: la via dellacqua","y":2022,"r":7.6,"g":["Avventura","Azione","Fantascienza"],"d":"2026-03-14","w":true,"pp":0,"p":"/idul2fSUPkk0EHP92EzmES6KGW4.jpg","b":"/kJsPVzdyBrYHLomuNv5SJDXUQ2f.jpg"},{"n":"The Avengers","s":"avengers","y":2012,"r":8.1,"g":["Avventura","Azione","Fantascienza"],"d":"2025-08-01","w":true,"pp":0,"p":"/o6IvnjWsAjPja21JA1EHo0XcYTy.jpg","b":"/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg"},{"n":"Avengers: Age of Ultron","s":"avengers: age of ultron","y":2015,"r":7.3,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/pYEHarIwyYSM1bXs5FtpL2GZELy.jpg","b":"/kIBK5SKwgqIIuRKhhWrJn3XkbPq.jpg"},{"n":"Avengers: Endgame","s":"avengers: endgame","y":2019,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/8miyORCKx1lMYtc5YmqHyiVLwDF.jpg","b":"/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg"},{"n":"Avengers: Infinity War","s":"avengers: infinity war","y":2018,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/t24aimjQLa0dyoZQEbSws7XK1U0.jpg","b":"/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg"},{"n":"Azione mutante","s":"azione mutante","y":1993,"r":6.3,"g":["Azione","Commedia","Fantascienza","Thriller"],"d":"2026-10-31","w":false,"pp":0,"p":"/mCWxR20aHvj2fKiNFnGT7I6Psvk.jpg","b":"/n7jIsZoAjY69DCs0BmZBEaEzg5R.jpg"},{"n":"Baby Boy - Una vita violenta","s":"baby boy  una vita violenta","y":2001,"r":7.1,"g":["Crime","Dramma","Romance","Thriller"],"d":"2025-11-06","w":false,"pp":0,"p":"/8DsUweZW1u9bWRlEsWt2fRorlL0.jpg","b":"/wyMfhalkfbEjrAnvlqs9zOnDsCZ.jpg"},{"n":"Backrooms","s":"backrooms","y":2026,"r":7.0,"g":["Fantascienza","Horror","Mistero"],"d":"2026-08-28","w":true,"pp":0,"p":"/MIINS3Q31PEYGM7d3mwJE5mV4L.jpg","b":"/QNE9Ihuas4duMHJYGQgAcuRtXz.jpg"},{"n":"The Bad Boy and Me","s":"bad boy and me","y":2024,"r":6.5,"g":["Commedia","Romance"],"d":"2026-04-09","w":false,"pp":0,"p":"/qNTF7rGZLMPbZsQkP0a732k9evj.jpg","b":"/wbDkvShcrveXNFsgyujY4kdurVa.jpg"},{"n":"The Bad Boy and Me 2","s":"bad boy and me 0000000002","y":2025,"r":7.1,"g":["Commedia","Romance"],"d":"2026-04-09","w":false,"pp":0,"p":"/s2rJqC0OHYOeOHbhnO073eOCKxL.jpg","b":"/tYT4DdVw1utDPE4QIsBHxlKHai8.jpg"},{"n":"Ballerina","s":"ballerina","y":2025,"r":7.3,"g":["Azione","Crime","Thriller"],"d":"2026-03-14","w":false,"pp":0,"p":"/fgzv2GA50AcvajcrIsShEOJ8G5v.jpg","b":"/1yktYsxkmUtUFTUnCAUaqG6FEiz.jpg"},{"n":"Basta guardare il cielo","s":"basta guardare il cielo","y":1998,"r":7.2,"g":["Commedia","Dramma"],"d":"2026-08-24","w":false,"pp":0,"p":"/hPjWTwuQfIjPScb8pviydhNQm0q.jpg","b":"/wq41s88t8TUNDWWhpZQ65P4OhP8.jpg"},{"n":"Batman","s":"batman","y":1989,"r":7.2,"g":["Azione","Crime","Fantasy"],"d":"2025-11-09","w":false,"pp":0,"p":"/qQ2WspLSYQOT22cn0gZ6Lr7AaYV.jpg","b":"/rhc7OF7tC9HPu0X8DBKQJzaGRbu.jpg"},{"n":"The Batman","s":"batman","y":2022,"r":7.7,"g":["Crime","Mistero","Thriller"],"d":"2025-11-09","w":true,"pp":0,"p":"/kfrNjwHRw0ORsPx8Scr3JJQuy1I.jpg","b":"/rvtdN5XkWAfGX6xDuPL6yYS2seK.jpg"},{"n":"Batman - Il Film","s":"batman  il film","y":1966,"r":6.4,"g":["Azione","Commedia","Crime"],"d":"2025-10-18","w":true,"pp":0,"p":"/3KFK0TLpATx79UvlA8FRSCIbi17.jpg","b":"/v6lvnMHYPMVhc0t08gKYJNpMijC.jpg"},{"n":"Batman & Robin","s":"batman  robin","y":1997,"r":4.4,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/203BJ9Hcf4F4KBQBlufP2q3G1NF.jpg","b":"/kEuQWHte2erRpAICrYqkAZaZAAY.jpg"},{"n":"Batman Begins","s":"batman begins","y":2005,"r":7.7,"g":["Azione","Crime","Dramma"],"d":"2025-11-09","w":true,"pp":0,"p":"/2eNeMwCncDvcJZ4AqKndWX71wDc.jpg","b":"/9IIBboV7MCT0bTxzXHmWK1Hq558.jpg"},{"n":"Batman Forever","s":"batman forever","y":1995,"r":5.5,"g":["Azione","Crime","Fantasy"],"d":"2025-08-01","w":true,"pp":0,"p":"/3RdMrYlo00Q17KRTwJhtvFNQRe0.jpg","b":"/snlu32RmjldF9b068UURJg8sQtn.jpg"},{"n":"Batman Ninja","s":"batman ninja","y":2018,"r":5.9,"g":["Animazione","Azione","Fantascienza"],"d":"2026-04-02","w":false,"pp":0,"p":"/zaw7PQ7GvTliBVmfg2o8OJfhWjU.jpg","b":"/silcq0dj3Scf1LtpBjjVKXMQXS2.jpg"},{"n":"Batman Ninja vs. Yakuza League","s":"batman ninja vs  yakuza league","y":2025,"r":6.7,"g":["Animazione","Azione","Fantascienza"],"d":"2026-10-12","w":false,"pp":0,"p":"/y2mQtPz6uDdw4CRpSdU5tlGB2MA.jpg","b":"/k5F9jYfcsp4EFDVaUvyWd1uyXsX.jpg"},{"n":"Batman vs Teenage Mutant Ninja Turtles","s":"batman vs teenage mutant ninja turtles","y":2019,"r":7.2,"g":["Animazione","Avventura","Azione","Commedia","Crime","Fantascienza"],"d":"2026-08-30","w":false,"pp":0,"p":"/yP3h0Pu8htyb9450mWJ9Vu1rU.jpg","b":"/sA50fD5aLbYPRU0fMCHIZ88gc5g.jpg"},{"n":"Batman: Hush","s":"batman: hush","y":2019,"r":7.2,"g":["Animazione","Azione","Crime","Mistero"],"d":"2026-11-03","w":false,"pp":0,"p":"/eiVQORVyVuNNZHPAELuWtlXoQsD.jpg","b":"/eevJuYAitUe6VwFN29aFwzeyeTr.jpg"},{"n":"Batman: Knightfall Part 1: Knightfall","s":"batman: knightfall part 0000000001: knightfall","y":2026,"r":9.2,"g":["Animazione","Avventura","Azione","Dramma"],"d":"2026-08-30","w":false,"pp":0,"p":"/360qdtu2hLnqMu8SVHMywn420w1.jpg","b":"/caBIySpwuFi2i7ynvHIlnxJLOdN.jpg"},{"n":"Batman: The Long Halloween, Part One","s":"batman: long halloween part one","y":2021,"r":7.4,"g":["Animazione","Azione","Crime","Mistero"],"d":"2026-08-30","w":false,"pp":0,"p":"/sR7gppb0YGjwLvE6Vnj6wYv5MnW.jpg","b":"/uS9apevOgs2fuYghf9szOoK1u63.jpg"},{"n":"Batman: The Long Halloween, Part Two","s":"batman: long halloween part two","y":2021,"r":7.4,"g":["Animazione","Azione","Crime","Mistero"],"d":"2026-08-30","w":false,"pp":0,"p":"/5X1n5q08mZ7NpNpxehMFODxfNYq.jpg","b":"/j14Z0pP7tpuHZlVBSuUL7tq2SGb.jpg"},{"n":"Baywatch","s":"baywatch","y":2017,"r":6.1,"g":["Azione","Commedia","Crime"],"d":"2026-03-14","w":true,"pp":0,"p":"/wzVfBKsq1gguTb0MuPWOyVtKzpE.jpg","b":"/6QmX2BDVr1hIOIPHqnxvp1C1ZZp.jpg"},{"n":"Beautiful Boy","s":"beautiful boy","y":2018,"r":7.6,"g":["Dramma"],"d":"2026-11-14","w":false,"pp":0,"p":"/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg","b":"/sOhtC4cmaYPOlcjXCWxxrx2NKKn.jpg"},{"n":"Beetlejuice - Spiritello porcello","s":"beetlejuice  spiritello porcello","y":1988,"r":7.4,"g":["Commedia","Fantasy"],"d":"2025-08-07","w":false,"pp":0,"p":"/3Q4wbujboLEZQDdROySgkIDtLWg.jpg","b":"/yRKyJJYIzfeiVDHBe4LXguPQCvD.jpg"},{"n":"Beetlejuice Beetlejuice","s":"beetlejuice beetlejuice","y":2024,"r":6.9,"g":["Commedia","Fantasy"],"d":"2025-08-07","w":false,"pp":0,"p":"/w7juCs2a0ktMTZRBHH3q8TlCzVx.jpg","b":"/A1dZ6faTjg0e6HYftBmEKujuXGQ.jpg"},{"n":"Ben - Rabbia animale","s":"ben  rabbia animale","y":2026,"r":6.4,"g":["Horror","Thriller"],"d":"2026-11-02","w":false,"pp":0,"p":"/9tDRlVuLQBZ2enDlVpDJ2DHewGQ.jpg","b":"/d5C5Wsx4fnMRA0tj9BK1kTPcgQe.jpg"},{"n":"Big Hero 6","s":"big hero 0000000006","y":2014,"r":7.7,"g":["Animazione","Avventura","Azione","Commedia","Famiglia"],"d":"2025-11-09","w":true,"pp":0,"p":"/5BmP3oKqStYSPinFYKuJbHvxoA8.jpg","b":"/4s2d3xdyqotiVNHTlTlJjrr3q0H.jpg"},{"n":"Black Panther","s":"black panther","y":2018,"r":7.4,"g":["Avventura","Azione","Fantascienza"],"d":"2025-08-04","w":true,"pp":0,"p":"/5mxlzNZFeuWRcAZV6ECOwYfN7oZ.jpg","b":"/b6ZJZHUdMEFECvGiDpJjlfUWela.jpg"},{"n":"Black Panther: Wakanda Forever","s":"black panther: wakanda forever","y":2022,"r":7.0,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/jcDnXDBMj11W4jfa8oeUON1lcut.jpg","b":"/83H0C66AcvkwpG2738VCTHMY9uv.jpg"},{"n":"Black Sea","s":"black sea","y":2014,"r":6.3,"g":["Avventura","Dramma","Thriller"],"d":"2026-04-10","w":false,"pp":0,"p":"/pZHMeTiHOeBjXW47Ruo9vT7Ui21.jpg","b":"/goccXjwwNyDhrwQiP77T71pfFb7.jpg"},{"n":"Black Widow","s":"black widow","y":2021,"r":7.1,"g":["Avventura","Azione","Fantascienza"],"d":"2025-07-18","w":true,"pp":0,"p":"/uvQOOzAQWEj8MUkqdwQEfDgzXfd.jpg","b":"/keIxh0wPr2Ymj0Btjh4gW7JJ89e.jpg"},{"n":"Blade Runner 2049","s":"blade runner 0000002049","y":2017,"r":7.6,"g":["Dramma","Fantascienza"],"d":"2026-05-29","w":true,"pp":0,"p":"/4XJQG11Ytl8mKfgbl2jkoY5ZuFX.jpg","b":"/gNdLJU9TxrpGx4dkZidjys3fyy0.jpg"}],"recent":[{"n":"Ace Ventura - L'acchiappanimali","s":"ace ventura  lacchiappanimali","y":1994,"r":6.6,"g":["Commedia","Crime","Mistero"],"d":"2026-11-14","w":true,"pp":0,"p":"/ptTaBr68fiHfjDVNmQRoOantMDy.jpg","b":"/mhMnWStdREZiYrWpm1MqTS7J2V5.jpg"},{"n":"Beautiful Boy","s":"beautiful boy","y":2018,"r":7.6,"g":["Dramma"],"d":"2026-11-14","w":false,"pp":0,"p":"/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg","b":"/sOhtC4cmaYPOlcjXCWxxrx2NKKn.jpg"},{"n":"Hope","s":"hope","y":2026,"r":6.8,"g":["Azione","Fantascienza","Mistero"],"d":"2026-11-14","w":false,"pp":0,"p":"/fbFxZSSw2kQoAkyXosVoOyBX0Z4.jpg","b":"/j96rurZqmBjyY37Fncl3IB0qJNe.jpg"},{"n":"I Swear - È più forte di me","s":"i swear  e piu forte di me","y":2025,"r":8.3,"g":["Dramma","Storia"],"d":"2026-11-14","w":false,"pp":0,"p":"/aEIT9GFMGYytuUFCiVSv21OhkWk.jpg","b":"/4mKczHAW4XPDXGk7V5k7Ui3dgUk.jpg"},{"n":"Animali fantastici e dove trovarli","s":"animali fantastici e dove trovarli","y":2016,"r":7.3,"g":["Avventura","Fantasy"],"d":"2026-11-13","w":false,"pp":0,"p":"/w5tKxNmdf3yI5lXSDa5vs6YwxHN.jpg","b":"/8Qsr8pvDL3s1jNZQ4HK1d1Xlvnh.jpg"},{"n":"È colpa nostra?","s":"e colpa nostra?","y":2025,"r":7.4,"g":["Dramma","Romance"],"d":"2026-11-13","w":false,"pp":0,"p":"/yYNEQnwnExMcvLVRGhLuWOGDY0r.jpg","b":"/7QirCB1o80NEFpQGlQRZerZbQEp.jpg"},{"n":"Osiris","s":"osiris","y":2025,"r":6.1,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-13","w":false,"pp":0,"p":"/szCUaJsdWO7dTR14MTTHXuxge8b.jpg","b":"/ySHUoK4utUOiSfCinw81H1TsV0E.jpg"},{"n":"The Wrestler","s":"wrestler","y":2008,"r":7.5,"g":["Dramma","Romance"],"d":"2026-11-13","w":false,"pp":0,"p":"/A0Uq6fZG9UVbaFZmwF593ESz8LE.jpg","b":"/wcJmFsz8RqIhozMwvU81hreTX4i.jpg"},{"n":"Brick","s":"brick","y":2025,"r":5.8,"g":["Fantascienza","Thriller"],"d":"2026-11-12","w":false,"pp":0,"p":"/73VFU1frjqS2XmSD8FCvADADf7M.jpg","b":"/apNfldKI3RiaukNwJzr8EjRG7Wc.jpg"},{"n":"Colony","s":"colony","y":2026,"r":8.2,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-12","w":true,"pp":0,"p":"/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg","b":"/iGViga8sDCET1S6GfwOlAbuhSGQ.jpg"},{"n":"The Covenant","s":"covenant","y":2023,"r":7.7,"g":["Azione","Guerra","Thriller"],"d":"2026-11-12","w":false,"pp":0,"p":"/lXj9JHKDTImSemOykGaHHEAh8zS.jpg","b":"/eTvN54pd83TrSEOz6wbsXEJktCV.jpg"},{"n":"Godzilla Minus One","s":"godzilla minus one","y":2023,"r":7.6,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-12","w":false,"pp":0,"p":"/AhO2e2EWYYZk4zxxeynriCufixo.jpg","b":"/oHBhHoNe59VH6bUMazDtJmWOFSS.jpg"},{"n":"Group Therapy","s":"group therapy","y":2024,"r":7.8,"g":["Documentario"],"d":"2026-11-12","w":false,"pp":0,"p":"/oLxZsrYtBDOk7YXWRWSzTbPWfMO.jpg","b":"/nEz336asiVn2QZwAWxHSo9vaQEi.jpg"},{"n":"La valle dei sorrisi","s":"la valle dei sorrisi","y":2025,"r":6.7,"g":["Dramma","Fantasy","Thriller"],"d":"2026-11-12","w":false,"pp":0,"p":"/wZWBXIsX3QBXf94vzCSUqlZDp57.jpg","b":"/n7wHpEFThBgm15bUH7e07frPJvV.jpg"}],"unwatchedTop":[{"n":"Batman: Knightfall Part 1: Knightfall","s":"batman: knightfall part 0000000001: knightfall","y":2026,"r":9.2,"g":["Animazione","Avventura","Azione","Dramma"],"d":"2026-08-30","w":false,"pp":0,"p":"/360qdtu2hLnqMu8SVHMywn420w1.jpg","b":"/caBIySpwuFi2i7ynvHIlnxJLOdN.jpg"},{"n":"Avatar Aang: L’ultimo dominatore dell’aria","s":"avatar aang lultimo dominatore dellaria","y":2026,"r":9.1,"g":["Animazione","Avventura","Azione","Fantasy"],"d":"2026-07-29","w":false,"pp":0,"p":"/4Nil4DQfBGymHuL2Q9nQwg27orY.jpg","b":"/ezbrL1dMymKQZw7mDEWa2ZTzN7d.jpg"},{"n":"Chainsaw Man – The Movie: Reze Arc","s":"chainsaw man  movie reze arc","y":2025,"r":9,"g":["Anime","Azione","Dramma","Horror","Romance"],"d":"2025-12-13","w":false,"pp":0,"p":"/2tWxSWFoMdhUlzE9wVnPHr8rmED.jpg","b":"/gqTz24ZRsCP6AKjARmEivY7m0cK.jpg"},{"n":"Swapped - Al tuo posto","s":"swapped  al tuo posto","y":2026,"r":8.9,"g":["Animazione","Avventura","Famiglia","Fantasy"],"d":"2026-05-09","w":false,"pp":0,"p":"/uCRXsCpMZJDrxAAXJC2xHOz6r9T.jpg","b":"/zMwhWailP1WY7sb6AoE6b8ugoy.jpg"},{"n":"Il padrino","s":"il padrino","y":1972,"r":8.7,"g":["Crime","Dramma"],"d":"2025-08-06","w":false,"pp":0,"p":"/gemuM3FvVaWSEBrfk6nVFIOBhBY.jpg","b":"/tSPT36ZKlP2WVHJLM4cQPLSzv3b.jpg"},{"n":"Demon Slayer: Kimetsu no Yaiba Infinity Castle","s":"demon slayer: kimetsu no yaiba infinity castle","y":2025,"r":8.6,"g":["Anime","Avventura","Azione","Dramma","Fantasy"],"d":"2026-07-29","w":false,"pp":0,"p":"/bq88RHSdnT2rpt4ki9CJUxHz2gH.jpg","b":"/1RgPyOhN4DRs225BGTlHJqCudII.jpg"},{"n":"HAIKYU!! The Dumpster Battle","s":"haikyu!! dumpster battle","y":2024,"r":8.6,"g":["Anime","Commedia","Dramma","Sport"],"d":"2026-11-02","w":false,"pp":0,"p":"/gMkHkJ1DZ8UhRLQU7176rU1kKhA.jpg","b":"/cZmOrIOkJ2SNfVdiO85dUbOAYnL.jpg"},{"n":"Il padrino - Parte II","s":"il padrino  parte ii","y":1974,"r":8.6,"g":["Crime","Dramma"],"d":"2025-11-09","w":false,"pp":0,"p":"/jftmAcdl5D94eANbhHugbUJDULI.jpg","b":"/pGzqRKrYeK4LogoysNro0vG8d8N.jpg"},{"n":"Michael","s":"michael","y":2026,"r":8.6,"g":["Dramma","Musica"],"d":"2026-06-09","w":false,"pp":0,"p":"/xUjMqG7GH6md8qX5e3MyLAzAYSZ.jpg","b":"/ufSwlnECLoUbBjPrFqEQcWBzHwc.jpg"},{"n":"Schindler's List","s":"schindlers list","y":1993,"r":8.6,"g":["Dramma","Guerra","Storia"],"d":"2025-08-24","w":false,"pp":0,"p":"/9SiPeJ9Wf2MoUdzUskaw5OrRV4V.jpg","b":"/zb6fM1CX41D9rF9hdgclu0peUmy.jpg"},{"n":"Fate/stay night [Heaven’s Feel] III. spring song","s":"fatestay night heavens feel iii  spring song","y":2020,"r":8.5,"g":["Anime","Azione","Dramma","Fantasy","Psychological"],"d":"2026-07-03","w":false,"pp":0,"p":"/fHzr7WpXzSaXy7UGp7apYfQF2Vl.jpg","b":"/tLfQZkB4yBlO1h5WMIFLJgHYcZD.jpg"},{"n":"Il buono, il brutto, il cattivo","s":"il buono il brutto il cattivo","y":1966,"r":8.5,"g":["Western"],"d":"2026-08-15","w":false,"pp":0,"p":"/n9HRt5Uq6iY9u6rdaFUHCBg14sg.jpg","b":"/x4biAVdPVCghBlsVIzB6NmbghIz.jpg"},{"n":"Il Signore degli Anelli - Il ritorno del re","s":"il signore degli anelli  il ritorno del re","y":2003,"r":8.5,"g":["Avventura","Azione","Fantasy"],"d":"2025-08-03","w":false,"pp":0,"p":"/eCua9No8HqVxGajDQrG8mvRCtJM.jpg","b":"/ctiw6FZK4N36LmkjSklWEbuvlq9.jpg"},{"n":"Parasite","s":"parasite","y":2019,"r":8.5,"g":["Commedia","Dramma","Thriller"],"d":"2026-11-12","w":false,"pp":0,"p":"/mMM8kcfspicib7AmPTvf97Rarwn.jpg","b":"/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg"}],"scifi":[{"n":"L'ultima missione: Project Hail Mary","s":"lultima missione: project hail mary","y":2026,"r":8.6,"g":["Avventura","Fantascienza"],"d":"2026-05-12","w":true,"pp":0,"p":"/gPC1X3mwqwX50Ye3qwwPt7iW3Ma.jpg","b":"/8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg"},{"n":"Interstellar","s":"interstellar","y":2014,"r":8.5,"g":["Avventura","Dramma","Fantascienza"],"d":"2025-10-04","w":true,"pp":0,"p":"/bMKiLh0mES4Uiococ240lbbTGXQ.jpg","b":"/8sNiAPPYU14PUepFNeSNGUTiHW.jpg"},{"n":"Spider-Man: Brand New Day","s":"spiderman: brand new day","y":2026,"r":8.5,"g":["Avventura","Azione","Fantascienza"],"d":"2026-11-03","w":true,"pp":0,"p":"/1GI1iyqqsaykl7LNKVwHLiorDhE.jpg","b":"/4tjxYg2AbOzzG9G1YuiT2NzYhlH.jpg"},{"n":"Inception","s":"inception","y":2010,"r":8.4,"g":["Avventura","Azione","Fantascienza"],"d":"2026-03-31","w":true,"pp":0,"p":"/5QHWgqaBxZI1eM5e3YhyKzY5o3z.jpg","b":"/8ZTVqvKDQ8emSGUEMjsS4yHAwrp.jpg"},{"n":"L'Impero colpisce ancora","s":"limpero colpisce ancora","y":1980,"r":8.4,"g":["Avventura","Azione","Fantascienza"],"d":"2026-11-04","w":true,"pp":0,"p":"/6vzDHECuUbKiqSSXHcIKb9LPcQs.jpg","b":"/k9pshruhCpJAdH9RaGJO6jaWQ4X.jpg"},{"n":"Spider-Man: Un nuovo universo","s":"spiderman: un nuovo universo","y":2018,"r":8.4,"g":["Animazione","Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/ps86PNqw9qCEA9eJD53t6RuiCkW.jpg","b":"/1ntePsIqeklfmrQJqZPncCydsqY.jpg"},{"n":"Il robot selvaggio","s":"il robot selvaggio","y":2024,"r":8.3,"g":["Animazione","Avventura","Famiglia","Fantascienza"],"d":"2026-11-02","w":true,"pp":0,"p":"/rTLuc7yMbrkl1V9uocfoRcjJqdm.jpg","b":"/1pmXyN3sKeYoUhu5VBZiDU4BX21.jpg"},{"n":"Matrix","s":"matrix","y":1999,"r":8.3,"g":["Azione","Fantascienza"],"d":"2025-08-05","w":true,"pp":0,"p":"/5uCQOswAMkOqUZiNzOxvckw59e3.jpg","b":"/tlm8UkiQsitc8rSuIAscQDCnP8d.jpg"},{"n":"Ritorno al futuro","s":"ritorno al futuro","y":1985,"r":8.3,"g":["Avventura","Commedia","Fantascienza"],"d":"2026-09-16","w":true,"pp":0,"p":"/isqoi7kuUsR5Drlqdh4ZfMULgox.jpg","b":"/5bzPWQ2dFUl2aZKkp7ILJVVkRed.jpg"},{"n":"Spider-Man: Across the Spider-Verse","s":"spiderman: across spiderverse","y":2023,"r":8.3,"g":["Animazione","Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/7pgJHduD3OVwF3EGFnGBq0nOUYv.jpg","b":"/kVd3a9YeLGkoeR50jGEXM6EqseS.jpg"},{"n":"Avengers: Endgame","s":"avengers: endgame","y":2019,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/8miyORCKx1lMYtc5YmqHyiVLwDF.jpg","b":"/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg"},{"n":"Avengers: Infinity War","s":"avengers: infinity war","y":2018,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/t24aimjQLa0dyoZQEbSws7XK1U0.jpg","b":"/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg"},{"n":"Colony","s":"colony","y":2026,"r":8.2,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-12","w":true,"pp":0,"p":"/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg","b":"/iGViga8sDCET1S6GfwOlAbuhSGQ.jpg"},{"n":"Guerre stellari","s":"guerre stellari","y":1977,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/fVqKwpvobwWy0P1UImZWIDuw4RI.jpg","b":"/4qCqAdHcNKeAHcK8tJ8wNJZa9cx.jpg"},{"n":"The Prestige","s":"prestige","y":2006,"r":8.2,"g":["Dramma","Fantascienza","Mistero"],"d":"2026-07-23","w":false,"pp":0,"p":"/1GjRCeZoE251tWkYc3erwjpdBpU.jpg","b":"/yaExZh6qE2cfyK3o4kAMEq0mkgy.jpg"},{"n":"The Avengers","s":"avengers","y":2012,"r":8.1,"g":["Avventura","Azione","Fantascienza"],"d":"2025-08-01","w":true,"pp":0,"p":"/o6IvnjWsAjPja21JA1EHo0XcYTy.jpg","b":"/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg"},{"n":"Dune - Parte due","s":"dune  parte due","y":2024,"r":8.1,"g":["Avventura","Fantascienza"],"d":"2026-03-14","w":true,"pp":0,"p":"/nhdQxDCI64rMgypYZpsF7UvbdJA.jpg","b":"/eZ239CUp1d6OryZEBPnO2n87gMG.jpg"},{"n":"Jumpers - Un salto tra gli animali","s":"jumpers  un salto tra gli animali","y":2026,"r":8.1,"g":["Animazione","Avventura","Commedia","Famiglia","Fantascienza"],"d":"2026-10-29","w":true,"pp":0,"p":"/k6gJLmAVZlEkFTv40YcPIaSBGkn.jpg","b":"/u53UYu5XG2hNgWGvs3xGhAVzypl.jpg"},{"n":"WALL•E","s":"walle","y":2008,"r":8.1,"g":["Animazione","Famiglia","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/1ZkFCJwN6hNUdNZUIUCeugja06j.jpg","b":"/nYs4ZwnJBK4AgljhvzwNz7fpr3E.jpg"},{"n":"Castle in the Sky","s":"castle in sky","y":1986,"r":8,"g":["Anime","Avventura","Fantascienza","Fantasy"],"d":"2026-11-02","w":false,"pp":0,"p":"/iokTdyOw4THZuX8YK2LHXbRoV0I.jpg","b":"/3cyjYtLWCBE1uvWINHFsFnE8LUK.jpg"},{"n":"Jurassic Park","s":"jurassic park","y":1993,"r":8.0,"g":["Avventura","Fantascienza"],"d":"2026-11-03","w":true,"pp":0,"p":"/y6JuwymU5jzxKx4oLTrlpFZg0vj.jpg","b":"/f082quUW2kAtZXFZVGEfhwacZoG.jpg"},{"n":"Guardiani della Galassia","s":"guardiani della galassia","y":2014,"r":7.9,"g":["Avventura","Azione","Fantascienza"],"d":"2026-11-03","w":true,"pp":0,"p":"/km1QPJeX93KCp6fqAcBf4Urijtc.jpg","b":"/uLtVbjvS1O7gXL8lUOwsFOH4man.jpg"},{"n":"Guardiani della Galassia Vol. 3","s":"guardiani della galassia vol  0000000003","y":2023,"r":7.9,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/sLMcJW43RrNcLcyVjgueqTM2eO2.jpg","b":"/5YZbUmjbMa3ClvSW1Wj3D6XGolb.jpg"},{"n":"Il ritorno dello Jedi","s":"il ritorno dello jedi","y":1983,"r":7.9,"g":["Avventura","Azione","Fantascienza"],"d":"2025-08-26","w":true,"pp":0,"p":"/rMcCqpaWEUBmATmpZilDTKOyVbL.jpg","b":"/ziECpBRIyclmBNaFSWlvCfsKbMD.jpg"}],"horror":[{"n":"Chainsaw Man – The Movie: Reze Arc","s":"chainsaw man  movie reze arc","y":2025,"r":9,"g":["Anime","Azione","Dramma","Horror","Romance"],"d":"2025-12-13","w":false,"pp":0,"p":"/2tWxSWFoMdhUlzE9wVnPHr8rmED.jpg","b":"/gqTz24ZRsCP6AKjARmEivY7m0cK.jpg"},{"n":"Colony","s":"colony","y":2026,"r":8.2,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-12","w":true,"pp":0,"p":"/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg","b":"/iGViga8sDCET1S6GfwOlAbuhSGQ.jpg"},{"n":"Obsession","s":"obsession","y":2026,"r":8.2,"g":["Horror","Thriller"],"d":"2026-06-30","w":true,"pp":0,"p":"/kwprCwsIV4LvAqJC1dmiTAdZDJ1.jpg","b":"/5lTZyuBTNOfawsfPT8Q0cIg6qAF.jpg"},{"n":"Lee Cronin - La Mummia","s":"lee cronin  la mummia","y":2026,"r":7.9,"g":["Horror","Mistero"],"d":"2026-05-19","w":true,"pp":0,"p":"/e5wmX4u2VRY5nX8WYvspopQmCOj.jpg","b":"/xugEpZk9YQ0DIz1aFvH5HGkqpZK.jpg"},{"n":"I Saw the Devil","s":"i saw devil","y":2010,"r":7.8,"g":["Horror","Thriller"],"d":"2026-11-07","w":false,"pp":0,"p":"/lHgoRdSSikT7eLNvuiMS2K25iXK.jpg","b":"/dXDFWWxiEb6tg4ojMWQJrSI0Tun.jpg"},{"n":"Train to Busan","s":"train to busan","y":2016,"r":7.8,"g":["Avventura","Azione","Horror","Thriller"],"d":"2026-11-11","w":false,"pp":0,"p":"/oekUlBFR85PejJK3z5jWyy3KyCG.jpg","b":"/brnfCYyz8EMbBrHgmh8sCwBi5i1.jpg"},{"n":"Constantine: City of Demons - The Movie","s":"constantine: city of demons  movie","y":2018,"r":7.7,"g":["Animazione","Azione","Fantasy","Horror"],"d":"2026-10-12","w":false,"pp":0,"p":"/tZIMe2pYug1cS9e7AZnd1bTTidM.jpg","b":"/dPPjBf74W1j8va6KvDGePaJcqm7.jpg"},{"n":"La casa - Il rogo del Male","s":"la casa  il rogo del male","y":2026,"r":7.7,"g":["Horror"],"d":"2026-08-25","w":true,"pp":0,"p":"/9Mnn4EjYs3vaQNW7ja717fLAntX.jpg","b":"/o0jkkpcN81QqSl8DMLScBCXyUH9.jpg"},{"n":"Frankenstein","s":"frankenstein","y":2025,"r":7.6,"g":["Dramma","Fantasy","Horror"],"d":"2025-11-12","w":true,"pp":0,"p":"/73Lhoexx9xTjTBVsb5UUqqOzmH3.jpg","b":"/hpXBJxLD2SEf8l2CspmSeiHrBKX.jpg"},{"n":"Godzilla Minus One","s":"godzilla minus one","y":2023,"r":7.6,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-12","w":false,"pp":0,"p":"/AhO2e2EWYYZk4zxxeynriCufixo.jpg","b":"/oHBhHoNe59VH6bUMazDtJmWOFSS.jpg"},{"n":"Halloween - La notte delle streghe","s":"halloween  la notte delle streghe","y":1978,"r":7.6,"g":["Horror","Thriller"],"d":"2026-10-31","w":false,"pp":0,"p":"/uxLqrN38fSQEUVpM4S1suhnW3X.jpg","b":"/sHI9xlFRWCJ38AIIfOqnGjuEvXz.jpg"},{"n":"The Others","s":"others","y":2001,"r":7.6,"g":["Horror","Mistero","Thriller"],"d":"2026-04-05","w":false,"pp":0,"p":"/qG80oTSpuh4kDcZqkMM0T2bB7z4.jpg","b":"/FY0NvzWMeCZeF3xdHIu0GtFHj7.jpg"},{"n":"Scappa - Get Out","s":"scappa  get out","y":2017,"r":7.6,"g":["Horror","Mistero","Thriller"],"d":"2025-08-05","w":true,"pp":0,"p":"/4TWW63EGgaWiTVulMTpAKR151Ne.jpg","b":"/bBQHALHRAaaORlPNXv7fNcRXYdx.jpg"},{"n":"I diavoli","s":"i diavoli","y":1971,"r":7.5,"g":["Dramma","Horror","Storia"],"d":"2026-09-02","w":false,"pp":0,"p":"/eOWv0agpyVXeDsTOjoSl1PSKHQz.jpg","b":"/8ApwSMdd9QehKjvW3fOmKVrnZXv.jpg"}],"seriesAz":[{"n":"1899","s":"0000001899","y":2022,"r":7,"g":["Avventura","Azione","Mistero","Storia","Thriller"],"d":"2026-04-15","w":false,"u":5,"pp":38,"st":"Ended","p":"/ryTInWwfswcSvD3COT8qYGp4KNa.jpg","b":"/s1xnjbOIQtwGObPnydTebp74G2c.jpg"},{"n":"Agatha All Along","s":"agatha all along","y":2024,"r":6.4,"g":["Avventura","Azione","Commedia","Fantascienza","Fantasy","Miniserie"],"d":"2026-05-25","w":false,"u":9,"pp":0,"st":"Ended","p":"/jefhjbhbeLhgfbrO9SRhw1cS50H.jpg","b":"/tYLXJW1sZQU09VWY1BhSVPKGIwc.jpg"},{"n":"American Hostage","s":"american hostage","y":2026,"r":7.8,"g":["Dramma","Thriller"],"d":"2026-09-22","w":false,"u":8,"pp":0,"st":"Continuing","p":"/7vVbM1pERaXbUTD8RzyyIR2hHc8.jpg","b":"/t708JUdkHAoZF83f4RjqcIGrJ99.jpg"},{"n":"Arcane","s":"arcane","y":2021,"r":8.5,"g":["Animazione","Avventura","Azione","Dramma","Fantascienza","Fantasy"],"d":"2026-04-15","w":true,"u":0,"pp":100,"st":"Ended","p":"/87C0wecB8bHb1PsrKBI4kJiEkgV.jpg","b":"/5cvnxEHT3e39DvT6ARw4GNCFrB0.jpg"},{"n":"Away","s":"away","y":2020,"r":6.2,"g":["Dramma","Fantascienza","Romance"],"d":"2026-05-17","w":true,"u":0,"pp":0,"st":"Ended","p":"/lkT776mSvQ9wZ8wkYsnpQuogp10.jpg","b":"/vn0QIrNW5suBiF8BXnbp1r27guN.jpg"},{"n":"Ballard","s":"ballard","y":2025,"r":7.4,"g":["Crime","Dramma","Thriller"],"d":"2026-08-09","w":false,"u":10,"pp":0,"st":"Continuing","p":"/vHQGu6ducKC7JcDU6lqWyx7tWW5.jpg","b":"/fQ3LSr8KpLBz4xegkGdLd07AlI6.jpg"},{"n":"Barry","s":"barry","y":2018,"r":7.5,"g":["Commedia","Crime","Dramma"],"d":"2026-08-16","w":false,"u":32,"pp":0,"st":"Ended","p":"/j1XpwD11f0BAEI7pX6UdMhUVX2F.jpg","b":"/nfjqhuGFUWqJD14B4fxlSiZWfeR.jpg"},{"n":"The Bear","s":"bear","y":2022,"r":7.4,"g":["Commedia","Dramma","Food"],"d":"2026-07-23","w":false,"u":46,"pp":0,"st":"Ended","p":"/eKfVzzEazSIjJMrw9ADa2x8ksLz.jpg","b":"/aJtG4txtmiRHwAAqENQHZvBs6kY.jpg"},{"n":"Benvenuto sulla Terra","s":"benvenuto sulla terra","y":2021,"r":7.6,"g":["Avventura","Documentario","Miniserie"],"d":"2026-04-15","w":false,"u":6,"pp":0,"st":"Ended","p":"/7LapevEjLlOq90DkIesNAc7Dgvd.jpg","b":"/be8s04cLyXXEqjBT24YPYdDSZKB.jpg"},{"n":"Best Medicine","s":"best medicine","y":2026,"r":6.2,"g":["Commedia","Dramma"],"d":"2026-11-07","w":false,"u":20,"pp":0,"st":"Continuing","p":"/gRf2g2iR8j2uMlClrNTaiHbrZ6c.jpg","b":"/fRi1Qf51rtFzrYM3gvl9ihGjT5Q.jpg"},{"n":"Better Call Saul","s":"better call saul","y":2015,"r":8.6,"g":["Crime","Dramma"],"d":"2026-04-15","w":false,"u":63,"pp":0,"st":"Ended","p":"/fC2HDm5t0kHl7mTm7jxMR31b7by.jpg","b":"/rfxryDIv8huejujg4JueDJx8zCz.jpg"},{"n":"Black Clover","s":"black clover","y":2017,"r":7.9,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-07","w":false,"u":177,"pp":0,"st":"Ended","p":"/zObHoFAX6P7DirR2dybN3cVC1Ms.jpg","b":"/qu9epTZh29fGUkY7ZYc9PVsv0Ig.jpg"},{"n":"Black Mirror","s":"black mirror","y":2011,"r":8.4,"g":["Dramma","Fantascienza","Thriller"],"d":"2026-06-05","w":false,"u":32,"pp":0,"st":"Continuing","p":"/seN6rRfN0I6n8iDXjlSMk1QjNcq.jpg","b":"/dg3OindVAGZBjlT3xYKqIAdukPL.jpg"},{"n":"The Boys","s":"boys","y":2019,"r":8.3,"g":["Azione","Commedia","Crime","Dramma","Fantascienza","Fantasy"],"d":"2026-04-15","w":true,"u":0,"pp":100,"st":"Ended","p":"/in1R2dDc421JxsoRWaIIAqVI2KE.jpg","b":"/bq28ajZaoMyzEIm6REelqyqtEDZ.jpg"},{"n":"Breaking Bad","s":"breaking bad","y":2008,"r":9.2,"g":["Crime","Dramma","Thriller","Western"],"d":"2026-04-15","w":false,"u":62,"pp":0,"st":"Ended","p":"/anFx9aTOOYqgS3v7x3R84Kz67ly.jpg","b":"/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg"},{"n":"Bridgerton","s":"bridgerton","y":2020,"r":7.3,"g":["Dramma","Romance","Storia"],"d":"2026-04-15","w":false,"u":32,"pp":0,"st":"Continuing","p":"/ycAdl77x7eHODPS0hfGh1hMnDaX.jpg","b":"/6umsRLI7t0ydFwCl0JNEIO0q2LH.jpg"},{"n":"Brothers","s":"brothers","y":2026,"r":4.8,"g":["Commedia"],"d":"2026-10-03","w":false,"u":8,"pp":0,"st":"Continuing","p":"/7Q9aUMSVkMJxpeUVCVzWIFFgMMh.jpg","b":"/aLE7R8QZPpTiWZS48PS22i2OWbl.jpg"},{"n":"Cape Fear","s":"cape fear","y":2026,"r":5.8,"g":["Crime","Dramma","Miniserie","Thriller"],"d":"2026-06-13","w":false,"u":10,"pp":0,"st":"Ended","p":"/3ZLy3cfQa9prahoRq1teMmr5pvW.jpg","b":"/maOzDEEudq82nN9lRTumrGo9MvJ.jpg"},{"n":"Carrie","s":"carrie","y":2026,"r":7.4,"g":["Dramma","Horror","Mistero"],"d":"2026-10-26","w":false,"u":8,"pp":0,"st":"Continuing","p":"/6otg7YqOkS8DxQO02yCGs6dwMsu.jpg","b":"/9yCJtipMeDe8uAdSJKvw8BnYfRz.jpg"},{"n":"Castle Rock","s":"castle rock","y":2018,"r":7.1,"g":["Fantascienza","Horror","Mistero","Thriller"],"d":"2026-10-31","w":false,"u":20,"pp":0,"st":"Ended","p":"/6dnUpv9ghx84pgxlMOb4uuJrWDs.jpg","b":"/qyRJPtJkJz7wtS4UJnJez9S3WOM.jpg"},{"n":"C'era una volta","s":"cera una volta","y":2011,"r":7.5,"g":["Avventura","Dramma","Fantasy","Romance"],"d":"2026-04-15","w":false,"u":156,"pp":0,"st":"Ended","p":"/pcCO49mpoYUDwm2cscC7bGdokiH.jpg","b":"/nSJvwZziYaGMbftSDQqQ5GIb47a.jpg"},{"n":"Chernobyl","s":"chernobyl","y":2019,"r":8.9,"g":["Dramma","Miniserie","Storia","Thriller"],"d":"2026-10-31","w":false,"u":5,"pp":0,"st":"Ended","p":"/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg","b":"/900tHlUYUkp7Ol04XFSoAaEIXcT.jpg"},{"n":"Constellation","s":"constellation","y":2024,"r":6.1,"g":["Dramma","Fantascienza","Thriller"],"d":"2026-10-17","w":false,"u":8,"pp":0,"st":"Ended","p":"/7lTxUijEP1VLI9slBmfDxyXg56G.jpg","b":"/vyuYVtlB38DzXdF11XwyX7xPp0t.jpg"},{"n":"The Crown","s":"crown","y":2016,"r":8.4,"g":["Dramma","Storia"],"d":"2026-06-08","w":false,"u":60,"pp":0,"st":"Ended","p":"/1M876KPjulVwppEpldhdc8V4o68.jpg","b":"/8VXhcrl5z2I1zEU9X3pkkNrZlD.jpg"}],"seriesRecent":[{"n":"Cyberpunk: Edgerunners","s":"cyberpunk: edgerunners","y":2022,"r":8.5,"g":["Anime","Azione","Dramma","Fantascienza","Psychological"],"d":"2026-11-14","w":false,"u":20,"pp":0,"st":"Ended","p":"/v3JuB15WybKmxDeT1hWdK3j6eSJ.jpg","b":"/bknKZO7DWVYKeByuJMnGI46PFZg.jpg"},{"n":"Incubi e deliri","s":"incubi e deliri","y":2006,"r":7.8,"g":["Dramma","Fantascienza","Fantasy","Horror","Mistero","Thriller"],"d":"2026-11-13","w":false,"u":1,"pp":0,"st":"Ended","p":"/qG7ETtI3HkZTXrqQNYoJnYG8aQS.jpg","b":"/1FiouT6ifmRmNQgbUaESMskZe8o.jpg"},{"n":"Daemons of the Shadow Realm","s":"daemons of shadow realm","y":2026,"r":7.8,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-10","w":false,"u":22,"pp":0,"st":"Ended","p":"/mNqW2jnAogZa0nJ94q1LUum8Hos.jpg","b":"/qc30hdrxHQgN5wiopU4bkRZow5L.jpg"},{"n":"ONE PIECE","s":"one piece","y":1999,"r":8.7,"g":["Anime","Avventura","Azione","Commedia","Dramma"],"d":"2026-11-09","w":false,"u":431,"pp":0,"st":"Continuing","p":"/mgrEi9VfRoN3bAuhf863f0sWC6A.jpg","b":"/qD211Hb5XwFxrszzBBe5EUYJerh.jpg"},{"n":"Best Medicine","s":"best medicine","y":2026,"r":6.2,"g":["Commedia","Dramma"],"d":"2026-11-07","w":false,"u":20,"pp":0,"st":"Continuing","p":"/gRf2g2iR8j2uMlClrNTaiHbrZ6c.jpg","b":"/fRi1Qf51rtFzrYM3gvl9ihGjT5Q.jpg"},{"n":"Black Clover","s":"black clover","y":2017,"r":7.9,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-07","w":false,"u":177,"pp":0,"st":"Ended","p":"/zObHoFAX6P7DirR2dybN3cVC1Ms.jpg","b":"/qu9epTZh29fGUkY7ZYc9PVsv0Ig.jpg"},{"n":"Overgeared","s":"overgeared","y":2026,"r":7.6,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-07","w":false,"u":7,"pp":0,"st":"Continuing","p":"/tUFiieKZCoThoxqWJjnxXRPagbV.jpg","b":"/745xqHbiUWwO51TM60MXRCR4Onm.jpg"},{"n":"The Rising of the Shield Hero","s":"rising of shield hero","y":2019,"r":7.6,"g":["Anime","Avventura","Azione","Fantasy"],"d":"2026-11-07","w":false,"u":62,"pp":0,"st":"Ended","p":"/yX0d6aTjHrE5Sjp6gZ1dkPWCmIF.jpg","b":"/ygJ9BOiLwExwFdxQeZiiUA6TqME.jpg"},{"n":"That Time I Got Reincarnated as a Slime","s":"that time i got reincarnated as slime","y":2018,"r":8,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-07","w":false,"u":96,"pp":0,"st":"Ended","p":"/tei5WNmvLkhMUkl4RiIibNLen01.jpg","b":"/boeZP8zaXTDBkKPpdAojS6uYKdt.jpg"},{"n":"The Gilded Age","s":"gilded age","y":2022,"r":7.6,"g":["Dramma"],"d":"2026-11-03","w":false,"u":9,"pp":0,"st":"Continuing","p":"/tdsuFe0JVLqjxfptElRA9YFJcUE.jpg","b":"/afUVsProh46h31w2EvL7qyHXrqj.jpg"},{"n":"SAKAMOTO DAYS","s":"sakamoto days","y":2025,"r":7.6,"g":["Anime","Azione","Commedia"],"d":"2026-11-02","w":false,"u":22,"pp":0,"st":"Ended","p":"/qTNIxDIzKjLLuS17fxdXjcKAlW7.jpg","b":"/blSthAPRbEOJBowdxppeQqNPRh9.jpg"},{"n":"Supernatural","s":"supernatural","y":2005,"r":8.4,"g":["Dramma","Fantasy","Horror","Mistero","Thriller"],"d":"2026-11-02","w":false,"u":325,"pp":1,"st":"Ended","p":"/8iixmfGx5EIFPdpNvB2JvI3VIqX.jpg","b":"/lirPqYLTtd6XZqGn4cS1wiesTq0.jpg"},{"n":"Castle Rock","s":"castle rock","y":2018,"r":7.1,"g":["Fantascienza","Horror","Mistero","Thriller"],"d":"2026-10-31","w":false,"u":20,"pp":0,"st":"Ended","p":"/6dnUpv9ghx84pgxlMOb4uuJrWDs.jpg","b":"/qyRJPtJkJz7wtS4UJnJez9S3WOM.jpg"},{"n":"Chernobyl","s":"chernobyl","y":2019,"r":8.9,"g":["Dramma","Miniserie","Storia","Thriller"],"d":"2026-10-31","w":false,"u":5,"pp":0,"st":"Ended","p":"/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg","b":"/900tHlUYUkp7Ol04XFSoAaEIXcT.jpg"}],"setsCount":0};
+const POST = (p, w = 342) => p ? `https://image.tmdb.org/t/p/w${w}${p}` : '';
+const BACK = p => p ? `https://image.tmdb.org/t/p/w1280${p}` : '';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const SEARCH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+const EYE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 4.2A10 10 0 0 1 12 4c7 0 10 8 10 8a13 13 0 0 1-1.7 2.7M6.6 6.6A13.5 13.5 0 0 0 2 12s3 8 10 8a9.7 9.7 0 0 0 5.4-1.6M2 2l20 20"/></svg>';
+const ARROW = up => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${up ? '<path d="M12 19V5M5 12l7-7 7 7"/>' : '<path d="M12 5v14M19 12l-7 7-7-7"/>'}</svg>`;
+
+const dedupe = keys => { const seen = new Set(), out = []; for (const k of keys) for (const m of D[k]) if (!seen.has(m.n)) { seen.add(m.n); out.push(m); } return out; };
+const MOVIES = dedupe(['recent','az','unwatchedTop','scifi','horror']);
+const SERIES = dedupe(['seriesRecent','seriesAz']);
+const MG = D.genres.filter(([g, n]) => n >= 5 && g !== 'televisione film');
+const SG = D.seriesGenres.filter(([, n]) => n >= 5);
+const sk = m => m.s.toLowerCase();
+const PHRASE = { added: ['Gli ultimi arrivati per primi', 'I primi arrivati per primi'], newEp: ['Nuovi episodi per prime', 'Da quelle ferme da più tempo'],
+  title: ['Dalla A alla Z', 'Dalla Z alla A'], year: ['Dal più recente', 'Dal più vecchio'], rating: ['I più votati per primi', 'I meno votati per primi'] };
+const CMP = { added: (a, b) => b.d.localeCompare(a.d), newEp: (a, b) => b.d.localeCompare(a.d), title: (a, b) => sk(a).localeCompare(sk(b)),
+  year: (a, b) => (b.y - a.y) || sk(a).localeCompare(sk(b)), rating: (a, b) => ((b.r ?? 0) - (a.r ?? 0)) || sk(a).localeCompare(sk(b)) };
+
+function card(m, tv) {
+  let l2, badge = '', bar = '', seen;
+  if (tv) {
+    const st = m.st === 'Continuing' ? '<span class="on">In corso</span>' : `${m.y ?? ''}, conclusa`;
+    l2 = `${st}<br>${m.u ? (m.u === 1 ? '1 episodio' : m.u + ' episodi') + ' da vedere' : 'Vista tutta'}`;
+    seen = !m.u; if (seen) badge = `<i class="chk">${CHECK}</i>`;
+    if (m.pp > 0 && m.pp < 100) bar = `<span class="barp"><i style="width:${m.pp}%"></i></span>`;
+  } else {
+    l2 = `${m.y ?? ''}${m.r ? `<span style="margin-left:10px">★ ${m.r.toFixed(1)}</span>` : ''}`;
+    seen = m.w; if (seen) badge = `<i class="chk">${CHECK}</i>`;
+  }
+  return `<a class="card${seen ? ' seen' : ''}" tabindex="0"><div class="pst" style="background-image:url('${POST(m.p)}')">${badge}${bar}</div><b>${esc(m.n)}</b><span class="l2">${l2}</span></a>`;
+}
+const nav = active => `<div class="nav"><span class="logo">WonderFlix</span>${['Home','Film','Serie','La mia lista','Richieste','Calendario','Cerca'].map(n => `<a href="#" class="${n===active?'on':''}" onclick="return false">${n}</a>`).join('')}<span class="me"><i class="av"></i>davide.sidoti</span></div>`;
+const gidx = (sel, list, total, all, focus) => `<div class="gidx"><div class="in"><button class="g${focus && !sel ? ' focus' : ''}" data-g="" aria-pressed="${!sel}">${all}<sup>${total}</sup></button>${list.map(([g, n]) => `<button class="g${focus && sel === g ? ' focus' : ''}" data-g="${esc(g)}" aria-pressed="${sel === g}">${esc(g)}<sup>${n}</sup></button>`).join('')}</div></div>`;
+
+function sala(root, o) {
+  // o: { kind:'movie'|'tv', phone, tvMode }
+  const isTv = o.kind === 'tv';
+  const POOL = isTv ? SERIES : MOVIES, GEN = isTv ? SG : MG, TOTAL = isTv ? 188 : 801;
+  const defSort = g => g ? 'rating' : (isTv ? 'newEp' : 'added');
+  const st = { genre: o.genre ?? null, sort: defSort(o.genre), asc: false, dec: 'Tutti', status: 'all', hide: false, q: '', searchOpen: false };
+  const unit = isTv ? 'serie' : 'film';
+  root.innerHTML = `${o.phone || o.tvMode ? '' : nav(isTv ? 'Serie' : 'Film')}${o.tvMode ? '<div class="side"><i></i><i></i><i class="' + (isTv ? '' : 'on') + '"></i><i class="' + (isTv ? 'on' : '') + '"></i><i></i><i></i></div>' : ''}<div class="body"></div>${o.phone ? `<div class="phonenav"><span>Home</span><span class="${isTv ? '' : 'on'}">Film</span><span class="${isTv ? 'on' : ''}">Serie</span><span>Lista</span><span>Altro</span></div>` : ''}`;
+  const body = root.querySelector('.body');
+  function list() {
+    let items = POOL.filter(m => (!st.genre || m.g.includes(st.genre)) && (!st.hide || !(isTv ? !m.u : m.w)) && (!st.q || m.n.toLowerCase().includes(st.q)));
+    if (st.dec !== 'Tutti') items = items.filter(m => st.dec === 'Prima' ? m.y < 1990 : Math.floor(m.y / 10) * 10 === +st.dec);
+    if (st.status !== 'all') items = items.filter(m => (m.st === 'Continuing') === (st.status === 'on'));
+    items.sort(CMP[st.sort]); if (st.asc) items.reverse();
+    return items;
+  }
+  function tools() {
+    const sorts = isTv ? [['newEp','Nuovi episodi'],['title','Titolo'],['year','Anno'],['rating','Voto']] : [['added','Aggiunti'],['title','Titolo'],['year','Anno'],['rating','Voto']];
+    const sortSel = `<label class="pick">${o.phone ? '' : '<span>Ordina</span>'}<select class="sort">${sorts.map(([v, t]) => `<option value="${v}"${st.sort === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label><button class="pick icon dir" aria-label="Inverti l'ordine" title="Inverti l'ordine">${ARROW(st.asc)}</button>`;
+    const decs = ['Tutti','2020','2010','2000','1990','Prima'];
+    const decSel = `<label class="pick">${o.phone ? '' : '<span>Decennio</span>'}<select class="dec">${decs.map(d => `<option${st.dec === d ? ' selected' : ''}>${o.phone && d === 'Tutti' ? (isTv ? 'Filtri' : 'Decennio') : d}</option>`).join('')}</select></label>`;
+    const seg = isTv && !o.phone ? `<span class="seg">${[['all','Tutte'],['on','In corso 66'],['off','Concluse 122']].map(([v, t]) => `<button data-s="${v}" aria-pressed="${st.status === v}">${t}</button>`).join('')}</span>` : '';
+    const dirty = st.dec !== 'Tutti' || st.status !== 'all' || st.hide || st.q;
+    if (o.tvMode) return `<div class="tools">${sortSel}${decSel}${seg}<button class="tog hide" aria-pressed="${st.hide}"><i></i>${isTv ? 'Nascondi le viste' : 'Nascondi i visti'}</button></div>`;
+    if (o.phone) {
+      if (st.searchOpen) return `<div class="tools"><label class="search" style="margin:0;flex:1;width:auto">${SEARCH}<input class="q" placeholder="${isTv ? 'Cerca tra le serie' : 'Cerca tra i film'}" value="${esc(st.q)}" aria-label="Cerca"></label><button class="clear closeSearch">Chiudi</button></div>`;
+      return `<div class="tools">${sortSel}${decSel}<button class="pick icon hide" aria-pressed="${st.hide}" aria-label="Nascondi i visti" title="Nascondi i visti">${EYE}</button><button class="pick icon openSearch" aria-label="Cerca" style="margin-left:auto">${SEARCH}</button></div>`;
+    }
+    return `<div class="tools">${sortSel}${decSel}${seg}<button class="tog hide" aria-pressed="${st.hide}"><i></i>${isTv ? 'Nascondi le viste' : 'Nascondi i visti'}</button>${dirty ? '<button class="clear reset">Azzera filtri</button>' : ''}<label class="search">${SEARCH}<input class="q" placeholder="${isTv ? 'Cerca tra le serie' : 'Cerca tra i film'}" value="${esc(st.q)}" aria-label="Cerca"></label></div>`;
+  }
+  function draw(keepFocus) {
+    const items = list();
+    const hero = items.find(m => m.b);
+    const gn = GEN.find(x => x[0] === st.genre)?.[1] ?? TOTAL;
+    const title = st.genre ?? (isTv ? 'Tutte le serie' : 'Tutti i film');
+    const count = isTv ? `<b>${gn} serie</b>, ${st.genre ? Math.round(gn * 0.35) : 66} in corso.` : `<b>${gn} film</b>, ${st.genre ? Math.round(gn * 0.45) : D.watched} già visti.`;
+    const phrase = PHRASE[st.sort][st.asc ? 1 : 0];
+    const tabs = isTv ? '<button aria-selected="true">Serie</button>' : '<button aria-selected="true">Film</button><button aria-selected="false">Saghe</button>';
+    const caret = keepFocus ? body.querySelector('.q')?.selectionStart : null;
+    body.innerHTML = `<div class="band" style="background-image:url('${BACK(hero?.b)}')"><div class="tabs">${tabs}</div><div class="txt"><h3>${esc(title)}</h3><p>${count} ${phrase}.</p></div></div>
+      <div class="bar">${gidx(st.genre, GEN, TOTAL, isTv ? 'Tutte' : 'Tutti', o.tvMode)}${tools()}</div>
+      ${items.length ? `<div class="grid">${items.map(m => card(m, isTv)).join('')}</div>` : `<div class="empty">${st.genre ? `Nessun${isTv ? 'a serie' : ' film'} di questo genere con questi filtri.` : `Nessun${isTv ? 'a serie' : ' film'} con questi filtri.`}<button class="reset">Azzera filtri</button></div>`}`;
+    if (o.tvMode) body.querySelectorAll('.card')[0]?.classList.remove('focus');
+    if (keepFocus) { const q = body.querySelector('.q'); if (q) { q.focus(); q.setSelectionRange(caret, caret); } }
+    bind();
+  }
+  function bind() {
+    body.querySelector('.sort')?.addEventListener('change', e => { st.sort = e.target.value; st.asc = false; draw(); });
+    body.querySelector('.dec')?.addEventListener('change', e => { st.dec = e.target.value === 'Filtri' || e.target.value === 'Decennio' ? 'Tutti' : e.target.value; draw(); });
+    body.querySelector('.q')?.addEventListener('input', e => { st.q = e.target.value.trim().toLowerCase(); draw(true); });
+  }
+  root.addEventListener('click', e => {
+    const g = e.target.closest('.g'); if (g) { st.genre = g.dataset.g || null; st.sort = defSort(st.genre); st.asc = false; draw(); return; }
+    if (e.target.closest('.dir')) { st.asc = !st.asc; draw(); return; }
+    if (e.target.closest('.hide')) { st.hide = !st.hide; draw(); return; }
+    const s = e.target.closest('.seg button'); if (s) { st.status = s.dataset.s; draw(); return; }
+    if (e.target.closest('.reset')) { Object.assign(st, { dec: 'Tutti', status: 'all', hide: false, q: '' }); draw(); return; }
+    if (e.target.closest('.openSearch')) { st.searchOpen = true; draw(); body.querySelector('.q')?.focus(); return; }
+    if (e.target.closest('.closeSearch')) { st.searchOpen = false; st.q = ''; draw(); }
+  });
+  if (!o.tvMode && !o.phone) body.addEventListener('scroll', () => root.classList.toggle('solid', body.scrollTop > 250), { passive: true });
+  draw();
+}
+
+function saghe(root) {
+  const byName = {}; for (const m of MOVIES) byName[m.n] = m;
+  const S = [
+    ['Avengers', ['The Avengers','Avengers: Age of Ultron','Avengers: Infinity War','Avengers: Endgame'], 4],
+    ['Batman, antologia', ['Batman','Batman Forever','Batman & Robin'], 4],
+    ['Star Wars', ['Guerre stellari',"L'Impero colpisce ancora",'Il ritorno dello Jedi'], 3],
+    ['Avatar', ["Avatar: La via dell'acqua",'Avatar: Fuoco e cenere'], 3],
+    ['Black Panther', ['Black Panther','Black Panther: Wakanda Forever'], 2],
+    ['Il padrino', ['Il padrino','Il padrino - Parte II'], 3],
+    ['Guardiani della Galassia', ['Guardiani della Galassia','Guardiani della Galassia Vol. 3'], 3],
+    ['Spider-Verse', ['Spider-Man: Un nuovo universo','Spider-Man: Across the Spider-Verse'], 2],
+    ['Beetlejuice', ['Beetlejuice - Spiritello porcello','Beetlejuice Beetlejuice'], 2],
+  ];
+  const hero = byName['Avengers: Endgame'];
+  root.innerHTML = `${nav('Film')}<div class="body"><div class="band" style="background-image:url('${BACK(hero?.b)}')"><div class="tabs"><button aria-selected="false">Film</button><button aria-selected="true">Saghe</button></div><div class="txt"><h3>Saghe</h3><p><b>100 saghe</b>, 23 finite. Dalla A alla Z.</p></div></div>
+    <div class="bar"><div class="tools" style="border-top:0;padding-top:14px"><label class="pick"><span>Ordina</span><select><option>Nome</option><option>Aggiunte di recente</option><option>Più film</option></select></label><button class="pick icon" aria-label="Inverti l'ordine">${ARROW(false)}</button><button class="tog" aria-pressed="false"><i></i>Nascondi le saghe finite</button><label class="search">${SEARCH}<input placeholder="Cerca una saga" aria-label="Cerca"></label></div></div>
+    <div class="sagas">${S.map(([name, films, total]) => {
+      const ms = films.map(f => byName[f]).filter(Boolean); const seen = ms.filter(m => m.w).length; const show = ms.slice(0, 3);
+      const pos = show.length === 2 ? [20, 62] : [0, 41, 82];
+      return `<div class="saga" tabindex="0"><div class="fan">${show.map((m, i) => `<i style="left:${pos[i]}px;z-index:${i === 1 ? 3 : i + 1};background-image:url('${POST(m.p, 185)}');${i === 1 && show.length === 3 ? 'bottom:10px' : ''}"></i>`).join('')}</div>
+        <b>${esc(name)}</b><span class="l2">${total} film, ${seen === total ? 'tutti visti' : seen === 0 ? 'nessuno visto' : seen + ' visti'}</span>
+        <div class="segs">${Array.from({ length: total }, (_, i) => `<i class="${i < seen ? 'on' : ''}"></i>`).join('')}</div></div>`;
+    }).join('')}</div></div>`;
+  root.querySelector('.body').addEventListener('scroll', e => root.classList.toggle('solid', e.target.scrollTop > 250), { passive: true });
+}
+
+sala(document.getElementById('F'), { kind: 'movie' });
+sala(document.getElementById('S'), { kind: 'tv' });
+saghe(document.getElementById('G'));
+sala(document.getElementById('P'), { kind: 'movie', phone: true, genre: 'Fantascienza' });
+sala(document.getElementById('T'), { kind: 'movie', tvMode: true, genre: 'Horror' });
+sala(document.getElementById('T2'), { kind: 'movie', tvMode: true, genre: 'Horror' });
+{ const r = document.getElementById('T2'), b = r.querySelector('.body');
+  r.querySelectorAll('.g.focus').forEach(g => g.classList.remove('focus'));
+  const cards = r.querySelectorAll('.card'); cards[9]?.classList.add('focus');
+  requestAnimationFrame(() => { b.scrollTop = cards[7].offsetTop - 12; }); }
+</script>
+</body>
+</html>
