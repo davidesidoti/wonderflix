@@ -25,6 +25,12 @@ public static class RequestStatuses
 
     /// <summary>Approvata, ma il film non è ancora uscito in digitale (spec S §6.2).</summary>
     public const string AwaitingRelease = "AwaitingRelease";
+
+    /// <summary>Il titolo era arrivato o stava arrivando, ma non c'è più sul server.</summary>
+    public const string Removed = "Removed";
+
+    /// <summary>Approvata da oltre 30 giorni e ancora niente in arrivo.</summary>
+    public const string NotFound = "NotFound";
 }
 
 /// <summary>I due tipi di titolo, con i nomi di Seerr.</summary>
