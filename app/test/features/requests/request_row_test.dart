@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/requests/request_row.dart';
+import 'package:wonderflix/features/requests/request_track.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/requests_fakes.dart';
@@ -11,7 +15,10 @@ void main() {
   final fiveMinutesAgo = now.subtract(const Duration(minutes: 5));
 
   Future<List<String>> pumpRow(WidgetTester tester, MediaRequest request,
-      {bool showRequester = false, Widget? trailing, bool tappable = true}) async {
+      {bool showRequester = false,
+      Widget? trailing,
+      bool tappable = true,
+      Size surfaceSize = const Size(1440, 900)}) async {
     final taps = <String>[];
     await pumpApp(
       tester,
@@ -24,11 +31,12 @@ void main() {
           onTap: tappable ? () => taps.add('tap') : null,
         ),
       ),
+      surfaceSize: surfaceSize,
     );
     return taps;
   }
 
-  testWidgets('film: titolo, anno, chi l\'ha chiesto, quando, stato', (tester) async {
+  testWidgets("film: titolo, anno, chi l'ha chiesto, quando, percorso", (tester) async {
     final taps = await pumpRow(
       tester,
       testMediaRequest(title: 'Dune', year: 2021, requester: 'Garg', createdAt: fiveMinutesAgo),
@@ -36,14 +44,59 @@ void main() {
     );
 
     expect(find.text('Dune (2021)'), findsOneWidget);
-    expect(find.text('Film · chiesta da Garg · 5 min fa'), findsOneWidget);
-    expect(find.text('In attesa'), findsOneWidget);
+    expect(find.textContaining('Film · chiesta da ', findRichText: true),
+        findsOneWidget);
+    expect(find.textContaining('Garg · 5 min fa', findRichText: true),
+        findsOneWidget);
+    // Largo: il percorso in una colonna di 400 px, con le etichette.
+    expect(find.byType(RequestTrack), findsOneWidget);
+    expect(find.text('Da approvare'), findsOneWidget);
+    expect(tester.getSize(find.byType(RequestTrack)).width, 400);
 
     await tester.tap(find.text('Dune (2021)'));
     expect(taps, ['tap']);
   });
 
-  testWidgets('serie: le stagioni chieste; senza chi l\'ha chiesto', (tester) async {
+  testWidgets('chi ha chiesto: avatar e nome; "tu" se sono io; niente senza showRequester',
+      (tester) async {
+    await pumpRow(tester, testMediaRequest(requester: 'Luca'),
+        showRequester: true);
+    expect(find.textContaining('chiesta da ', findRichText: true),
+        findsOneWidget);
+    expect(find.textContaining('Luca', findRichText: true), findsOneWidget);
+    // Senza immagine l'avatar è l'iniziale.
+    expect(find.byType(UserAvatar), findsOneWidget);
+    expect(find.text('L'), findsOneWidget);
+
+    await pumpRow(tester, testMediaRequest(requester: 'Luca', isMe: true),
+        showRequester: true);
+    expect(find.textContaining('chiesta da tu', findRichText: true),
+        findsOneWidget);
+    expect(find.byType(UserAvatar), findsNothing);
+
+    await pumpRow(tester, testMediaRequest(requester: 'Luca'));
+    expect(find.textContaining('chiesta da', findRichText: true), findsNothing);
+    expect(find.byType(UserAvatar), findsNothing);
+  });
+
+  testWidgets('stretto: il percorso va sotto, senza etichette, locandina piccola',
+      (tester) async {
+    await pumpRow(tester, testMediaRequest(title: 'Dune', year: 2021),
+        surfaceSize: const Size(600, 900));
+
+    final track = tester.getRect(find.byType(RequestTrack));
+    final title = tester.getRect(find.text('Dune (2021)'));
+    expect(track.top, greaterThan(title.bottom));
+    expect(track.width, greaterThan(400));
+    // Senza etichette: la tappa attuale sta nel dettaglio.
+    expect(find.text('Da approvare'), findsNothing);
+    expect(find.textContaining('Da approvare', findRichText: true),
+        findsOneWidget);
+    expect(tester.getSize(find.byType(WfImage)).width,
+        RequestRow.compactPosterWidth);
+  });
+
+  testWidgets("serie: le stagioni chieste; senza chi l'ha chiesto", (tester) async {
     await pumpRow(
       tester,
       testMediaRequest(
@@ -57,7 +110,23 @@ void main() {
     );
 
     expect(find.text('Stagioni 1–2 · 5 min fa'), findsOneWidget);
-    expect(find.text('In arrivo · 45%'), findsOneWidget);
+    expect(find.text('45% scaricato'), findsOneWidget);
+  });
+
+  testWidgets('arrivata: etichetta verde a destra, niente percorso', (tester) async {
+    await pumpRow(tester, testMediaRequest(status: RequestStatus.available));
+
+    expect(find.byType(RequestTrack), findsNothing);
+    final label = tester.widget<Text>(find.text('Disponibile'));
+    expect(label.style?.color, WfColors.online);
+  });
+
+  testWidgets('tolta: etichetta spenta, nessun bordo', (tester) async {
+    await pumpRow(tester, testMediaRequest(status: RequestStatus.removed));
+
+    final label = tester.widget<Text>(find.text('Tolta dal server'));
+    expect(label.style?.color, WfColors.creamMuted);
+    expect(find.byType(RequestTrack), findsNothing);
   });
 
   testWidgets('senza il clic la riga non si apre (azione in corso)', (tester) async {
@@ -82,9 +151,10 @@ void main() {
     expect(find.text('Titolo non disponibile'), findsOneWidget);
     expect(find.text('azioni'), findsOneWidget);
     expect(find.text('In attesa'), findsNothing);
+    expect(find.byType(RequestTrack), findsNothing);
   });
 
-  testWidgets('TheDatesLineShowsUnderTheDetails', (tester) async {
+  testWidgets('TheDatesLineShowsUnderTheTrack', (tester) async {
     await pumpRow(
       tester,
       testMediaRequest(

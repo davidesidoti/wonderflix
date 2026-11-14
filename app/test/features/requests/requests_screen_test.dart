@@ -11,6 +11,7 @@ import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
+import 'package:wonderflix/features/requests/request_track.dart';
 import 'package:wonderflix/features/requests/requests_list_controller.dart';
 import 'package:wonderflix/features/requests/requests_navigation.dart';
 import 'package:wonderflix/features/requests/requests_screen.dart';
@@ -112,7 +113,7 @@ void main() {
 
     expect(find.text('RICHIESTE'), findsOneWidget);
     expect(find.text('Dune (2021)'), findsOneWidget);
-    expect(find.text('Approvata'), findsOneWidget);
+    expect(find.byType(RequestTrack), findsOneWidget);
     expect(find.text('Le mie'), findsNothing);
     expect(find.textContaining('chiesta da'), findsNothing);
     expect(api.calls.where((c) => c.startsWith('list:pending')), isEmpty);
@@ -151,7 +152,8 @@ void main() {
     expect(find.text('Da approvare (2)'), findsOneWidget);
     expect(find.text('Le mie'), findsOneWidget);
     expect(find.text('Tutte'), findsOneWidget);
-    expect(find.textContaining('chiesta da Garg'), findsOneWidget);
+    expect(find.textContaining('chiesta da ', findRichText: true), findsNWidgets(2));
+    expect(find.textContaining('Garg', findRichText: true), findsOneWidget);
     expect(find.text('Mia (2024)'), findsNothing);
 
     await tester.tap(find.text('Le mie'));
