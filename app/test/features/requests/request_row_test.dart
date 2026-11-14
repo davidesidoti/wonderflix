@@ -168,4 +168,51 @@ void main() {
     await pumpRow(tester, testMediaRequest(status: RequestStatus.approved));
     expect(find.textContaining('digitale', findRichText: true), findsNothing);
   });
+
+  testWidgets('con le azioni: le date di uscita sotto il testo, le future in oro',
+      (tester) async {
+    await pumpRow(
+      tester,
+      testMediaRequest(digitalRelease: DateTime.utc(2026, 11, 12)),
+      trailing: const Text('azioni'),
+    );
+
+    final dates = find.textContaining('In digitale previsto il 12 novembre',
+        findRichText: true);
+    expect(dates, findsOneWidget);
+    expect(find.byType(RequestTrack), findsNothing);
+    final span = tester.widget<RichText>(dates).text;
+    final colors = <Color?>[];
+    span.visitChildren((s) {
+      if (s is TextSpan && s.text != null) colors.add(s.style?.color);
+      return true;
+    });
+    expect(colors, contains(WfColors.gold));
+  });
+
+  testWidgets('stretto con le azioni: sotto il testo, a destra', (tester) async {
+    await pumpRow(tester, testMediaRequest(title: 'Dune', year: 2021),
+        trailing: const Text('azioni'), surfaceSize: const Size(600, 900));
+
+    final title = tester.getRect(find.text('Dune (2021)'));
+    final actions = tester.getRect(find.text('azioni'));
+    expect(actions.top, greaterThan(title.bottom));
+    expect(actions.right, greaterThan(500));
+  });
+
+  testWidgets('TV: layout largo, percorso con le etichette a 960 px',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: RequestRow(request: testMediaRequest(), now: now, onTap: () {}),
+      ),
+      tv: true,
+      surfaceSize: const Size(960, 540),
+    );
+
+    expect(find.text('Da approvare'), findsOneWidget);
+    expect(tester.getSize(find.byType(RequestTrack)).width, 400);
+    expect(tester.getSize(find.byType(WfImage)).width, RequestRow.posterWidth);
+  });
 }

@@ -61,14 +61,14 @@ class RequestRow extends StatelessWidget {
     // Nello stretto il percorso e le azioni (Approva, Rifiuta) vanno sotto il
     // testo: accanto lascerebbero al titolo meno di metà schermo.
     final below = narrow && (inProgress || trailing != null);
-    final Widget? side;
+    final Widget side;
     if (trailing != null) {
-      side = trailing;
+      side = trailing!;
     } else if (inProgress) {
       side = SizedBox(
         width: narrow ? null : trackWidth,
         child: RequestTrack(
-            request: request, now: now, labels: factor.tv || !narrow),
+            request: request, now: now, labels: !narrow),
       );
     } else {
       side = RequestStatusLabel(request: request);
@@ -97,10 +97,13 @@ class RequestRow extends StatelessWidget {
                       fontSize: narrow ? 14 : 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: 3),
               _Meta(request: request, now: now, showRequester: showRequester),
+              // Chi decide l'approvazione vuole le date di uscita: le altre
+              // righe le hanno nel dettaglio del percorso.
+              if (trailing != null) _Dates(request: request, now: now),
             ],
           ),
         ),
-        if (!below) ...[const SizedBox(width: 20), ?side],
+        if (!below) ...[const SizedBox(width: 20), side],
       ],
     );
     // Sulla TV la riga è una tappa sola, con la cornice del telecomando.
@@ -124,7 +127,7 @@ class RequestRow extends StatelessWidget {
                       row,
                       const SizedBox(height: 8),
                       if (inProgress)
-                        side!
+                        side
                       else
                         Align(alignment: Alignment.centerRight, child: side),
                     ],
@@ -187,6 +190,37 @@ class _Meta extends StatelessWidget {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: _style,
+    );
+  }
+}
+
+/// Le date di uscita sotto la riga meta, le future in oro.
+class _Dates extends StatelessWidget {
+  const _Dates({required this.request, required this.now});
+
+  final MediaRequest request;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = requestDateParts(request, now, AppLocalizations.of(context));
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text.rich(
+        TextSpan(children: [
+          for (var i = 0; i < parts.length; i++) ...[
+            if (i > 0) const TextSpan(text: ' · '),
+            TextSpan(
+                text: parts[i].text,
+                style:
+                    parts[i].upcoming ? const TextStyle(color: WfColors.gold) : null),
+          ],
+        ]),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: WfColors.creamMuted, fontSize: 13),
+      ),
     );
   }
 }
