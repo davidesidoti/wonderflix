@@ -218,6 +218,8 @@ class JellyfinItem {
     this.sortName,
     this.dateCreated,
     this.premiereDate,
+    this.status,
+    this.endDate,
     this.imageTags = const {},
     this.backdropTags = const [],
     this.blurHashes = const {},
@@ -265,6 +267,8 @@ class JellyfinItem {
       sortName: json['SortName'] as String?,
       dateCreated: _date(json['DateCreated']),
       premiereDate: _date(json['PremiereDate']),
+      status: json['Status'] as String?,
+      endDate: _date(json['EndDate']),
       imageTags: _stringMap(json['ImageTags']),
       backdropTags: _stringList(json['BackdropImageTags']),
       blurHashes: hashes,
@@ -317,6 +321,11 @@ class JellyfinItem {
   /// Prima uscita. Jellyfin la manda sempre negli elenchi (spec M §8.3,
   /// ordine dei film di una saga).
   final DateTime? premiereDate;
+
+  /// Delle serie: `Continuing` o `Ended`. Jellyfin li manda negli elenchi
+  /// senza chiederli in `fields`.
+  final String? status;
+  final DateTime? endDate;
 
   /// Tipo immagine (`Primary`, `Logo`, `Thumb`…) → tag.
   final Map<String, String> imageTags;

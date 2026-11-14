@@ -9,11 +9,16 @@ import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
+import '../l10n/gen/app_localizations.dart';
 import 'card_preview.dart';
 import 'card_preview_host.dart';
 import 'form_factor.dart';
 import 'tv_focusable.dart';
 import 'wf_image.dart';
+
+/// Altezza sotto la locandina di una card del catalogo: spazio, titolo su due
+/// righe, e le due righe di una serie. La griglia la somma alla locandina.
+const catalogCardTextHeight = 84.0;
 
 /// Locandina 2:3 con titolo, anno, avanzamento e badge "visto".
 /// Con [width] `null` occupa la larghezza disponibile (griglie). Con il
@@ -30,6 +35,7 @@ class PosterCard extends ConsumerStatefulWidget {
     this.subtitle,
     this.previewExtra,
     this.autofocus = false,
+    this.catalogStyle = false,
   });
 
   final JellyfinItem item;
@@ -50,6 +56,11 @@ class PosterCard extends ConsumerStatefulWidget {
   /// Sulla TV la card prende il focus all'apertura della pagina.
   final bool autofocus;
 
+  /// Card del catalogo Film/Serie (spec catalogo §8): titolo su due righe,
+  /// anno e voto, stato e episodi delle serie, locandina vista un po' spenta,
+  /// niente numero oro.
+  final bool catalogStyle;
+
   /// Etichetta fissa sulla locandina, con il bordo oro sempre acceso: il
   /// titolo aperto nella riga della sua saga ("Questo film", spec K §8.3).
   final String? markLabel;
@@ -65,6 +76,7 @@ class PosterCard extends ConsumerStatefulWidget {
 
 class _PosterCardState extends ConsumerState<PosterCard> {
   bool _hover = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +84,12 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final userData = watchUserData(ref, item);
     final progress = userData.progress;
     final unplayed = userData.unplayedItemCount ?? 0;
-    final line = widget.subtitle ?? item.productionYear?.toString();
+    final catalog = widget.catalogStyle;
+    final series = item.kind == ItemKind.series;
+    final line = widget.subtitle ??
+        (catalog ? _catalogLine(AppLocalizations.of(context), item) : item.productionYear?.toString());
+    // Spenta finché il mouse o il focus non la riaccendono.
+    final dimmed = catalog && userData.played && !_hover && !_focused;
     // Unica per l'istanza della pagina (vedi WfHeroScope).
     final source = widget.heroSource;
     final heroSource =
@@ -99,6 +116,9 @@ class _PosterCardState extends ConsumerState<PosterCard> {
               TvFocusable(
                 onActivate: activate,
                 autofocus: widget.autofocus,
+                onFocusChange: catalog
+                    ? (focused) => setState(() => _focused = focused)
+                    : null,
                 child: AspectRatio(
                 aspectRatio: 2 / 3,
                 child: AnimatedContainer(
@@ -116,18 +136,22 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        WfHero(
-                          tag: heroSource == null
-                              ? null
-                              : WfHeroTag(item.id, heroSource),
-                          child: WfImage(
-                              image: ref.watch(imageUrlsProvider).poster(item)),
+                        _Dimmed(
+                          dimmed: dimmed,
+                          child: WfHero(
+                            tag: heroSource == null
+                                ? null
+                                : WfHeroTag(item.id, heroSource),
+                            child: WfImage(
+                                image:
+                                    ref.watch(imageUrlsProvider).poster(item)),
+                          ),
                         ),
                         if (progress != null) ProgressStrip(progress: progress),
                         if (userData.played)
                           const Positioned(
                               top: 6, right: 6, child: WatchedBadge())
-                        else if (item.kind == ItemKind.series && unplayed > 0)
+                        else if (!catalog && series && unplayed > 0)
                           Positioned(
                               top: 6, right: 6, child: CountBadge(count: unplayed)),
                         if (mark != null)
@@ -140,15 +164,22 @@ class _PosterCardState extends ConsumerState<PosterCard> {
               ),
               const SizedBox(height: 8),
               Text(item.name,
-                  maxLines: 1,
+                  maxLines: catalog ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
               if (line != null)
                 Text(line,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
+                    style: TextStyle(
+                        color: catalog &&
+                                series &&
+                                item.status == 'Continuing' &&
+                                widget.subtitle == null
+                            ? WfColors.gold
+                            : WfColors.creamMuted,
+                        fontSize: 12)),
+              if (catalog && series) _episodesLine(context, userData.played, unplayed),
             ],
           ),
         ),
@@ -163,6 +194,64 @@ class _PosterCardState extends ConsumerState<PosterCard> {
             child: card)
         : card;
   }
+}
+
+/// Seconda riga del catalogo: film "2014  ★ 8.5", serie "In corso" o
+/// "2008–2013" (solo l'inizio senza fine, o con la fine nello stesso anno).
+String? _catalogLine(AppLocalizations l, JellyfinItem item) {
+  final year = item.productionYear;
+  if (item.kind == ItemKind.series) {
+    if (item.status == 'Continuing') return l.catalogSeriesContinuing;
+    final end = item.endDate?.year;
+    if (year == null || end == null || end == year) return year?.toString();
+    return '$year–$end';
+  }
+  final rating = item.communityRating;
+  if (year == null) return null;
+  return rating == null ? '$year' : '$year  ★ ${rating.toStringAsFixed(1)}';
+}
+
+/// Terza riga delle serie: episodi da vedere, o "Vista tutta".
+Widget _episodesLine(BuildContext context, bool played, int unplayed) {
+  final l = AppLocalizations.of(context);
+  final text = unplayed > 0
+      ? l.catalogSeriesToWatch(unplayed)
+      : played
+          ? l.catalogSeriesAllWatched
+          : null;
+  if (text == null) return const SizedBox.shrink();
+  return Text(text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(color: WfColors.creamMuted, fontSize: 12));
+}
+
+/// Saturazione 55% e luminosità 80% sulla locandina vista.
+class _Dimmed extends StatelessWidget {
+  const _Dimmed({required this.dimmed, required this.child});
+
+  final bool dimmed;
+  final Widget child;
+
+  static const _lum = [0.2126, 0.7152, 0.0722];
+  static const _sat = 0.55;
+  static const _bright = 0.8;
+
+  // Righe R, G, B: saturazione sui pesi di luminanza, poi luminosità.
+  static final _matrix = <double>[
+    for (var i = 0; i < 3; i++) ...[
+      for (var j = 0; j < 3; j++)
+        _bright * (_lum[j] * (1 - _sat) + (i == j ? _sat : 0)),
+      0,
+      0,
+    ],
+    0, 0, 0, 1, 0,
+  ];
+
+  @override
+  Widget build(BuildContext context) => dimmed
+      ? ColorFiltered(colorFilter: ColorFilter.matrix(_matrix), child: child)
+      : child;
 }
 
 /// Barra oro in fondo all'immagine, per il minutaggio.

@@ -1641,5 +1641,9 @@
   "catalogEmptyMovies": "No movies match these filters.",
   "catalogEmptyMoviesGenre": "No movies in this genre match these filters.",
   "catalogEmptySeries": "No series match these filters.",
-  "catalogEmptySeriesGenre": "No series in this genre match these filters."
+  "catalogEmptySeriesGenre": "No series in this genre match these filters.",
+  "catalogSeriesContinuing": "In progress",
+  "catalogSeriesToWatch": "{count, plural, =1{1 episode to watch} other{{count} episodes to watch}}",
+  "@catalogSeriesToWatch": {"placeholders": {"count": {"type": "int"}}},
+  "catalogSeriesAllWatched": "All watched"
 }

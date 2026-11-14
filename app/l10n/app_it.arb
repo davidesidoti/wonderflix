@@ -1838,5 +1838,9 @@
   "catalogEmptyMovies": "Nessun film con questi filtri.",
   "catalogEmptyMoviesGenre": "Nessun film di questo genere con questi filtri.",
   "catalogEmptySeries": "Nessuna serie con questi filtri.",
-  "catalogEmptySeriesGenre": "Nessuna serie di questo genere con questi filtri."
+  "catalogEmptySeriesGenre": "Nessuna serie di questo genere con questi filtri.",
+  "catalogSeriesContinuing": "In corso",
+  "catalogSeriesToWatch": "{count, plural, =1{1 episodio da vedere} other{{count} episodi da vedere}}",
+  "@catalogSeriesToWatch": {"placeholders": {"count": {"type": "int"}}},
+  "catalogSeriesAllWatched": "Vista tutta"
 }

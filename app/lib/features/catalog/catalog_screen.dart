@@ -354,23 +354,36 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     return [
       SliverPadding(
         padding: EdgeInsets.fromLTRB(side, 16, side, 24),
-        sliver: SliverGrid(
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 180,
-            mainAxisSpacing: 24,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.55,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, i) => BatchedEntranceItem(
-              index: i,
-              child: PosterCard(
-                item: state.items[i],
-                heroSource: 'catalog.${widget.kind.name}.$i',
+        // La locandina cresce con la colonna, il testo no: l'altezza della
+        // cella si calcola dalla larghezza (stessa conta di MaxCrossAxisExtent).
+        sliver: SliverLayoutBuilder(
+          builder: (context, constraints) {
+            const maxWidth = 180.0, gap = 16.0;
+            final columns =
+                ((constraints.crossAxisExtent + gap) / (maxWidth + gap))
+                    .ceil();
+            final width =
+                (constraints.crossAxisExtent - gap * (columns - 1)) / columns;
+            return SliverGrid(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: maxWidth,
+                mainAxisSpacing: 24,
+                crossAxisSpacing: gap,
+                mainAxisExtent: width * 1.5 + catalogCardTextHeight,
               ),
-            ),
-            childCount: state.items.length,
-          ),
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => BatchedEntranceItem(
+                  index: i,
+                  child: PosterCard(
+                    item: state.items[i],
+                    heroSource: 'catalog.${widget.kind.name}.$i',
+                    catalogStyle: true,
+                  ),
+                ),
+                childCount: state.items.length,
+              ),
+            );
+          },
         ),
       ),
       SliverToBoxAdapter(

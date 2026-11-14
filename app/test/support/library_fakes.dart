@@ -337,6 +337,8 @@ JellyfinItem testItem({
   String? sortName,
   String? dateCreated,
   String? premiereDate,
+  String? status,
+  String? endDate,
   int? tmdbId,
 }) =>
     JellyfinItem.fromJson({
@@ -370,6 +372,8 @@ JellyfinItem testItem({
       'SortName': ?sortName,
       'DateCreated': ?dateCreated,
       'PremiereDate': ?premiereDate,
+      'Status': ?status,
+      'EndDate': ?endDate,
       if (tmdbId != null) 'ProviderIds': {'Tmdb': '$tmdbId'},
     });
 

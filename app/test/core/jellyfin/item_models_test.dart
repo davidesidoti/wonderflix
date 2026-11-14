@@ -126,6 +126,21 @@ void main() {
         isNull);
   });
 
+  test('stato e fine di una serie, se ci sono', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 's1',
+      'Name': 'Arcane',
+      'Type': 'Series',
+      'Status': 'Ended',
+      'EndDate': '2024-01-23T00:11:00.0000000Z',
+    });
+    expect(item.status, 'Ended');
+    expect(item.endDate, DateTime.utc(2024, 1, 23, 0, 11));
+    final bare = JellyfinItem.fromJson({'Id': 's2', 'Name': 'x', 'Type': 'Series'});
+    expect(bare.status, isNull);
+    expect(bare.endDate, isNull);
+  });
+
   test('recursiveItemCount: gli episodi di una serie, se chiesti', () {
     final series = JellyfinItem.fromJson({
       'Id': 's1',
