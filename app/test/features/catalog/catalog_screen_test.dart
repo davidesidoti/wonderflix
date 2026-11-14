@@ -64,7 +64,7 @@ void main() {
 
     double top(Finder f) => tester.getTopLeft(f).dy;
     final filters = [
-      find.text('Ordina per: Titolo'),
+      find.text('Ordina per: Data di aggiunta'),
       find.text('Tutti i generi'),
       find.text('Tutti gli anni'),
       find.text('Visti'),
@@ -113,10 +113,10 @@ void main() {
       (tester) async {
     await pumpCatalog(tester);
     expect(api.itemQueries, hasLength(1));
-    // L'ordinamento di partenza è per titolo.
-    await tester.tap(find.text('Ordina per: Titolo'));
+    // L'ordinamento di partenza è per data di aggiunta.
+    await tester.tap(find.text('Ordina per: Data di aggiunta'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Ordina per: Titolo').last);
+    await tester.tap(find.text('Ordina per: Data di aggiunta').last);
     await tester.pumpAndSettle();
     expect(api.itemQueries, hasLength(1));
   });

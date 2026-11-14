@@ -52,6 +52,10 @@ class FakeLibraryApi implements LibraryApi {
   /// rispondere (i dettagli dei titoli in coda arrivano dopo).
   Completer<void>? itemsByIdsGate;
 
+  /// Se valorizzato, [items] aspetta il completer che restituisce per la
+  /// richiesta (per far arrivare le risposte fuori ordine).
+  Completer<void>? Function(ItemQuery query)? itemsGateFor;
+
   final itemQueries = <ItemQuery>[];
   /// Episodio successivo, per id dell'episodio corrente.
   final Map<String, JellyfinItem> nextEpisodes = {};
@@ -124,6 +128,8 @@ class FakeLibraryApi implements LibraryApi {
     itemQueries.add(query);
     final gate = query.favoritesOnly ? favoritesGate : null;
     if (gate != null) await gate.future;
+    final queryGate = itemsGateFor?.call(query);
+    if (queryGate != null) await queryGate.future;
     return _answer(() => onItems(query, startIndex, limit));
   }
 

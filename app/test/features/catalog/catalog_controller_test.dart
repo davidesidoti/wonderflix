@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -33,9 +35,12 @@ void main() {
     );
   });
 
-  // Il provider parte (e il primo caricamento con lui) alla prima lettura:
-  // i test che configurano il fake prima dell'avvio chiamano start() dopo.
-  void start() => container.listen(provider, (_, _) {});
+  // Il controller carica solo quando gli si dice il genere: start() fa
+  // come la schermata.
+  void start() {
+    container.listen(provider, (_, _) {});
+    unawaited(container.read(provider.notifier).showGenre(null));
+  }
 
   Future<void> settle() => Future<void>.delayed(Duration.zero);
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../library/library_providers.dart';
@@ -13,6 +14,7 @@ class CatalogState {
     this.total = 0,
     this.loading = false,
     this.error,
+    this.genre,
   });
 
   final ItemQuery query;
@@ -21,8 +23,15 @@ class CatalogState {
   final bool loading;
   final Object? error;
 
+  /// L'etichetta del genere mostrato (null: tutto il catalogo).
+  final String? genre;
+
   bool get hasMore => items.length < total;
 }
+
+/// Con un genere il cartellone parte dai meglio votati, senza dai più recenti.
+CatalogSort catalogDefaultSort(String? genre) =>
+    genre == null ? CatalogSort.dateAdded : CatalogSort.rating;
 
 /// Griglia paginata di Film o Serie con ordinamento e filtri.
 class CatalogController extends Notifier<CatalogState> {
@@ -33,12 +42,29 @@ class CatalogController extends Notifier<CatalogState> {
   static const pageSize = 100;
 
   int _generation = 0;
+  String? _genre;
 
+  /// Non carica da solo: la schermata dice quale genere mostrare con
+  /// [showGenre].
   @override
   CatalogState build() {
-    final query = ItemQuery(kinds: {kind});
-    unawaited(Future.microtask(() => _load(query, reset: true)));
-    return CatalogState(query: query, loading: true);
+    _genre = null;
+    return CatalogState(
+        query: ItemQuery(kinds: {kind}, sort: CatalogSort.dateAdded),
+        loading: true);
+  }
+
+  /// Mostra [genre] (null: tutto), con l'ordine di partenza del genere; tiene
+  /// decennio, stato, visti e ricerca.
+  Future<void> showGenre(String? genre) {
+    _genre = genre;
+    return _load(
+        state.query.copyWith(
+          genres: genre == null ? const {} : genreServerNames(genre).toSet(),
+          sort: catalogDefaultSort(genre),
+          reversed: false,
+        ),
+        reset: true);
   }
 
   Future<void> setQuery(ItemQuery query) => _load(query, reset: true);
@@ -60,6 +86,7 @@ class CatalogController extends Notifier<CatalogState> {
       items: previous,
       total: reset ? 0 : state.total,
       loading: true,
+      genre: _genre,
     );
     try {
       final page = await ref.read(libraryApiProvider).items(
@@ -70,11 +97,18 @@ class CatalogController extends Notifier<CatalogState> {
           );
       if (!ref.mounted || generation != _generation) return;
       state = CatalogState(
-          query: query, items: [...previous, ...page.items], total: page.totalCount);
+          query: query,
+          items: [...previous, ...page.items],
+          total: page.totalCount,
+          genre: _genre);
     } on Object catch (error) {
       if (!ref.mounted || generation != _generation) return;
       state = CatalogState(
-          query: query, items: previous, total: state.total, error: error);
+          query: query,
+          items: previous,
+          total: state.total,
+          error: error,
+          genre: _genre);
     }
   }
 }

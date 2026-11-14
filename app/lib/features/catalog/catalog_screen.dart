@@ -45,12 +45,30 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   void initState() {
     super.initState();
+    _showAll();
     _scroll.addListener(() {
       if (_scroll.position.extentAfter < 800) {
         unawaited(
             ref.read(catalogControllerProvider(widget.kind).notifier).loadMore());
       }
     });
+  }
+
+  /// Il controller non carica da solo: dopo il primo build gli dico di partire
+  /// (anche tornando dalle saghe, quando è stato rilasciato).
+  void _showAll() => unawaited(Future.microtask(() {
+        if (!mounted) return;
+        unawaited(ref
+            .read(catalogControllerProvider(widget.kind).notifier)
+            .showGenre(null));
+      }));
+
+  @override
+  void didUpdateWidget(CatalogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.view != widget.view && widget.view == CatalogView.titles) {
+      _showAll();
+    }
   }
 
   @override
