@@ -618,11 +618,14 @@ void main() {
         async.elapse(RequestsListController.openRefreshEvery);
         expect(api.calls, ['list:all:open:0:20', 'list:all:open:0:20']);
 
-        // Niente più in download: nessuna lettura.
+        // Niente più in download: un'ultima lettura al giro dopo, poi niente.
         api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = [
           testMediaRequest(id: 1, status: RequestStatus.approved),
         ];
         async.elapse(RequestsListController.openRefreshEvery);
+        api.calls.clear();
+        async.elapse(RequestsListController.openRefreshEvery);
+        expect(api.calls, ['list:all:open:0:20']);
         api.calls.clear();
         async.elapse(const Duration(seconds: 90));
         expect(api.calls, isEmpty);
@@ -635,6 +638,44 @@ void main() {
         async.elapse(const Duration(seconds: 90));
         expect(api.calls, isEmpty);
         expect(async.periodicTimerCount, 0);
+      });
+    });
+
+    test('mentre qualcosa scarica, ogni 30 s si rileggono anche gli altri '
+        'gruppi; finito il download, un giro ancora e poi niente', () {
+      fakeAsync((async) {
+        api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = [
+          testMediaRequest(id: 1, status: RequestStatus.downloading, progress: 0.3),
+        ];
+        final container = groupContainer([allOpen, allDone]);
+        async.flushMicrotasks();
+        api.calls.clear();
+
+        async.elapse(RequestsListController.openRefreshEvery);
+        expect(api.calls, containsAll(['list:all:open:0:20', 'list:all:done:0:20']));
+        expect(api.calls.where((c) => c.startsWith('list:all:closed')), isEmpty);
+
+        // Il download finisce: Seerr dice per un attimo "Approvata".
+        api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = [
+          testMediaRequest(id: 1, status: RequestStatus.approved),
+        ];
+        async.elapse(RequestsListController.openRefreshEvery);
+        api.calls.clear();
+        // Poi è arrivata.
+        api
+          ..groupLists[(RequestsFilter.all, RequestsGroup.open)] = []
+          ..groupLists[(RequestsFilter.all, RequestsGroup.done)] = [
+            testMediaRequest(id: 1, status: RequestStatus.available),
+          ];
+        async.elapse(RequestsListController.openRefreshEvery);
+        expect(api.calls, containsAll(['list:all:open:0:20', 'list:all:done:0:20']));
+        expect(read(container, allOpen).items, isEmpty);
+        expect(read(container, allDone).items.map((r) => r.id), [1]);
+
+        api.calls.clear();
+        async.elapse(const Duration(seconds: 90));
+        expect(api.calls, isEmpty);
+        container.dispose();
       });
     });
 

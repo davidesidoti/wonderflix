@@ -71,45 +71,47 @@ class _RequestShelfPosterState extends State<RequestShelfPoster> {
       width: widget.width,
       child: TvFocusable(
         onActivate: open,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hover = !FormFactor.of(context).touch),
-          onExit: (_) => setState(() => _hover = false),
-          child: GestureDetector(
-            onTap: open,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AspectRatio(
-                  aspectRatio: 2 / 3,
-                  child: AnimatedContainer(
-                    duration: WfMotion.fast,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(5),
-                      border: Border.all(
-                          color: _hover ? WfColors.creamMuted : Colors.transparent),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
-                      child: WfImage(image: TmdbImages.poster(request.posterPath)),
-                    ),
+        child: InkWell(
+          onTap: open,
+          canRequestFocus: !FormFactor.of(context).tv,
+          onHover: (hover) =>
+              setState(() => _hover = hover && !FormFactor.of(context).touch),
+          // La cornice della locandina fa da segnale: niente velo.
+          hoverColor: Colors.transparent,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AspectRatio(
+                aspectRatio: 2 / 3,
+                child: AnimatedContainer(
+                  duration: WfMotion.fast,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                        color: _hover ? WfColors.creamMuted : Colors.transparent),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: WfImage(image: TmdbImages.poster(request.posterPath)),
                   ),
                 ),
-                const SizedBox(height: 7),
-                Text(
-                    request.title.isEmpty ? l.requestsUnknownTitle : request.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12.5, height: 1.35)),
-                Text(
-                    request.mediaType == RequestMediaType.movie
-                        ? l.requestsKindMovie
-                        : l.requestsKindSeries,
-                    style: const TextStyle(
-                        color: WfColors.creamMuted, fontSize: 12)),
-              ],
-            ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                  request.title.isEmpty ? l.requestsUnknownTitle : request.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12.5, height: 1.35)),
+              Text(
+                  request.mediaType == RequestMediaType.movie
+                      ? l.requestsKindMovie
+                      : l.requestsKindSeries,
+                  style: const TextStyle(
+                      color: WfColors.creamMuted, fontSize: 12)),
+            ],
           ),
         ),
       ),

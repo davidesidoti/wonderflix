@@ -209,6 +209,31 @@ void main() {
       expect(find.byType(RequestShelfPoster), findsNWidgets(3));
     });
 
+    testWidgets('dopo Riprova il gruppo resta al suo posto finché carica',
+        (tester) async {
+      groups(RequestsFilter.mine,
+          open: [testMediaRequest(id: 1, title: 'Dune', status: RequestStatus.approved)],
+          done: arrived(3));
+      api.failingLists.add('list:mine:done:0:20');
+      await pumpScreen(tester);
+      expect(find.text('ARRIVATE'), findsOneWidget);
+
+      api.failingLists.clear();
+      final gate = api.listGate = Completer<void>();
+      await tester.tap(find.text('Riprova'));
+      await tester.pump();
+      expect(find.text('ARRIVATE'), findsOneWidget);
+      final retry = tester.widget<TextButton>(
+          find.ancestor(of: find.text('Riprova'), matching: find.byType(TextButton)));
+      expect(retry.onPressed, isNull);
+
+      api.listGate = null;
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(RequestShelfPoster), findsNWidgets(3));
+      expect(find.text('Riprova'), findsNothing);
+    });
+
     testWidgets("tutti i gruppi in errore: la pagina d'errore", (tester) async {
       groups(RequestsFilter.mine);
       api.failure = RequestsFailure.network;
@@ -282,6 +307,11 @@ void main() {
             jellyfinItemId: 'abc'),
       ]);
       final router = await pumpScreen(tester);
+
+      // Fuori dalla TV si raggiunge anche dalla tastiera.
+      final ink = tester.widget<InkWell>(find.descendant(
+          of: find.byType(RequestShelfPoster), matching: find.byType(InkWell)));
+      expect(ink.canRequestFocus, isTrue);
 
       await tester.tap(find.byType(RequestShelfPoster));
       await tester.pumpAndSettle();

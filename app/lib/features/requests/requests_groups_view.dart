@@ -57,6 +57,10 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
   /// ricarica non rimette la pagina in caricamento.
   bool _ready = false;
 
+  /// I gruppi mostrati all'ultimo giro: uno che si ricarica (Riprova, un
+  /// avviso) resta al suo posto invece di sparire e far saltare la pagina.
+  var _shown = <RequestsGroup>{};
+
   /// Chiuse si apre al tocco; all'apertura della pagina è chiuso.
   bool _closedOpen = false;
 
@@ -87,6 +91,7 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
             .every((s) => !s.loading || s.items.isNotEmpty || s.error != null);
     if (!_ready) return const LoadingView();
     if (states.values.every((s) => s.items.isEmpty && s.error != null)) {
+      _shown = {};
       return ErrorView(
         error: states.values.first.error!,
         onRetry: () {
@@ -96,8 +101,14 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
         },
       );
     }
-    bool shown(RequestsListState s) => s.items.isNotEmpty || s.error != null;
-    if (!states.values.any(shown)) {
+    _shown = {
+      for (final MapEntry(key: group, value: s) in states.entries)
+        if (s.items.isNotEmpty ||
+            s.error != null ||
+            (s.loading && _shown.contains(group)))
+          group,
+    };
+    if (_shown.isEmpty) {
       if (states.values.any((s) => s.loading)) return const LoadingView();
       return Padding(
         padding: EdgeInsets.symmetric(horizontal: side),
@@ -159,6 +170,9 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
             onPressed: () => unawaited(controller.retry()),
             style: style,
             child: Text(l.retry));
+      } else if (state.loading && state.items.isEmpty) {
+        // Il gruppo era in errore e si ricarica: Riprova resta, spento.
+        button = TextButton(onPressed: null, style: style, child: Text(l.retry));
       } else if (more && state.hasMore) {
         button = TextButton(
           onPressed:
@@ -184,13 +198,13 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
     }
 
     final open = states[RequestsGroup.open]!;
-    if (shown(open)) {
+    if (_shown.contains(RequestsGroup.open)) {
       title(l.requestsGroupOpen, open);
       rows(open);
       footer(RequestsGroup.open, open);
     }
     final done = states[RequestsGroup.done]!;
-    if (shown(done)) {
+    if (_shown.contains(RequestsGroup.done)) {
       title(l.requestsGroupDone, done);
       if (done.items.isNotEmpty) {
         slivers.add(SliverToBoxAdapter(
@@ -203,7 +217,7 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
       footer(RequestsGroup.done, done, more: true);
     }
     final closed = states[RequestsGroup.closed]!;
-    if (shown(closed)) {
+    if (_shown.contains(RequestsGroup.closed)) {
       title(l.requestsGroupClosed, closed,
           open: _closedOpen,
           onTap: () => setState(() => _closedOpen = !_closedOpen));

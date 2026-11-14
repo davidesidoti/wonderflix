@@ -172,7 +172,8 @@ class _Meta extends StatelessWidget {
     // "chiesta da" e il nome sono separati dall'avatar: il prefisso è quello
     // della frase tradotta, prima del nome.
     final phrase = l.requestsRequestedBy(who);
-    final prefix = phrase.substring(0, phrase.lastIndexOf(who));
+    final at = phrase.lastIndexOf(who);
+    final prefix = at < 0 ? phrase : phrase.substring(0, at);
     return Text.rich(
       TextSpan(children: [
         TextSpan(text: '$kind · '),

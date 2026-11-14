@@ -113,12 +113,17 @@ class RequestsListController extends Notifier<RequestsListState> {
     ref.onDispose(() => unawaited(subscription.cancel()));
     if (listKey.group == RequestsGroup.open) {
       // La percentuale sale solo se l'elenco si rilegge: niente letture a
-      // vuoto quando non scarica niente.
+      // vuoto quando non scarica niente. Si rileggono anche gli altri gruppi
+      // (un titolo arrivato passa in Arrivate, e chi gestisce non ha avvisi
+      // per le richieste degli altri), e un giro ancora dopo l'ultimo
+      // download: finito, Seerr dice per un attimo "Approvata".
+      var hadDownloads = false;
       final timer = Timer.periodic(openRefreshEvery, (_) {
-        if (!state.loading &&
-            state.items.any((r) => r.status == RequestStatus.downloading)) {
-          unawaited(refresh());
-        }
+        if (state.loading) return;
+        final downloading =
+            state.items.any((r) => r.status == RequestStatus.downloading);
+        if (downloading || hadDownloads) _refreshGroups();
+        hadDownloads = downloading;
       });
       ref.onDispose(timer.cancel);
     }
@@ -136,6 +141,20 @@ class RequestsListController extends Notifier<RequestsListState> {
   Future<void> refresh() {
     if (state.items.isEmpty) return reload();
     return _refresh();
+  }
+
+  /// Rilegge questo elenco e gli altri gruppi dello stesso filtro, se ci sono.
+  void _refreshGroups() {
+    for (final group in RequestsGroup.values) {
+      final key =
+          (filter: listKey.filter, group: group, language: listKey.language);
+      final other = requestsListControllerProvider(key);
+      if (key == listKey) {
+        unawaited(refresh());
+      } else if (ref.exists(other)) {
+        unawaited(ref.read(other.notifier).refresh());
+      }
+    }
   }
 
   /// La pagina successiva. Dopo un errore si riprova solo dal pulsante.
