@@ -48,10 +48,10 @@ void main() {
         findsOneWidget);
     expect(find.textContaining('Garg · 5 min fa', findRichText: true),
         findsOneWidget);
-    // Largo: il percorso in una colonna di 400 px, con le etichette.
+    // Largo: il percorso in una colonna di 480 px, con le etichette.
     expect(find.byType(RequestTrack), findsOneWidget);
     expect(find.text('Da approvare'), findsOneWidget);
-    expect(tester.getSize(find.byType(RequestTrack)).width, 400);
+    expect(tester.getSize(find.byType(RequestTrack)).width, RequestRow.trackWidth);
 
     await tester.tap(find.text('Dune (2021)'));
     expect(taps, ['tap']);
@@ -87,7 +87,7 @@ void main() {
     final track = tester.getRect(find.byType(RequestTrack));
     final title = tester.getRect(find.text('Dune (2021)'));
     expect(track.top, greaterThan(title.bottom));
-    expect(track.width, greaterThan(400));
+    expect(track.width, greaterThan(RequestRow.trackWidth));
     // Senza etichette: la tappa attuale sta nel dettaglio.
     expect(find.text('Da approvare'), findsNothing);
     expect(find.textContaining('Da approvare', findRichText: true),
@@ -212,7 +212,7 @@ void main() {
     );
 
     expect(find.text('Da approvare'), findsOneWidget);
-    expect(tester.getSize(find.byType(RequestTrack)).width, 400);
+    expect(tester.getSize(find.byType(RequestTrack)).width, RequestRow.trackWidth);
     expect(tester.getSize(find.byType(WfImage)).width, RequestRow.posterWidth);
   });
 }

@@ -12,7 +12,6 @@ import '../../ui/form_factor.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_tab_button.dart';
-import '../settings/settings_screen.dart';
 import 'approve_dialog.dart';
 import 'pending_request_actions.dart';
 import 'request_row.dart';
@@ -110,20 +109,16 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ConstrainedBox(
-          constraints:
-              BoxConstraints(maxWidth: settingsContentMaxWidth + 2 * side),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(side, 16, side, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(l.navRequests.toUpperCase(),
-                      style: WfText.display(compact ? 28 : 40)),
-                ),
-                if (ready && !emptyMine) const RequestsAskButton(),
-              ],
-            ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(l.navRequests.toUpperCase(),
+                    style: WfText.display(compact ? 28 : 40)),
+              ),
+              if (ready && !emptyMine) const RequestsAskButton(),
+            ],
           ),
         ),
         if (!ready)

@@ -34,7 +34,7 @@ class RequestRow extends StatelessWidget {
   static const compactPosterHeight = 60.0;
 
   /// Larghezza della colonna del percorso (fuori dallo stretto).
-  static const trackWidth = 400.0;
+  static const trackWidth = 480.0;
 
   final MediaRequest request;
 

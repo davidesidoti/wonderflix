@@ -14,7 +14,6 @@ import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
 import '../../ui/tv_focusable.dart';
 import '../../ui/wf_buttons.dart';
-import '../settings/settings_screen.dart';
 import 'request_row.dart';
 import 'request_shelf.dart';
 import 'requests_list_controller.dart';
@@ -230,13 +229,10 @@ class _RequestsGroupsViewState extends ConsumerState<RequestsGroupsView> {
     return CustomScrollView(
       controller: _scroll,
       slivers: [
-        // Larga come Impostazioni, a sinistra.
-        SliverConstrainedCrossAxis(
-          maxExtent: settingsContentMaxWidth + 2 * side,
-          sliver: SliverPadding(
-            padding: EdgeInsets.fromLTRB(side, 0, side, 40),
-            sliver: SliverMainAxisGroup(slivers: slivers),
-          ),
+        // Larga quanto la finestra (scelta dell'utente dopo la prova).
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(side, 0, side, 40),
+          sliver: SliverMainAxisGroup(slivers: slivers),
         ),
       ],
     );
