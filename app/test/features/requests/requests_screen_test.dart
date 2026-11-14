@@ -114,7 +114,7 @@ void main() {
     expect(find.text('Dune (2021)'), findsOneWidget);
     expect(find.text('Approvata'), findsOneWidget);
     expect(find.text('Le mie'), findsNothing);
-    expect(find.textContaining('chiesto da'), findsNothing);
+    expect(find.textContaining('chiesta da'), findsNothing);
     expect(api.calls.where((c) => c.startsWith('list:pending')), isEmpty);
   });
 
@@ -151,14 +151,14 @@ void main() {
     expect(find.text('Da approvare (2)'), findsOneWidget);
     expect(find.text('Le mie'), findsOneWidget);
     expect(find.text('Tutte'), findsOneWidget);
-    expect(find.textContaining('chiesto da Garg'), findsOneWidget);
+    expect(find.textContaining('chiesta da Garg'), findsOneWidget);
     expect(find.text('Mia (2024)'), findsNothing);
 
     await tester.tap(find.text('Le mie'));
     await tester.pumpAndSettle();
 
     expect(find.text('Mia (2024)'), findsOneWidget);
-    expect(find.textContaining('chiesto da'), findsNothing);
+    expect(find.textContaining('chiesta da'), findsNothing);
   });
 
   testWidgets('admin senza richieste in attesa: si apre su "Le mie"',
@@ -167,7 +167,7 @@ void main() {
     await pumpScreen(tester);
 
     expect(find.text('Da approvare (0)'), findsOneWidget);
-    expect(find.text('Non hai ancora chiesto niente. Cerca un titolo che manca e premi Richiedi.'),
+    expect(find.text('Se un film o una serie non è su WonderFlix, cercalo e premi Richiedi. Lo trovi qui mentre arriva.'),
         findsOneWidget);
   });
 
@@ -236,7 +236,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Da approvare (1)'), findsOneWidget);
-    expect(find.text('Non hai ancora chiesto niente. Cerca un titolo che manca e premi Richiedi.'),
+    expect(find.text('Se un film o una serie non è su WonderFlix, cercalo e premi Richiedi. Lo trovi qui mentre arriva.'),
         findsOneWidget);
     expect(find.text('Dune (2024)'), findsNothing);
   });

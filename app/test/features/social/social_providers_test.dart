@@ -251,6 +251,17 @@ void main() {
     expect(SocialFeatures.none.downloadsSearchJobs, isFalse);
   });
 
+  test('Info con i gruppi delle richieste: funzione requestsGroups', () async {
+    api.install(features: const {PluginFeatures.requestsGroups});
+    final c = container(
+        session: const SessionSignedIn(JellyfinUser(
+            id: 'u1', name: 'Mario', syncPlayAccess: SyncPlayAccess.none)));
+    await pumpEventQueue();
+    expect(c.read(socialAvailabilityProvider),
+        const SocialFeatures(requestsGroups: true));
+    expect(SocialFeatures.none.requestsGroups, isFalse);
+  });
+
   test('Info con associa contatti: funzione accountAdminLink', () async {
     api.install(features: const {PluginFeatures.accountAdminLink});
     final c = container(

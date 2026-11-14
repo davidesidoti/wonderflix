@@ -31,6 +31,8 @@ void main() {
     expect(label(RequestStatus.available), 'Disponibile');
     expect(label(RequestStatus.declined), 'Rifiutata');
     expect(label(RequestStatus.failed), 'Non riuscita');
+    expect(label(RequestStatus.removed), 'Tolta dal server');
+    expect(label(RequestStatus.notFound), 'Non trovata');
   });
 
   test('colore dello stato', () {
@@ -41,6 +43,8 @@ void main() {
     expect(requestStatusColor(RequestStatus.available), WfColors.online);
     expect(requestStatusColor(RequestStatus.declined), WfColors.error);
     expect(requestStatusColor(RequestStatus.failed), WfColors.error);
+    expect(requestStatusColor(RequestStatus.removed), WfColors.creamMuted);
+    expect(requestStatusColor(RequestStatus.notFound), WfColors.creamMuted);
   });
 
   group('requestDateParts', () {

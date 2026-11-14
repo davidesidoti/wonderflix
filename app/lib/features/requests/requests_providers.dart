@@ -13,6 +13,10 @@ final requestsApiProvider =
 final requestsAvailableProvider = Provider<bool>((ref) =>
     ref.watch(socialAvailabilityProvider.select((f) => f.requests)));
 
+/// Il plugin sa dividere le richieste in gruppi (`group`, `Total`).
+final requestsGroupsProvider = Provider<bool>((ref) => ref.watch(
+    socialAvailabilityProvider.select((f) => f.requests && f.requestsGroups)));
+
 /// Le richieste con Seerr sono sparite: le funzioni del plugin sono note e
 /// non hanno più `requests` (Seerr tolto dal plugin mentre l'app è aperta).
 /// Non vale finché le funzioni non sono note (dopo un nuovo accesso, per

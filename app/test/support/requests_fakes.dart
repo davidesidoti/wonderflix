@@ -46,6 +46,10 @@ class FakeRequestsApi implements RequestsApi {
   /// Le richieste di ogni elenco, in ordine: `list` ne dà una pagina.
   final lists = <RequestsFilter, List<MediaRequest>>{};
 
+  /// Le richieste di un gruppo: se c'è, `list` con quel `group` risponde da
+  /// qui (con `Total`), altrimenti da [lists].
+  final groupLists = <(RequestsFilter, RequestsGroup), List<MediaRequest>>{};
+
   /// Se impostato, `list` aspetta che si completi.
   Completer<void>? listGate;
 
@@ -129,15 +133,24 @@ class FakeRequestsApi implements RequestsApi {
 
   @override
   Future<RequestPage> list(RequestsFilter filter,
-      {required int skip, required int take, required String language}) async {
-    calls.add('list:${filter.wire}:$skip:$take');
+      {RequestsGroup? group,
+      required int skip,
+      required int take,
+      required String language}) async {
+    calls.add(group == null
+        ? 'list:${filter.wire}:$skip:$take'
+        : 'list:${filter.wire}:${group.wire}:$skip:$take');
     listLanguages.add(language);
     final gate = listGate;
     if (gate != null) await gate.future;
     _fail();
-    final all = lists[filter] ?? const <MediaRequest>[];
+    final grouped = group == null ? null : groupLists[(filter, group)];
+    final all = grouped ?? lists[filter] ?? const <MediaRequest>[];
     final page = all.skip(skip).take(take).toList();
-    return RequestPage(items: page, hasMore: skip + page.length < all.length);
+    return RequestPage(
+        items: page,
+        hasMore: skip + page.length < all.length,
+        total: group == null ? null : all.length);
   }
 
   @override

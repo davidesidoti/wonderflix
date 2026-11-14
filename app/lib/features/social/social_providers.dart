@@ -22,6 +22,7 @@ class SocialFeatures {
     this.parties = false,
     this.inbox = false,
     this.requests = false,
+    this.requestsGroups = false,
     this.collections = false,
     this.avatars = false,
     this.account = false,
@@ -59,6 +60,9 @@ class SocialFeatures {
 
   /// Le richieste con Seerr (spec I §8.2): non dipendono dai watch party.
   final bool requests;
+
+  /// Le richieste divise in gruppi (`group`, `Total`, stati nuovi).
+  final bool requestsGroups;
 
   /// Le saghe (spec K §8.1): non dipendono dai watch party.
   final bool collections;
@@ -129,6 +133,7 @@ class SocialFeatures {
       other.parties == parties &&
       other.inbox == inbox &&
       other.requests == requests &&
+      other.requestsGroups == requestsGroups &&
       other.collections == collections &&
       other.avatars == avatars &&
       other.account == account &&
@@ -154,6 +159,7 @@ class SocialFeatures {
       parties,
       inbox,
       requests,
+      requestsGroups,
       collections,
       avatars,
       account,
@@ -175,7 +181,7 @@ class SocialFeatures {
 
   @override
   String toString() => 'SocialFeatures(friends: $friends, parties: $parties, '
-      'inbox: $inbox, requests: $requests, collections: $collections, '
+      'inbox: $inbox, requests: $requests, requestsGroups: $requestsGroups, collections: $collections, '
       'avatars: $avatars, account: $account, home: $home, '
       'upcomingSeries: $upcomingSeries, upcomingMovies: $upcomingMovies, calendar: $calendar, downloads: $downloads, downloadsSearchJobs: $downloadsSearchJobs, space: $space, '
       'accountAdminLink: $accountAdminLink, recommendations: $recommendations, friendsActivity: $friendsActivity, match: $match, ratings: $ratings, reports: $reports, push: $push, known: $known)';
@@ -274,6 +280,7 @@ class SocialAvailability extends Notifier<SocialFeatures> {
         parties: _canJoin && info.features.contains(PluginFeatures.parties),
         inbox: info.features.contains(PluginFeatures.inbox),
         requests: info.features.contains(PluginFeatures.requests),
+        requestsGroups: info.features.contains(PluginFeatures.requestsGroups),
         collections: info.features.contains(PluginFeatures.collections),
         avatars: info.features.contains(PluginFeatures.avatars),
         account: info.features.contains(PluginFeatures.account),

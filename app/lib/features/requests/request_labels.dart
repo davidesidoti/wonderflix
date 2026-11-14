@@ -39,11 +39,13 @@ String requestStatusLabel(AppLocalizations l, MediaRequest request) {
     RequestStatus.declined => l.requestsStatusDeclined,
     RequestStatus.failed => l.requestsStatusFailed,
     RequestStatus.awaitingRelease => l.requestsStatusAwaitingRelease,
+    RequestStatus.removed => l.requestsStatusRemoved,
+    RequestStatus.notFound => l.requestsStatusNotFound,
   };
 }
 
 /// Il colore dello stato: oro in attesa o in arrivo, crema approvata, verde
-/// arrivata, rosso rifiutata o non riuscita (spec I §9.4).
+/// arrivata, rosso rifiutata o non riuscita, spento se tolta o non trovata.
 Color requestStatusColor(RequestStatus status) => switch (status) {
       RequestStatus.pending ||
       RequestStatus.downloading ||
@@ -52,6 +54,7 @@ Color requestStatusColor(RequestStatus status) => switch (status) {
       RequestStatus.approved => WfColors.cream,
       RequestStatus.partial || RequestStatus.available => WfColors.online,
       RequestStatus.declined || RequestStatus.failed => WfColors.error,
+      RequestStatus.removed || RequestStatus.notFound => WfColors.creamMuted,
     };
 
 /// Una parte della riga delle date; [upcoming] = data dopo oggi (in oro).

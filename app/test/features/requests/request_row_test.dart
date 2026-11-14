@@ -36,7 +36,7 @@ void main() {
     );
 
     expect(find.text('Dune (2021)'), findsOneWidget);
-    expect(find.text('Film · chiesto da Garg · 5 min fa'), findsOneWidget);
+    expect(find.text('Film · chiesta da Garg · 5 min fa'), findsOneWidget);
     expect(find.text('In attesa'), findsOneWidget);
 
     await tester.tap(find.text('Dune (2021)'));

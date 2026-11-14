@@ -19,6 +19,20 @@ void main() {
     expect(container.read(requestsAvailableProvider), isTrue);
   });
 
+  test('i gruppi: solo con `requests` e `requestsGroups`', () {
+    final availability =
+        FakeSocialAvailability(const SocialFeatures(requestsGroups: true));
+    final container = ProviderContainer.test(overrides: [
+      socialAvailabilityProvider.overrideWith(() => availability),
+    ]);
+    expect(container.read(requestsGroupsProvider), isFalse);
+    availability.set(const SocialFeatures(requests: true));
+    expect(container.read(requestsGroupsProvider), isFalse);
+    availability.set(
+        const SocialFeatures(requests: true, requestsGroups: true));
+    expect(container.read(requestsGroupsProvider), isTrue);
+  });
+
   test('richieste sparite: solo con le funzioni note e senza `requests`', () {
     final availability = FakeSocialAvailability(SocialFeatures.unknown);
     final container = ProviderContainer.test(overrides: [

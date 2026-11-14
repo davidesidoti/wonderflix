@@ -94,10 +94,14 @@ class RequestsApi {
           quietStatuses: _quiet))));
 
   Future<RequestPage> list(RequestsFilter filter,
-          {required int skip, required int take, required String language}) =>
+          {RequestsGroup? group,
+          required int skip,
+          required int take,
+          required String language}) =>
       _call(() async => RequestPage.fromJson(asJsonMap(await _http.get(_base,
           query: {
             'filter': filter.wire,
+            'group': ?group?.wire,
             'skip': skip,
             'take': take,
             'language': language,

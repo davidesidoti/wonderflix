@@ -67,6 +67,16 @@ void main() {
     expect(last().queryParameters,
         {'filter': 'pending', 'skip': 20, 'take': 20, 'language': 'it'});
 
+    await api.list(RequestsFilter.mine,
+        group: RequestsGroup.done, skip: 0, take: 20, language: 'it');
+    expect(last().queryParameters, {
+      'filter': 'mine',
+      'group': 'done',
+      'skip': 0,
+      'take': 20,
+      'language': 'it'
+    });
+
     adapter.handler = (_) => const FakeResponse(200, []);
     await api.services(RequestMediaType.movie);
     expect(last().path, '/WonderFlixWatchParty/Requests/Services/movie');

@@ -48,7 +48,13 @@ enum RequestStatus {
   available,
   declined,
   failed,
-  awaitingRelease;
+  awaitingRelease,
+
+  /// Tolta dal server (solo con `group`).
+  removed,
+
+  /// Seerr non l'ha trovata (solo con `group`).
+  notFound;
 
   static RequestStatus parse(Object? raw) => switch (raw) {
         'Pending' => pending,
@@ -59,6 +65,8 @@ enum RequestStatus {
         'Declined' => declined,
         'Failed' => failed,
         'AwaitingRelease' => awaitingRelease,
+        'Removed' => removed,
+        'NotFound' => notFound,
         _ => approved,
       };
 }
@@ -70,6 +78,17 @@ enum RequestsFilter {
   all('all');
 
   const RequestsFilter(this.wire);
+
+  final String wire;
+}
+
+/// I gruppi della pagina Richieste (parametro `group` di `GET Requests`).
+enum RequestsGroup {
+  open('open'),
+  done('done'),
+  closed('closed');
+
+  const RequestsGroup(this.wire);
 
   final String wire;
 }
@@ -331,7 +350,7 @@ class MediaRequest {
 
 /// Una pagina di richieste.
 class RequestPage {
-  const RequestPage({required this.items, required this.hasMore});
+  const RequestPage({required this.items, required this.hasMore, this.total});
 
   factory RequestPage.fromJson(Map<String, dynamic> json) => RequestPage(
         items: [
@@ -340,10 +359,14 @@ class RequestPage {
               MediaRequest.fromJson(item as Map<String, dynamic>),
         ],
         hasMore: json['HasMore'] == true,
+        total: _intOrNull(json['Total']),
       );
 
   final List<MediaRequest> items;
   final bool hasMore;
+
+  /// Quante richieste ha il gruppo: c'è solo se la chiamata aveva `group`.
+  final int? total;
 }
 
 /// Un profilo di qualità di Radarr o Sonarr.

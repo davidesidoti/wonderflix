@@ -36,6 +36,8 @@ void main() {
     expect(TitleStatus.pending.isRequestable, isFalse);
     expect(RequestStatus.parse('Downloading'), RequestStatus.downloading);
     expect(RequestStatus.parse('Boh'), RequestStatus.approved);
+    expect(RequestStatus.parse('Removed'), RequestStatus.removed);
+    expect(RequestStatus.parse('NotFound'), RequestStatus.notFound);
   });
 
   test('scheda di una serie: stagioni da chiedere', () {
@@ -81,6 +83,14 @@ void main() {
     expect(details.seasons, isEmpty);
     expect(details.runtimeMinutes, 137);
     expect(details.canBeRequested, isFalse);
+  });
+
+  test('la pagina ha Total solo se la risposta lo dà', () {
+    final without = RequestPage.fromJson({'Items': [], 'HasMore': false});
+    expect(without.total, isNull);
+    final withTotal =
+        RequestPage.fromJson({'Items': [], 'HasMore': true, 'Total': 42});
+    expect(withTotal.total, 42);
   });
 
   test('richiesta, pagina, servizi, nuova richiesta', () {

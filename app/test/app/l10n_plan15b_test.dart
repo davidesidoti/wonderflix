@@ -11,7 +11,7 @@ void main() {
     expect(it.requestsSeasonsList(1, '2'), 'Stagione 2');
     expect(it.requestsSeasonsList(2, '1–2'), 'Stagioni 1–2');
     expect(it.requestsStatusDownloading(45), 'In arrivo · 45%');
-    expect(it.requestsRequestedBy('Garg'), 'chiesto da Garg');
+    expect(it.requestsRequestedBy('Garg'), 'chiesta da Garg');
     expect(it.requestsApproveTitle('Dune'), 'Approva: Dune');
     expect(it.requestsServerDefault('Radarr'), 'Predefinito (Radarr)');
     expect(it.inboxRequestAvailable('Dune (2021)'), 'Ora disponibile: Dune (2021)');
@@ -31,6 +31,6 @@ void main() {
     expect(en.requestsDeclineConfirmLabel, 'Confirm decline');
     expect(en.inboxRequestPendingNoName('Dune'), 'New request: Dune');
     expect(en.requestsEmptyMine,
-        "You haven't requested anything yet. Search for a missing title and press Request.");
+        "If a film or series isn't on WonderFlix, search for it and press Request. You'll find it here while it arrives.");
   });
 }
