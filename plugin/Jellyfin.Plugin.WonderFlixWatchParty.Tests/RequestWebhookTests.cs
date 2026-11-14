@@ -34,7 +34,8 @@ public sealed class RequestWebhookTests : IDisposable
     public void Dispose() => _folder.Dispose();
 
     private RequestWebhookHandler Handler() => new(
-        _settings, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), _server, _inbox, _time, _logger);
+        _settings, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrRequestList(_seerr, _time), _server, _inbox,
+        _time, _logger);
 
     private SeerrWebhookPayload Payload(string type, string? secret = "secret") => new()
     {

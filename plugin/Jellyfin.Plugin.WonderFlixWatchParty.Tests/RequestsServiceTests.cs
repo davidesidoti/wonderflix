@@ -29,7 +29,7 @@ public class RequestsServiceTests
         _seerr.Users.Add(new SeerrUser { Id = 3, Permissions = 34, JellyfinUserId = Davide.ToString("N"), DisplayName = "davide" });
         _seerr.Users.Add(new SeerrUser { Id = 24, Permissions = 32, JellyfinUserId = Mario.ToString("N"), DisplayName = "mario" });
         _service = new RequestsService(
-            _seerr, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(_seerr, _time), Dates(), _downloads, _time);
+            _seerr, new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(_seerr, _time), new SeerrRequestList(_seerr, _time), Dates(), _downloads, _time);
     }
 
     private static async Task<SeerrError> ErrorOf(Func<Task> action) =>
@@ -63,7 +63,7 @@ public class RequestsServiceTests
 
         var noDefaults = new FakeSeerrClient { DefaultPermissions = 0 };
         var service = new RequestsService(
-            noDefaults, new SeerrUserMap(noDefaults, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(noDefaults, _time), Dates(), _downloads, _time);
+            noDefaults, new SeerrUserMap(noDefaults, _time, NullLogger<SeerrUserMap>.Instance), new SeerrTitleCache(noDefaults, _time), new SeerrRequestList(noDefaults, _time), Dates(), _downloads, _time);
         Assert.Equal(new RequestsMeResponse(false, false, false), await service.MeAsync(Luigi, Ct));
     }
 
@@ -138,7 +138,7 @@ public class RequestsServiceTests
 
         // Il titolo è già in memoria per gli elenchi.
         _seerr.Requests.Add(Request(1, 1170608));
-        await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct);
+        await _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, 20, "it", Ct);
         Assert.Equal(2, _seerr.Calls.Count(c => c == "GetMovie"));
     }
 
@@ -241,7 +241,7 @@ public class RequestsServiceTests
         _seerr.Requests.AddRange([Request(1, 841), tv]);
         _seerr.TotalRequests = 3;
 
-        var page = await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 2, "it", Ct);
+        var page = await _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, 2, "it", Ct);
 
         Assert.Equal((24, "all", 2, 0, (int?)24), Assert.Single(_seerr.Listed));
         Assert.True(page.HasMore);
@@ -262,10 +262,10 @@ public class RequestsServiceTests
     [Fact]
     public async Task PendingAndAllAreForManagersOnly()
     {
-        Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => _service.ListAsync(Mario, RequestsService.FilterPending, 0, 20, "it", Ct)));
-        Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => _service.ListAsync(Luigi, RequestsService.FilterAll, 0, 20, "it", Ct)));
+        Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => _service.ListAsync(Mario, RequestsService.FilterPending, null, 0, 20, "it", Ct)));
+        Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => _service.ListAsync(Luigi, RequestsService.FilterAll, null, 0, 20, "it", Ct)));
 
-        var page = await _service.ListAsync(Davide, RequestsService.FilterPending, 20, 20, "it", Ct);
+        var page = await _service.ListAsync(Davide, RequestsService.FilterPending, null, 20, 20, "it", Ct);
 
         Assert.Equal((3, "pending", 20, 20, (int?)null), Assert.Single(_seerr.Listed));
         Assert.False(page.HasMore);
@@ -274,14 +274,14 @@ public class RequestsServiceTests
     [Fact]
     public async Task MineWithoutAnAccountIsEmptyAndBadPagesAreErrors()
     {
-        var page = await _service.ListAsync(Luigi, RequestsService.FilterMine, 0, 20, "it", Ct);
+        var page = await _service.ListAsync(Luigi, RequestsService.FilterMine, null, 0, 20, "it", Ct);
 
         Assert.Empty(page.Items);
         Assert.False(page.HasMore);
         Assert.Empty(_seerr.Listed);
-        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ListAsync(Mario, "altro", 0, 20, "it", Ct)));
-        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ListAsync(Mario, RequestsService.FilterMine, -1, 20, "it", Ct)));
-        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ListAsync(Mario, RequestsService.FilterMine, 0, RequestsService.MaxTake + 1, "it", Ct)));
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ListAsync(Mario, "altro", null, 0, 20, "it", Ct)));
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ListAsync(Mario, RequestsService.FilterMine, null, -1, 20, "it", Ct)));
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, RequestsService.MaxTake + 1, "it", Ct)));
     }
 
     [Fact]
@@ -419,7 +419,7 @@ public class RequestsServiceTests
     {
         _time.SetUtcNow(new DateTimeOffset(2026, 10, 22, 12, 0, 0, TimeSpan.Zero));
         _seerr.Requests.Add(request);
-        return (await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct)).Items.Single(i => i.Id == request.Id);
+        return (await _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, 20, "it", Ct)).Items.Single(i => i.Id == request.Id);
     }
 
     [Fact]
@@ -457,7 +457,7 @@ public class RequestsServiceTests
         _seerr.Requests.Add(downloading);
 
         var pending = await Only(Request(1, 841));
-        var page = await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct);
+        var page = await _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, 20, "it", Ct);
 
         Assert.Equal(RequestStatuses.Pending, pending.Status);
         Assert.Equal(digital, pending.DigitalRelease);
@@ -506,7 +506,7 @@ public class RequestsServiceTests
         _seerr.Requests.Add(Request(2, 59941, "tv", SeerrCodes.RequestApproved));
 
         var movie = await Only(Request(1, 841, status: SeerrCodes.RequestApproved));
-        var tv = (await _service.ListAsync(Mario, RequestsService.FilterMine, 0, 20, "it", Ct)).Items.Single(i => i.Id == 2);
+        var tv = (await _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, 20, "it", Ct)).Items.Single(i => i.Id == 2);
 
         Assert.Equal(RequestStatuses.Approved, movie.Status);
         Assert.Null(movie.DigitalRelease);
@@ -527,5 +527,154 @@ public class RequestsServiceTests
         {
             Assert.Contains($"\"{name}\":null", json);
         }
+    }
+
+    // Gruppi (spec richieste-ui §4).
+    private SeerrRequest Pair(int id, int status, int mediaStatus, int daysAgo = 1, int tmdbId = 841)
+    {
+        var request = Request(id, tmdbId, status: status);
+        request.Media!.Status = mediaStatus;
+        request.CreatedAt = _time.GetUtcNow() - TimeSpan.FromDays(daysAgo);
+        return request;
+    }
+
+    private Task<RequestPageDto> Group(string group, int skip = 0, int take = 20, Guid? user = null, string filter = RequestsService.FilterMine) =>
+        _service.ListAsync(user ?? Mario, filter, group, skip, take, "it", Ct);
+
+    [Fact]
+    public async Task GroupsSplitTheRequests()
+    {
+        _seerr.Requests.AddRange(
+        [
+            Pair(1, 2, 1), Pair(2, 2, 3), Pair(3, 2, 4), Pair(4, 2, 5), Pair(5, 5, 5),
+            Pair(6, 5, 7), Pair(7, 3, 1), Pair(8, 2, 1, daysAgo: 40),
+        ]);
+
+        var open = await Group(RequestGroups.Open);
+        var done = await Group(RequestGroups.Done);
+        var closed = await Group(RequestGroups.Closed);
+
+        Assert.Equal(new[] { 1, 2, 3 }, open.Items.Select(i => i.Id));
+        Assert.Equal(new[] { 4, 5 }, done.Items.Select(i => i.Id));
+        Assert.Equal(
+            new[] { (6, RequestStatuses.Removed), (7, RequestStatuses.Declined), (8, RequestStatuses.NotFound) },
+            closed.Items.Select(i => (i.Id, i.Status)));
+        Assert.Equal((3, 2, 3), (open.Total, done.Total, closed.Total));
+    }
+
+    [Fact]
+    public async Task GroupPagesKeepTheOrderAndHasMore()
+    {
+        _seerr.Requests.AddRange(Enumerable.Range(1, 25).Select(i => Pair(i, 1, 1)));
+
+        var last = await Group(RequestGroups.Open, skip: 20);
+        var first = await Group(RequestGroups.Open);
+
+        Assert.Equal(new[] { 21, 22, 23, 24, 25 }, last.Items.Select(i => i.Id));
+        Assert.False(last.HasMore);
+        Assert.Equal(25, last.Total);
+        Assert.Equal(Enumerable.Range(1, 20), first.Items.Select(i => i.Id));
+        Assert.True(first.HasMore);
+    }
+
+    [Fact]
+    public async Task WithoutGroupTheResponseIsUnchanged()
+    {
+        var removed = Pair(1, 5, 7);
+        removed.Media!.JellyfinMediaId = "6D1C8EA33A794F76FDBE92A216959073";
+        _seerr.Requests.Add(removed);
+
+        var page = await _service.ListAsync(Mario, RequestsService.FilterMine, null, 0, 20, "it", Ct);
+
+        Assert.Null(page.Total);
+        var item = Assert.Single(page.Items);
+        Assert.Equal(RequestStatuses.Available, item.Status);
+        Assert.Equal("6d1c8ea33a794f76fdbe92a216959073", item.JellyfinItemId);
+        Assert.DoesNotContain("Total", System.Text.Json.JsonSerializer.Serialize(page));
+    }
+
+    [Fact]
+    public async Task RemovedHasNoJellyfinItemId()
+    {
+        var removed = Pair(1, 5, 7);
+        removed.Media!.JellyfinMediaId = "6D1C8EA33A794F76FDBE92A216959073";
+        _seerr.Requests.Add(removed);
+
+        var item = Assert.Single((await Group(RequestGroups.Closed)).Items);
+
+        Assert.Equal(RequestStatuses.Removed, item.Status);
+        Assert.Null(item.JellyfinItemId);
+    }
+
+    [Fact]
+    public async Task PendingWithGroupIsBadRequest()
+    {
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => Group(RequestGroups.Open, user: Davide, filter: RequestsService.FilterPending)));
+        Assert.Empty(_seerr.Listed);
+    }
+
+    [Fact]
+    public async Task UnknownGroupIsBadRequest()
+    {
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => Group("altro")));
+        Assert.Equal(SeerrError.BadRequest, await ErrorOf(() => Group("Open")));
+        Assert.Empty(_seerr.Listed);
+    }
+
+    [Fact]
+    public async Task AllWithGroupNeedsAManager()
+    {
+        Assert.Equal(SeerrError.NoPermission, await ErrorOf(() => Group(RequestGroups.Open, filter: RequestsService.FilterAll)));
+
+        await Group(RequestGroups.Open, user: Davide, filter: RequestsService.FilterAll);
+
+        Assert.Equal((3, "all", SeerrRequestList.PageSize, 0, (int?)null), Assert.Single(_seerr.Listed));
+    }
+
+    [Fact]
+    public async Task ThreeGroupsReadSeerrOnce()
+    {
+        _seerr.Requests.AddRange([Pair(1, 1, 1), Pair(2, 5, 5)]);
+
+        await Group(RequestGroups.Open);
+        await Group(RequestGroups.Done);
+        await Group(RequestGroups.Closed);
+
+        Assert.Equal((24, "all", SeerrRequestList.PageSize, 0, (int?)24), Assert.Single(_seerr.Listed));
+    }
+
+    [Fact]
+    public async Task ApproveDeclineAndCreateClearTheList()
+    {
+        _seerr.Requests.Add(Pair(53, 1, 1));
+        await Group(RequestGroups.Open);
+
+        await _service.ApproveAsync(Davide, 53, null, "it", Ct);
+        await Group(RequestGroups.Open);
+        Assert.Equal(2, _seerr.Listed.Count);
+
+        await _service.DeclineAsync(Davide, 53, "it", Ct);
+        await Group(RequestGroups.Open);
+        Assert.Equal(3, _seerr.Listed.Count);
+
+        await _service.CreateAsync(Mario, new CreateRequestBody { MediaType = "movie", TmdbId = 841 }, Ct);
+        await Group(RequestGroups.Open);
+        Assert.Equal(4, _seerr.Listed.Count);
+    }
+
+    [Fact]
+    public async Task MovieDatesAreReadOnlyForOldApprovedMovies()
+    {
+        _arrSettings.Radarr = new ArrEndpoint("https://arr.example/radarr", "radarr-key");
+        var future = _time.GetUtcNow() + TimeSpan.FromDays(10);
+        _arr.FindMovies = id => Task.FromResult<IReadOnlyList<RadarrMovie?>>(
+            [new RadarrMovie { TmdbId = id, InCinemas = future, DigitalRelease = future }]);
+        _seerr.Requests.AddRange([Pair(1, 2, 1, daysAgo: 40, tmdbId: 841), Pair(2, 2, 1, daysAgo: 2, tmdbId: 842)]);
+
+        var closed = await Group(RequestGroups.Closed);
+
+        // Non ancora uscito: resta in corso, non "Non trovata".
+        Assert.Empty(closed.Items);
+        Assert.Equal(new[] { 841 }, _arr.FindMovieCalls);
     }
 }

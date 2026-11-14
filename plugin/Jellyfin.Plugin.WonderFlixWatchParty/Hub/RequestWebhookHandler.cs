@@ -23,6 +23,7 @@ public enum WebhookResult
 public sealed class RequestWebhookHandler(
     ISeerrSettings settings,
     SeerrUserMap seerrUsers,
+    SeerrRequestList requestList,
     IUserDirectory users,
     InboxService inbox,
     TimeProvider time,
@@ -80,6 +81,9 @@ public sealed class RequestWebhookHandler(
             _lastEventAt = time.GetUtcNow();
             _lastEventType = payload.NotificationType;
         }
+
+        // Prima dell'avviso nella cassetta: l'app rilegge le richieste appena lo riceve.
+        requestList.Clear();
 
         switch (payload.NotificationType)
         {

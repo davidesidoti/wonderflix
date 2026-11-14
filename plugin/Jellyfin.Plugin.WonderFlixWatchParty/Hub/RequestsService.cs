@@ -10,7 +10,14 @@ namespace Jellyfin.Plugin.WonderFlixWatchParty.Hub;
 /// Seerr abbinato a chi chiama, oggetti del plugin per l'app. Lancia
 /// SeerrException, che il controller traduce in risposta.
 /// </summary>
-public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, SeerrTitleCache titles, ReleaseDatesService dates, DownloadService downloads, TimeProvider time)
+public sealed class RequestsService(
+    ISeerrClient seerr,
+    SeerrUserMap users,
+    SeerrTitleCache titles,
+    SeerrRequestList list,
+    ReleaseDatesService dates,
+    DownloadService downloads,
+    TimeProvider time)
 {
     /// <summary>Richieste al massimo per pagina.</summary>
     public const int MaxTake = 50;
@@ -157,18 +164,21 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
             user.Id,
             new SeerrCreateRequest { MediaType = mediaType, MediaId = body.TmdbId, Seasons = seasons },
             cancellationToken).ConfigureAwait(false);
+        list.Clear();
         return new CreatedRequestDto(created.Id, SeerrMapping.RequestStatus(created));
     }
 
     /// <summary>
     /// Le richieste dalla più recente: "mine" quelle di chi chiama, "pending"
     /// e "all" solo per chi può approvare. Il titolo viene da
-    /// <see cref="SeerrTitleCache"/>.
+    /// <see cref="SeerrTitleCache"/>. Con <paramref name="group"/> (non per "pending")
+    /// solo le richieste di quel gruppo, con il loro numero in Total (spec richieste-ui §4).
     /// </summary>
     public async Task<RequestPageDto> ListAsync(
-        Guid userId, string? filter, int skip, int take, string language, CancellationToken cancellationToken)
+        Guid userId, string? filter, string? group, int skip, int take, string language, CancellationToken cancellationToken)
     {
-        if (filter is not (FilterMine or FilterPending or FilterAll) || skip < 0 || take < 1 || take > MaxTake)
+        if (filter is not (FilterMine or FilterPending or FilterAll) || skip < 0 || take < 1 || take > MaxTake
+            || (group is not null && (!RequestGroups.IsGroup(group) || filter == FilterPending)))
         {
             throw BadRequest();
         }
@@ -176,12 +186,18 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
         var user = await users.FindAsync(userId, cancellationToken).ConfigureAwait(false);
         if (user is null)
         {
-            return filter == FilterMine ? new RequestPageDto([], false) : throw NoPermission();
+            return filter == FilterMine ? new RequestPageDto([], false, group is null ? null : 0) : throw NoPermission();
         }
 
         if (filter != FilterMine && !SeerrPermissions.CanManage(user.Permissions))
         {
             throw NoPermission();
+        }
+
+        if (group is not null)
+        {
+            return await GroupAsync(user.Id, filter == FilterMine ? user.Id : null, group, skip, take, language, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var page = await seerr.GetRequestsAsync(
@@ -191,9 +207,26 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
             skip,
             filter == FilterMine ? user.Id : null,
             cancellationToken).ConfigureAwait(false);
-        var items = await Task.WhenAll(page.Results.Select(r => ToDtoAsync(r, user.Id, language, cancellationToken)))
+        var items = await Task.WhenAll(page.Results.Select(r => ToDtoAsync(r, user.Id, language, grouped: false, cancellationToken)))
             .ConfigureAwait(false);
         return new RequestPageDto(items, skip + page.Results.Count < (page.PageInfo?.Results ?? 0));
+    }
+
+    /// <summary>Una pagina di un gruppo, dall'elenco intero di <see cref="SeerrRequestList"/> (nell'ordine di Seerr).</summary>
+    private async Task<RequestPageDto> GroupAsync(
+        int me, int? requestedBy, string group, int skip, int take, string language, CancellationToken cancellationToken)
+    {
+        var all = await list.GetAsync(me, requestedBy, cancellationToken).ConfigureAwait(false);
+        var now = time.GetUtcNow();
+        var movies = await Task.WhenAll(all.Select(r => RequestGroups.NeedsMovieDates(r, now)
+                ? dates.GetMovieAsync(r.Media?.TmdbId ?? 0, cancellationToken)
+                : Task.FromResult<MovieDates?>(null)))
+            .ConfigureAwait(false);
+        var inGroup = all.Where((r, i) => RequestGroups.GroupOf(RequestGroups.StatusOf(r, movies[i], now)) == group).ToList();
+        var items = await Task.WhenAll(inGroup.Skip(skip).Take(take)
+                .Select(r => ToDtoAsync(r, me, language, grouped: true, cancellationToken)))
+            .ConfigureAwait(false);
+        return new RequestPageDto(items, skip + items.Length < inGroup.Count, inGroup.Count);
     }
 
     /// <summary>I server non 4K del servizio del tipo (Radarr per i film, Sonarr per le serie), per chi può approvare.</summary>
@@ -264,9 +297,10 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
 
         var approved = await seerr.SetRequestStatusAsync(manager.Id, requestId, approve: true, cancellationToken)
             .ConfigureAwait(false);
+        list.Clear();
         // Seerr aggiunge il titolo a Radarr/Sonarr: un giro dei download parte tra poco (spec T §5, decisione 7).
         downloads.Nudge();
-        return await ToDtoAsync(approved, manager.Id, language, cancellationToken).ConfigureAwait(false);
+        return await ToDtoAsync(approved, manager.Id, language, grouped: false, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<MediaRequestDto> DeclineAsync(
@@ -276,7 +310,8 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
         var manager = await ManagerAsync(userId, cancellationToken).ConfigureAwait(false);
         var declined = await seerr.SetRequestStatusAsync(manager.Id, requestId, approve: false, cancellationToken)
             .ConfigureAwait(false);
-        return await ToDtoAsync(declined, manager.Id, language, cancellationToken).ConfigureAwait(false);
+        list.Clear();
+        return await ToDtoAsync(declined, manager.Id, language, grouped: false, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<SeerrServerDetails?> DetailsOrNullAsync(
@@ -293,11 +328,14 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
     }
 
     private async Task<MediaRequestDto> ToDtoAsync(
-        SeerrRequest request, int me, string language, CancellationToken cancellationToken)
+        SeerrRequest request, int me, string language, bool grouped, CancellationToken cancellationToken)
     {
         var mediaType = MediaTypeOf(request.Media?.MediaType ?? request.Type) ?? RequestMediaTypes.Movie;
         var tmdbId = request.Media?.TmdbId ?? 0;
-        var status = SeerrMapping.RequestStatus(request);
+        var now = time.GetUtcNow();
+
+        // Con i gruppi c'è anche Tolta dal server; Non trovata si decide dopo le date (un film non ancora uscito resta in corso).
+        var status = grouped ? RequestGroups.StatusOf(request, null, now) : SeerrMapping.RequestStatus(request);
 
         // Le date si chiedono solo dove servono (un film già disponibile, rifiutato o fallito non le mostra)
         // e insieme al titolo; ReleaseDatesService non lancia.
@@ -305,7 +343,7 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
             ? titles.GetAsync(mediaType, tmdbId, language, cancellationToken)
             : Task.FromResult<SeerrTitle?>(null);
         var movieTask = mediaType == RequestMediaTypes.Movie && tmdbId > 0
-            && status is not (RequestStatuses.Available or RequestStatuses.Declined or RequestStatuses.Failed)
+            && status is not (RequestStatuses.Available or RequestStatuses.Declined or RequestStatuses.Failed or RequestStatuses.Removed)
             ? dates.GetMovieAsync(tmdbId, cancellationToken)
             : Task.FromResult<MovieDates?>(null);
         var seriesTask = mediaType == RequestMediaTypes.Tv
@@ -316,7 +354,11 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
         var movie = await movieTask.ConfigureAwait(false);
         var series = await seriesTask.ConfigureAwait(false);
 
-        if (status == RequestStatuses.Approved && ReleaseRules.IsAwaitingRelease(movie, time.GetUtcNow()))
+        if (grouped)
+        {
+            status = RequestGroups.StatusOf(request, movie, now);
+        }
+        else if (status == RequestStatuses.Approved && ReleaseRules.IsAwaitingRelease(movie, now))
         {
             status = RequestStatuses.AwaitingRelease;
         }
@@ -333,7 +375,8 @@ public sealed class RequestsService(ISeerrClient seerr, SeerrUserMap users, Seer
             request.CreatedAt,
             status,
             SeerrMapping.Progress(request.Media?.DownloadStatus ?? []),
-            SeerrMapping.JellyfinId(request.Media?.JellyfinMediaId),
+            // Tolta dal server: l'id di Seerr porterebbe a un elemento che non c'è più.
+            status == RequestStatuses.Removed ? null : SeerrMapping.JellyfinId(request.Media?.JellyfinMediaId),
             movie?.InCinemas,
             movie?.DigitalRelease,
             series?.NextAiring,

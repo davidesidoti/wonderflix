@@ -33,6 +33,9 @@ public static class WatchPartyProtocol
     /// <summary>Le richieste con Seerr (spec I §7.1): in GET Info solo con Seerr configurato.</summary>
     public const string RequestsFeature = "requests";
 
+    /// <summary>GET Requests con il parametro group e il campo Total (spec richieste-ui §4.4): insieme a "requests".</summary>
+    public const string RequestsGroupsFeature = "requestsGroups";
+
     /// <summary>"Serie in arrivo" (spec M §7.6): solo con Sonarr configurato.</summary>
     public const string UpcomingSeriesFeature = "upcomingSeries";
 
@@ -58,6 +61,7 @@ public static class WatchPartyProtocol
         if (requests)
         {
             features.Add(RequestsFeature);
+            features.Add(RequestsGroupsFeature);
         }
 
         if (upcomingSeries)

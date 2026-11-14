@@ -55,12 +55,16 @@ public class RequestsController(
     public Task<ActionResult<CreatedRequestDto>> Create([FromBody] CreateRequestBody? body) =>
         RunAsync((user, ct) => requests.CreateAsync(user, body, ct));
 
-    /// <summary>Le richieste: filter "mine", "pending" o "all".</summary>
+    /// <summary>Le richieste: filter "mine", "pending" o "all"; group facoltativo "open", "done" o "closed".</summary>
     [HttpGet("")]
     public Task<ActionResult<RequestPageDto>> List(
-        [FromQuery] string? filter, [FromQuery] int? skip, [FromQuery] int? take, [FromQuery] string? language) =>
+        [FromQuery] string? filter,
+        [FromQuery] int? skip,
+        [FromQuery] int? take,
+        [FromQuery] string? language,
+        [FromQuery] string? group = null) =>
         RunAsync((user, ct) => requests.ListAsync(
-            user, filter, skip ?? 0, take ?? DefaultTake, RequestsService.Language(language), ct));
+            user, filter, group, skip ?? 0, take ?? DefaultTake, RequestsService.Language(language), ct));
 
     /// <summary>I server per la finestra Approva; mediaType "movie" o "tv".</summary>
     [HttpGet("Services/{mediaType}")]

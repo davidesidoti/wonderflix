@@ -27,19 +27,31 @@ public sealed class RequestsControllerTests : IDisposable
     private readonly User _mario = new("mario", "provider", "reset");
     private readonly RequestsService _service;
     private readonly RequestWebhookHandler _webhook;
+    private readonly SeerrRequestList _list;
+    private readonly ListReadingPush _push = new();
 
     public RequestsControllerTests()
     {
         _server.Users[_mario.Id] = new UserRef(_mario.Id, "Mario", true, false);
         _seerr.Users.Add(new SeerrUser { Id = 24, Permissions = 32, JellyfinUserId = _mario.Id.ToString("N") });
         var map = new SeerrUserMap(_seerr, _time, NullLogger<SeerrUserMap>.Instance);
-        _service = new RequestsService(_seerr, map, new SeerrTitleCache(_seerr, _time), new ReleaseDatesService(new FakeArrClient(), new FakeArrSettings { Sonarr = ArrEndpoint.None, Radarr = ArrEndpoint.None }, _time, NullLogger<ReleaseDatesService>.Instance), TestDownloads.Create(new FakeArrClient()), _time);
+        _service = new RequestsService(_seerr, map, new SeerrTitleCache(_seerr, _time), _list = new SeerrRequestList(_seerr, _time), new ReleaseDatesService(new FakeArrClient(), new FakeArrSettings { Sonarr = ArrEndpoint.None, Radarr = ArrEndpoint.None }, _time, NullLogger<ReleaseDatesService>.Instance), TestDownloads.Create(new FakeArrClient()), _time);
         _webhook = new RequestWebhookHandler(
-            _settings, map, _server, TestInbox.Create(_server, _folder, _time), _time,
+            _settings, map, _list, _server, TestInbox.Create(_server, _folder, _time, _push), _time,
             NullLogger<RequestWebhookHandler>.Instance);
     }
 
     public void Dispose() => _folder.Dispose();
+
+    /// <summary>Alla push della cassetta legge l'elenco delle richieste di Mario, come farebbe l'app.</summary>
+    private sealed class ListReadingPush : IInboxPush
+    {
+        public Func<Task<IReadOnlyList<SeerrRequest>>>? Read { get; set; }
+
+        public Task<IReadOnlyList<SeerrRequest>>? ReadAtPush { get; private set; }
+
+        public void Deliver(IReadOnlyList<(Guid UserId, InboxEntry Entry)> fresh) => ReadAtPush = Read?.Invoke();
+    }
 
     private RequestsController Controller()
     {
@@ -149,6 +161,55 @@ public sealed class RequestsControllerTests : IDisposable
         Assert.Equal((403, "NoPermission"), (Status(pending), Code(pending)));
         Assert.Equal((403, "NoPermission"), (Status(services), Code(services)));
         Assert.Equal((403, "NoPermission"), (Status(approve), Code(approve)));
+    }
+
+    [Fact]
+    public async Task ListPassesTheGroup()
+    {
+        _seerr.Requests.Add(new SeerrRequest
+        {
+            Id = 53, Status = SeerrCodes.RequestCompleted, Type = "movie",
+            Media = new SeerrRequestMedia { TmdbId = 841, MediaType = "movie", Status = SeerrCodes.MediaAvailable },
+        });
+
+        var done = await Controller().List("mine", null, null, "it", "done");
+        var open = await Controller().List("mine", null, null, "it", "open");
+        var bad = await Controller().List("mine", null, null, "it", "altro");
+
+        Assert.Equal((1, 53), (done.Value!.Total, Assert.Single(done.Value.Items).Id));
+        Assert.Equal(0, open.Value!.Total);
+        Assert.Equal((400, "Invalid"), (Status(bad), Code(bad)));
+    }
+
+    [Fact]
+    public async Task WebhookClearsTheListBeforeTheInbox()
+    {
+        SeerrRequest Dune(int status) => new()
+        {
+            Id = 53, Status = status, Type = "movie",
+            RequestedBy = new SeerrRequestUser { Id = 24 },
+            Media = new SeerrRequestMedia { TmdbId = 438631, MediaType = "movie", Status = SeerrCodes.MediaProcessing },
+        };
+        _seerr.Requests.Add(Dune(SeerrCodes.RequestApproved));
+        Assert.Equal(0, (await Controller().List("mine", null, null, "it", "done")).Value!.Total);
+
+        // Seerr ha finito: un oggetto nuovo, l'elenco in memoria tiene il vecchio.
+        _seerr.Requests[0] = Dune(SeerrCodes.RequestCompleted);
+        _push.Read = () => _list.GetAsync(24, 24, CancellationToken.None);
+        await _webhook.HandleAsync(
+            new SeerrWebhookPayload
+            {
+                Secret = "secret", NotificationType = RequestWebhookHandler.MediaAvailable, Subject = "Dune (2021)",
+                RequestId = "53", MediaType = "movie", MediaTmdbId = "438631",
+                RequestedByJellyfinUserId = _mario.Id.ToString("N"),
+            },
+            CancellationToken.None);
+
+        // Già alla push dell'avviso l'elenco è quello nuovo.
+        Assert.NotNull(_push.ReadAtPush);
+        Assert.Equal(SeerrCodes.RequestCompleted, Assert.Single(await _push.ReadAtPush!).Status);
+        Assert.Equal(1, (await Controller().List("mine", null, null, "it", "done")).Value!.Total);
+        Assert.Equal(2, _seerr.Listed.Count);
     }
 
     [Fact]

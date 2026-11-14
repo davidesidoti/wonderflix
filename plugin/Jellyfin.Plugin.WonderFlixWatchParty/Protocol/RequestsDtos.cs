@@ -125,10 +125,11 @@ public sealed record MediaRequestDto(
     [property: JsonPropertyName("NextSeasonNumber")] int? NextSeasonNumber,
     [property: JsonPropertyName("NextEpisodeNumber")] int? NextEpisodeNumber);
 
-/// <summary>Risposta di GET Requests.</summary>
+/// <summary>Risposta di GET Requests; Total (quante nel gruppo) solo con il parametro group.</summary>
 public sealed record RequestPageDto(
     [property: JsonPropertyName("Items")] IReadOnlyList<MediaRequestDto> Items,
-    [property: JsonPropertyName("HasMore")] bool HasMore);
+    [property: JsonPropertyName("HasMore")] bool HasMore,
+    [property: JsonPropertyName("Total"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Total = null);
 
 public sealed record ProfileDto(
     [property: JsonPropertyName("Id")] int Id,

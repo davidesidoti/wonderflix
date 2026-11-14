@@ -34,7 +34,7 @@ public class InfoControllerTests
             new[]
             {
                 "friends", "parties", "inbox", "queue", "collections", "avatars", "account", "home", "recommendations", "friendsActivity", "match", "ratings", "reports", "push", "accountAdminLink",
-                "requests", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space", "downloadsSearchJobs",
+                "requests", "requestsGroups", "upcomingSeries", "upcomingMovies", "calendar", "downloads", "space", "downloadsSearchJobs",
             },
             new InfoController(new FakeSeerrSettings(), new FakeArrSettings()).GetInfo().Value!.Features);
 
@@ -42,6 +42,7 @@ public class InfoControllerTests
                 new FakeSeerrSettings { ApiKey = " " }, new FakeArrSettings { Sonarr = ArrEndpoint.None })
             .GetInfo().Value!.Features;
         Assert.DoesNotContain("requests", features);
+        Assert.DoesNotContain("requestsGroups", features);
         Assert.DoesNotContain("upcomingSeries", features);
         Assert.Contains("upcomingMovies", features);
         Assert.Contains("calendar", features);
@@ -55,7 +56,7 @@ public class InfoControllerTests
     {
         var onlySonarr = new InfoController(new FakeSeerrSettings(), new FakeArrSettings { Radarr = ArrEndpoint.None })
             .GetInfo().Value!.Features;
-        Assert.Equal(new[] { "requests", "upcomingSeries", "calendar", "downloads", "space", "downloadsSearchJobs" }, onlySonarr.Skip(15));
+        Assert.Equal(new[] { "requests", "requestsGroups", "upcomingSeries", "calendar", "downloads", "space", "downloadsSearchJobs" }, onlySonarr.Skip(15));
 
         var neither = new InfoController(new FakeSeerrSettings(), NoArr()).GetInfo().Value!.Features;
         Assert.DoesNotContain("calendar", neither);
