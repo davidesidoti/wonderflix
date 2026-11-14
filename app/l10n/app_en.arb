@@ -1605,5 +1605,21 @@
   "requestsDetailPartial": "Part of it is already on WonderFlix",
   "requestsEmptyMineTitle": "You haven't requested anything yet",
   "requestsYou": "you",
-  "requestsTrackSemantics": "Done: {done}. Now: {current}"
+  "requestsTrackSemantics": "Done: {done}. Now: {current}",
+  "catalogAllMovies": "All movies",
+  "catalogAllSeries": "All series",
+  "catalogBandMovies": "{total} movies, {watched} watched.",
+  "@catalogBandMovies": {"placeholders": {"total": {"type": "int"}, "watched": {"type": "int"}}},
+  "catalogBandSeries": "{total} series, {continuing} ongoing.",
+  "@catalogBandSeries": {"placeholders": {"total": {"type": "int"}, "continuing": {"type": "int"}}},
+  "catalogOrderAdded": "Latest additions first",
+  "catalogOrderAddedReversed": "Oldest additions first",
+  "catalogOrderNewEpisodes": "New episodes first",
+  "catalogOrderNewEpisodesReversed": "Longest idle first",
+  "catalogOrderTitle": "From A to Z",
+  "catalogOrderTitleReversed": "From Z to A",
+  "catalogOrderYear": "Newest first",
+  "catalogOrderYearReversed": "Oldest first",
+  "catalogOrderRating": "Top rated first",
+  "catalogOrderRatingReversed": "Lowest rated first"
 }

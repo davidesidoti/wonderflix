@@ -1802,5 +1802,21 @@
   "requestsEmptyMineTitle": "Non hai ancora chiesto niente",
   "requestsYou": "tu",
   "requestsTrackSemantics": "Fatte: {done}. Ora: {current}",
-  "@requestsTrackSemantics": {"placeholders": {"done": {"type": "String"}, "current": {"type": "String"}}}
+  "@requestsTrackSemantics": {"placeholders": {"done": {"type": "String"}, "current": {"type": "String"}}},
+  "catalogAllMovies": "Tutti i film",
+  "catalogAllSeries": "Tutte le serie",
+  "catalogBandMovies": "{total} film, {watched} già visti.",
+  "@catalogBandMovies": {"placeholders": {"total": {"type": "int"}, "watched": {"type": "int"}}},
+  "catalogBandSeries": "{total} serie, {continuing} in corso.",
+  "@catalogBandSeries": {"placeholders": {"total": {"type": "int"}, "continuing": {"type": "int"}}},
+  "catalogOrderAdded": "Gli ultimi arrivati per primi",
+  "catalogOrderAddedReversed": "I primi arrivati per primi",
+  "catalogOrderNewEpisodes": "Nuovi episodi per prime",
+  "catalogOrderNewEpisodesReversed": "Le ferme da più tempo per prime",
+  "catalogOrderTitle": "Dalla A alla Z",
+  "catalogOrderTitleReversed": "Dalla Z alla A",
+  "catalogOrderYear": "Dal più recente",
+  "catalogOrderYearReversed": "Dal più vecchio",
+  "catalogOrderRating": "I più votati per primi",
+  "catalogOrderRatingReversed": "I meno votati per primi"
 }
