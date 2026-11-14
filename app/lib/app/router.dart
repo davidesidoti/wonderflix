@@ -237,16 +237,19 @@ final routerProvider = Provider<GoRouter>((ref) {
                       key: const ValueKey('movies'),
                       kind: ItemKind.movie,
                       view: CatalogView.parse(
-                          state.uri.queryParameters['view'])),
-                  underBar: true)),
+                          state.uri.queryParameters['view']),
+                      genre: state.uri.queryParameters['genre']),
+                  underBar: false)),
           GoRoute(
               path: '/series',
               pageBuilder: (context, state) => shellPage(
                   context,
                   state,
-                  const CatalogScreen(
-                      key: ValueKey('series'), kind: ItemKind.series),
-                  underBar: true)),
+                  CatalogScreen(
+                      key: const ValueKey('series'),
+                      kind: ItemKind.series,
+                      genre: state.uri.queryParameters['genre']),
+                  underBar: false)),
           GoRoute(
               path: '/mylist',
               pageBuilder: (context, state) =>

@@ -23,9 +23,15 @@ import 'catalog_navigation.dart';
 
 class CatalogScreen extends ConsumerStatefulWidget {
   const CatalogScreen(
-      {super.key, required this.kind, this.view = CatalogView.titles});
+      {super.key,
+      required this.kind,
+      this.view = CatalogView.titles,
+      this.genre});
 
   final ItemKind kind;
+
+  /// Genere da mostrare (dal parametro `genre` dell'indirizzo); null: tutti.
+  final String? genre;
 
   /// Solo per i film. Senza la funzione `collections` del plugin vale come
   /// [CatalogView.titles].
@@ -45,7 +51,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.view == CatalogView.titles) _showAll();
+    // `?view=sagas` senza la funzione delle saghe mostra i titoli (vedi build).
+    final sagasAvailable = widget.kind == ItemKind.movie &&
+        ref.read(socialAvailabilityProvider).collections;
+    if (widget.view == CatalogView.titles || !sagasAvailable) _showGenre();
     _scroll.addListener(() {
       if (_scroll.position.extentAfter < 800) {
         unawaited(
@@ -55,19 +64,21 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   }
 
   /// Il controller non carica da solo: dopo il primo build gli dico di partire
-  /// (anche tornando dalle saghe, quando è stato rilasciato).
-  void _showAll() => unawaited(Future.microtask(() {
+  /// (anche tornando dalle saghe o cambiando genere).
+  void _showGenre() => unawaited(Future.microtask(() {
         if (!mounted) return;
         unawaited(ref
             .read(catalogControllerProvider(widget.kind).notifier)
-            .showGenre(null));
+            .showGenre(widget.genre));
       }));
 
   @override
   void didUpdateWidget(CatalogScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.view != widget.view && widget.view == CatalogView.titles) {
-      _showAll();
+    // go_router riusa la schermata cambiando `?genre=`.
+    if (widget.view == CatalogView.titles &&
+        (oldWidget.view != widget.view || oldWidget.genre != widget.genre)) {
+      _showGenre();
     }
   }
 
@@ -104,13 +115,13 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
             key: ValueKey('catalog-view-${CatalogView.titles.name}'),
             label: l.navMovies,
             selected: !sagas,
-            onTap: () => openMovies(context)),
+            onTap: () => openCatalog(context, widget.kind)),
         const SizedBox(width: 20),
         WfTabButton(
             key: ValueKey('catalog-view-${CatalogView.sagas.name}'),
             label: l.collectionsTab,
             selected: sagas,
-            onTap: () => openMovies(context, view: CatalogView.sagas)),
+            onTap: () => openCatalog(context, widget.kind, view: CatalogView.sagas)),
       ],
     );
     // Sulla TV le schede stanno accanto al titolo: la griglia resta alta.

@@ -8,6 +8,8 @@ import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/calendar/calendar_screen.dart';
+import 'package:wonderflix/features/catalog/catalog_screen.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
@@ -305,6 +307,25 @@ void main() {
 
     expect(router.routerDelegate.currentConfiguration.uri.path, '/home');
     expect(find.byType(CalendarScreen), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('/series?genre=Dramma apre il catalogo serie su quel genere',
+      (tester) async {
+    late GoRouter router;
+    await pumpAppRouterOf(tester, (ref) => router = ref.watch(routerProvider),
+        overrides: [
+          ...homeOverrides(library: FakeLibraryApi()),
+          watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+          syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+          watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        ]);
+    router.go('/series?genre=Dramma');
+    await tester.pumpAndSettle();
+
+    final screen = tester.widget<CatalogScreen>(find.byType(CatalogScreen));
+    expect(screen.kind, ItemKind.series);
+    expect(screen.genre, 'Dramma');
     await tester.pumpWidget(const SizedBox());
   });
 }

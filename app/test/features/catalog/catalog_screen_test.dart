@@ -121,6 +121,40 @@ void main() {
     expect(api.itemQueries, hasLength(1));
   });
 
+  testWidgets('cambiando il genere sulla stessa schermata ricarica il catalogo',
+      (tester) async {
+    final genre = ValueNotifier<String?>('Dramma');
+    addTearDown(genre.dispose);
+    await pumpApp(
+        tester,
+        ValueListenableBuilder<String?>(
+            valueListenable: genre,
+            builder: (_, g, _) => Scaffold(
+                body: CatalogScreen(
+                    key: const ValueKey('movies'),
+                    kind: ItemKind.movie,
+                    genre: g))),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+        ]);
+    await tester.pump();
+    await tester.pump();
+    expect(api.itemQueries.last.genres, contains('Dramma'));
+
+    genre.value = 'Commedia';
+    await tester.pump();
+    await tester.pump();
+    expect(api.itemQueries.last.genres, contains('Commedia'));
+    expect(api.itemQueries.last.genres, isNot(contains('Dramma')));
+
+    genre.value = null;
+    await tester.pump();
+    await tester.pump();
+    expect(api.itemQueries.last.genres, isEmpty);
+  });
+
   testWidgets('errore con riprova', (tester) async {
     api.error = const ServerUnreachableException();
     await pumpCatalog(tester);

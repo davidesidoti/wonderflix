@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/jellyfin/item_models.dart';
+
 /// Vista del catalogo Film: i titoli o le saghe (spec K §8.4). Sta
 /// nell'indirizzo (`/movies?view=sagas`).
 enum CatalogView {
@@ -12,9 +14,16 @@ enum CatalogView {
   static CatalogView parse(String? raw) => raw == sagas.name ? sagas : titles;
 }
 
-/// Apre il catalogo Film sulla vista [view].
-void openMovies(BuildContext context,
-        {CatalogView view = CatalogView.titles}) =>
-    context.go(view == CatalogView.titles
-        ? '/movies'
-        : '/movies?view=${view.name}');
+/// Apre il catalogo di [kind] sulla vista [view] e, se c'è, sul [genre]
+/// (`/series?genre=Dramma`): il genere sta nell'indirizzo, così Indietro e i
+/// link lo ritrovano.
+void openCatalog(BuildContext context, ItemKind kind,
+    {CatalogView view = CatalogView.titles, String? genre}) {
+  final path = kind == ItemKind.series ? '/series' : '/movies';
+  final query = {
+    if (view != CatalogView.titles) 'view': view.name,
+    'genre': ?genre,
+  };
+  context.go(Uri(path: path, queryParameters: query.isEmpty ? null : query)
+      .toString());
+}
