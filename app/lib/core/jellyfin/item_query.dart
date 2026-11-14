@@ -4,6 +4,8 @@ enum CatalogSort { title, dateAdded, year, rating }
 
 enum WatchedFilter { all, unwatched, watched }
 
+enum SeriesStatusFilter { all, continuing, ended }
+
 /// Parametri immagine/campi comuni a tutte le liste mostrate come card.
 const cardImageParams = <String, dynamic>{
   'fields': 'PrimaryImageAspectRatio,Genres',
@@ -20,6 +22,9 @@ class ItemQuery {
     this.sort = CatalogSort.title,
     this.genres = const {},
     this.year,
+    this.decade,
+    this.seriesStatus = SeriesStatusFilter.all,
+    this.reversed = false,
     this.watched = WatchedFilter.all,
     this.favoritesOnly = false,
     this.searchTerm,
@@ -32,6 +37,13 @@ class ItemQuery {
   final CatalogSort sort;
   final Set<String> genres;
   final int? year;
+
+  /// Anno di inizio del decennio (2020, 2010, ...) o [olderDecades].
+  final int? decade;
+  final SeriesStatusFilter seriesStatus;
+
+  /// Inverte l'ordine della prima chiave di [sort].
+  final bool reversed;
   final WatchedFilter watched;
   final bool favoritesOnly;
   final String? searchTerm;
@@ -46,24 +58,44 @@ class ItemQuery {
   /// "Da richiedere" i titoli che la libreria ha già.
   final bool includeProviderIds;
 
+  /// Valore di [decade] per "Prima" (prima del 1990).
+  static const olderDecades = 0;
+
   /// Filtri scelti dall'utente nel catalogo (esclusi ordinamento e tipo).
   bool get hasFilters =>
       genres.isNotEmpty || year != null || watched != WatchedFilter.all;
+
+  /// Raffinamenti della sala (decennio, stato, visti, ricerca): generi,
+  /// tipi e ordine non contano.
+  bool get hasRefinements =>
+      decade != null ||
+      seriesStatus != SeriesStatusFilter.all ||
+      watched != WatchedFilter.all ||
+      (searchTerm ?? '').isNotEmpty;
 
   ItemQuery copyWith({
     CatalogSort? sort,
     Set<String>? genres,
     Object? year = _keep,
+    Object? decade = _keep,
+    SeriesStatusFilter? seriesStatus,
+    bool? reversed,
     WatchedFilter? watched,
+    Object? searchTerm = _keep,
   }) =>
       ItemQuery(
         kinds: kinds,
         sort: sort ?? this.sort,
         genres: genres ?? this.genres,
         year: identical(year, _keep) ? this.year : year as int?,
+        decade: identical(decade, _keep) ? this.decade : decade as int?,
+        seriesStatus: seriesStatus ?? this.seriesStatus,
+        reversed: reversed ?? this.reversed,
         watched: watched ?? this.watched,
         favoritesOnly: favoritesOnly,
-        searchTerm: searchTerm,
+        searchTerm: identical(searchTerm, _keep)
+            ? this.searchTerm
+            : searchTerm as String?,
         personId: personId,
         includeSortFields: includeSortFields,
         includeProviderIds: includeProviderIds,
@@ -75,6 +107,15 @@ class ItemQuery {
   ItemQuery clearFilters() =>
       copyWith(genres: const {}, year: null, watched: WatchedFilter.all);
 
+  /// Toglie decennio, stato delle serie, visti e ricerca; tipi, generi,
+  /// ordine e verso restano.
+  ItemQuery clearRefinements() => copyWith(
+        decade: null,
+        seriesStatus: SeriesStatusFilter.all,
+        watched: WatchedFilter.all,
+        searchTerm: null,
+      );
+
   Map<String, dynamic> toQueryParameters({
     required String userId,
     required int startIndex,
@@ -83,7 +124,7 @@ class ItemQuery {
     final onlySeries = kinds.length == 1 && kinds.contains(ItemKind.series);
     // Jellyfin applica il primo `sortOrder` a ogni chiave senza un ordine
     // proprio: per gli ordinamenti a due chiavi ne serve uno per chiave.
-    final (sortBy, sortOrder) = switch (sort) {
+    final (sortBy, baseOrder) = switch (sort) {
       CatalogSort.title => ('SortName', 'Ascending'),
       CatalogSort.dateAdded => (
           onlySeries ? 'DateLastContentAdded,SortName' : 'DateCreated,SortName',
@@ -92,7 +133,19 @@ class ItemQuery {
       CatalogSort.year => ('ProductionYear,SortName', 'Descending,Ascending'),
       CatalogSort.rating => ('CommunityRating,SortName', 'Descending,Ascending'),
     };
+    // Il verso inverso tocca solo la prima chiave (SortName resta A-Z).
+    final sortOrder = !reversed
+        ? baseOrder
+        : baseOrder.startsWith('Descending')
+            ? baseOrder.replaceFirst('Descending', 'Ascending')
+            : baseOrder.replaceFirst('Ascending', 'Descending');
     final term = searchTerm;
+    final d = decade;
+    final decadeYears = d == null
+        ? null
+        : d == olderDecades
+            ? [for (var y = 1900; y < 1990; y++) y]
+            : [for (var y = d; y < d + 10; y++) y];
     return {
       ...cardImageParams,
       if (includeSortFields || includeProviderIds)
@@ -111,6 +164,10 @@ class ItemQuery {
       'enableTotalRecordCount': true,
       if (genres.isNotEmpty) 'genres': (genres.toList()..sort()).join('|'),
       if (year != null) 'years': '$year',
+      if (decadeYears != null) 'years': decadeYears.join(','),
+      if (seriesStatus == SeriesStatusFilter.continuing)
+        'seriesStatus': 'Continuing',
+      if (seriesStatus == SeriesStatusFilter.ended) 'seriesStatus': 'Ended',
       if (watched == WatchedFilter.unwatched) 'isPlayed': false,
       if (watched == WatchedFilter.watched) 'isPlayed': true,
       if (favoritesOnly) 'isFavorite': true,

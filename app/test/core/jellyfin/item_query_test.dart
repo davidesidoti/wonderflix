@@ -133,4 +133,82 @@ void main() {
     expect(cleared.includeSortFields, isTrue);
     expect(cleared.includeProviderIds, isTrue);
   });
+
+  group('sala per genere', () {
+    Map<String, dynamic> p(ItemQuery q) =>
+        q.toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
+    const movies = ItemQuery(kinds: {ItemKind.movie});
+
+    test('decennio: anni separati da virgola', () {
+      expect(p(movies.copyWith(decade: 2010))['years'],
+          '2010,2011,2012,2013,2014,2015,2016,2017,2018,2019');
+      final older = p(movies.copyWith(decade: ItemQuery.olderDecades))['years']
+          as String;
+      final years = older.split(',');
+      expect(years.length, 90);
+      expect(years.first, '1900');
+      expect(years.last, '1989');
+      expect(p(movies).containsKey('years'), isFalse);
+    });
+
+    test('stato delle serie', () {
+      expect(p(movies.copyWith(seriesStatus: SeriesStatusFilter.continuing))[
+          'seriesStatus'], 'Continuing');
+      expect(p(movies.copyWith(seriesStatus: SeriesStatusFilter.ended))[
+          'seriesStatus'], 'Ended');
+      expect(p(movies).containsKey('seriesStatus'), isFalse);
+    });
+
+    test('verso invertito: solo la prima chiave', () {
+      expect(p(movies.copyWith(sort: CatalogSort.rating, reversed: true))[
+          'sortOrder'], 'Ascending,Ascending');
+      expect(p(movies.copyWith(sort: CatalogSort.title, reversed: true))[
+          'sortOrder'], 'Descending');
+      const series = ItemQuery(kinds: {ItemKind.series});
+      final added = p(series.copyWith(sort: CatalogSort.dateAdded));
+      expect(added['sortBy'], 'DateLastContentAdded,SortName');
+      expect(added['sortOrder'], 'Descending,Ascending');
+    });
+
+    test('ricerca in copyWith, raffinamenti', () {
+      final q = movies.copyWith(searchTerm: 'dune');
+      expect(p(q)['searchTerm'], 'dune');
+      expect(q.copyWith(searchTerm: null).searchTerm, isNull);
+      expect(q.copyWith(sort: CatalogSort.year).searchTerm, 'dune');
+
+      expect(movies.hasRefinements, isFalse);
+      expect(movies.copyWith(searchTerm: '').hasRefinements, isFalse);
+      final refined = movies.copyWith(
+        genres: {'Dramma'},
+        sort: CatalogSort.rating,
+        reversed: true,
+        decade: 2010,
+        seriesStatus: SeriesStatusFilter.ended,
+        watched: WatchedFilter.watched,
+        searchTerm: 'dune',
+      );
+      expect(refined.hasRefinements, isTrue);
+      final cleared = refined.clearRefinements();
+      expect(cleared.hasRefinements, isFalse);
+      expect(cleared.decade, isNull);
+      expect(cleared.seriesStatus, SeriesStatusFilter.all);
+      expect(cleared.watched, WatchedFilter.all);
+      expect(cleared.searchTerm, isNull);
+      expect(cleared.genres, {'Dramma'});
+      expect(cleared.sort, CatalogSort.rating);
+      expect(cleared.reversed, isTrue);
+      expect(cleared.kinds, {ItemKind.movie});
+    });
+
+    test('hasFilters non conta i campi nuovi (La mia lista)', () {
+      expect(
+          movies
+              .copyWith(
+                  decade: 2010,
+                  seriesStatus: SeriesStatusFilter.ended,
+                  searchTerm: 'x')
+              .hasFilters,
+          isFalse);
+    });
+  });
 }
