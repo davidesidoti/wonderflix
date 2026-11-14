@@ -1621,5 +1621,21 @@
   "catalogOrderYear": "Newest first",
   "catalogOrderYearReversed": "Oldest first",
   "catalogOrderRating": "Top rated first",
-  "catalogOrderRatingReversed": "Lowest rated first"
+  "catalogOrderRatingReversed": "Lowest rated first",
+  "catalogAll": "All",
+  "catalogAllFeminine": "All",
+  "catalogSortAdded": "Added",
+  "catalogSortNewEpisodes": "New episodes",
+  "catalogSortShort": "Sort",
+  "catalogReverse": "Reverse the order",
+  "catalogDecade": "Decade",
+  "catalogDecadeOlder": "Older",
+  "catalogFilters": "Filters",
+  "catalogStatusContinuing": "Ongoing",
+  "catalogStatusEnded": "Ended",
+  "catalogHideWatched": "Hide watched",
+  "catalogHideWatchedSeries": "Hide watched",
+  "catalogSearchMovies": "Search movies",
+  "catalogSearchSeries": "Search series",
+  "catalogSearchClose": "Close"
 }

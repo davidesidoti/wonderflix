@@ -1818,5 +1818,21 @@
   "catalogOrderYear": "Dal più recente",
   "catalogOrderYearReversed": "Dal più vecchio",
   "catalogOrderRating": "I più votati per primi",
-  "catalogOrderRatingReversed": "I meno votati per primi"
+  "catalogOrderRatingReversed": "I meno votati per primi",
+  "catalogAll": "Tutti",
+  "catalogAllFeminine": "Tutte",
+  "catalogSortAdded": "Aggiunti",
+  "catalogSortNewEpisodes": "Nuovi episodi",
+  "catalogSortShort": "Ordina",
+  "catalogReverse": "Inverti l'ordine",
+  "catalogDecade": "Decennio",
+  "catalogDecadeOlder": "Prima",
+  "catalogFilters": "Filtri",
+  "catalogStatusContinuing": "In corso",
+  "catalogStatusEnded": "Concluse",
+  "catalogHideWatched": "Nascondi i visti",
+  "catalogHideWatchedSeries": "Nascondi le viste",
+  "catalogSearchMovies": "Cerca tra i film",
+  "catalogSearchSeries": "Cerca tra le serie",
+  "catalogSearchClose": "Chiudi"
 }
