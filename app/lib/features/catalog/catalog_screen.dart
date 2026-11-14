@@ -305,8 +305,10 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
       final Widget child;
       final error = state.error;
       if (state.loading) {
-        child = const PosterGridSkeleton(
-            key: ValueKey('loading'), shrinkWrap: true);
+        child = PosterGridSkeleton(
+            key: const ValueKey('loading'),
+            shrinkWrap: true,
+            catalogSide: side);
       } else if (error != null) {
         child = Padding(
           key: const ValueKey('error'),
@@ -354,22 +356,15 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     return [
       SliverPadding(
         padding: EdgeInsets.fromLTRB(side, 16, side, 24),
-        // La locandina cresce con la colonna, il testo no: l'altezza della
-        // cella si calcola dalla larghezza (stessa conta di MaxCrossAxisExtent).
         sliver: SliverLayoutBuilder(
           builder: (context, constraints) {
-            const maxWidth = 180.0, gap = 16.0;
-            final columns =
-                ((constraints.crossAxisExtent + gap) / (maxWidth + gap))
-                    .ceil();
-            final width =
-                (constraints.crossAxisExtent - gap * (columns - 1)) / columns;
             return SliverGrid(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: maxWidth,
+                maxCrossAxisExtent: 180,
                 mainAxisSpacing: 24,
-                crossAxisSpacing: gap,
-                mainAxisExtent: width * 1.5 + catalogCardTextHeight,
+                crossAxisSpacing: 16,
+                mainAxisExtent: catalogCellExtent(constraints.crossAxisExtent,
+                    MediaQuery.textScalerOf(context)),
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, i) => BatchedEntranceItem(

@@ -1,8 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/library_fakes.dart';
@@ -76,14 +79,43 @@ void main() {
     expect(find.text('2024'), findsOneWidget);
   });
 
-  testWidgets('film visto: locandina un po\' spenta, solo nel catalogo',
+  const identity = ColorFilter.matrix(<double>[
+    1, 0, 0, 0, 0, //
+    0, 1, 0, 0, 0,
+    0, 0, 1, 0, 0,
+    0, 0, 0, 1, 0,
+  ]);
+  ColorFilter posterFilter(WidgetTester tester) =>
+      tester.widget<ColorFiltered>(find.byType(ColorFiltered)).colorFilter;
+
+  testWidgets('film visto: locandina spenta, solo nel catalogo',
       (tester) async {
     await pumpCard(tester, testItem(played: true));
-    expect(find.byType(ColorFiltered), findsOneWidget);
+    expect(posterFilter(tester), isNot(identity));
+    await pumpCard(tester, testItem());
+    expect(posterFilter(tester), identity);
     await pumpCard(tester, testItem(played: true), catalogStyle: false);
     expect(find.byType(ColorFiltered), findsNothing);
-    await pumpCard(tester, testItem());
-    expect(find.byType(ColorFiltered), findsNothing);
+  });
+
+  testWidgets('film visto: il mouse sopra riaccende la locandina',
+      (tester) async {
+    await pumpCard(tester, testItem(played: true));
+    final dim = posterFilter(tester);
+    final image = find.byType(WfImage);
+    final before = tester.element(image);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(image));
+    await tester.pump();
+    expect(posterFilter(tester), identity);
+    expect(posterFilter(tester), isNot(dim));
+    // Lo stesso elemento: l'immagine non viene rimontata.
+    expect(tester.element(image), same(before));
+    await mouse.moveTo(const Offset(1, 1));
+    await tester.pump();
+    expect(posterFilter(tester), dim);
   });
 
   testWidgets('titolo su due righe nel catalogo, su una altrove',
@@ -104,25 +136,56 @@ void main() {
     expect(find.text('In corso'), findsNothing);
   });
 
-  testWidgets('la card del catalogo con tre righe non va in overflow',
-      (tester) async {
-    await pumpApp(
-      tester,
-      Center(
-        child: SizedBox(
-          width: 180,
-          height: 270 + catalogCardTextHeight,
-          child: PosterCard(
-              item: testItem(
-                  kind: ItemKind.series,
-                  name: 'Un titolo molto lungo ' * 4,
-                  unplayedCount: 5,
-                  status: 'Continuing'),
-              catalogStyle: true),
+  for (final scale in [1.0, 1.3]) {
+    testWidgets('la card del catalogo con tre righe non va in overflow '
+        '(testo ${scale}x)', (tester) async {
+      await pumpApp(
+        tester,
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(scale)),
+            child: Center(
+              child: SizedBox(
+                width: 180,
+                height: catalogCellExtent(180, TextScaler.linear(scale)),
+                child: PosterCard(
+                    item: testItem(
+                        kind: ItemKind.series,
+                        name: 'Un titolo molto lungo ' * 4,
+                        unplayedCount: 5,
+                        status: 'Continuing'),
+                    catalogStyle: true),
+              ),
+            ),
+          ),
         ),
-      ),
-      overrides: [signedIn],
-    );
-    expect(tester.takeException(), isNull);
+        overrides: [signedIn],
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  test('catalogCellExtent: stesse colonne di Flutter, anche a 1170 px', () {
+    // Flutter: ceil(extent / (180 + 16)). 1170 -> 6 colonne da 181,7 px.
+    const scaler = TextScaler.noScaling;
+    final cell = catalogCellExtent(1170, scaler);
+    expect(cell, closeTo((1170 - 5 * 16) / 6 * 1.5 + 84, 0.01));
+    final delegate = const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 180, crossAxisSpacing: 16);
+    final layout = delegate.getLayout(SliverConstraints(
+        axisDirection: AxisDirection.down,
+        growthDirection: GrowthDirection.forward,
+        userScrollDirection: ScrollDirection.idle,
+        scrollOffset: 0,
+        precedingScrollExtent: 0,
+        overlap: 0,
+        remainingPaintExtent: 900,
+        crossAxisExtent: 1170,
+        crossAxisDirection: AxisDirection.right,
+        viewportMainAxisExtent: 900,
+        remainingCacheExtent: 900,
+        cacheOrigin: 0));
+    expect((layout as SliverGridRegularTileLayout).crossAxisCount, 6);
   });
 }

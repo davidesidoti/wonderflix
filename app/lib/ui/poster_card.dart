@@ -17,8 +17,18 @@ import 'tv_focusable.dart';
 import 'wf_image.dart';
 
 /// Altezza sotto la locandina di una card del catalogo: spazio, titolo su due
-/// righe, e le due righe di una serie. La griglia la somma alla locandina.
-const catalogCardTextHeight = 84.0;
+/// righe, e le due righe di una serie. Il testo segue la scala del sistema.
+double catalogCardTextHeight(TextScaler scaler) => 8 + scaler.scale(76);
+
+/// Altezza della cella del catalogo in una griglia larga [extent]: la
+/// locandina cresce con la colonna, il testo no. Stessa conta di colonne di
+/// `SliverGridDelegateWithMaxCrossAxisExtent` (180, spazio 16).
+double catalogCellExtent(double extent, TextScaler scaler) {
+  const maxWidth = 180.0, gap = 16.0;
+  final columns = (extent / (maxWidth + gap)).ceil();
+  final width = (extent - gap * (columns - 1)) / columns;
+  return width * 1.5 + catalogCardTextHeight(scaler);
+}
 
 /// Locandina 2:3 con titolo, anno, avanzamento e badge "visto".
 /// Con [width] `null` occupa la larghezza disponibile (griglie). Con il
@@ -136,9 +146,10 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        _Dimmed(
-                          dimmed: dimmed,
-                          child: WfHero(
+                        _dim(
+                          catalog,
+                          dimmed,
+                          WfHero(
                             tag: heroSource == null
                                 ? null
                                 : WfHeroTag(item.id, heroSource),
@@ -226,12 +237,23 @@ Widget _episodesLine(BuildContext context, bool played, int unplayed) {
       style: const TextStyle(color: WfColors.creamMuted, fontSize: 12));
 }
 
-/// Saturazione 55% e luminosità 80% sulla locandina vista.
-class _Dimmed extends StatelessWidget {
-  const _Dimmed({required this.dimmed, required this.child});
+/// Nel catalogo il filtro c'è sempre (neutro se la locandina è accesa):
+/// così il passaggio del mouse non rimonta l'immagine.
+Widget _dim(bool catalog, bool dimmed, Widget child) => catalog
+    ? ColorFiltered(
+        colorFilter:
+            ColorFilter.matrix(dimmed ? _Dimmed._matrix : _Dimmed._identity),
+        child: child)
+    : child;
 
-  final bool dimmed;
-  final Widget child;
+/// Saturazione 55% e luminosità 80% sulla locandina vista.
+abstract final class _Dimmed {
+  static const _identity = <double>[
+    1, 0, 0, 0, 0, //
+    0, 1, 0, 0, 0,
+    0, 0, 1, 0, 0,
+    0, 0, 0, 1, 0,
+  ];
 
   static const _lum = [0.2126, 0.7152, 0.0722];
   static const _sat = 0.55;
@@ -247,11 +269,6 @@ class _Dimmed extends StatelessWidget {
     ],
     0, 0, 0, 1, 0,
   ];
-
-  @override
-  Widget build(BuildContext context) => dimmed
-      ? ColorFiltered(colorFilter: ColorFilter.matrix(_matrix), child: child)
-      : child;
 }
 
 /// Barra oro in fondo all'immagine, per il minutaggio.

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'form_factor.dart';
+import 'poster_card.dart' show catalogCellExtent;
 import 'shimmer.dart';
 import 'states.dart';
 
@@ -135,25 +136,41 @@ class EpisodeListSkeleton extends StatelessWidget {
 /// Griglia di locandine (Catalogo, La mia lista, filmografia): stessa
 /// griglia delle pagine vere.
 class PosterGridSkeleton extends StatelessWidget {
-  const PosterGridSkeleton({super.key, this.count = 12, this.shrinkWrap = false});
+  const PosterGridSkeleton(
+      {super.key,
+      this.count = 12,
+      this.shrinkWrap = false,
+      this.catalogSide});
 
   final int count;
 
   /// `true` dentro un'altra lista (filmografia della persona).
   final bool shrinkWrap;
 
+  /// Nel catalogo: il margine laterale della pagina, e celle alte come
+  /// quelle delle card vere (`catalogCellExtent`), perché le righe non
+  /// saltino all'arrivo dei dati.
+  final double? catalogSide;
+
   @override
-  Widget build(BuildContext context) => WfShimmer(
-        child: GridView.builder(
+  Widget build(BuildContext context) {
+    final side = catalogSide;
+    return WfShimmer(
+      child: LayoutBuilder(
+        builder: (context, constraints) => GridView.builder(
           primary: false,
           shrinkWrap: shrinkWrap,
           physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          padding: EdgeInsets.fromLTRB(side ?? 32, 0, side ?? 32, 24),
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 180,
             mainAxisSpacing: 24,
             crossAxisSpacing: 16,
             childAspectRatio: 0.55,
+            mainAxisExtent: side == null
+                ? null
+                : catalogCellExtent(constraints.maxWidth - 2 * side,
+                    MediaQuery.textScalerOf(context)),
           ),
           itemCount: count,
           itemBuilder: (context, i) => const Column(
@@ -167,7 +184,9 @@ class PosterGridSkeleton extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 /// Risultati della ricerca: una sezione di locandine.

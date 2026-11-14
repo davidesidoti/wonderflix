@@ -89,6 +89,39 @@ void main() {
     expect(gridQueries.single.sort, CatalogSort.rating);
   });
 
+  testWidgets('a 1170 px di griglia (6 colonne) le card non vanno in overflow',
+      (tester) async {
+    api.onItems = (query, start, limit) => pageOf([
+          for (var i = 0; i < 12; i++)
+            testItem(
+                id: 's$i',
+                kind: ItemKind.series,
+                name: 'Una serie con un titolo molto lungo $i',
+                unplayedCount: 5,
+                status: 'Continuing'),
+        ]);
+    // 1234 - 2 * 32 di margine = 1170.
+    await pumpCatalog(tester, surfaceSize: const Size(1234, 900));
+    expect(find.byType(PosterCard), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('lo scheletro ha le celle alte come le card vere',
+      (tester) async {
+    final gate = Completer<void>();
+    api.itemsGateFor = (query) => gate;
+    await pumpCatalog(tester, surfaceSize: const Size(1234, 900));
+    final grid = tester.widget<GridView>(find.descendant(
+        of: find.byType(PosterGridSkeleton), matching: find.byType(GridView)));
+    final delegate = grid.gridDelegate
+        as SliverGridDelegateWithMaxCrossAxisExtent;
+    expect(delegate.mainAxisExtent,
+        catalogCellExtent(1170, TextScaler.noScaling));
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+  });
+
   testWidgets('desktop: dopo uno scroll la riga dei generi resta visibile',
       (tester) async {
     api.onItems = (query, start, limit) => pageOf(
