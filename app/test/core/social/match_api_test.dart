@@ -55,6 +55,10 @@ void main() {
       'Rating': 'good'
     });
 
+    await api.start('r1',
+        type: 'series', duration: 'any', genre: 'Dramma', rating: 'any');
+    expect((last().data as Map)['Genre'], 'Dramma|Drama');
+
     await api.start('r1', type: 'both', duration: 'any', rating: 'any');
     expect(last().data,
         {'Type': 'both', 'Duration': 'any', 'Genre': null, 'Rating': 'any'});

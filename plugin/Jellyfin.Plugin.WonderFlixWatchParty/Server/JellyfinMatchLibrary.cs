@@ -52,7 +52,8 @@ public sealed class JellyfinMatchLibrary(ILibraryManager libraryManager, IUserMa
             };
             if (filters.Genre is { } genre)
             {
-                query.Genres = [genre];
+                // L'app manda tutti i nomi di un genere uniti da `|` ("Dramma|Drama").
+                query.Genres = genre.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             }
 
             candidates.AddRange(libraryManager.GetItemList(query)

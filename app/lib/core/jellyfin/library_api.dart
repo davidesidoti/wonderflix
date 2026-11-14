@@ -55,7 +55,8 @@ class LibraryApi {
       'sortBy': 'Random',
       'limit': limit,
       'enableTotalRecordCount': true,
-      'genres': ?genre,
+      // Un'etichetta italiana copre più nomi del server: Jellyfin li unisce con `|`.
+      'genres': ?(genre == null ? null : genreServerNames(genre).join('|')),
       'minCommunityRating': ?minRating,
     });
     return parseJson(

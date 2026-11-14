@@ -367,7 +367,7 @@ void main() {
     expect(last().query['isPlayed'], false);
     expect(last().query['recursive'], true);
     expect(last().query['limit'], 50);
-    expect(last().query['genres'], 'Commedia');
+    expect(last().query['genres'], 'Commedia|Comedy');
     expect(last().query['minCommunityRating'], 7);
     expect(last().query['userId'], 'u1');
     expect(

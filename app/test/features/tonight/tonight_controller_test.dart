@@ -9,6 +9,7 @@ import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/profiles/profile_preferences.dart';
 import 'package:wonderflix/features/tonight/tonight_controller.dart';
 import 'package:wonderflix/features/tonight/tonight_logic.dart';
 
@@ -86,6 +87,11 @@ void main() {
     expect(call.genre, 'Dramma');
     expect(call.minRating, 7);
     expect(call.limit, tonightBatch);
+  });
+
+  test('un genere salvato col nome inglese torna come etichetta', () async {
+    await prefs.setString(tonightGenreKey, 'Drama');
+    expect(readTonightFilters(ProfilePreferences(prefs, null)).genre, 'Dramma');
   });
 
   test('la prima pescata propone il primo titolo che va bene', () async {

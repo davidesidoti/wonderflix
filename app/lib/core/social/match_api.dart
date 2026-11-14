@@ -1,6 +1,7 @@
 import 'package:logging/logging.dart';
 
 import '../jellyfin/api_exception.dart';
+import '../jellyfin/genre_labels.dart';
 import '../jellyfin/jellyfin_http.dart';
 import 'match_models.dart';
 
@@ -94,7 +95,7 @@ class MatchApi {
           body: {
             'Type': type,
             'Duration': duration,
-            'Genre': genre,
+            'Genre': genre == null ? null : genreServerNames(genre).join('|'),
             'Rating': rating
           },
           quietStatuses: _quiet)));

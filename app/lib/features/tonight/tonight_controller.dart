@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../auth/session_controller.dart';
 import '../catalog/catalog_controller.dart';
@@ -24,7 +25,7 @@ TonightFilters readTonightFilters(ProfilePreferences prefs) {
     type: TonightType.parse(prefs.getString(tonightTypeKey)),
     duration: TonightDuration.parse(prefs.getString(tonightDurationKey)),
     // In un profilo "nessun valore" è una stringa vuota (`clearString`).
-    genre: genre == null || genre.isEmpty ? null : genre,
+    genre: genre == null || genre.isEmpty ? null : genreLabel(genre),
     rating: TonightRating.parse(prefs.getString(tonightRatingKey)),
   );
 }

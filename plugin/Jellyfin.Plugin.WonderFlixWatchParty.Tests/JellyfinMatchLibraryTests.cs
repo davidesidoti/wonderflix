@@ -62,6 +62,14 @@ public class JellyfinMatchLibraryTests
     }
 
     [Fact]
+    public void AGenreWithBarsAsksForEachName()
+    {
+        Library().Candidates(_luigi.Id, new MatchFilters(true, false, null, "Dramma|Drama"), [], 300);
+
+        Assert.Equal(new[] { "Dramma", "Drama" }, Assert.Single(_queries).Genres);
+    }
+
+    [Fact]
     public void OneTypeGetsTheWholeLimitAndNoGenreMeansAll()
     {
         Library().Candidates(_luigi.Id, new MatchFilters(true, false, TimeSpan.FromMinutes(90), null), [], 300);
