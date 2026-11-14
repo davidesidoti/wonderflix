@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
+import 'genre_labels.dart';
 import 'item_models.dart';
 import 'item_query.dart';
 import 'jellyfin_http.dart';
@@ -268,17 +269,25 @@ class LibraryApi {
       _list(await _http.get('/Items/$itemId/Similar',
           query: {...cardImageParams, 'userId': userId, 'limit': limit}));
 
+  /// Generi presenti per [kind], con le etichette italiane e senza doppioni
+  /// (Filters2 li dà nel nome del server, anche in inglese). Gli anni non
+  /// servono più alla sala per genere.
   Future<LibraryFilters> filters(String userId, ItemKind kind) async =>
       parseJson(
-        await _http.get('/Items/Filters',
-            query: {'userId': userId, 'includeItemTypes': kind.apiName}),
-        (json) => LibraryFilters(
-          genres: (json['Genres'] as List? ?? const []).cast<String>().toList(),
-          years: (json['Years'] as List? ?? const [])
-              .map((y) => (y as num).toInt())
-              .toList()
-            ..sort((a, b) => b.compareTo(a)),
-        ),
+        await _http.get('/Items/Filters2', query: {
+          'userId': userId,
+          'includeItemTypes': kind.apiName,
+          'recursive': true,
+        }),
+        (json) {
+          final genres = {
+            for (final g in (json['Genres'] as List? ?? const []))
+              if (g is Map && g['Name'] is String)
+                genreLabel(g['Name'] as String),
+          }.toList()
+            ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+          return LibraryFilters(genres: genres);
+        },
       );
 
   Future<List<JellyfinItem>> searchPeople(

@@ -67,16 +67,22 @@ void main() {
     expect(last().path, '/Items/m1/Similar');
   });
 
-  test('filtri: generi e anni (dal più recente)', () async {
+  test('filtri: generi da Filters2 con etichette italiane, senza doppioni', () async {
     adapter.handler = (_) => const FakeResponse(200, {
-          'Genres': ['Dramma', 'Azione'],
-          'Years': [1999, 2024, 2010],
+          'Genres': [
+            {'Name': 'Drama', 'Id': '1'},
+            {'Name': 'Dramma', 'Id': '2'},
+            {'Name': 'Anime', 'Id': '3'},
+          ],
+          'Tags': [],
         });
-    final filters = await api.filters('u1', ItemKind.series);
-    expect(last().path, '/Items/Filters');
-    expect(last().query['includeItemTypes'], 'Series');
-    expect(filters.genres, ['Dramma', 'Azione']);
-    expect(filters.years, [2024, 2010, 1999]);
+    final filters = await api.filters('u1', ItemKind.movie);
+    expect(last().path, '/Items/Filters2');
+    expect(last().query['userId'], 'u1');
+    expect(last().query['includeItemTypes'], 'Movie');
+    expect(last().query['recursive'], true);
+    expect(filters.genres, ['Anime', 'Dramma']);
+    expect(filters.years, isEmpty);
   });
 
   test('ricerca persone', () async {
