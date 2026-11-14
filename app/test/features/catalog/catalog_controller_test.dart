@@ -44,6 +44,73 @@ void main() {
 
   Future<void> settle() => Future<void>.delayed(Duration.zero);
 
+  test('senza showGenre non parte nessuna richiesta', () async {
+    container.listen(provider, (_, _) {});
+    await settle();
+    expect(api.itemQueries, isEmpty);
+    expect(container.read(provider).loading, isTrue);
+    expect(container.read(provider).query.sort, CatalogSort.dateAdded);
+  });
+
+  test('showGenre: genere, ordine per voto, etichetta nello stato', () async {
+    container.listen(provider, (_, _) {});
+    await container.read(provider.notifier).showGenre('Horror');
+    expect(api.itemQueries.single.genres, {'Horror'});
+    expect(api.itemQueries.single.sort, CatalogSort.rating);
+    expect(container.read(provider).genre, 'Horror');
+    expect(container.read(provider).items, hasLength(100));
+  });
+
+  test('showGenre(null) torna a tutto, per data di aggiunta', () async {
+    container.listen(provider, (_, _) {});
+    await container.read(provider.notifier).showGenre('Horror');
+    await container.read(provider.notifier).showGenre(null);
+    expect(api.itemQueries.last.genres, isEmpty);
+    expect(api.itemQueries.last.sort, CatalogSort.dateAdded);
+    expect(container.read(provider).genre, isNull);
+  });
+
+  test('showGenre tiene il decennio e unisce i nomi del genere', () async {
+    container.listen(provider, (_, _) {});
+    final controller = container.read(provider.notifier);
+    await controller.showGenre(null);
+    await controller.setQuery(
+        container.read(provider).query.copyWith(decade: 2010, reversed: true));
+    await controller.showGenre('Dramma');
+    final query = api.itemQueries.last;
+    expect(query.decade, 2010);
+    expect(query.genres, {'Dramma', 'Drama'});
+    expect(query.reversed, isFalse);
+    expect(container.read(provider).query.decade, 2010);
+  });
+
+  test('cambiando genere in fretta vince l\'ultimo, anche se risponde per primo',
+      () async {
+    final gates = <String, Completer<void>>{
+      for (final g in ['Azione', 'Horror', 'Dramma']) g: Completer<void>(),
+    };
+    api.itemsGateFor = (q) => gates[q.genres.first];
+    api.onItems = (query, start, limit) =>
+        pageOf([testItem(id: query.genres.first)], 1);
+    container.listen(provider, (_, _) {});
+    final controller = container.read(provider.notifier);
+    final azione = controller.showGenre('Azione');
+    final horror = controller.showGenre('Horror');
+    final dramma = controller.showGenre('Dramma');
+    await settle();
+    // Le risposte arrivano in ordine inverso: Dramma, poi Horror e Azione.
+    gates['Dramma']!.complete();
+    await dramma;
+    gates['Horror']!.complete();
+    gates['Azione']!.complete();
+    await Future.wait([azione, horror]);
+    final state = container.read(provider);
+    expect(state.genre, 'Dramma');
+    expect(state.items.single.id, 'Dramma');
+    expect(state.query.genres, {'Dramma', 'Drama'});
+    expect(state.loading, isFalse);
+  });
+
   test('prima pagina all\'avvio', () async {
     start();
     expect(container.read(provider).loading, isTrue);

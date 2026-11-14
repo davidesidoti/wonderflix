@@ -45,7 +45,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen> {
   @override
   void initState() {
     super.initState();
-    _showAll();
+    if (widget.view == CatalogView.titles) _showAll();
     _scroll.addListener(() {
       if (_scroll.position.extentAfter < 800) {
         unawaited(
