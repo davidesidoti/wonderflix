@@ -129,7 +129,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen> {
             child: _RequestsList(
               key: ValueKey(tab),
               tab: tab,
-              listKey: (filter: tab.filter, language: language),
+              listKey: (filter: tab.filter, group: null, language: language),
             ),
           ),
         ],

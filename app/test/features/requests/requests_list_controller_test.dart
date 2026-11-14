@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
@@ -12,9 +13,9 @@ import '../../support/requests_fakes.dart';
 void main() {
   late FakeRequestsApi api;
   late StreamController<SocialEvent> events;
-  const mine = (filter: RequestsFilter.mine, language: 'it');
-  const pending = (filter: RequestsFilter.pending, language: 'it');
-  const all = (filter: RequestsFilter.all, language: 'it');
+  const mine = (filter: RequestsFilter.mine, group: null, language: 'it');
+  const pending = (filter: RequestsFilter.pending, group: null, language: 'it');
+  const all = (filter: RequestsFilter.all, group: null, language: 'it');
 
   setUp(() {
     api = FakeRequestsApi();
@@ -556,5 +557,142 @@ void main() {
     // Mai uno stato senza righe: l'elenco non è ripartito da zero.
     expect(seen, isNotEmpty);
     expect(seen.where((length) => length == 0), isEmpty);
+  });
+
+  group('gruppi', () {
+    const allOpen =
+        (filter: RequestsFilter.all, group: RequestsGroup.open, language: 'it');
+    const allDone =
+        (filter: RequestsFilter.all, group: RequestsGroup.done, language: 'it');
+
+    ProviderContainer groupContainer(List<RequestsListKey> keys) {
+      final container = ProviderContainer.test(
+        overrides: requestsTestOverrides(api, events: events.stream),
+        retry: (_, _) => null,
+      );
+      for (final key in keys) {
+        container.listen(requestsListControllerProvider(key), (_, _) {});
+      }
+      return container;
+    }
+
+    RequestsListState read(ProviderContainer c, RequestsListKey key) =>
+        c.read(requestsListControllerProvider(key));
+
+    test('In corso carica da solo tutte le pagine', () async {
+      api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = requests(44);
+      final container = groupContainer([allOpen]);
+      await pumpEventQueue();
+
+      final state = read(container, allOpen);
+      expect(state.items, hasLength(44));
+      expect(state.hasMore, isFalse);
+      expect(state.total, 44);
+      expect(api.calls, [
+        'list:all:open:0:20',
+        'list:all:open:20:20',
+        'list:all:open:40:20',
+      ]);
+    });
+
+    test('Arrivate aspetta "Mostra altre"', () async {
+      api.groupLists[(RequestsFilter.all, RequestsGroup.done)] = requests(45);
+      final container = groupContainer([allDone]);
+      await pumpEventQueue();
+      expect(read(container, allDone).items, hasLength(20));
+      expect(read(container, allDone).total, 45);
+
+      await container.read(requestsListControllerProvider(allDone).notifier).loadMore();
+      expect(read(container, allDone).items, hasLength(40));
+    });
+
+    test('In corso si rilegge ogni 30 s solo mentre qualcosa scarica', () {
+      fakeAsync((async) {
+        api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = [
+          testMediaRequest(id: 1, status: RequestStatus.downloading, progress: 0.3),
+        ];
+        final container = groupContainer([allOpen]);
+        async.flushMicrotasks();
+        expect(api.calls, ['list:all:open:0:20']);
+
+        async.elapse(RequestsListController.openRefreshEvery);
+        expect(api.calls, ['list:all:open:0:20', 'list:all:open:0:20']);
+
+        // Niente più in download: nessuna lettura.
+        api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = [
+          testMediaRequest(id: 1, status: RequestStatus.approved),
+        ];
+        async.elapse(RequestsListController.openRefreshEvery);
+        api.calls.clear();
+        async.elapse(const Duration(seconds: 90));
+        expect(api.calls, isEmpty);
+
+        // Di nuovo in download, ma il controller non c'è più.
+        api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = [
+          testMediaRequest(id: 1, status: RequestStatus.downloading),
+        ];
+        container.dispose();
+        async.elapse(const Duration(seconds: 90));
+        expect(api.calls, isEmpty);
+        expect(async.periodicTimerCount, 0);
+      });
+    });
+
+    test('Approva aggiorna i gruppi di "Tutte"', () async {
+      api.lists[RequestsFilter.pending] = requests(2);
+      final container = groupContainer([pending, allOpen, allDone]);
+      await pumpEventQueue();
+
+      api.calls.clear();
+      await container
+          .read(requestsListControllerProvider(pending).notifier)
+          .approve(1, ApproveChoice.defaults);
+      await pumpEventQueue();
+
+      expect(api.calls, containsAll(['list:all:open:0:20', 'list:all:done:0:20']));
+    });
+
+    test('una richiesta arrivata passa da In corso ad Arrivate', () async {
+      api
+        ..groupLists[(RequestsFilter.all, RequestsGroup.open)] = requests(3)
+        ..groupLists[(RequestsFilter.all, RequestsGroup.done)] = [
+          testMediaRequest(id: 9, status: RequestStatus.available),
+        ];
+      final container = groupContainer([allOpen, allDone]);
+      await pumpEventQueue();
+
+      api
+        ..groupLists[(RequestsFilter.all, RequestsGroup.open)] =
+            requests(3).where((r) => r.id != 2).toList()
+        ..groupLists[(RequestsFilter.all, RequestsGroup.done)] = [
+          testMediaRequest(id: 2, status: RequestStatus.available),
+          testMediaRequest(id: 9, status: RequestStatus.available),
+        ];
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+
+      expect(read(container, allOpen).items.map((r) => r.id), [1, 3]);
+      expect(read(container, allDone).items.map((r) => r.id), [2, 9]);
+      expect(read(container, allOpen).total, 2);
+    });
+
+    test('una pagina di In corso che non riesce lascia le righe', () async {
+      api
+        ..groupLists[(RequestsFilter.all, RequestsGroup.open)] = requests(44)
+        ..failingLists.add('list:all:open:20:20');
+      final container = groupContainer([allOpen]);
+      await pumpEventQueue();
+
+      var state = read(container, allOpen);
+      expect(state.items, hasLength(20));
+      expect(state.error, isA<RequestsException>());
+
+      api.failingLists.clear();
+      await container.read(requestsListControllerProvider(allOpen).notifier).retry();
+      await pumpEventQueue();
+      state = read(container, allOpen);
+      expect(state.items, hasLength(44));
+      expect(state.error, isNull);
+    });
   });
 }

@@ -53,6 +53,9 @@ class FakeRequestsApi implements RequestsApi {
   /// Se impostato, `list` aspetta che si completi.
   Completer<void>? listGate;
 
+  /// Le chiamate `list` (come in [calls]) che falliscono con un errore di rete.
+  final failingLists = <String>{};
+
   /// La lingua di ogni `list`, in ordine.
   final listLanguages = <String>[];
 
@@ -137,13 +140,17 @@ class FakeRequestsApi implements RequestsApi {
       required int skip,
       required int take,
       required String language}) async {
-    calls.add(group == null
+    final call = group == null
         ? 'list:${filter.wire}:$skip:$take'
-        : 'list:${filter.wire}:${group.wire}:$skip:$take');
+        : 'list:${filter.wire}:${group.wire}:$skip:$take';
+    calls.add(call);
     listLanguages.add(language);
     final gate = listGate;
     if (gate != null) await gate.future;
     _fail();
+    if (failingLists.contains(call)) {
+      throw const RequestsException(RequestsFailure.network);
+    }
     final grouped = group == null ? null : groupLists[(filter, group)];
     final all = grouped ?? lists[filter] ?? const <MediaRequest>[];
     final page = all.skip(skip).take(take).toList();

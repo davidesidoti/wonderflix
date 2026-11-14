@@ -9,8 +9,13 @@ import '../../l10n/gen/app_localizations.dart';
 import '../social/social_providers.dart';
 import 'requests_providers.dart';
 
-/// Un elenco della pagina Richieste: filtro e lingua dell'app.
-typedef RequestsListKey = ({RequestsFilter filter, String language});
+/// Un elenco della pagina Richieste: filtro, gruppo (`null` per l'elenco
+/// unico di "Da approvare" e del ripiego) e lingua dell'app.
+typedef RequestsListKey = ({
+  RequestsFilter filter,
+  RequestsGroup? group,
+  String language,
+});
 
 class RequestsListState {
   const RequestsListState({
@@ -19,6 +24,7 @@ class RequestsListState {
     this.loading = false,
     this.error,
     this.busy = const {},
+    this.total,
   });
 
   final List<MediaRequest> items;
@@ -31,6 +37,10 @@ class RequestsListState {
   /// Richieste con Approva o Rifiuta in viaggio: la riga è bloccata.
   final Set<int> busy;
 
+  /// Quante richieste ha il gruppo, dall'ultima pagina letta; `null` senza
+  /// gruppo.
+  final int? total;
+
   RequestsListState copyWith({
     List<MediaRequest>? items,
     bool? hasMore,
@@ -38,6 +48,7 @@ class RequestsListState {
     Object? error,
     bool clearError = false,
     Set<int>? busy,
+    int? total,
   }) =>
       RequestsListState(
         items: items ?? this.items,
@@ -45,6 +56,7 @@ class RequestsListState {
         loading: loading ?? this.loading,
         error: clearError ? null : (error ?? this.error),
         busy: busy ?? this.busy,
+        total: total ?? this.total,
       );
 }
 
@@ -73,6 +85,10 @@ class RequestsListController extends Notifier<RequestsListState> {
   /// il massimo che il plugin dà (`take`). Oltre, le righe restano come sono.
   static const maxRefreshTake = 50;
 
+  /// Ogni quanto "In corso" si rilegge mentre qualcosa scarica (spec §5.7):
+  /// quanto la cache del plugin.
+  static const openRefreshEvery = Duration(seconds: 30);
+
   /// Numera i caricamenti: vale solo l'ultimo.
   int _generation = 0;
 
@@ -95,6 +111,17 @@ class RequestsListController extends Notifier<RequestsListState> {
       if (event is InboxChangedEvent) unawaited(refresh());
     });
     ref.onDispose(() => unawaited(subscription.cancel()));
+    if (listKey.group == RequestsGroup.open) {
+      // La percentuale sale solo se l'elenco si rilegge: niente letture a
+      // vuoto quando non scarica niente.
+      final timer = Timer.periodic(openRefreshEvery, (_) {
+        if (!state.loading &&
+            state.items.any((r) => r.status == RequestStatus.downloading)) {
+          unawaited(refresh());
+        }
+      });
+      ref.onDispose(timer.cancel);
+    }
     unawaited(Future.microtask(reload));
     return const RequestsListState(loading: true);
   }
@@ -136,7 +163,10 @@ class RequestsListController extends Notifier<RequestsListState> {
     state = state.copyWith(loading: true, clearError: true);
     try {
       final page = await ref.read(requestsApiProvider).list(listKey.filter,
-          skip: skip, take: pageSize, language: listKey.language);
+          group: listKey.group,
+          skip: skip,
+          take: pageSize,
+          language: listKey.language);
       if (!ref.mounted || generation != _generation) return;
       // Una lettura partita prima di Approva o Rifiuta non disfa l'azione:
       // le righe tolte non tornano, e la pagina si aggiunge alle righe di
@@ -154,7 +184,10 @@ class RequestsListController extends Notifier<RequestsListState> {
         items: reset ? fresh : [...state.items, ...fresh],
         hasMore: page.hasMore,
         loading: false,
+        total: page.total,
       );
+      // "In corso" si mostra tutto: le pagine dopo partono da sole.
+      if (listKey.group == RequestsGroup.open) unawaited(loadMore());
     } on Object catch (error) {
       if (!ref.mounted || generation != _generation) return;
       _failedWasReset = reset;
@@ -175,7 +208,10 @@ class RequestsListController extends Notifier<RequestsListState> {
     state = state.copyWith(loading: true);
     try {
       final page = await ref.read(requestsApiProvider).list(listKey.filter,
-          skip: 0, take: take, language: listKey.language);
+          group: listKey.group,
+          skip: 0,
+          take: take,
+          language: listKey.language);
       if (!ref.mounted || generation != _generation) return;
       // Come in `_load`: una lettura partita prima di Approva o Rifiuta non
       // rimette la riga tolta, e niente doppioni.
@@ -200,6 +236,7 @@ class RequestsListController extends Notifier<RequestsListState> {
         hasMore: kept.isEmpty ? page.hasMore : state.hasMore,
         loading: false,
         clearError: true,
+        total: page.total,
       );
     } on Object {
       // Un aggiornamento in secondo piano che non riesce non cambia l'elenco
@@ -250,12 +287,21 @@ class RequestsListController extends Notifier<RequestsListState> {
         busy: {...state.busy}..remove(requestId),
       );
       if (!failed) {
-        // Il conteggio non è più giusto. L'elenco "Tutte", se c'è, si
-        // aggiorna dov'è: ricrearlo lo svuoterebbe e perderebbe lo scroll.
+        // Il conteggio non è più giusto. Gli elenchi di "Tutte" (l'elenco
+        // unico o i gruppi), se ci sono, si aggiornano dove sono: ricrearli
+        // li svuoterebbe e perderebbe lo scroll.
         ref.invalidate(pendingRequestsCountProvider(listKey.language));
-        final all = requestsListControllerProvider(
-            (filter: RequestsFilter.all, language: listKey.language));
-        if (ref.exists(all)) unawaited(ref.read(all.notifier).refresh());
+        for (final group in [null, ...RequestsGroup.values]) {
+          final key = (
+            filter: RequestsFilter.all,
+            group: group,
+            language: listKey.language,
+          );
+          final all = requestsListControllerProvider(key);
+          if (key != listKey && ref.exists(all)) {
+            unawaited(ref.read(all.notifier).refresh());
+          }
+        }
         // Con meno di una pagina e altre sul server, l'elenco non resta
         // corto (e, se si è svuotato, non resta vuoto).
         if (state.hasMore && state.items.length < pageSize) {

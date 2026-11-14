@@ -218,7 +218,7 @@ void main() {
     api.lists[RequestsFilter.pending] = [];
     await container
         .read(requestsListControllerProvider(
-                (filter: RequestsFilter.pending, language: 'it'))
+                (filter: RequestsFilter.pending, group: null, language: 'it'))
             .notifier)
         .decline(1);
     await tester.pumpAndSettle();
@@ -296,7 +296,7 @@ void main() {
         ProviderScope.containerOf(tester.element(find.byType(RequestsScreen)));
     await container
         .read(requestsListControllerProvider(
-                (filter: RequestsFilter.mine, language: 'it'))
+                (filter: RequestsFilter.mine, group: null, language: 'it'))
             .notifier)
         .reload();
     await tester.pumpAndSettle();
