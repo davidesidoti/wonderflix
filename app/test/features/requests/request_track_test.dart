@@ -177,6 +177,16 @@ void main() {
       );
     });
 
+    testWidgets('senza etichette e senza dettaglio niente separatore', (
+      tester,
+    ) async {
+      await pump(tester, request(RequestStatus.awaitingRelease), labels: false);
+      expect(
+        find.text('Non ancora uscito', findRichText: true),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('una sola etichetta per lo screen reader', (tester) async {
       final handle = tester.ensureSemantics();
       await pump(tester, downloading);

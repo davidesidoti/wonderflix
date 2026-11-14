@@ -73,9 +73,7 @@ List<RequestDatePart> requestTrackDetail(
         plain(
           progress == null
               ? l.requestsDetailDownloading
-              : l.requestsDetailPercent(
-                  (progress.clamp(0.0, 1.0) * 100).round(),
-                ),
+              : l.requestsDetailPercent(_percentOf(progress)),
         ),
       ];
     case RequestStatus.awaitingRelease:
@@ -91,6 +89,9 @@ List<RequestDatePart> requestTrackDetail(
       return const [];
   }
 }
+
+/// Il progresso (0–1) come percentuale intera.
+int _percentOf(double progress) => (progress.clamp(0.0, 1.0) * 100).round();
 
 const _todoDot = Color(0xFF333333);
 const _dot = 12.0;
@@ -122,9 +123,7 @@ class RequestTrack extends StatelessWidget {
     final semantics = l.requestsTrackSemantics(
       model.labels.take(model.current).join(', '),
       model.labels[model.current] +
-          (progress == null
-              ? ''
-              : ', ${(progress.clamp(0.0, 1.0) * 100).round()}%'),
+          (progress == null ? '' : ', ${_percentOf(progress)}%'),
     );
     final motion = WfMotion.of(context);
     final lastStep = model.labels.length - 1;
@@ -241,16 +240,17 @@ class RequestTrack extends StatelessWidget {
       color: WfColors.cream,
       fontWeight: FontWeight.w600,
     );
+    final parts = requestTrackDetail(request, now, l);
     final spans = <InlineSpan>[
       if (!labels) ...[
         TextSpan(text: model.labels[model.current], style: strong),
-        const TextSpan(text: ' · '),
+        if (parts.isNotEmpty) const TextSpan(text: ' · '),
       ],
     ];
-    final parts = requestTrackDetail(request, now, l);
     for (var i = 0; i < parts.length; i++) {
       if (i > 0) spans.add(const TextSpan(text: ' · '));
       final part = parts[i];
+      // Il testo localizzato comincia sempre con "NN%": solo quello è in grassetto.
       final percent = request.status == RequestStatus.downloading
           ? RegExp(r'^\d+%').firstMatch(part.text)
           : null;
