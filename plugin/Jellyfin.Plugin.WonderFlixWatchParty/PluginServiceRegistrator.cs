@@ -49,6 +49,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISeerrClient, SeerrClient>();
         serviceCollection.AddSingleton<SeerrUserMap>();
         serviceCollection.AddSingleton<SeerrTitleCache>();
+        serviceCollection.AddSingleton<SeerrRequestList>();
         serviceCollection.AddSingleton<RequestsService>();
         serviceCollection.AddSingleton<RequestWebhookHandler>();
         // Recupero della password (spec L).

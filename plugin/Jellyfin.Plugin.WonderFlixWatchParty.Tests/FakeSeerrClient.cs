@@ -26,6 +26,12 @@ internal sealed class FakeSeerrClient : ISeerrClient
     /// <summary>Totale per pageInfo; -1 = quante sono in <see cref="Requests"/>.</summary>
     public int TotalRequests { get; set; } = -1;
 
+    /// <summary>Se impostato, ogni pagina di GetRequests ha al massimo questi elementi (Seerr può dare meno di quanti ne servono).</summary>
+    public int? MaxPerPage { get; set; }
+
+    /// <summary>Se impostato, <see cref="GetRequestsAsync"/> aspetta che finisca prima di rispondere.</summary>
+    public Task? RequestsGate { get; set; }
+
     public Dictionary<string, List<SeerrServer>> Servers { get; } = [];
 
     public Dictionary<(string Service, int Id), SeerrServerDetails> ServerDetails { get; } = [];
@@ -150,16 +156,25 @@ internal sealed class FakeSeerrClient : ISeerrClient
         return Task.FromResult(OnCreate(asUser, body));
     }
 
-    public Task<SeerrPage<SeerrRequest>> GetRequestsAsync(
+    public async Task<SeerrPage<SeerrRequest>> GetRequestsAsync(
         int asUser, string filter, int take, int skip, int? requestedBy, CancellationToken cancellationToken)
     {
         Call("GetRequests");
-        Listed.Add((asUser, filter, take, skip, requestedBy));
-        return Task.FromResult(new SeerrPage<SeerrRequest>
+        lock (Listed)
         {
-            Results = Requests.Skip(skip).Take(take).ToList(),
+            Listed.Add((asUser, filter, take, skip, requestedBy));
+        }
+
+        if (RequestsGate is { } gate)
+        {
+            await gate.ConfigureAwait(false);
+        }
+
+        return new SeerrPage<SeerrRequest>
+        {
+            Results = Requests.Skip(skip).Take(Math.Min(take, MaxPerPage ?? take)).ToList(),
             PageInfo = new SeerrPageInfo { Results = TotalRequests < 0 ? Requests.Count : TotalRequests },
-        });
+        };
     }
 
     public Task<SeerrRequest> GetRequestAsync(int asUser, int requestId, CancellationToken cancellationToken)
