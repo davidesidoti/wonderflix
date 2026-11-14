@@ -650,6 +650,7 @@ void main() {
       await pumpEventQueue();
 
       expect(api.calls, containsAll(['list:all:open:0:20', 'list:all:done:0:20']));
+      expect(api.calls.where((c) => c.startsWith('list:all:closed')), isEmpty);
     });
 
     test('una richiesta arrivata passa da In corso ad Arrivate', () async {
@@ -674,6 +675,29 @@ void main() {
       expect(read(container, allOpen).items.map((r) => r.id), [1, 3]);
       expect(read(container, allDone).items.map((r) => r.id), [2, 9]);
       expect(read(container, allOpen).total, 2);
+    });
+
+    test('un aggiornamento durante le pagine di In corso non le ferma',
+        () async {
+      api.groupLists[(RequestsFilter.all, RequestsGroup.open)] = requests(44);
+      final first = api.listGate = Completer<void>();
+      final container = groupContainer([allOpen]);
+      await pumpEventQueue();
+      // La prima pagina passa, la seconda resta in viaggio.
+      final second = Completer<void>();
+      first.complete();
+      api.listGate = second;
+      await pumpEventQueue();
+      expect(api.calls.last, 'list:all:open:20:20');
+
+      events.add(const InboxChangedEvent());
+      await pumpEventQueue();
+      api.listGate = null;
+      second.complete();
+      await pumpEventQueue();
+
+      expect(read(container, allOpen).items, hasLength(44));
+      expect(read(container, allOpen).hasMore, isFalse);
     });
 
     test('una pagina di In corso che non riesce lascia le righe', () async {

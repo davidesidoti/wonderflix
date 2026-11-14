@@ -238,6 +238,9 @@ class RequestsListController extends Notifier<RequestsListState> {
         clearError: true,
         total: page.total,
       );
+      // Un aggiornamento scarta la pagina di "In corso" in viaggio: le
+      // pagine dopo ripartono da qui.
+      if (listKey.group == RequestsGroup.open) unawaited(loadMore());
     } on Object {
       // Un aggiornamento in secondo piano che non riesce non cambia l'elenco
       // e non porta un errore: le prime righe si aggiornano al prossimo avviso.
