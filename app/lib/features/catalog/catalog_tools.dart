@@ -107,18 +107,23 @@ class _CatalogToolsState extends State<CatalogTools> {
 
   /// [prefix]: "Decennio: 2010"; senza, il menu stretto mostra solo "2010" e,
   /// a riposo, "Decennio".
-  Widget _decadePicker(AppLocalizations l, {required bool prefix}) {
+  Widget _decadePicker(
+    AppLocalizations l,
+    ItemQuery query,
+    ValueChanged<int?> onPick, {
+    required bool prefix,
+  }) {
     String name(int d) =>
         d == ItemQuery.olderDecades ? l.catalogDecadeOlder : '$d';
     String label(String s) => prefix ? '${l.catalogDecade}: $s' : s;
     return FilterPicker<int?>(
-      value: widget.query.decade,
+      value: query.decade,
       items: {
         null: prefix ? label(l.catalogAll) : l.catalogDecade,
         for (final d in const [2020, 2010, 2000, 1990, ItemQuery.olderDecades])
           d: label(name(d)),
       },
-      onChanged: (d) => _change((q) => q.copyWith(decade: d)),
+      onChanged: onPick,
     );
   }
 
@@ -267,7 +272,10 @@ class _CatalogToolsState extends State<CatalogTools> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 12,
                 children: [
-                  _decadePicker(l, prefix: true),
+                  _decadePicker(l, q, (d) {
+                    setSheet(() => q = q.copyWith(decade: d));
+                    _change((_) => q);
+                  }, prefix: true),
                   _statusButtons(l, q, (s) {
                     setSheet(() => q = q.copyWith(seriesStatus: s));
                     _change((_) => q);
@@ -306,7 +314,12 @@ class _CatalogToolsState extends State<CatalogTools> {
                   onPressed: _openFilters,
                   child: Text(l.catalogFilters),
                 )
-              : _decadePicker(l, prefix: false),
+              : _decadePicker(
+                  l,
+                  widget.query,
+                  (d) => _change((q) => q.copyWith(decade: d)),
+                  prefix: false,
+                ),
         ),
         IconButton(
           tooltip: _hideLabel(l),
@@ -335,7 +348,12 @@ class _CatalogToolsState extends State<CatalogTools> {
     final controls = <Widget>[
       _sortPicker(l, prefix: true),
       _reverse(l),
-      _decadePicker(l, prefix: true),
+      _decadePicker(
+        l,
+        widget.query,
+        (d) => _change((q) => q.copyWith(decade: d)),
+        prefix: true,
+      ),
       if (_series)
         _statusButtons(l, widget.query, (s) {
           _change((q) => q.copyWith(seriesStatus: s));

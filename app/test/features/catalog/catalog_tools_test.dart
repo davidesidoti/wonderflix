@@ -166,6 +166,40 @@ void main() {
     expect(changes.single.seriesStatus, SeriesStatusFilter.ended);
   });
 
+  testWidgets('stretto, serie: decennio e stato nel foglio si sommano', (
+    tester,
+  ) async {
+    final changes = await pump(
+      tester,
+      query: series,
+      size: const Size(390, 800),
+      totals: const CatalogTotals(188, 66),
+    );
+    await tester.tap(find.text('Filtri'));
+    await tester.pumpAndSettle();
+    await choose(tester, 'Decennio: Tutti', 'Decennio: 2010');
+    // Il menu del foglio mostra la scelta appena fatta.
+    expect(find.text('Decennio: 2010'), findsOneWidget);
+    await tester.tap(find.text('Concluse 122'));
+    await tester.pumpAndSettle();
+    expect(changes.last.decade, 2010);
+    expect(changes.last.seriesStatus, SeriesStatusFilter.ended);
+  });
+
+  testWidgets('stretto: Chiudi toglie la ricerca attiva', (tester) async {
+    final changes = await pump(
+      tester,
+      query: movies.copyWith(searchTerm: 'dune'),
+      size: const Size(390, 800),
+    );
+    await tester.tap(find.byTooltip('Cerca tra i film'));
+    await tester.pump();
+    expect(find.text('dune'), findsOneWidget);
+    await tester.tap(find.text('Chiudi'));
+    await tester.pump();
+    expect(changes.single.searchTerm, isNull);
+  });
+
   testWidgets('TV: niente ricerca, gli altri attrezzi ci sono', (tester) async {
     await pump(tester, size: const Size(960, 540), tv: true);
     expect(find.byType(TextField), findsNothing);
