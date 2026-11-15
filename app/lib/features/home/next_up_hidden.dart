@@ -147,6 +147,8 @@ Future<void> hideFromNextUp(
     ok
         ? SnackBar(
             content: Text(l.nextUpHidden),
+            // Con un'azione Flutter la terrebbe aperta finché la si tocca.
+            persist: false,
             action: SnackBarAction(
               label: l.actionUndo,
               onPressed: () =>

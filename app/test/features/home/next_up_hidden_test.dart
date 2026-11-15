@@ -262,6 +262,25 @@ void main() {
     expect(prefs.nextUpHidden, isEmpty);
   });
 
+  testWidgets('l\'avviso con Annulla si chiude da solo', (tester) async {
+    await pumpRow(tester, [
+      _episode('e1', 's1', 'The Bear'),
+      _episode('e2', 's2', 'Severance'),
+    ]);
+    await tester.pump();
+    tester
+        .widget<LandscapeCard>(find.byKey(const ValueKey('next-up-e1')))
+        .previewExtra!
+        .onDismiss!();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Tolto da Prossimi episodi'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1)); // la SnackBar entra
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(seconds: 1)); // la SnackBar esce
+    expect(find.text('Tolto da Prossimi episodi'), findsNothing);
+  });
+
   testWidgets('togliere non riuscito: la card torna e la SnackBar lo dice', (
     tester,
   ) async {

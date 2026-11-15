@@ -62,6 +62,18 @@ void main() {
     expect(find.byKey(const ValueKey('resume-m1')), findsOneWidget);
   });
 
+  testWidgets('l\'avviso con Annulla si chiude da solo', (tester) async {
+    await pumpRow(tester, [dune, arrival]);
+    dismiss(tester, 'm1');
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Tolto da Continua a guardare'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1)); // la SnackBar entra
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(seconds: 1)); // la SnackBar esce
+    expect(find.text('Tolto da Continua a guardare'), findsNothing);
+  });
+
   testWidgets('tutti tolti: la riga non c\'è', (tester) async {
     await pumpRow(tester, [dune]);
     expect(find.text('Continua a guardare'), findsOneWidget);

@@ -23,6 +23,8 @@ Future<void> removeFromResume(
   messenger?.showSnackBar(
     SnackBar(
       content: Text(l.resumeHidden),
+      // Con un'azione Flutter la terrebbe aperta finché la si tocca.
+      persist: false,
       action: SnackBarAction(
         label: l.actionUndo,
         onPressed: () =>
