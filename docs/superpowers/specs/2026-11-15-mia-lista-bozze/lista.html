@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La mia lista, bozza</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+    --mu:rgba(242,234,211,.6); --dim:rgba(242,234,211,.32);
+    --page:#1c1c1c; --note:#b9b4a6;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+  .doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+  .doc > h1 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+  .doc p, .doc li { max-width:78ch; }
+  .doc code { color:var(--cr); font-size:12.5px; }
+  section.s { margin:48px 0; }
+  section.s > h2 { font:400 28px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+  section.s > p { margin:0 0 16px; }
+  .scroll { overflow-x:auto; padding-bottom:6px; }
+  button { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .pair { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .cap { color:var(--note); font-size:13px; margin:0; max-width:56ch; }
+  .cap b, .doc li b { color:var(--cr); font-weight:600; }
+
+  .app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; position:relative; }
+  .app.desk { width:1280px; height:800px; }
+  .app.phone { width:390px; height:780px; }
+  .app.tv { width:960px; height:540px; }
+  .nav { position:absolute; left:0; right:0; top:0; z-index:5; display:flex; align-items:center; gap:22px; height:56px; padding:0 32px; background:linear-gradient(180deg,rgba(10,10,10,.85),rgba(10,10,10,0)); transition:background .2s; }
+  .app.solid .nav { background:var(--bg); }
+  .nav .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+  .nav a { color:var(--cr); text-decoration:none; padding:18px 0 15px; border-bottom:2px solid transparent; }
+  .nav a.on { color:var(--gold); border-color:var(--gold); }
+  .nav .me { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .nav .av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#6b4a8a,#2a1d38); }
+  .body { position:absolute; inset:0; overflow-y:auto; scrollbar-width:thin; scrollbar-color:#333 transparent; }
+
+  /* cartellone: il prossimo titolo da vedere */
+  .band { position:relative; height:340px; background:#000 center 25%/cover; }
+  .band::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.78) 40%,rgba(10,10,10,.1) 78%), linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 55%); }
+  .band.bare { background:radial-gradient(120% 140% at 85% 0%,#1d1810 0,var(--bg) 60%); }
+  .band .tabs { position:absolute; left:32px; top:76px; display:flex; gap:20px; }
+  .band .tabs button { font:400 30px/1 'Bebas Neue'; letter-spacing:1px; background:none; border:0; padding:0; cursor:pointer; color:var(--dim); }
+  .band .tabs button:hover { color:var(--mu); }
+  .band .tabs button[aria-selected="true"] { color:var(--cr); cursor:default; }
+  .band .txt { position:absolute; left:32px; bottom:24px; right:32px; }
+  .band h3 { margin:0; font:400 112px/0.82 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .band .line { margin:12px 0 0; color:var(--mu); font-size:14px; }
+  .band .line b { color:var(--cr); font-weight:600; }
+  .next { display:flex; align-items:center; gap:14px; margin-top:18px; }
+  .next .what { color:var(--mu); font-size:14px; }
+  .next .what b { color:var(--cr); font-weight:600; }
+  .play { display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 18px 0 14px; border:0; border-radius:6px; background:var(--gold); color:var(--bg); font-weight:600; font-size:14px; cursor:pointer; flex:none; }
+  .play.ghost { background:none; color:var(--cr); border:1px solid var(--bd); padding:0 16px; font-weight:500; }
+  .play:hover { filter:brightness(1.08); }
+  .play.focus { outline:2px solid var(--cr); outline-offset:3px; }
+
+  /* barra ferma */
+  .bar { position:sticky; top:56px; z-index:4; background:var(--bg); padding:0 32px; }
+  .gidx { position:relative; }
+  .gidx .in { display:flex; gap:22px; overflow-x:auto; scrollbar-width:none; padding:10px 48px 6px 0; }
+  .gidx .in::-webkit-scrollbar { display:none; }
+  .gidx::after { content:''; position:absolute; right:0; top:0; bottom:6px; width:56px; background:linear-gradient(90deg,rgba(10,10,10,0),var(--bg)); pointer-events:none; }
+  .g { flex:none; background:none; border:0; padding:4px 0 6px; cursor:pointer; color:var(--mu); font-size:14px; font-weight:500; border-bottom:2px solid transparent; white-space:nowrap; }
+  .g sup { font-size:10.5px; color:var(--dim); margin-left:3px; font-variant-numeric:tabular-nums; vertical-align:4px; }
+  .g:hover { color:var(--cr); }
+  .g[aria-pressed="true"] { color:var(--gold); border-color:var(--gold); }
+  .g[aria-pressed="true"] sup { color:var(--gold); }
+  .tools { display:flex; align-items:center; gap:10px; padding:10px 0 12px; }
+  .gidx + .tools { border-top:1px solid var(--sf); }
+  .pick { height:32px; display:inline-flex; align-items:center; gap:6px; padding:0 10px; border:1px solid var(--bd); border-radius:6px; background:var(--sh); color:var(--cr); font-size:13px; cursor:pointer; flex:none; }
+  .pick span { color:var(--mu); }
+  .pick select { background:none; border:0; color:var(--cr); font:inherit; cursor:pointer; outline:none; }
+  .pick select option { background:var(--sf); }
+  .icon { width:32px; justify-content:center; padding:0; }
+  .search { margin-left:auto; display:flex; align-items:center; gap:8px; width:260px; height:32px; padding:0 12px; border:1px solid var(--bd); border-radius:6px; background:var(--sf); color:var(--mu); }
+  .search input { flex:1; min-width:0; background:none; border:0; color:var(--cr); font:inherit; font-size:13px; outline:none; }
+  .search input::placeholder { color:var(--mu); }
+  .search:focus-within { border-color:var(--gold); }
+
+  /* gruppi */
+  .grp { padding:6px 32px 8px; }
+  .grp + .grp { margin-top:10px; }
+  .gh { display:flex; align-items:baseline; gap:10px; padding:14px 0 12px; }
+  .gh h4 { margin:0; font-size:16px; font-weight:600; color:var(--cr); }
+  .gh .n { color:var(--dim); font-size:13px; font-variant-numeric:tabular-nums; }
+  .gh .hint { color:var(--mu); font-size:13px; }
+  .gh .act { margin-left:auto; background:none; border:0; color:var(--gold); cursor:pointer; font-size:13px; padding:2px 0; }
+  .gh .act + .act { margin-left:18px; }
+  .gh .fold { display:inline-flex; align-items:center; gap:10px; background:none; border:0; padding:0; cursor:pointer; color:var(--cr); }
+  .gh .fold svg { transition:transform .18s; color:var(--mu); }
+  .grp.open .gh .fold svg { transform:rotate(90deg); }
+  .grp.shut .grid, .grp.shut .strip { display:none; }
+  .peek { display:flex; gap:6px; margin-left:4px; }
+  .peek i { width:22px; aspect-ratio:2/3; border-radius:3px; background:var(--sh) center/cover; filter:saturate(.55) brightness(.8); }
+  .grp.open .peek { display:none; }
+
+  /* da continuare: card larghe */
+  .strip { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+  .wide { position:relative; cursor:pointer; min-width:0; outline:none; }
+  .wide .img { position:relative; aspect-ratio:16/9; border-radius:6px; background:var(--sh) center/cover; overflow:hidden; transition:box-shadow .18s; }
+  .wide .img::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,rgba(10,10,10,.85),rgba(10,10,10,0) 55%); }
+  .wide:hover .img, .wide:focus-visible .img, .wide.focus .img { box-shadow:0 0 0 2px var(--gold); }
+  .wide .cap2 { position:absolute; left:12px; right:12px; bottom:14px; z-index:1; }
+  .wide .cap2 b { display:block; font-size:15px; font-weight:600; }
+  .wide .cap2 span { color:var(--mu); font-size:12.5px; }
+  .wide .cap2 span .on { color:var(--gold); }
+  .wide .prog { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(242,234,211,.15); z-index:1; }
+  .wide .prog i { display:block; height:100%; background:var(--gold); }
+  .wide .pl { position:absolute; right:12px; bottom:12px; z-index:1; width:34px; height:34px; border-radius:50%; background:rgba(10,10,10,.6); border:1px solid rgba(242,234,211,.4); display:grid; place-items:center; opacity:0; transition:opacity .15s; }
+  .wide:hover .pl, .wide.focus .pl { opacity:1; }
+
+  /* griglia e card (come il catalogo) */
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:24px 16px; }
+  .card { position:relative; display:block; color:inherit; text-decoration:none; min-width:0; cursor:pointer; outline:none; }
+  .pst { position:relative; aspect-ratio:2/3; border-radius:6px; background:var(--sh) center/cover; transition:transform .18s, box-shadow .18s, filter .18s; }
+  .card:hover .pst, .card:focus-visible .pst, .card.focus .pst { transform:translateY(-3px); box-shadow:0 0 0 2px var(--gold); }
+  .card b { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-weight:600; font-size:13px; line-height:1.3; margin-top:8px; }
+  .card .l2 { display:block; color:var(--mu); font-size:12px; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .card .l2 .on { color:var(--gold); }
+  .card.seen .pst { filter:saturate(.55) brightness(.8); }
+  .card.seen:hover .pst, .card.seen:focus-visible .pst { filter:none; }
+  .chk { position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--gold); color:var(--bg); display:grid; place-items:center; }
+  .off { position:absolute; top:6px; right:6px; z-index:2; width:28px; height:28px; border-radius:50%; border:0; background:rgba(10,10,10,.75); color:var(--gold); display:grid; place-items:center; cursor:pointer; opacity:0; transition:opacity .15s; }
+  .card.seen .off { top:32px; }
+  .card:hover .off, .wide:hover .off, .off:focus-visible { opacity:1; }
+  .wide .off { top:10px; right:10px; }
+  .off:hover { background:var(--bg); }
+  .empty { padding:40px 32px; color:var(--mu); }
+
+  /* avviso con Annulla */
+  .toast { position:absolute; left:50%; bottom:24px; z-index:9; transform:translate(-50%,12px); opacity:0; pointer-events:none; display:flex; align-items:center; gap:18px; padding:10px 14px 10px 16px; border-radius:6px; background:var(--sh); border:1px solid var(--bd); color:var(--cr); box-shadow:0 8px 24px rgba(0,0,0,.5); transition:opacity .18s, transform .18s; white-space:nowrap; }
+  .toast.show { opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+  .toast button { background:none; border:0; color:var(--gold); cursor:pointer; font-weight:600; }
+
+  /* telefono */
+  .phone .nav { display:none; }
+  .phone .band { height:300px; }
+  .phone .band .tabs { left:16px; top:18px; gap:14px; }
+  .phone .band .tabs button { font-size:26px; }
+  .phone .band .txt { left:16px; right:16px; bottom:14px; }
+  .phone .band h3 { font-size:60px; }
+  .phone .band .line { font-size:12.5px; margin-top:8px; }
+  .phone .next { flex-wrap:wrap; gap:10px; margin-top:12px; }
+  .phone .next .what { font-size:12.5px; width:100%; }
+  .phone .play { height:34px; font-size:13px; }
+  .phone .bar { top:0; padding:0 16px; }
+  .phone .grp { padding:4px 16px 6px; }
+  .phone .grp:last-child { padding-bottom:80px; }
+  .phone .strip { grid-template-columns:1fr; }
+  .phone .grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px 10px; }
+  .phone .gh .act { font-size:12.5px; }
+  .phone .off { display:none; }
+  .phonenav { position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-around; height:56px; align-items:center; border-top:1px solid var(--sf); color:var(--mu); font-size:11px; background:var(--bg); }
+  .phonenav span { display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .phonenav .on { color:var(--gold); }
+
+  /* tv */
+  .tv .nav { display:none; }
+  .tv .side { position:absolute; left:0; top:0; bottom:0; width:64px; z-index:6; background:linear-gradient(90deg,var(--bg) 60%,rgba(10,10,10,0)); display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:28px; color:var(--mu); }
+  .tv .side i { width:20px; height:20px; border-radius:4px; border:2px solid currentColor; opacity:.8; }
+  .tv .side svg { opacity:1; }
+  .tv .side .on { color:var(--gold); opacity:1; }
+  .tv .body { left:64px; overflow:hidden; }
+  .tv .band { height:250px; }
+  .tv .band .tabs { top:16px; left:24px; }
+  .tv .band .tabs button { font-size:22px; }
+  .tv .band .txt { left:24px; bottom:10px; }
+  .tv .band h3 { font-size:64px; }
+  .tv .band .line { font-size:12.5px; margin-top:6px; }
+  .tv .next { margin-top:12px; }
+  .tv .next .what { font-size:13px; }
+  .tv .play { height:34px; font-size:13px; }
+  .tv .grp { padding:2px 24px 4px; }
+  .tv .gh { padding:10px 0 8px; }
+  .tv .strip { grid-template-columns:repeat(3,1fr); gap:12px; }
+  .tv .grid { grid-template-columns:repeat(7,1fr); gap:16px 12px; }
+  .tv .off { display:none; }
+  .tv .gh .act.focus { outline:2px solid var(--gold); outline-offset:4px; border-radius:3px; }
+
+  .notes { margin-top:12px; padding-left:20px; }
+  .notes li { margin:6px 0; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>La mia lista, bozza</h1>
+  <p>La lista diventa un programma: in cima il prossimo titolo da vedere, poi tre gruppi (<b>Da continuare</b>, <b>Da iniziare</b>, <b>Visti</b>) al posto della griglia unica con il filtro Tutti / Non visti / Visti. Stile, card e attrezzi sono quelli della sala per genere (<code>2026-11-14-catalogo-ui-design.md</code>). Prova le schede Tutti / Film / Serie, Ordina, il cuore sulle locandine (togli e Annulla), e apri il gruppo Visti.</p>
+
+  <section class="s">
+    <h2>La tua lista di oggi</h2>
+    <p>Gli 8 titoli veri di davide.sidoti (15 novembre), con visti ed episodi veri. Con pochi titoli gli attrezzi si riducono a Ordina: generi e ricerca non servono. VisionQuest è l'unica cosa iniziata, quindi è il cartellone e apre Da continuare.</p>
+    <div class="scroll"><div class="app desk" id="A"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Una lista lunga</h2>
+    <p>Lista ipotetica di 42 titoli: gli 8 veri più altri titoli del server, con locandine, voti e visti veri. Alcuni "iniziati" sono inventati. Oltre i 24 titoli compaiono la riga dei generi (solo quelli della lista, con il conteggio) e la ricerca, come nella sala.</p>
+    <div class="scroll"><div class="app desk" id="B"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Lista vuota</h2>
+    <p>Dice cosa succede qui e porta dove si aggiunge. Il cuore è lo stesso della scheda e dell'anteprima, e diventa anche l'icona della voce nella barra (oggi è un segnalibro).</p>
+    <div class="scroll"><div class="app desk" id="E" style="height:460px"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Telefono e TV</h2>
+    <div class="pair">
+      <div class="app phone" id="P"></div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <p class="cap"><b>Telefono.</b> Il cartellone tiene Riproduci; Da continuare va su una colonna con le card larghe, il resto su tre colonne. Il cuore sulle card non c'è: si toglie un titolo dall'anteprima o dalla scheda, come oggi.</p>
+        <div class="app tv" id="T"></div>
+        <p class="cap"><b>TV (960×540), all'apertura.</b> Il focus parte da Riproduci nel cartellone: un OK e si riparte da dove eri. Giù si va ai gruppi; "Togli i visti dalla lista" è un pulsante raggiungibile, così sulla TV si fa pulizia senza aprire ogni scheda.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="s">
+    <h2>Cosa decidere</h2>
+    <ul class="notes">
+      <li><b>"Aggiunti alla lista".</b> Jellyfin salva il preferito come sì/no, senza data. Per ordinare davvero per data di aggiunta l'app scrive la data nei <code>CustomPrefs</code> di <code>wonderflix-home</code>, come già fa per <code>homeHidden</code>. Senza, questa voce diventa "Arrivati sul server". Nella bozza le date sono quelle di arrivo sul server.</li>
+      <li><b>Le soglie.</b> Generi e ricerca compaiono oltre i 24 titoli. Un titolo è "da continuare" se è iniziato ma non finito (film) o se ha episodi visti e altri no (serie). Una serie in corso vista tutta sta in Visti finché non esce un episodio nuovo, poi torna su con "Nuovo".</li>
+      <li><b>Visti chiuso.</b> Il gruppo parte chiuso con un'anteprima delle locandine; "Togli i visti dalla lista" li toglie tutti, con Annulla.</li>
+      <li><b>Cosa resta uguale.</b> I dati sono quelli di oggi (una sola richiesta, filtri nell'app, <code>buildMyListView</code>): niente plugin. La riga "La mia lista" della Home non cambia.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const FAVS = [{"n":"L'ultima missione: Project Hail Mary","s":"lultima missione: project hail mary","y":2026,"r":8.6,"g":["Fantascienza","Avventura"],"d":"2026-05-12","tv":false,"p":"/iOb2fjXLbpJgyQXe46n1WtGCnaa.jpg","b":"/8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg","w":true,"pp":0,"min":157},{"n":"VisionQuest","s":"visionquest","y":2026,"r":10.0,"g":["Science Fiction","Drama","Adventure"],"d":"2026-10-14","tv":true,"p":"/WGyAyBPncfuu8MZhLY9RtfZPM0.jpg","b":"/58v1KFe3rxvHrYM1hLH5ScpwqNR.jpg","st":"Continuing","eps":8,"u":1,"seen":7,"next":"S1 E8","nextPos":1,"dl":"2026-11-11","newest":"2026-11-11"},{"n":"The Punisher: One Last Kill","s":"punisher: one last kill","y":2026,"r":8.3,"g":["Azione","Dramma","Crime"],"d":"2026-11-03","tv":false,"p":"/qQclTgLMDvGBuUBFGHRipxkEwWR.jpg","b":"/qO55CD8tgVL1T4WKn6zYFFiD6lL.jpg","w":false,"pp":0,"min":48},{"n":"Interstellar","s":"interstellar","y":2014,"r":8.5,"g":["Avventura","Dramma","Fantascienza"],"d":"2025-10-04","tv":false,"p":"/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg","b":"/8sNiAPPYU14PUepFNeSNGUTiHW.jpg","w":true,"pp":0,"min":169},{"n":"Parasite","s":"parasite","y":2019,"r":8.5,"g":["Commedia","Thriller","Dramma"],"d":"2026-11-12","tv":false,"p":"/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg","b":"/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg","w":false,"pp":0,"min":132},{"n":"Black Clover","s":"black clover","y":2017,"r":7.9,"g":["Action","Adventure","Anime","Comedy","Fantasy"],"d":"2026-11-07","tv":true,"p":"/uZUtoVChBGhNj9OfrM2LYpwBm8E.jpg","b":"/qu9epTZh29fGUkY7ZYc9PVsv0Ig.jpg","st":"Ended","eps":177,"u":177,"seen":0,"next":"S1 E1","nextPos":0,"dl":"2026-11-14","newest":"2026-11-14"},{"n":"Creature luminose","s":"creature luminose","y":2026,"r":8.4,"g":["Dramma","Mistero"],"d":"2026-08-05","tv":false,"p":"/9HcEqn3D4J6b2Z0jK54id9nA0fr.jpg","b":"/bVGHSe47W6oCQL1Q88pvRAet51A.jpg","w":false,"pp":0,"min":114},{"n":"Constellation","s":"constellation","y":2024,"r":6.1,"g":["Science Fiction","Drama","Thriller"],"d":"2026-10-17","tv":true,"p":"/21ICs3fxlxGslbzS4moCHk9HNo6.jpg","b":"/vyuYVtlB38DzXdF11XwyX7xPp0t.jpg","st":"Ended","eps":8,"u":8,"seen":0,"next":"S1 E1","nextPos":0,"dl":"2026-10-17","newest":"2026-10-17"}];
+const LONG = [{"n":"L'ultima missione: Project Hail Mary","s":"lultima missione: project hail mary","y":2026,"r":8.6,"g":["Fantascienza","Avventura"],"d":"2026-05-12","tv":false,"p":"/iOb2fjXLbpJgyQXe46n1WtGCnaa.jpg","b":"/8Tfys3mDZVp4tNoH2ktm06a0Tau.jpg","w":true,"pp":0,"min":157},{"n":"VisionQuest","s":"visionquest","y":2026,"r":10.0,"g":["Science Fiction","Drama","Adventure"],"d":"2026-10-14","tv":true,"p":"/WGyAyBPncfuu8MZhLY9RtfZPM0.jpg","b":"/58v1KFe3rxvHrYM1hLH5ScpwqNR.jpg","st":"Continuing","eps":8,"u":1,"seen":7,"next":"S1 E8","nextPos":1,"dl":"2026-11-11","newest":"2026-11-11"},{"n":"The Punisher: One Last Kill","s":"punisher: one last kill","y":2026,"r":8.3,"g":["Azione","Dramma","Crime"],"d":"2026-11-03","tv":false,"p":"/qQclTgLMDvGBuUBFGHRipxkEwWR.jpg","b":"/qO55CD8tgVL1T4WKn6zYFFiD6lL.jpg","w":false,"pp":0,"min":48},{"n":"Interstellar","s":"interstellar","y":2014,"r":8.5,"g":["Avventura","Dramma","Fantascienza"],"d":"2025-10-04","tv":false,"p":"/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg","b":"/8sNiAPPYU14PUepFNeSNGUTiHW.jpg","w":true,"pp":0,"min":169},{"n":"Parasite","s":"parasite","y":2019,"r":8.5,"g":["Commedia","Thriller","Dramma"],"d":"2026-11-12","tv":false,"p":"/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg","b":"/TU9NIjwzjoKPwQHoHshkFcQUCG.jpg","w":false,"pp":0,"min":132},{"n":"Black Clover","s":"black clover","y":2017,"r":7.9,"g":["Action","Adventure","Anime","Comedy","Fantasy"],"d":"2026-11-07","tv":true,"p":"/uZUtoVChBGhNj9OfrM2LYpwBm8E.jpg","b":"/qu9epTZh29fGUkY7ZYc9PVsv0Ig.jpg","st":"Ended","eps":177,"u":177,"seen":0,"next":"S1 E1","nextPos":0,"dl":"2026-11-14","newest":"2026-11-14"},{"n":"Creature luminose","s":"creature luminose","y":2026,"r":8.4,"g":["Dramma","Mistero"],"d":"2026-08-05","tv":false,"p":"/9HcEqn3D4J6b2Z0jK54id9nA0fr.jpg","b":"/bVGHSe47W6oCQL1Q88pvRAet51A.jpg","w":false,"pp":0,"min":114},{"n":"Constellation","s":"constellation","y":2024,"r":6.1,"g":["Science Fiction","Drama","Thriller"],"d":"2026-10-17","tv":true,"p":"/21ICs3fxlxGslbzS4moCHk9HNo6.jpg","b":"/vyuYVtlB38DzXdF11XwyX7xPp0t.jpg","st":"Ended","eps":8,"u":8,"seen":0,"next":"S1 E1","nextPos":0,"dl":"2026-10-17","newest":"2026-10-17"},{"n":"Spider-Man: Brand New Day","s":"spiderman: brand new day","y":2026,"r":8.5,"g":["Avventura","Azione","Fantascienza"],"d":"2026-11-03","w":true,"pp":0,"p":"/1GI1iyqqsaykl7LNKVwHLiorDhE.jpg","b":"/4tjxYg2AbOzzG9G1YuiT2NzYhlH.jpg","tv":false,"min":118},{"n":"Inception","s":"inception","y":2010,"r":8.4,"g":["Avventura","Azione","Fantascienza"],"d":"2026-03-31","w":true,"pp":0,"p":"/5QHWgqaBxZI1eM5e3YhyKzY5o3z.jpg","b":"/8ZTVqvKDQ8emSGUEMjsS4yHAwrp.jpg","tv":false,"min":118},{"n":"L'Impero colpisce ancora","s":"limpero colpisce ancora","y":1980,"r":8.4,"g":["Avventura","Azione","Fantascienza"],"d":"2026-11-04","w":true,"pp":0,"p":"/6vzDHECuUbKiqSSXHcIKb9LPcQs.jpg","b":"/k9pshruhCpJAdH9RaGJO6jaWQ4X.jpg","tv":false,"min":118},{"n":"Spider-Man: Un nuovo universo","s":"spiderman: un nuovo universo","y":2018,"r":8.4,"g":["Animazione","Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/ps86PNqw9qCEA9eJD53t6RuiCkW.jpg","b":"/1ntePsIqeklfmrQJqZPncCydsqY.jpg","tv":false,"min":118},{"n":"Il robot selvaggio","s":"il robot selvaggio","y":2024,"r":8.3,"g":["Animazione","Avventura","Famiglia","Fantascienza"],"d":"2026-11-02","w":true,"pp":0,"p":"/rTLuc7yMbrkl1V9uocfoRcjJqdm.jpg","b":"/1pmXyN3sKeYoUhu5VBZiDU4BX21.jpg","tv":false,"min":118},{"n":"Matrix","s":"matrix","y":1999,"r":8.3,"g":["Azione","Fantascienza"],"d":"2025-08-05","w":true,"pp":0,"p":"/5uCQOswAMkOqUZiNzOxvckw59e3.jpg","b":"/tlm8UkiQsitc8rSuIAscQDCnP8d.jpg","tv":false,"min":118},{"n":"Ritorno al futuro","s":"ritorno al futuro","y":1985,"r":8.3,"g":["Avventura","Commedia","Fantascienza"],"d":"2026-09-16","w":true,"pp":0,"p":"/isqoi7kuUsR5Drlqdh4ZfMULgox.jpg","b":"/5bzPWQ2dFUl2aZKkp7ILJVVkRed.jpg","tv":false,"min":118},{"n":"Spider-Man: Across the Spider-Verse","s":"spiderman: across spiderverse","y":2023,"r":8.3,"g":["Animazione","Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/7pgJHduD3OVwF3EGFnGBq0nOUYv.jpg","b":"/kVd3a9YeLGkoeR50jGEXM6EqseS.jpg","tv":false,"min":118},{"n":"Avengers: Endgame","s":"avengers: endgame","y":2019,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/8miyORCKx1lMYtc5YmqHyiVLwDF.jpg","b":"/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg","tv":false,"min":118},{"n":"Avengers: Infinity War","s":"avengers: infinity war","y":2018,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/t24aimjQLa0dyoZQEbSws7XK1U0.jpg","b":"/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg","tv":false,"min":118},{"n":"Colony","s":"colony","y":2026,"r":8.2,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-12","w":true,"pp":0,"p":"/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg","b":"/iGViga8sDCET1S6GfwOlAbuhSGQ.jpg","tv":false,"min":118},{"n":"Guerre stellari","s":"guerre stellari","y":1977,"r":8.2,"g":["Avventura","Azione","Fantascienza"],"d":"2025-11-09","w":true,"pp":0,"p":"/fVqKwpvobwWy0P1UImZWIDuw4RI.jpg","b":"/4qCqAdHcNKeAHcK8tJ8wNJZa9cx.jpg","tv":false,"min":118},{"n":"Ace Ventura - L'acchiappanimali","s":"ace ventura  lacchiappanimali","y":1994,"r":6.6,"g":["Commedia","Crime","Mistero"],"d":"2026-11-14","w":true,"pp":0,"p":"/ptTaBr68fiHfjDVNmQRoOantMDy.jpg","b":"/mhMnWStdREZiYrWpm1MqTS7J2V5.jpg","tv":false,"min":118},{"n":"Beautiful Boy","s":"beautiful boy","y":2018,"r":7.6,"g":["Dramma"],"d":"2026-11-14","w":false,"pp":0,"p":"/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg","b":"/sOhtC4cmaYPOlcjXCWxxrx2NKKn.jpg","tv":false,"min":118},{"n":"Hope","s":"hope","y":2026,"r":6.8,"g":["Azione","Fantascienza","Mistero"],"d":"2026-11-14","w":false,"pp":40,"p":"/fbFxZSSw2kQoAkyXosVoOyBX0Z4.jpg","b":"/j96rurZqmBjyY37Fncl3IB0qJNe.jpg","tv":false,"min":118},{"n":"I Swear - È più forte di me","s":"i swear  e piu forte di me","y":2025,"r":8.3,"g":["Dramma","Storia"],"d":"2026-11-14","w":false,"pp":0,"p":"/aEIT9GFMGYytuUFCiVSv21OhkWk.jpg","b":"/4mKczHAW4XPDXGk7V5k7Ui3dgUk.jpg","tv":false,"min":118},{"n":"Animali fantastici e dove trovarli","s":"animali fantastici e dove trovarli","y":2016,"r":7.3,"g":["Avventura","Fantasy"],"d":"2026-11-13","w":false,"pp":0,"p":"/w5tKxNmdf3yI5lXSDa5vs6YwxHN.jpg","b":"/8Qsr8pvDL3s1jNZQ4HK1d1Xlvnh.jpg","tv":false,"min":118},{"n":"È colpa nostra?","s":"e colpa nostra?","y":2025,"r":7.4,"g":["Dramma","Romance"],"d":"2026-11-13","w":false,"pp":0,"p":"/yYNEQnwnExMcvLVRGhLuWOGDY0r.jpg","b":"/7QirCB1o80NEFpQGlQRZerZbQEp.jpg","tv":false,"min":118},{"n":"Osiris","s":"osiris","y":2025,"r":6.1,"g":["Azione","Fantascienza","Horror"],"d":"2026-11-13","w":false,"pp":0,"p":"/szCUaJsdWO7dTR14MTTHXuxge8b.jpg","b":"/ySHUoK4utUOiSfCinw81H1TsV0E.jpg","tv":false,"min":118},{"n":"The Wrestler","s":"wrestler","y":2008,"r":7.5,"g":["Dramma","Romance"],"d":"2026-11-13","w":false,"pp":0,"p":"/A0Uq6fZG9UVbaFZmwF593ESz8LE.jpg","b":"/wcJmFsz8RqIhozMwvU81hreTX4i.jpg","tv":false,"min":118},{"n":"Chainsaw Man – The Movie: Reze Arc","s":"chainsaw man  movie reze arc","y":2025,"r":9,"g":["Anime","Azione","Dramma","Horror","Romance"],"d":"2025-12-13","w":false,"pp":0,"p":"/2tWxSWFoMdhUlzE9wVnPHr8rmED.jpg","b":"/gqTz24ZRsCP6AKjARmEivY7m0cK.jpg","tv":false,"min":118},{"n":"Obsession","s":"obsession","y":2026,"r":8.2,"g":["Horror","Thriller"],"d":"2026-06-30","w":true,"pp":0,"p":"/kwprCwsIV4LvAqJC1dmiTAdZDJ1.jpg","b":"/5lTZyuBTNOfawsfPT8Q0cIg6qAF.jpg","tv":false,"min":118},{"n":"Lee Cronin - La Mummia","s":"lee cronin  la mummia","y":2026,"r":7.9,"g":["Horror","Mistero"],"d":"2026-05-19","w":true,"pp":0,"p":"/e5wmX4u2VRY5nX8WYvspopQmCOj.jpg","b":"/xugEpZk9YQ0DIz1aFvH5HGkqpZK.jpg","tv":false,"min":118},{"n":"I Saw the Devil","s":"i saw devil","y":2010,"r":7.8,"g":["Horror","Thriller"],"d":"2026-11-07","w":false,"pp":0,"p":"/lHgoRdSSikT7eLNvuiMS2K25iXK.jpg","b":"/dXDFWWxiEb6tg4ojMWQJrSI0Tun.jpg","tv":false,"min":118},{"n":"Cyberpunk: Edgerunners","s":"cyberpunk: edgerunners","y":2022,"r":8.5,"g":["Anime","Azione","Dramma","Fantascienza","Psychological"],"d":"2026-11-14","w":false,"u":20,"pp":0,"st":"Ended","p":"/v3JuB15WybKmxDeT1hWdK3j6eSJ.jpg","b":"/bknKZO7DWVYKeByuJMnGI46PFZg.jpg","tv":true,"eps":20,"seen":0,"newest":"2026-11-14","next":"S1 E1","nextPos":0},{"n":"Incubi e deliri","s":"incubi e deliri","y":2006,"r":7.8,"g":["Dramma","Fantascienza","Fantasy","Horror","Mistero","Thriller"],"d":"2026-11-13","w":false,"u":1,"pp":0,"st":"Ended","p":"/qG7ETtI3HkZTXrqQNYoJnYG8aQS.jpg","b":"/1FiouT6ifmRmNQgbUaESMskZe8o.jpg","tv":true,"eps":1,"seen":0,"newest":"2026-11-13","next":"S1 E1","nextPos":0},{"n":"Daemons of the Shadow Realm","s":"daemons of shadow realm","y":2026,"r":7.8,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-10","w":false,"u":22,"pp":0,"st":"Ended","p":"/mNqW2jnAogZa0nJ94q1LUum8Hos.jpg","b":"/qc30hdrxHQgN5wiopU4bkRZow5L.jpg","tv":true,"eps":22,"seen":0,"newest":"2026-11-10","next":"S1 E1","nextPos":0},{"n":"ONE PIECE","s":"one piece","y":1999,"r":8.7,"g":["Anime","Avventura","Azione","Commedia","Dramma"],"d":"2026-11-09","w":false,"u":431,"pp":0,"st":"Continuing","p":"/mgrEi9VfRoN3bAuhf863f0sWC6A.jpg","b":"/qD211Hb5XwFxrszzBBe5EUYJerh.jpg","tv":true,"eps":431,"seen":0,"newest":"2026-11-09","next":"S1 E1","nextPos":0},{"n":"Best Medicine","s":"best medicine","y":2026,"r":6.2,"g":["Commedia","Dramma"],"d":"2026-11-07","w":false,"u":20,"pp":0,"st":"Continuing","p":"/gRf2g2iR8j2uMlClrNTaiHbrZ6c.jpg","b":"/fRi1Qf51rtFzrYM3gvl9ihGjT5Q.jpg","tv":true,"eps":20,"seen":0,"newest":"2026-11-07","next":"S1 E1","nextPos":0},{"n":"Overgeared","s":"overgeared","y":2026,"r":7.6,"g":["Anime","Avventura","Azione","Commedia","Fantasy"],"d":"2026-11-07","w":false,"u":7,"pp":0,"st":"Continuing","p":"/tUFiieKZCoThoxqWJjnxXRPagbV.jpg","b":"/745xqHbiUWwO51TM60MXRCR4Onm.jpg","tv":true,"eps":7,"seen":0,"newest":"2026-11-07","next":"S1 E1","nextPos":0},{"n":"1899","s":"0000001899","y":2022,"r":7,"g":["Avventura","Azione","Mistero","Storia","Thriller"],"d":"2026-04-15","w":false,"u":5,"pp":38,"st":"Ended","p":"/ryTInWwfswcSvD3COT8qYGp4KNa.jpg","b":"/s1xnjbOIQtwGObPnydTebp74G2c.jpg","tv":true,"eps":8,"seen":3,"newest":"2026-04-15","next":"S1 E4","nextPos":0},{"n":"Agatha All Along","s":"agatha all along","y":2024,"r":6.4,"g":["Avventura","Azione","Commedia","Fantascienza","Fantasy","Miniserie"],"d":"2026-05-25","w":false,"u":9,"pp":0,"st":"Ended","p":"/jefhjbhbeLhgfbrO9SRhw1cS50H.jpg","b":"/tYLXJW1sZQU09VWY1BhSVPKGIwc.jpg","tv":true,"eps":9,"seen":0,"newest":"2026-05-25","next":"S1 E1","nextPos":0},{"n":"American Hostage","s":"american hostage","y":2026,"r":7.8,"g":["Dramma","Thriller"],"d":"2026-09-22","w":false,"u":8,"pp":0,"st":"Continuing","p":"/7vVbM1pERaXbUTD8RzyyIR2hHc8.jpg","b":"/t708JUdkHAoZF83f4RjqcIGrJ99.jpg","tv":true,"eps":8,"seen":0,"newest":"2026-09-22","next":"S1 E1","nextPos":0},{"n":"Arcane","s":"arcane","y":2021,"r":8.5,"g":["Animazione","Avventura","Azione","Dramma","Fantascienza","Fantasy"],"d":"2026-04-15","w":true,"u":0,"pp":100,"st":"Ended","p":"/87C0wecB8bHb1PsrKBI4kJiEkgV.jpg","b":"/5cvnxEHT3e39DvT6ARw4GNCFrB0.jpg","tv":true,"eps":10,"seen":10,"newest":"2026-04-15"}];
+
+const POST = (p, w = 342) => p ? `https://image.tmdb.org/t/p/w${w}${p}` : '';
+const BACK = (p, w = 1280) => p ? `https://image.tmdb.org/t/p/w${w}${p}` : '';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CHECK = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const SEARCH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+const ARROW = up => `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${up ? '<path d="M12 19V5M5 12l7-7 7 7"/>' : '<path d="M12 5v14M19 12l-7 7-7-7"/>'}</svg>`;
+const PLAY = s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>`;
+const HEART = (s, fill) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${fill ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></svg>`;
+const CHEV = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
+// Generi delle serie in inglese sul server: in italiano, come genreLabel.
+const GL = { 'Action':'Azione', 'Adventure':'Avventura', 'Drama':'Dramma', 'Science Fiction':'Fantascienza', 'Comedy':'Commedia', 'Mystery':'Mistero', 'History':'Storia', 'Crime':'Crime', 'Thriller':'Thriller' };
+for (const m of [...FAVS, ...LONG]) m.g = [...new Set(m.g.map(g => GL[g] ?? g))];
+
+const sk = m => m.s.toLowerCase();
+const CMP = { added: (a, b) => b.d.localeCompare(a.d) || sk(a).localeCompare(sk(b)), title: (a, b) => sk(a).localeCompare(sk(b)),
+  year: (a, b) => (b.y - a.y) || sk(a).localeCompare(sk(b)), rating: (a, b) => ((b.r ?? 0) - (a.r ?? 0)) || sk(a).localeCompare(sk(b)) };
+
+/** Il gruppo di un titolo: 'go' da continuare, 'new' da iniziare, 'seen' visti. */
+const group = m => m.tv
+  ? (m.u === 0 ? 'seen' : m.seen > 0 ? 'go' : 'new')
+  : (m.w ? 'seen' : m.pp > 0 ? 'go' : 'new');
+const eps = n => n === 1 ? '1 episodio' : `${n} episodi`;
+const freshEp = m => m.tv && m.u > 0 && m.newest >= '2026-11-08';
+
+function card(m) {
+  const seen = group(m) === 'seen';
+  let l2;
+  if (m.tv) {
+    const st = m.st === 'Continuing' ? '<span class="on">In corso</span>' : `${m.y ?? ''}, conclusa`;
+    l2 = `${st}<br>${m.u ? eps(m.u) + ' da vedere' : 'Vista tutta'}`;
+  } else {
+    l2 = `${m.y ?? ''}${m.r ? `<span style="margin-left:10px">★ ${m.r.toFixed(1)}</span>` : ''}`;
+  }
+  return `<a class="card${seen ? ' seen' : ''}" tabindex="0"><div class="pst" style="background-image:url('${POST(m.p)}')">${seen ? `<i class="chk">${CHECK}</i>` : ''}</div>
+    <button class="off" data-n="${esc(m.n)}" aria-label="Togli dalla lista" title="Togli dalla lista">${HEART(15, true)}</button><b>${esc(m.n)}</b><span class="l2">${l2}</span></a>`;
+}
+function wide(m, focus) {
+  let line, prog;
+  if (m.tv) {
+    line = `${freshEp(m) ? '<span class="on">Nuovo episodio</span>, ' : ''}${m.next}, ${m.u === 1 ? "l'ultimo" : eps(m.u) + ' da vedere'}`;
+    prog = Math.round(100 * m.seen / m.eps);
+  } else {
+    line = `Riprendi da ${Math.round(m.min * m.pp / 100)} min, ne restano ${Math.round(m.min * (100 - m.pp) / 100)}`;
+    prog = m.pp;
+  }
+  return `<div class="wide${focus ? ' focus' : ''}" tabindex="0"><div class="img" style="background-image:url('${BACK(m.b, 780)}')"></div>
+    <button class="off" data-n="${esc(m.n)}" aria-label="Togli dalla lista" title="Togli dalla lista">${HEART(15, true)}</button>
+    <div class="cap2"><b>${esc(m.n)}</b><span>${line}</span></div><span class="pl">${PLAY(14)}</span><span class="prog"><i style="width:${prog}%"></i></span></div>`;
+}
+const nav = () => `<div class="nav"><span class="logo">WonderFlix</span>${['Home','Film','Serie','La mia lista','Richieste','Calendario','Cerca'].map(n => `<a href="#" class="${n === 'La mia lista' ? 'on' : ''}" onclick="return false">${n}</a>`).join('')}<span class="me"><i class="av"></i>davide.sidoti</span></div>`;
+const PHONENAV = `<div class="phonenav"><span>Home</span><span>Film</span><span>Serie</span><span class="on">${HEART(18, true)}Lista</span><span>Altro</span></div>`;
+const SIDE = `<div class="side"><i></i><i></i><i></i><i></i><span class="on">${HEART(20, true)}</span><i></i></div>`;
+
+function lista(root, data, o = {}) {
+  // o: { phone, tv, empty }
+  const st = { tab: 'all', sort: 'added', asc: false, genre: null, q: '', seenOpen: false };
+  const removed = new Set();
+  let undo = null, timer = null;
+  root.innerHTML = `${o.phone || o.tv ? '' : nav()}${o.tv ? SIDE : ''}<div class="body"></div>${o.phone ? PHONENAV : ''}<div class="toast" role="status"><span></span><button>Annulla</button></div>`;
+  const body = root.querySelector('.body');
+  const toast = root.querySelector('.toast');
+
+  const live = () => data.filter(m => !removed.has(m.n));
+  const inTab = m => st.tab === 'all' || (st.tab === 'tv') === m.tv;
+  function shown() {
+    let items = live().filter(m => inTab(m) && (!st.genre || m.g.includes(st.genre)) && (!st.q || m.n.toLowerCase().includes(st.q)));
+    items.sort(CMP[st.sort]); if (st.asc) items.reverse();
+    return items;
+  }
+  /** Il prossimo titolo: il primo da continuare, se no il primo da iniziare. */
+  function heroOf(all) {
+    const s = [...all].sort(CMP[st.sort]); if (st.asc) s.reverse();
+    return s.find(m => group(m) === 'go') ?? s.find(m => group(m) === 'new');
+  }
+  function band(all) {
+    const tabs = [['all','Tutti'],['movie','Film'],['tv','Serie']].map(([v, t]) => `<button data-tab="${v}" aria-selected="${st.tab === v}">${t}</button>`).join('');
+    if (!live().length) {
+      return `<div class="band bare"><div class="txt"><h3>La mia lista</h3>
+        <p class="line">Qui trovi i film e le serie che salvi con il cuore, nella scheda del titolo o nell'anteprima.</p>
+        <div class="next"><button class="play">Vai ai film</button><button class="play ghost">Vai alle serie</button></div></div></div>`;
+    }
+    const by = k => all.filter(m => group(m) === k);
+    const go = by('go'), nw = by('new'), seen = by('seen');
+    const hero = heroOf(all);
+    const unit = st.tab === 'movie' ? (all.length === 1 ? 'film' : 'film') : st.tab === 'tv' ? 'serie' : (all.length === 1 ? 'titolo' : 'titoli');
+    const parts = [go.length && `${go.length} da continuare`, nw.length && `${nw.length} da iniziare`, seen.length && `${seen.length} ${seen.length === 1 ? 'visto' : 'visti'}`].filter(Boolean);
+    let next = '';
+    if (hero) {
+      const what = hero.tv ? `<b>${esc(hero.n)}</b>, ${hero.next}${hero.u === 1 ? ", l'ultimo episodio" : ''}` : `<b>${esc(hero.n)}</b>${hero.pp ? `, ne restano ${Math.round(hero.min * (100 - hero.pp) / 100)} min` : ''}`;
+      const verb = (hero.tv ? hero.nextPos : hero.pp) ? 'Riprendi' : 'Riproduci';
+      next = `<div class="next"><button class="play${o.tv ? ' focus' : ''}">${PLAY(15)}${verb}${hero.tv ? ' ' + hero.next : ''}</button><span class="what">${go[0] ? 'Da dove eri rimasto:' : 'Il prossimo:'} ${what}</span></div>`;
+    }
+    return `<div class="band" style="background-image:url('${BACK(hero?.b ?? all[0]?.b)}')"><div class="tabs">${tabs}</div><div class="txt"><h3>La mia lista</h3>
+      <p class="line"><b>${all.length} ${unit}</b>${parts.length ? ': ' + parts.join(', ') : ''}.</p>${next}</div></div>`;
+  }
+  function tools(all) {
+    const longList = live().length > 24;
+    const sorts = [['added','Aggiunti alla lista'],['title','Titolo'],['year','Anno'],['rating','Voto']];
+    const sortSel = `<label class="pick">${o.phone ? '' : '<span>Ordina</span>'}<select class="sort">${sorts.map(([v, t]) => `<option value="${v}"${st.sort === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label><button class="pick icon dir" aria-label="Inverti l'ordine" title="Inverti l'ordine">${ARROW(st.asc)}</button>`;
+    let gidx = '';
+    if (longList && !o.tv) {
+      const counts = {};
+      for (const m of live().filter(inTab)) for (const g of m.g) counts[g] = (counts[g] ?? 0) + 1;
+      const gs = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      const n = live().filter(inTab).length;
+      gidx = `<div class="gidx"><div class="in"><button class="g" data-g="" aria-pressed="${!st.genre}">Tutti<sup>${n}</sup></button>${gs.map(([g, c]) => `<button class="g" data-g="${esc(g)}" aria-pressed="${st.genre === g}">${esc(g)}<sup>${c}</sup></button>`).join('')}</div></div>`;
+    }
+    const search = longList && !o.tv && !o.phone ? `<label class="search">${SEARCH}<input class="q" placeholder="Cerca nella lista" value="${esc(st.q)}" aria-label="Cerca nella lista"></label>` : '';
+    return `<div class="bar">${gidx}<div class="tools">${sortSel}${search}</div></div>`;
+  }
+  function groups(items) {
+    const by = k => items.filter(m => group(m) === k);
+    // Il primo da continuare sta già nel cartellone: qui gli altri.
+    const hero = heroOf(live().filter(inTab));
+    const go = by('go').filter(m => m !== hero), nw = by('new').filter(m => m !== hero), seen = by('seen');
+    if (!items.length) return `<div class="empty">Nessun titolo della lista con questi filtri.</div>`;
+    let h = '';
+    if (go.length) h += `<div class="grp"><div class="gh"><h4>Da continuare</h4><span class="n">${go.length}</span></div><div class="strip">${go.map((m, i) => wide(m, false)).join('')}</div></div>`;
+    if (nw.length) h += `<div class="grp"><div class="gh"><h4>Da iniziare</h4><span class="n">${nw.length}</span></div><div class="grid">${nw.map(card).join('')}</div></div>`;
+    if (seen.length) h += `<div class="grp ${st.seenOpen ? 'open' : 'shut'}"><div class="gh"><button class="fold" aria-expanded="${st.seenOpen}">${CHEV}<h4>Visti</h4><span class="n">${seen.length}</span></button><span class="peek">${seen.slice(0, 6).map(m => `<i style="background-image:url('${POST(m.p, 92)}')"></i>`).join('')}</span><button class="act clean${o.tv ? ' focus' : ''}">Togli i visti dalla lista</button></div><div class="grid">${seen.map(card).join('')}</div></div>`;
+    return h;
+  }
+  function draw(keepFocus) {
+    const caret = keepFocus ? body.querySelector('.q')?.selectionStart : null;
+    if (!live().length) { body.innerHTML = band([]); return; }
+    const all = live().filter(inTab);
+    body.innerHTML = band(all) + tools(all) + groups(shown());
+    if (keepFocus) { const q = body.querySelector('.q'); if (q) { q.focus(); q.setSelectionRange(caret, caret); } }
+    body.querySelector('.sort')?.addEventListener('change', e => { st.sort = e.target.value; st.asc = false; draw(); });
+    body.querySelector('.q')?.addEventListener('input', e => { st.q = e.target.value.trim().toLowerCase(); draw(true); });
+  }
+  function say(text, names) {
+    undo = names;
+    toast.querySelector('span').textContent = text;
+    toast.classList.add('show');
+    clearTimeout(timer); timer = setTimeout(() => toast.classList.remove('show'), 5000);
+  }
+  root.addEventListener('click', e => {
+    const off = e.target.closest('.off');
+    if (off) { e.stopPropagation(); removed.add(off.dataset.n); say(`Tolto dalla lista: ${off.dataset.n}`, [off.dataset.n]); draw(); return; }
+    const t = e.target.closest('[data-tab]'); if (t) { st.tab = t.dataset.tab; st.genre = null; draw(); return; }
+    const g = e.target.closest('.g'); if (g) { st.genre = g.dataset.g || null; draw(); return; }
+    if (e.target.closest('.dir')) { st.asc = !st.asc; draw(); return; }
+    if (e.target.closest('.fold')) { st.seenOpen = !st.seenOpen; draw(); return; }
+    if (e.target.closest('.clean')) {
+      const names = live().filter(m => inTab(m) && group(m) === 'seen').map(m => m.n);
+      names.forEach(n => removed.add(n));
+      say(names.length === 1 ? 'Tolto dalla lista 1 titolo visto' : `Tolti dalla lista ${names.length} titoli visti`, names); draw(); return;
+    }
+    if (e.target.closest('.toast button')) { undo?.forEach(n => removed.delete(n)); undo = null; toast.classList.remove('show'); draw(); }
+  });
+  if (!o.tv && !o.phone) body.addEventListener('scroll', () => root.classList.toggle('solid', body.scrollTop > 270), { passive: true });
+  if (o.empty) data.forEach(m => removed.add(m.n));
+  draw();
+}
+
+lista(document.getElementById('A'), FAVS);
+lista(document.getElementById('B'), LONG);
+lista(document.getElementById('E'), [], {});
+lista(document.getElementById('P'), FAVS, { phone: true });
+lista(document.getElementById('T'), FAVS, { tv: true });
+</script>
+</body>
+</html>
