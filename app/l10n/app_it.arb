@@ -1815,7 +1815,7 @@
   "@requestsTrackSemantics": {"placeholders": {"done": {"type": "String"}, "current": {"type": "String"}}},
   "catalogAllMovies": "Tutti i film",
   "catalogAllSeries": "Tutte le serie",
-  "catalogBandMovies": "{total} film, {watched} già visti.",
+  "catalogBandMovies": "{total} film, {watched, plural, =1{1 già visto} other{{watched} già visti}}.",
   "@catalogBandMovies": {"placeholders": {"total": {"type": "int"}, "watched": {"type": "int"}}},
   "catalogBandSeries": "{total} serie, {continuing} in corso.",
   "@catalogBandSeries": {"placeholders": {"total": {"type": "int"}, "continuing": {"type": "int"}}},

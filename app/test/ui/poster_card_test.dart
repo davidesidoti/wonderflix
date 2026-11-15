@@ -166,6 +166,10 @@ void main() {
     });
   }
 
+  test('catalogCellExtent: con estensione 0 non divide per zero', () {
+    expect(catalogCellExtent(0, TextScaler.noScaling).isFinite, isTrue);
+  });
+
   test('catalogCellExtent: stesse colonne di Flutter, anche a 1170 px', () {
     // Flutter: ceil(extent / (180 + 16)). 1170 -> 6 colonne da 181,7 px.
     const scaler = TextScaler.noScaling;

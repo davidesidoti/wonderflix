@@ -83,6 +83,19 @@ void main() {
     );
   });
 
+  test('catalogBandLine: un solo titolo, un solo visto', () {
+    expect(
+      catalogBandLine(
+        it,
+        kind: ItemKind.movie,
+        sort: CatalogSort.rating,
+        reversed: false,
+        totals: const CatalogTotals(1, 1),
+      ).toPlainText(),
+      '1 film, 1 già visto. I più votati per primi.',
+    );
+  });
+
   test('catalogBandLine: il conteggio in grassetto crema', () {
     final line = catalogBandLine(
       it,

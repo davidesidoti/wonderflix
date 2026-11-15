@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_shell.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -63,6 +64,12 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
   /// un ciclo infinito se il server risponde con pagine vuote.
   int _autoLoadedAt = -1;
 
+  /// Il genere dell'indirizzo come etichetta (`?genre=Drama` vale Dramma).
+  String? get _genre {
+    final genre = widget.genre;
+    return genre == null ? null : genreLabel(genre);
+  }
+
   /// La query a cui si riferisce [_autoLoadedAt].
   ItemQuery? _autoLoadedQuery;
 
@@ -87,7 +94,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
         if (!mounted) return;
         unawaited(ref
             .read(catalogControllerProvider(widget.kind).notifier)
-            .showGenre(widget.genre));
+            .showGenre(_genre));
       }));
 
   @override
@@ -151,18 +158,6 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     final kind = widget.kind;
     final provider = catalogControllerProvider(kind);
     final state = ref.watch(provider);
-    ref.listen(provider, (previous, next) {
-      if (previous == null || _bodyKind(previous) == _bodyKind(next)) return;
-      _fade
-        ..duration = WfMotion.of(context).duration(WfMotion.medium)
-        ..forward(from: 0);
-    });
-    final controller = ref.read(provider.notifier);
-    final genres = ref.watch(catalogGenresProvider(kind));
-    final all = ref.watch(catalogTotalsProvider((kind, null))).value;
-    final totals = widget.genre == null
-        ? all
-        : ref.watch(catalogTotalsProvider((kind, widget.genre))).value;
     final form = FormFactor.of(context);
     final tv = form.tv;
     // La pagina parte dal bordo della finestra (`underBar: false`): la
@@ -172,6 +167,27 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
         : (form.compact ? shellCompactBarHeight : shellBarHeight) +
             MediaQuery.paddingOf(context).top;
 
+    ref.listen(provider, (previous, next) {
+      // Nuova query: l'elenco riparte dallo scheletro, e da lì lo scroll
+      // non deve restare oltre i primi risultati (come in `_update` delle saghe).
+      final top = height - barGap;
+      if (next.query != previous?.query &&
+          next.items.isEmpty &&
+          _scroll.hasClients &&
+          _scroll.offset > top) {
+        _scroll.jumpTo(top);
+      }
+      if (previous == null || _bodyKind(previous) == _bodyKind(next)) return;
+      _fade
+        ..duration = WfMotion.of(context).duration(WfMotion.medium)
+        ..forward(from: 0);
+    });
+    final controller = ref.read(provider.notifier);
+    final genres = ref.watch(catalogGenresProvider(kind));
+    final all = ref.watch(catalogTotalsProvider((kind, null))).value;
+    final totals = _genre == null
+        ? all
+        : ref.watch(catalogTotalsProvider((kind, _genre))).value;
     // Su schermi grandi la prima pagina può non riempire la finestra: senza
     // scroll non scatterebbe mai il caricamento successivo.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -192,7 +208,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     });
 
     final band = CatalogBand(
-      title: widget.genre ??
+      title: _genre ??
           (kind == ItemKind.series ? l.catalogAllSeries : l.catalogAllMovies),
       height: height,
       tabs: tabs,
@@ -223,7 +239,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
                   kind: kind,
                   genres: genres,
                   total: all?.total,
-                  selected: widget.genre,
+                  selected: _genre,
                   onSelected: (genre) =>
                       openCatalog(context, kind, genre: genre),
                 ),
@@ -318,7 +334,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
         );
       } else {
         final series = widget.kind == ItemKind.series;
-        final genre = widget.genre != null;
+        final genre = _genre != null;
         child = Padding(
           key: const ValueKey('empty'),
           padding: const EdgeInsets.symmetric(vertical: 48),

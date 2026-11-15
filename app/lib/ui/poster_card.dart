@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -25,7 +27,7 @@ double catalogCardTextHeight(TextScaler scaler) => 8 + scaler.scale(76);
 /// `SliverGridDelegateWithMaxCrossAxisExtent` (180, spazio 16).
 double catalogCellExtent(double extent, TextScaler scaler) {
   const maxWidth = 180.0, gap = 16.0;
-  final columns = (extent / (maxWidth + gap)).ceil();
+  final columns = max(1, (extent / (maxWidth + gap)).ceil());
   final width = (extent - gap * (columns - 1)) / columns;
   return width * 1.5 + catalogCardTextHeight(scaler);
 }

@@ -155,9 +155,7 @@ class PosterGridSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final side = catalogSide;
-    return WfShimmer(
-      child: LayoutBuilder(
-        builder: (context, constraints) => GridView.builder(
+    Widget grid(double? cellExtent) => GridView.builder(
           primary: false,
           shrinkWrap: shrinkWrap,
           physics: const NeverScrollableScrollPhysics(),
@@ -167,10 +165,7 @@ class PosterGridSkeleton extends StatelessWidget {
             mainAxisSpacing: 24,
             crossAxisSpacing: 16,
             childAspectRatio: 0.55,
-            mainAxisExtent: side == null
-                ? null
-                : catalogCellExtent(constraints.maxWidth - 2 * side,
-                    MediaQuery.textScalerOf(context)),
+            mainAxisExtent: cellExtent,
           ),
           itemCount: count,
           itemBuilder: (context, i) => const Column(
@@ -183,8 +178,14 @@ class PosterGridSkeleton extends StatelessWidget {
               SkeletonBox(width: 40, height: 10),
             ],
           ),
-        ),
-      ),
+        );
+    return WfShimmer(
+      child: side == null
+          ? grid(null)
+          : LayoutBuilder(
+              builder: (context, constraints) => grid(catalogCellExtent(
+                  constraints.maxWidth - 2 * side,
+                  MediaQuery.textScalerOf(context)))),
     );
   }
 }

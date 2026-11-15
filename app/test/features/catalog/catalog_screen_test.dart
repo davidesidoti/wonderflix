@@ -232,6 +232,37 @@ void main() {
     expect(find.text('Chiudi'), findsOneWidget);
   });
 
+  testWidgets('?genre=Drama vale Dramma: titolo e filtro in italiano',
+      (tester) async {
+    await pumpCatalog(tester, genre: 'Drama');
+    expect(find.text('Dramma'), findsWidgets);
+    expect(find.text('Drama'), findsNothing);
+    expect(gridQueries.single.genres, contains('Dramma'));
+  });
+
+  testWidgets('invertendo il verso da scorsi in basso, i primi risultati si vedono',
+      (tester) async {
+    final gate = Completer<void>();
+    api.onItems = (query, start, limit) => pageOf(
+        [for (var i = 0; i < 60; i++) testItem(id: 'm$i', name: 'T$i')]);
+    // Stretta: lo scheletro (6 righe) è più alto dei risultati scorsi.
+    await pumpCatalog(tester, surfaceSize: const Size(400, 800));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
+    await tester.pump();
+    expect(find.text('T0').hitTestable(), findsNothing);
+
+    // Il nuovo ordine ripassa dallo scheletro: lo scroll torna in cima ai
+    // risultati.
+    api.itemsGateFor = (query) => gate;
+    await tester.tap(find.byTooltip("Inverti l'ordine"));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('T0').hitTestable(), findsOneWidget);
+  });
+
   testWidgets('vuoto con un genere: testo del genere e Azzera filtri',
       (tester) async {
     await pumpCatalog(tester, genre: 'Horror');

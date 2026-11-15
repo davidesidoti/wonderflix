@@ -1614,7 +1614,7 @@
   "requestsTrackSemantics": "Done: {done}. Now: {current}",
   "catalogAllMovies": "All movies",
   "catalogAllSeries": "All series",
-  "catalogBandMovies": "{total} movies, {watched} watched.",
+  "catalogBandMovies": "{total, plural, =1{1 movie} other{{total} movies}}, {watched} watched.",
   "@catalogBandMovies": {"placeholders": {"total": {"type": "int"}, "watched": {"type": "int"}}},
   "catalogBandSeries": "{total} series, {continuing} ongoing.",
   "@catalogBandSeries": {"placeholders": {"total": {"type": "int"}, "continuing": {"type": "int"}}},
