@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,9 @@ class CatalogScreen extends ConsumerStatefulWidget {
 class _CatalogScreenState extends ConsumerState<CatalogScreen>
     with SingleTickerProviderStateMixin {
   final _scroll = SmoothScrollController();
+
+  /// La testata (generi e attrezzi) sulla TV: per misurarla.
+  final _header = GlobalKey();
 
   /// Dissolvenza di entrata di ogni stato nuovo della griglia (scheletro,
   /// errore, vuoto, titoli): sono sliver, [WfSwitcher] non ci va.
@@ -236,6 +240,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
       ],
     );
 
+    final grid = SliverFadeTransition(
+      opacity: _fade,
+      sliver: SliverMainAxisGroup(
+          slivers: _body(context, l, state, controller, side)),
+    );
     return BatchedEntrance(
       itemCount: state.items.length,
       resetKey: state.query,
@@ -259,14 +268,22 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
           // Sulla TV la testata esce con il cartellone: la griglia ha tutto
           // lo schermo.
           if (tv)
-            SliverToBoxAdapter(child: bar)
+            SliverToBoxAdapter(
+                child: tvScrollOnFocus(
+                    key: _header,
+                    scroll: _scroll,
+                    offset: () => 0,
+                    child: bar))
           else
             PinnedHeaderSliver(child: bar),
-          SliverFadeTransition(
-            opacity: _fade,
-            sliver: SliverMainAxisGroup(
-                slivers: _body(context, l, state, controller, side)),
-          ),
+          if (tv)
+            tvScrollOnFocus(
+                scroll: _scroll,
+                offset: () => max(_scroll.offset,
+                    height + (_header.currentContext?.size?.height ?? 0)),
+                child: grid)
+          else
+            grid,
         ],
       ),
     );

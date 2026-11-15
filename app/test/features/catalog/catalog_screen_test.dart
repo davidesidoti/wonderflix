@@ -1,19 +1,24 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/catalog/catalog_band.dart';
 import 'package:wonderflix/features/catalog/catalog_genre_index.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
+import 'package:wonderflix/features/catalog/catalog_tools.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/skeletons.dart';
 import 'package:wonderflix/ui/states.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -144,6 +149,87 @@ void main() {
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1000));
     await tester.pump();
     expect(allGenres.hitTestable(), findsNothing);
+  });
+
+  group('TV', () {
+    /// L'elemento col focus.
+    Finder focused() => find.byElementPredicate(
+        (e) => e == FocusManager.instance.primaryFocus?.context);
+
+    /// Il focus è sulla voce dei generi [label].
+    void expectGenreFocused(String label) => expect(
+        find.descendant(
+            of: find.ancestor(
+                of: find.descendant(
+                    of: find.byType(CatalogGenreIndex),
+                    matching: find.text(label)),
+                matching: find.byType(TvFocusable)),
+            matching: focused()),
+        findsOneWidget);
+
+    Future<void> key(WidgetTester tester, LogicalKeyboardKey k) async {
+      await tester.sendKeyEvent(k);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    setUp(() {
+      api.libraryFilters =
+          const LibraryFilters(genres: ['Dramma', 'Horror'], years: [2024]);
+      api.onItems = (query, start, limit) => pageOf(
+          [for (var i = 0; i < 60; i++) testItem(id: 'm$i', name: 'T$i')], 60);
+    });
+
+    testWidgets(
+        'focus sul genere scelto; giù agli attrezzi e alla griglia, che '
+        'prende lo schermo; su riporta in cima', (tester) async {
+      await pumpCatalog(tester,
+          genre: 'Horror', tv: true, surfaceSize: const Size(960, 540));
+      await tester.pump();
+      expect(find.byType(TextField), findsNothing, reason: 'niente ricerca');
+      expect(tester.getSize(find.byType(CatalogBand)).height, 160);
+      expectGenreFocused('Horror');
+
+      await key(tester, LogicalKeyboardKey.arrowDown);
+      expect(find.ancestor(of: focused(), matching: find.byType(CatalogTools)),
+          findsOneWidget);
+
+      await key(tester, LogicalKeyboardKey.arrowDown);
+      // Una card della prima fila (sotto l'attrezzo che aveva il focus).
+      final card =
+          find.ancestor(of: focused(), matching: find.byType(PosterCard));
+      expect(card, findsOneWidget);
+      expect(tester.getTopLeft(card).dy,
+          tester.getTopLeft(find.byType(PosterCard).first).dy);
+      expect(find.byType(CatalogBand).hitTestable(), findsNothing);
+      expect(allGenres.hitTestable(), findsNothing);
+
+      await key(tester, LogicalKeyboardKey.arrowUp);
+      expect(find.ancestor(of: focused(), matching: find.byType(CatalogTools)),
+          findsOneWidget);
+      expect(find.byType(CatalogBand).hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('genere sotto la soglia: il focus va su Tutti',
+        (tester) async {
+      await pumpCatalog(tester,
+          genre: 'Western', tv: true, surfaceSize: const Size(960, 540));
+      await tester.pump();
+      expectGenreFocused('Tutti');
+    });
+  });
+
+  testWidgets('stretto: cartellone 220, occhio e lente che apre la ricerca',
+      (tester) async {
+    await pumpCatalog(tester, surfaceSize: const Size(390, 780));
+    expect(tester.getSize(find.byType(CatalogBand)).height, 220);
+    expect(find.byIcon(LucideIcons.eye), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.byIcon(LucideIcons.search));
+    await tester.pump();
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.text('Chiudi'), findsOneWidget);
   });
 
   testWidgets('vuoto con un genere: testo del genere e Azzera filtri',

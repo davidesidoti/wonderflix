@@ -49,6 +49,11 @@ class CatalogGenreIndex extends StatelessWidget {
       ),
       for (final g in list) (genre: g.label, label: g.label, count: g.count),
     ];
+    // Sulla TV il focus parte dal genere scelto; se non ha una voce (sotto la
+    // soglia), letti i generi, da "Tutti". Mentre si leggono, nessuno:
+    // l'autofocus vale solo se nessuno ha già il focus.
+    final selectedShown = entries.any((e) => e.genre == selected);
+    final loaded = genres.hasValue || genres.hasError;
     return Stack(
       children: [
         SingleChildScrollView(
@@ -62,6 +67,9 @@ class CatalogGenreIndex extends StatelessWidget {
                   label: e.label,
                   count: e.count,
                   selected: e.genre == selected,
+                  autofocus:
+                      e.genre == selected ||
+                      (e.genre == null && loaded && !selectedShown),
                   onTap: () => onSelected(e.genre),
                 ),
             ],
@@ -93,12 +101,14 @@ class _GenreItem extends StatelessWidget {
     required this.label,
     required this.count,
     required this.selected,
+    required this.autofocus,
     required this.onTap,
   });
 
   final String label;
   final int? count;
   final bool selected;
+  final bool autofocus;
   final VoidCallback onTap;
 
   @override
@@ -106,7 +116,7 @@ class _GenreItem extends StatelessWidget {
     final tv = FormFactor.of(context).tv;
     final color = selected ? WfColors.gold : WfColors.creamMuted;
     return TvFocusable(
-      autofocus: selected,
+      autofocus: autofocus,
       onActivate: onTap,
       child: Semantics(
         button: true,

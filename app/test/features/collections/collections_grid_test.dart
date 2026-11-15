@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +12,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/catalog/catalog_genre_index.dart';
 import 'package:wonderflix/features/catalog/catalog_navigation.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
+import 'package:wonderflix/features/catalog/catalog_tools.dart';
 import 'package:wonderflix/features/catalog/catalog_band.dart';
 import 'package:wonderflix/features/collections/collections_providers.dart';
 import 'package:wonderflix/features/collections/saga_fan_card.dart';
@@ -355,6 +357,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Alien'), findsNothing);
     expect(find.text('Matrix'), findsOneWidget);
+  });
+
+  testWidgets('tutte finite e nascoste, senza ricerca: "Nessuna saga"',
+      (tester) async {
+    for (final id in ['m1', 'm2', 'm3', 'm4', 'm5']) {
+      library.itemsById[id] = testItem(id: id, played: true);
+    }
+    await pumpCatalog(tester, '/movies?view=sagas');
+    await tester.pump();
+    await tester.tap(find.text('Nascondi le saghe finite'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nessuna saga'), findsOneWidget);
+    expect(find.text('Nessuna saga con questo nome'), findsNothing);
+  });
+
+  testWidgets('TV: dagli attrezzi giù nella griglia, che prende lo schermo',
+      (tester) async {
+    collections.collectionsList = [
+      for (var i = 0; i < 12; i++)
+        testCollection(id: 'c$i', name: 'Saga $i', itemIds: ['m$i']),
+    ];
+    await pumpCatalog(tester, '/movies?view=sagas',
+        tv: true, surfaceSize: const Size(960, 540));
+    await tester.pump();
+    // Il nodo di TvFocusable attorno all'interruttore
+    // (Sotto c'è anche il Focus dell'InkWell, che sulla TV non lo prende.)
+    Focus.of(tester.element(find.descendant(
+            of: find.byType(CatalogSwitch),
+            matching: find.byType(AnimatedScale))))
+        .requestFocus();
+    await tester.pump();
+    expect(find.byType(CatalogBand).hitTestable(), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    final focused = FocusManager.instance.primaryFocus!.context!;
+    expect(focused.findAncestorWidgetOfExactType<SagaFanCard>(), isNotNull);
+    expect(find.byType(CatalogBand).hitTestable(), findsNothing);
+    expect(find.text('Nascondi le saghe finite').hitTestable(), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(CatalogBand).hitTestable(), findsOneWidget);
   });
 
   testWidgets('senza i film delle saghe: la locandina della saga, niente barra',

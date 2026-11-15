@@ -43,6 +43,9 @@ class CollectionsGrid extends ConsumerStatefulWidget {
 
 class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
   final _scroll = SmoothScrollController();
+
+  /// Gli attrezzi sulla TV: per misurarli.
+  final _header = GlobalKey();
   String _query = '';
   CollectionSort _sort = CollectionSort.name;
   bool _reversed = false;
@@ -104,6 +107,16 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
       ],
     );
     final (kind, body) = _body(l, side, list, items);
+    // Ogni stato nuovo (scheletro, errore, vuoto, saghe) entra in
+    // dissolvenza, come la griglia dei titoli.
+    final grid = TweenAnimationBuilder<double>(
+      key: ValueKey(kind),
+      tween: Tween(begin: 0, end: 1),
+      duration: WfMotion.of(context).duration(WfMotion.medium),
+      builder: (context, opacity, child) =>
+          SliverOpacity(opacity: opacity, sliver: child),
+      child: body,
+    );
     return CustomScrollView(
       controller: _scroll,
       primary: false,
@@ -120,19 +133,27 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
           ),
         ),
         if (tv)
-          SliverToBoxAdapter(child: bar)
+          SliverToBoxAdapter(
+            child: tvScrollOnFocus(
+              key: _header,
+              scroll: _scroll,
+              offset: () => 0,
+              child: bar,
+            ),
+          )
         else
           PinnedHeaderSliver(child: bar),
-        // Ogni stato nuovo (scheletro, errore, vuoto, saghe) entra in
-        // dissolvenza, come la griglia dei titoli.
-        TweenAnimationBuilder<double>(
-          key: ValueKey(kind),
-          tween: Tween(begin: 0, end: 1),
-          duration: WfMotion.of(context).duration(WfMotion.medium),
-          builder: (context, opacity, child) =>
-              SliverOpacity(opacity: opacity, sliver: child),
-          child: body,
-        ),
+        if (tv)
+          tvScrollOnFocus(
+            scroll: _scroll,
+            offset: () => max(
+              _scroll.offset,
+              _bandScroll + (_header.currentContext?.size?.height ?? 0),
+            ),
+            child: grid,
+          )
+        else
+          grid,
       ],
     );
   }
@@ -252,8 +273,12 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
         ],
       );
     }
-    return Padding(
+    // Lo stesso filo in alto degli attrezzi dei titoli ([CatalogTools]).
+    return Container(
       padding: EdgeInsets.symmetric(vertical: form.tv ? 6 : 10),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: WfColors.surface)),
+      ),
       child: row,
     );
   }
@@ -317,7 +342,12 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
     }
     shown = sortCollections(shown, _sort);
     if (_reversed) shown = shown.reversed.toList();
-    if (shown.isEmpty) return ('no-match', message(l.collectionsNoMatch));
+    if (shown.isEmpty) {
+      // Senza ricerca le ha nascoste tutte "Nascondi le saghe finite".
+      return _query.trim().isEmpty
+          ? ('empty', message(l.collectionsEmpty))
+          : ('no-match', message(l.collectionsNoMatch));
+    }
     return (
       'data',
       SliverPadding(
@@ -326,7 +356,7 @@ class _CollectionsGridState extends ConsumerState<CollectionsGrid> {
           builder: (context, constraints) {
             const maxWidth = 220.0, gap = 22.0;
             final extent = constraints.crossAxisExtent;
-            final columns = (extent / (maxWidth + gap)).ceil();
+            final columns = max(1, (extent / (maxWidth + gap)).ceil());
             final width = (extent - gap * (columns - 1)) / columns;
             return SliverGrid(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(

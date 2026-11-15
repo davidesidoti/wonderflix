@@ -18,6 +18,41 @@ double catalogBandHeight(BuildContext context) {
   return form.tv ? 160 : (form.compact ? 220 : 320);
 }
 
+/// Sulla TV la testata non resta ferma (spec §11): col focus dentro [child]
+/// (la testata, o lo sliver della griglia) la pagina scorre fino a [offset]:
+/// in cima per la testata, oltre cartellone e testata per la griglia.
+Widget tvScrollOnFocus({
+  Key? key,
+  required ScrollController scroll,
+  required double Function() offset,
+  required Widget child,
+}) => Focus(
+  key: key,
+  canRequestFocus: false,
+  skipTraversal: true,
+  // Senza Semantics: [child] può essere uno sliver.
+  includeSemantics: false,
+  onFocusChange: (focused) {
+    if (!focused) return;
+    // Dopo il frame: vince sullo scorrimento al centro di TvFocusable.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!scroll.hasClients) return;
+      final position = scroll.position;
+      final target = offset().clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if (target == position.pixels) return;
+      scroll.animateTo(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  },
+  child: child,
+);
+
 /// Il primo titolo con un fondale, qualunque sia l'ordine (spec §5).
 JellyfinItem? catalogBandHero(List<JellyfinItem> items) {
   for (final item in items) {
