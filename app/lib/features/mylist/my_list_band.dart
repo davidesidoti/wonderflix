@@ -11,11 +11,24 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
+import '../catalog/catalog_band.dart';
 import '../detail/detail_providers.dart';
 import '../library/item_labels.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import 'my_list_view.dart';
+
+/// Altezza del cartellone (spec §12, §13). Con un pulsante ([action]) è più
+/// alto del catalogo, così titolo, riga e pulsante restano sotto le schede:
+/// 320 su desktop, 340 stretto, 190 sulla TV. Stretto si aggiunge il bordo
+/// sicuro in alto, che abbassa le schede.
+double myListBandHeight(BuildContext context, {required bool action}) {
+  final form = FormFactor.of(context);
+  if (form.tv) return action ? 190 : catalogBandHeight(context);
+  if (!form.compact) return catalogBandHeight(context);
+  return (action ? 340 : catalogBandHeight(context)) +
+      MediaQuery.paddingOf(context).top;
+}
 
 /// "**8 titoli**: 1 da continuare, 4 da iniziare, 3 visti." (spec §5): il
 /// conteggio della scheda in grassetto crema, poi i gruppi non vuoti.
@@ -44,8 +57,8 @@ TextSpan myListBandLine(AppLocalizations l, MyListTab tab, MyListView view) {
   );
 }
 
-/// Il pulsante oro col titolo di punta e la frase accanto (sotto sul
-/// telefono): "Riprendi" / "Riproduci" e "Da dove eri rimasto: **Titolo**".
+/// Il pulsante oro col titolo di punta e la frase accanto (sotto nelle
+/// finestre strette): "Riprendi" / "Riproduci" e "Da dove eri rimasto: **Titolo**".
 class MyListBandAction extends ConsumerWidget {
   const MyListBandAction({
     super.key,
@@ -109,7 +122,8 @@ class MyListBandAction extends ConsumerWidget {
       tail: tail.isEmpty ? '' : ', ${tail.join(', ')}',
       onTap: () => openItem(context, hero),
     );
-    return form.compact
+    // Sulla TV (960 px, compatta) ci stanno in una riga.
+    return form.compact && !form.tv
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,

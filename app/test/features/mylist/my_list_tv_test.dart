@@ -10,10 +10,13 @@ import 'package:wonderflix/features/catalog/catalog_screen.dart';
 import 'package:wonderflix/features/detail/detail_providers.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/mylist/my_list_band.dart';
 import 'package:wonderflix/features/mylist/my_list_screen.dart';
 import 'package:wonderflix/features/mylist/my_list_tools.dart';
+import 'package:wonderflix/features/mylist/my_list_view.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/home_fakes.dart';
@@ -79,13 +82,18 @@ void main() {
     List<JellyfinItem> items, {
     bool tv = true,
     Size size = const Size(960, 540),
+    String location = '/mylist',
   }) async {
     final router = GoRouter(
-      initialLocation: '/mylist',
+      initialLocation: location,
       routes: [
         GoRoute(
           path: '/mylist',
-          builder: (context, state) => const Scaffold(body: MyListScreen()),
+          builder: (context, state) => Scaffold(
+            body: MyListScreen(
+              tab: MyListTab.parse(state.uri.queryParameters['kind']),
+            ),
+          ),
         ),
         GoRoute(path: '/movies', builder: (_, _) => const Text('pagina film')),
         GoRoute(path: '/series', builder: (_, _) => const Text('pagina serie')),
@@ -237,5 +245,44 @@ void main() {
   testWidgets('TV, lista vuota: focus su Vai ai film', (tester) async {
     await pumpList(tester, []);
     expect(focusedLabel(tester), 'Vai ai film');
+  });
+
+  testWidgets('TV: schede sopra il titolo, pulsante e frase in una riga', (
+    tester,
+  ) async {
+    await pumpList(tester, library());
+    final title = tester.getRect(find.text('LA MIA LISTA'));
+    expect(
+      tester.getRect(find.byType(CatalogBandTab).first).bottom,
+      lessThanOrEqualTo(title.top),
+    );
+    final action = find.byType(MyListBandAction);
+    expect(
+      tester.getRect(action).bottom,
+      lessThanOrEqualTo(tester.getRect(find.byType(MyListTools)).top),
+    );
+    final button = tester.getRect(
+      find.descendant(of: action, matching: find.byType(WfButton)),
+    );
+    final phrase = tester.getRect(
+      find.descendant(
+        of: action,
+        matching: find.textContaining('VisionQuest', findRichText: true),
+      ),
+    );
+    expect(phrase.left, greaterThan(button.right));
+    // La prima fila di Da iniziare si vede già sui 540 px della TV.
+    expect(tester.getRect(find.byType(PosterCard).first).top, lessThan(540));
+  });
+
+  testWidgets('TV, scheda vuota: le schede sopra il titolo', (tester) async {
+    await pumpList(tester, [
+      testItem(id: 'p', name: 'Parasite', favorite: true),
+    ], location: '/mylist?kind=series');
+    expect(find.text('Vai alle serie'), findsOneWidget);
+    expect(
+      tester.getRect(find.byType(CatalogBandTab).first).bottom,
+      lessThanOrEqualTo(tester.getRect(find.text('LA MIA LISTA')).top),
+    );
   });
 }

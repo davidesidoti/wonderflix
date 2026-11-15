@@ -56,7 +56,7 @@ L'utente ha chiesto come migliorare la UI/UX di La mia lista. Oggi (app 0.42):
 
 Dall'alto (bozza, sezione "La tua lista di oggi"):
 
-1. **Cartellone** (§5): `CatalogBand` alto come nel catalogo, con le schede TUTTI FILM SERIE in alto a sinistra.
+1. **Cartellone** (§5): `CatalogBand` alto come nel catalogo (320 su desktop), con le schede TUTTI FILM SERIE in alto a sinistra; nelle finestre strette e in TV, col pulsante oro, più alto (§12, §13).
 2. **Attrezzi** (§7): una riga con Ordina e verso; con più di 24 titoli, sopra, la riga dei generi e il campo di ricerca. A differenza del catalogo **non restano fermi in cima**: con pochi titoli la pagina è corta, e i gruppi hanno già i loro titoli.
 3. **Gruppi** (§6), in quest'ordine: Da continuare, Da iniziare, Visti. Un gruppo vuoto non compare.
 
@@ -176,7 +176,7 @@ Jellyfin non salva quando un titolo diventa preferito. L'app la salva per conto 
 
 ## 12. Telefono e finestre strette (`FormFactor.compact`)
 
-- Cartellone come nel catalogo compatto (220 px, titolo 64), con il pulsante oro e la frase sotto, su due righe se serve.
+- Cartellone col titolo 64 come nel catalogo compatto, ma alto 340 px col pulsante oro (220 senza), più il bordo sicuro in alto (iPhone): il pulsante e la frase stanno sotto, su due righe se serve, e titolo e pulsante non salgono sotto le schede.
 - Attrezzi: Ordina senza la parola "Ordina", più il verso. Oltre i 24 titoli c'è la riga dei generi ma non la ricerca: lo spazio manca, e Cerca sta già nella barra.
 - Da continuare in una colonna di card larghe a tutta larghezza. Da iniziare e Visti con le colonne del catalogo (2 su 390 px).
 - Nessun cuore sulle card (§9).
@@ -184,7 +184,7 @@ Jellyfin non salva quando un titolo diventa preferito. L'app la salva per conto 
 
 ## 13. TV (`FormFactor.tv`)
 
-- Cartellone alto 160 come nel catalogo TV, con il pulsante oro. **Il focus parte dal pulsante del cartellone:** un OK e si riparte.
+- Cartellone alto 190 col pulsante oro (160 senza, come nel catalogo TV), con il pulsante e la frase in una riga. **Il focus parte dal pulsante del cartellone:** un OK e si riparte.
 - Su dal pulsante si va alle schede TUTTI FILM SERIE. Giù si va agli attrezzi (solo Ordina e verso: niente generi né ricerca in TV), poi ai gruppi.
 - I gruppi sono gli stessi. Da continuare è una fila che scorre di lato col focus. Visti chiuso ha due controlli raggiungibili: la testata (apre e chiude) e "Togli i visti dalla lista", così la pulizia si fa col telecomando.
 - Le card non hanno il cuore (non c'è mouse). Un titolo singolo si toglie dal cuore nella testata della scheda, come oggi (il menu "⋯" non ha il preferito).

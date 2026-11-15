@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/app_shell.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
@@ -127,13 +126,6 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
     final form = FormFactor.of(context);
     final tv = form.tv;
     final side = tv ? 24.0 : (form.compact ? 16.0 : 32.0);
-    final height = catalogBandHeight(context);
-    // La pagina parte dal bordo della finestra (`underBar: false`): il
-    // cartellone passa sotto la barra in alto, come nel catalogo.
-    final barGap = tv
-        ? 0.0
-        : (form.compact ? shellCompactBarHeight : shellBarHeight) +
-              MediaQuery.paddingOf(context).top;
 
     // Si pulisce solo con una lista nuova o all'arrivo delle date, non a ogni
     // data cambiata.
@@ -173,31 +165,29 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
     Widget top(Widget sliver) => tv
         ? tvScrollOnFocus(scroll: _scroll, offset: () => 0, child: sliver)
         : sliver;
+    // La pagina parte dal bordo della finestra (`underBar: false`): il
+    // cartellone passa sotto la barra in alto, e gli attrezzi, che non
+    // restano fermi, vengono dopo tutto il cartellone.
     Widget band({
+      required double height,
       Widget? tabs,
       JellyfinItem? hero,
       InlineSpan? line,
       Widget? action,
     }) => top(
       SliverToBoxAdapter(
-        child: SizedBox(
-          height: height - barGap,
-          child: OverflowBox(
-            alignment: Alignment.topCenter,
-            minHeight: height,
-            maxHeight: height,
-            child: CatalogBand(
-              title: l.navMyList.toUpperCase(),
-              height: height,
-              tabs: tabs,
-              hero: hero,
-              line: line,
-              action: action,
-            ),
-          ),
+        child: CatalogBand(
+          title: l.navMyList.toUpperCase(),
+          height: height,
+          tabs: tabs,
+          hero: hero,
+          line: line,
+          action: action,
         ),
       ),
     );
+    final plainHeight = myListBandHeight(context, action: false);
+    final actionHeight = myListBandHeight(context, action: true);
 
     final slivers = ref
         .watch(favoritesProvider)
@@ -206,7 +196,8 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
           // finché arriva la nuova.
           skipLoadingOnReload: true,
           loading: () => [
-            band(tabs: tabs),
+            // Alto come col pulsante, che c'è quasi sempre: niente salto.
+            band(height: actionHeight, tabs: tabs),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -219,7 +210,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
             ),
           ],
           error: (error, _) => [
-            band(tabs: tabs),
+            band(height: plainHeight, tabs: tabs),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 48),
@@ -241,6 +232,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
             if (view.listEmpty) {
               return [
                 band(
+                  height: actionHeight,
                   line: TextSpan(text: l.myListEmpty),
                   action: Wrap(
                     spacing: 12,
@@ -254,6 +246,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
               final movies = widget.tab == MyListTab.movies;
               return [
                 band(
+                  height: actionHeight,
                   tabs: tabs,
                   line: TextSpan(
                     text: movies ? l.myListEmptyMovies : l.myListEmptySeries,
@@ -263,6 +256,8 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
               ];
             }
             final hero = view.hero;
+            // Una sola altezza per il cartellone e per lo scorrimento TV.
+            final height = hero == null ? plainHeight : actionHeight;
             final groups = myListGroupSlivers(
               context,
               view: view,
@@ -273,6 +268,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
             );
             return [
               band(
+                height: height,
                 tabs: tabs,
                 // Il fondale del punta, se no del primo titolo che ne ha uno.
                 hero: catalogBandHero([

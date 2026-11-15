@@ -9,12 +9,15 @@ import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/catalog/catalog_band.dart';
+import 'package:wonderflix/features/catalog/catalog_screen.dart';
 import 'package:wonderflix/features/catalog/catalog_genre_index.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/my_list_added.dart';
 import 'package:wonderflix/features/library/user_data.dart';
+import 'package:wonderflix/features/mylist/my_list_band.dart';
 import 'package:wonderflix/features/mylist/my_list_screen.dart';
+import 'package:wonderflix/features/mylist/my_list_tools.dart';
 import 'package:wonderflix/features/mylist/my_list_view.dart';
 import 'package:wonderflix/ui/card_preview.dart';
 import 'package:wonderflix/ui/landscape_card.dart';
@@ -590,4 +593,57 @@ void main() {
     };
     expect(lefts, hasLength(2));
   });
+
+  /// Le schede sopra il titolo, il pulsante sopra gli attrezzi (spec §12).
+  void expectBandFits(WidgetTester tester) {
+    final title = tester.getRect(find.text('LA MIA LISTA'));
+    final tabs = find.byType(CatalogBandTab);
+    if (tabs.evaluate().isNotEmpty) {
+      expect(tester.getRect(tabs.first).bottom, lessThanOrEqualTo(title.top));
+    }
+    final action = find.byType(MyListBandAction);
+    final tools = find.byType(MyListTools);
+    if (action.evaluate().isNotEmpty && tools.evaluate().isNotEmpty) {
+      expect(
+        tester.getRect(action).bottom,
+        lessThanOrEqualTo(tester.getRect(tools).top),
+      );
+    }
+  }
+
+  /// Un film iniziato dal nome lungo (la frase va a capo) e uno nuovo.
+  List<JellyfinItem> longHero() => [
+    testItem(
+      id: 'h',
+      name: 'Il buono, il brutto, il cattivo: edizione estesa',
+      favorite: true,
+      runtimeMinutes: 178,
+      positionTicks: 10 * _minute,
+      dateCreated: '2025-01-01T00:00:00Z',
+    ),
+    ...many(2),
+  ];
+
+  for (final (name, size) in [
+    ('telefono 390 px', const Size(390, 844)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('$name: il cartellone non sale sotto le schede', (
+      tester,
+    ) async {
+      tester.view.padding = FakeViewPadding(
+        top: (name == 'desktop' ? 0 : 47) * tester.view.devicePixelRatio,
+      );
+      addTearDown(tester.view.resetPadding);
+      await pumpList(tester, apiWith(longHero()), size: size);
+      expect(find.byType(MyListBandAction), findsOneWidget);
+      expectBandFits(tester);
+
+      // Anche la scheda vuota, col pulsante "Vai alle serie".
+      await tester.tap(find.byKey(const ValueKey('mylist-tab-series')));
+      await tester.pumpAndSettle();
+      expect(find.text('Vai alle serie'), findsOneWidget);
+      expectBandFits(tester);
+    });
+  }
 }
