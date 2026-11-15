@@ -103,8 +103,13 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
     // shortcut: oltre il limite della richiesta la lista non è intera e non
     // si pulisce; da rivedere se la lista si legge a pagine.
     if (items == null || items.length >= _favoritesLimit) return;
+    // Anche i cuori accesi in questa sessione: un titolo aggiunto da una
+    // scheda aperta sopra la pagina non è ancora nella risposta.
+    final overrides = ref.read(userDataOverridesProvider);
     ref.read(myListAddedProvider.notifier).retainOnly({
       for (final i in items) jellyfinIdKey(i.id),
+      for (final MapEntry(:key, :value) in overrides.entries)
+        if (value.isFavorite) jellyfinIdKey(key),
     });
   }
 
@@ -128,14 +133,18 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
         : (form.compact ? shellCompactBarHeight : shellBarHeight) +
               MediaQuery.paddingOf(context).top;
 
+    // Si pulisce solo con una lista nuova o all'arrivo delle date, non a ogni
+    // data cambiata.
     ref.listen(favoritesProvider, (previous, next) {
-      _prune();
+      if (next.hasValue && !identical(next.value, previous?.value)) _prune();
       if (previous == null || _bodyKind(previous) == _bodyKind(next)) return;
       _fade
         ..duration = WfMotion.of(context).duration(WfMotion.medium)
         ..forward(from: 0);
     });
-    ref.listen(myListAddedProvider, (_, _) => _prune());
+    ref.listen(myListAddedProvider, (previous, next) {
+      if (next.hasValue && !(previous?.hasValue ?? false)) _prune();
+    });
     final overrides = ref.watch(userDataOverridesProvider);
     // Le date arrivano dopo: intanto si ordina per data di creazione.
     final added = ref.watch(myListAddedProvider).value ?? const {};
@@ -248,13 +257,13 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
             return [
               band(
                 tabs: tabs,
-                hero:
-                    hero ??
-                    catalogBandHero([
-                      ...view.resume,
-                      ...view.start,
-                      ...view.watched,
-                    ]),
+                // Il fondale del punta, se no del primo titolo che ne ha uno.
+                hero: catalogBandHero([
+                  ?hero,
+                  ...view.resume,
+                  ...view.start,
+                  ...view.watched,
+                ]),
                 line: myListBandLine(l, widget.tab, view),
                 action: hero == null
                     ? null

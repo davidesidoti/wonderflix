@@ -8,10 +8,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/catalog/catalog_band.dart';
 import 'package:wonderflix/features/catalog/catalog_genre_index.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/my_list_added.dart';
+import 'package:wonderflix/features/library/user_data.dart';
 import 'package:wonderflix/features/mylist/my_list_screen.dart';
 import 'package:wonderflix/features/mylist/my_list_view.dart';
 import 'package:wonderflix/ui/card_preview.dart';
@@ -86,6 +88,7 @@ void main() {
     String location = '/mylist',
     Size size = const Size(1440, 2400),
     bool tv = false,
+    FakeDisplayPreferencesApi? prefs,
   }) async {
     final router = GoRouter(
       initialLocation: location,
@@ -111,7 +114,7 @@ void main() {
       overrides: [
         libraryApiProvider.overrideWithValue(api),
         displayPreferencesApiProvider.overrideWithValue(
-          FakeDisplayPreferencesApi(),
+          prefs ?? FakeDisplayPreferencesApi(),
         ),
         sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser)),
@@ -453,6 +456,48 @@ void main() {
       tester.element(find.byType(MyListScreen)),
     );
     expect(container.read(myListAddedProvider).value!.keys, ['p']);
+  });
+
+  // Una scheda aperta sopra la pagina accende un cuore: la lista in memoria
+  // non ha il titolo, ma la sua data non si perde.
+  testWidgets('la data di un titolo aggiunto altrove resta e si salva', (
+    tester,
+  ) async {
+    final prefs = FakeDisplayPreferencesApi();
+    await pumpList(tester, apiWith(library()), prefs: prefs);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MyListScreen)),
+    );
+    await container
+        .read(userDataOverridesProvider.notifier)
+        .toggleFavorite(testItem(id: 'new', name: 'Nuovo'));
+    await tester.pumpAndSettle();
+    expect(container.read(myListAddedProvider).value!.keys, contains('new'));
+    expect(prefs.myListAddedWrites.last.keys, contains('new'));
+  });
+
+  testWidgets('punta senza fondale: il cartellone usa quello di un altro', (
+    tester,
+  ) async {
+    await pumpList(
+      tester,
+      apiWith([
+        JellyfinItem.fromJson({
+          'Id': 'vq',
+          'Name': 'VisionQuest',
+          'Type': 'Series',
+          'RecursiveItemCount': 10,
+          'DateCreated': '2024-06-01T00:00:00Z',
+          'UserData': {
+            'IsFavorite': true,
+            'UnplayedItemCount': 5,
+            'PlayedPercentage': 50,
+          },
+        }),
+        ...library().skip(1),
+      ]),
+    );
+    expect(tester.widget<CatalogBand>(find.byType(CatalogBand)).hero?.id, 'p');
   });
 
   // Griglia senza chiavi: togliendo Heat, la card di Arrival ne riusa
