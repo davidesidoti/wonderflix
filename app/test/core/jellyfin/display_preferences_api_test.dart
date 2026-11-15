@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/display_preferences_api.dart';
@@ -125,6 +127,59 @@ void main() {
     await api.writeNextUpHidden('u1', const {});
     final body = adapter.requests.last.data as Map<String, dynamic>;
     expect(body['CustomPrefs'], {'chromecastVersion': 'stable', 'tvhome': null});
+  });
+
+  test('La mia lista: date di aggiunta, id normalizzati, voci storte saltate',
+      () async {
+    adapter.handler = (_) => FakeResponse(
+        200,
+        serverPrefs({
+          'myListAdded': jsonEncode({
+            'AB-CD': '2026-11-01T10:00:00.000Z',
+            'ef12': '2026-11-02T10:00:00+01:00',
+            'storta': 'non una data',
+            'numero': 5,
+          }),
+        }));
+    expect(await api.readMyListAdded('u1'), {
+      'abcd': DateTime.utc(2026, 11, 1, 10),
+      'ef12': DateTime.utc(2026, 11, 2, 9),
+    });
+  });
+
+  test('La mia lista: senza voce o con JSON storto, mappa vuota', () async {
+    expect(await api.readMyListAdded('u1'), isEmpty);
+    adapter.handler =
+        (_) => FakeResponse(200, serverPrefs({'myListAdded': '{rotto'}));
+    expect(await api.readMyListAdded('u1'), isEmpty);
+    adapter.handler =
+        (_) => FakeResponse(200, serverPrefs({'myListAdded': '[1,2]'}));
+    expect(await api.readMyListAdded('u1'), isEmpty);
+  });
+
+  test('scrivere le date lascia le altre voci; vuota la toglie', () async {
+    adapter.handler = (options) => options.method == 'GET'
+        ? FakeResponse(
+            200,
+            serverPrefs({
+              'homeRows': 'myList',
+              'nextUpHidden': 's1:e1',
+              'myListAdded': '{}',
+            }))
+        : const FakeResponse(204);
+    await api.writeMyListAdded('u1', {'AB-CD': DateTime.utc(2026, 11, 1, 10)});
+    var custom = (adapter.requests.last.data
+        as Map<String, dynamic>)['CustomPrefs'] as Map<String, dynamic>;
+    expect(custom['homeRows'], 'myList');
+    expect(custom['nextUpHidden'], 's1:e1');
+    expect(jsonDecode(custom['myListAdded'] as String),
+        {'abcd': '2026-11-01T10:00:00.000Z'});
+    await api.writeMyListAdded('u1', const {});
+    custom = (adapter.requests.last.data
+        as Map<String, dynamic>)['CustomPrefs'] as Map<String, dynamic>;
+    expect(custom.containsKey('myListAdded'), isFalse);
+    expect(custom['homeRows'], 'myList');
+    expect(custom['nextUpHidden'], 's1:e1');
   });
 
   test('un errore di Jellyfin arriva a chi chiama', () async {

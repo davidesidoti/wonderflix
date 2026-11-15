@@ -187,6 +187,34 @@ class FakeDisplayPreferencesApi implements DisplayPreferencesApi {
     if (error != null) throw error;
     nextUpHidden = {...hidden};
   }
+
+  /// Le date di aggiunta a "La mia lista".
+  Map<String, DateTime> myListAdded = {};
+  Object? myListAddedReadError;
+  Object? myListAddedWriteError;
+  final myListAddedWrites = <Map<String, DateTime>>[];
+
+  /// Se valorizzato, [writeMyListAdded] aspetta che si completi (dopo aver
+  /// registrato la chiamata).
+  Completer<void>? myListAddedWriteGate;
+
+  @override
+  Future<Map<String, DateTime>> readMyListAdded(String userId) async {
+    final error = myListAddedReadError;
+    if (error != null) throw error;
+    return {...myListAdded};
+  }
+
+  @override
+  Future<void> writeMyListAdded(
+      String userId, Map<String, DateTime> added) async {
+    myListAddedWrites.add({...added});
+    final gate = myListAddedWriteGate;
+    if (gate != null) await gate.future;
+    final error = myListAddedWriteError;
+    if (error != null) throw error;
+    myListAdded = {...added};
+  }
 }
 
 UpcomingEpisode testEpisode({

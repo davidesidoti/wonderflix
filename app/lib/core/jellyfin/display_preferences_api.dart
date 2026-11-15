@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'jellyfin_http.dart';
 import 'json_fields.dart';
 
@@ -34,6 +36,11 @@ class DisplayPreferencesApi {
   /// Le serie tolte da "Prossimi episodi": `serieId:episodioId` separati da
   /// virgole, con l'episodio proposto quando si è tolta.
   static const nextUpHiddenKey = 'nextUpHidden';
+
+  /// Quando ogni titolo è entrato in "La mia lista" (Jellyfin non tiene la
+  /// data dei preferiti): un oggetto JSON `{"<id>":"<ISO 8601 UTC>"}` in una
+  /// stringa.
+  static const myListAddedKey = 'myListAdded';
 
   static const _path = '/DisplayPreferences/$homeId';
 
@@ -83,6 +90,39 @@ class DisplayPreferencesApi {
           custom[nextUpHiddenKey] = [
             for (final MapEntry(:key, :value) in hidden.entries) '$key:$value',
           ].join(',');
+        }
+      });
+
+  /// Id → quando è entrato in "La mia lista" (UTC), chiavi `jellyfinIdKey`.
+  /// Le voci storte si saltano, un JSON storto è una mappa vuota.
+  Future<Map<String, DateTime>> readMyListAdded(String userId) async {
+    final custom = jsonMap((await _read(userId))['CustomPrefs']) ?? const {};
+    final raw = custom[myListAddedKey];
+    Object? decoded;
+    try {
+      decoded = raw is String ? jsonDecode(raw) : null;
+    } on FormatException {
+      return const {};
+    }
+    final map = jsonMap(decoded) ?? const {};
+    return {
+      for (final MapEntry(:key, :value) in map.entries)
+        if (value is String)
+          if (DateTime.tryParse(value) case final date?)
+            jellyfinIdKey(key): date.toUtc(),
+    };
+  }
+
+  /// Salva le date; senza nessuna la voce sparisce. Le altre voci restano.
+  Future<void> writeMyListAdded(String userId, Map<String, DateTime> added) =>
+      _update(userId, (custom) {
+        if (added.isEmpty) {
+          custom.remove(myListAddedKey);
+        } else {
+          custom[myListAddedKey] = jsonEncode({
+            for (final MapEntry(:key, :value) in added.entries)
+              jellyfinIdKey(key): value.toUtc().toIso8601String(),
+          });
         }
       });
 
