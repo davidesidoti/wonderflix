@@ -4,9 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
+import 'package:wonderflix/features/home/hero_queue.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/match/match_entry.dart';
+import 'package:wonderflix/features/tonight/tonight_dialog.dart';
 import 'package:wonderflix/ui/form_factor.dart';
 import 'package:wonderflix/ui/media_row.dart';
 
@@ -341,5 +343,88 @@ void main() {
     await tester.pump();
     expect(find.text('HEAT'), findsOneWidget);
     expect(_focusIn(play), isTrue);
+  });
+
+  group('carosello in TV', () {
+    final items = [
+      for (final n in ['Dune', 'Alien', 'Heat']) testItem(id: n, name: n),
+    ];
+
+    Future<void> pumpTv(
+      WidgetTester tester, {
+      Widget? extraAction,
+      bool autofocusPlay = true,
+    }) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: FormFactorScope(
+            tv: true,
+            child: HeroCarousel(
+              items: items,
+              extraAction: extraAction,
+              autofocusPlay: autofocusPlay,
+            ),
+          ),
+        ),
+        overrides: [
+          libraryApiProvider.overrideWithValue(FakeLibraryApi()),
+          sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser)),
+          ),
+        ],
+        surfaceSize: const Size(960, 540),
+      );
+      await tester.pump();
+    }
+
+    final play = find.ancestor(
+      of: find.text('Riproduci'),
+      matching: find.byType(FilledButton),
+    );
+
+    testWidgets('TV: alto 300, nome a 64, coda senza focus', (tester) async {
+      await pumpTv(tester);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('slide-Dune'))).height,
+        300,
+      );
+      expect(tester.widget<Text>(find.text('DUNE')).style!.fontSize, 64);
+      expect(find.byType(HeroQueue), findsOneWidget);
+      expect(find.byType(HeroTicks), findsNothing);
+      expect(
+        find.ancestor(
+          of: find.byType(HeroQueue),
+          matching: find.byWidgetPredicate(
+            (w) => w is ExcludeFocus && w.excluding,
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TV: "Stasera?" tra i pulsanti', (tester) async {
+      await pumpTv(
+        tester,
+        extraAction: TonightButton(short: true, onPressed: () {}),
+      );
+      final wrap = find.ancestor(
+        of: find.text('Riproduci'),
+        matching: find.byType(Wrap),
+      );
+      expect(
+        find.descendant(of: wrap, matching: find.text('Stasera?')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TV: con autofocusPlay falso Riproduci non prende il focus', (
+      tester,
+    ) async {
+      await pumpTv(tester, autofocusPlay: false);
+      expect(_focusIn(play), isFalse);
+    });
   });
 }

@@ -8,6 +8,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
+import 'package:wonderflix/features/home/hero_queue.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/ui/card_preview.dart';
 
@@ -24,10 +25,11 @@ void main() {
   Future<ValueNotifier<List<JellyfinItem>>> pumpHero(WidgetTester tester,
       {bool autoplay = false,
       MotionLevel motion = MotionLevel.reduced,
-      Widget? corner,
+      List<JellyfinItem>? start,
+      ValueChanged<JellyfinItem>? onCurrentChanged,
       Size surfaceSize = const Size(1440, 900),
       bool touch = false}) async {
-    final items = ValueNotifier(three);
+    final items = ValueNotifier(start ?? three);
     addTearDown(items.dispose);
     await pumpApp(
       tester,
@@ -35,7 +37,7 @@ void main() {
         body: ValueListenableBuilder(
           valueListenable: items,
           builder: (context, value, _) =>
-              HeroCarousel(items: value, corner: corner),
+              HeroCarousel(items: value, onCurrentChanged: onCurrentChanged),
         ),
       ),
       overrides: [
@@ -65,10 +67,10 @@ void main() {
     expect(done(), isTrue, reason: '$shown non compare entro $maxSteps passi');
   }
 
-  testWidgets('i puntini sono cliccabili', (tester) async {
+  testWidgets('le locandine della coda sono cliccabili', (tester) async {
     await pumpHero(tester);
     expect(find.text('DUNE'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('hero-dot-2')));
+    await tester.tap(find.byKey(const ValueKey('hero-queue-2')));
     await tester.pumpAndSettle();
     expect(find.text('HEAT'), findsOneWidget);
     expect(find.text('DUNE'), findsNothing);
@@ -77,7 +79,7 @@ void main() {
   testWidgets("meno elementi dell'indice corrente: si riposiziona",
       (tester) async {
     final items = await pumpHero(tester);
-    await tester.tap(find.byKey(const ValueKey('hero-dot-2')));
+    await tester.tap(find.byKey(const ValueKey('hero-queue-2')));
     await tester.pumpAndSettle();
     expect(find.text('HEAT'), findsOneWidget);
 
@@ -85,7 +87,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.text('ALIEN'), findsOneWidget);
-    expect(find.byKey(const ValueKey('hero-dot-2')), findsNothing);
+    expect(find.byKey(const ValueKey('hero-queue-2')), findsNothing);
   });
 
   testWidgets("non avanza se la Home è coperta da un'altra pagina",
@@ -151,10 +153,10 @@ void main() {
     expect(find.text('ALIEN'), findsOneWidget);
   });
 
-  testWidgets('puntino attivo: si riempie con il tempo', (tester) async {
+  testWidgets('coda: la linea sotto la prima si riempie col tempo', (tester) async {
     await pumpHero(tester, autoplay: true);
     double fill() => tester
-        .widget<FractionallySizedBox>(find.byKey(const Key('hero-dot-fill')))
+        .widget<FractionallySizedBox>(find.byKey(const Key('hero-queue-fill')))
         .widthFactor!;
     expect(fill(), closeTo(0, 0.01));
     await tester.pump(HeroCarousel.interval ~/ 2);
@@ -173,7 +175,7 @@ void main() {
 
   testWidgets('completa: i testi uscenti sfumano in 250 ms', (tester) async {
     await pumpHero(tester, motion: MotionLevel.full);
-    await tester.tap(find.byKey(const ValueKey('hero-dot-1')));
+    await tester.tap(find.byKey(const ValueKey('hero-queue-1')));
     await tester.pump();
     // La dissolvenza più vicina al titolo è quella dei testi.
     double textFade() => tester
@@ -206,7 +208,7 @@ void main() {
   testWidgets('ridotta: i testi uscenti sfumano con la diapositiva',
       (tester) async {
     await pumpHero(tester);
-    await tester.tap(find.byKey(const ValueKey('hero-dot-1')));
+    await tester.tap(find.byKey(const ValueKey('hero-queue-1')));
     await tester.pump();
     double textFade() => tester
         .widget<FadeTransition>(find
@@ -219,18 +221,6 @@ void main() {
     expect(textFade(), inExclusiveRange(0, 1));
     await tester.pumpAndSettle();
     expect(find.text('DUNE'), findsNothing);
-  });
-
-  testWidgets('l\'angolo sta in basso a destra, sopra i pallini', (tester) async {
-    await pumpHero(tester,
-        corner: const SizedBox(key: Key('corner'), width: 200, height: 40));
-    final carousel = tester.getRect(find.byType(HeroCarousel));
-    final corner = tester.getRect(find.byKey(const Key('corner')));
-    final dots = tester.getRect(find.byKey(const ValueKey('hero-dot-0')));
-    expect(corner.right, carousel.right - 32);
-    expect(corner.bottom, carousel.bottom - heroCornerBottom);
-    expect(corner.bottom, lessThanOrEqualTo(dots.top),
-        reason: 'il pulsante non copre i pallini');
   });
 
   testWidgets('completa: lo sfondo ingrandito non esce dal carosello',
@@ -264,22 +254,11 @@ void main() {
     expect(find.text('DUNE'), findsOneWidget);
   });
 
-  testWidgets('stretto: alto al massimo 1,1 volte la larghezza, pulsanti '
-      'sotto il testo, puntini da 44', (tester) async {
-    await pumpHero(tester,
-        surfaceSize: const Size(390, 844),
-        touch: true,
-        corner: const SizedBox(key: Key('corner'), width: 200, height: 40));
-    final play = tester.getRect(find.text('Riproduci'));
-    final corner = tester.getRect(find.byKey(const Key('corner')));
-    expect(corner.top, greaterThan(play.bottom),
-        reason: "l'angolo va sotto il testo");
-    expect(corner.left, 16);
+  testWidgets('stretto: alto al massimo 1,1 volte la larghezza',
+      (tester) async {
+    await pumpHero(tester, surfaceSize: const Size(390, 844), touch: true);
     final slide = tester.getRect(find.byKey(const ValueKey('slide-Dune')));
     expect(slide.height, 390 * 1.1);
-    final dot = tester.getSize(find.byKey(const ValueKey('hero-dot-1')));
-    expect(dot.width, greaterThanOrEqualTo(44));
-    expect(dot.height, greaterThanOrEqualTo(44));
     expect(tester.takeException(), isNull);
   });
 
@@ -289,5 +268,88 @@ void main() {
     final slide = tester.getRect(find.byKey(const ValueKey('slide-Dune')));
     expect(slide.height, 390 * 0.8);
     expect(tester.takeException(), isNull);
+  });
+
+  final five = [
+    for (final n in ['Dune', 'Alien', 'Heat', 'Up', 'Coco'])
+      testItem(id: n, name: n),
+  ];
+
+  List<String> queueNames(WidgetTester tester) => [
+        for (final t in tester.widgetList<Text>(find.descendant(
+            of: find.byType(HeroQueue), matching: find.byType(Text))))
+          t.data!,
+      ];
+
+  testWidgets('la coda mostra i prossimi tre', (tester) async {
+    await pumpHero(tester, start: five);
+    expect(queueNames(tester), ['Alien', 'Heat', 'Up']);
+    await tester.tap(find.byKey(const ValueKey('hero-queue-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('HEAT'), findsOneWidget);
+    expect(queueNames(tester), ['Up', 'Coco', 'Dune']);
+  });
+
+  testWidgets('con due titoli la coda ne ha uno, con uno niente coda',
+      (tester) async {
+    final items = await pumpHero(tester, start: three.take(2).toList());
+    expect(queueNames(tester), ['Alien']);
+    items.value = three.take(1).toList();
+    await tester.pumpAndSettle();
+    expect(queueNames(tester), isEmpty);
+  });
+
+  testWidgets('nello stretto tacche al posto della coda', (tester) async {
+    await pumpHero(tester,
+        surfaceSize: const Size(390, 780), touch: true, start: five);
+    expect(find.byType(HeroTicks), findsOneWidget);
+    expect(find.byType(HeroQueue), findsNothing);
+    for (var i = 0; i < 5; i++) {
+      expect(tester.getSize(find.byKey(ValueKey('hero-tick-$i'))).height,
+          greaterThanOrEqualTo(44));
+    }
+    // Le tacche stanno sotto i pulsanti.
+    expect(tester.getTopLeft(find.byType(HeroTicks)).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(find.text('Riproduci')).dy));
+    await tester.tap(find.byKey(const ValueKey('hero-tick-3')));
+    await tester.pumpAndSettle();
+    expect(find.text('UP'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('riga "perché è qui" e nome grande', (tester) async {
+    final today = DateTime.now().toUtc().toIso8601String();
+    await pumpHero(tester,
+        start: [testItem(id: 'Dune', name: 'Dune', dateCreated: today)],
+        surfaceSize: const Size(1280, 800));
+    expect(find.text('Film · arrivato oggi'), findsOneWidget);
+    expect(tester.widget<Text>(find.text('DUNE')).style!.fontSize, 104);
+  });
+
+  testWidgets('nome a 62 nello stretto', (tester) async {
+    await pumpHero(tester, surfaceSize: const Size(390, 780), touch: true);
+    expect(tester.widget<Text>(find.text('DUNE')).style!.fontSize, 62);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('altezze: 500 su desktop, al massimo 470 nello stretto',
+      (tester) async {
+    await pumpHero(tester, surfaceSize: const Size(1280, 800));
+    expect(tester.getSize(find.byKey(const ValueKey('slide-Dune'))).height,
+        500);
+    await pumpHero(tester, surfaceSize: const Size(390, 780), touch: true);
+    expect(tester.getSize(find.byKey(const ValueKey('slide-Dune'))).height,
+        lessThanOrEqualTo(470));
+  });
+
+  testWidgets('onCurrentChanged col titolo nuovo a ogni cambio',
+      (tester) async {
+    final seen = <String>[];
+    await pumpHero(tester, onCurrentChanged: (item) => seen.add(item.id));
+    await tester.tap(find.byKey(const ValueKey('hero-queue-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('hero-queue-0')));
+    await tester.pumpAndSettle();
+    expect(seen, ['Alien', 'Dune']);
   });
 }

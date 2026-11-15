@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../playback/play_launcher.dart';
 import 'hero_labels.dart';
+import 'hero_queue.dart';
 
 /// Autoplay del carosello; spento nei widget test (`pumpApp`) salvo
 /// richiesta, perché un carosello che avanza da solo non si ferma mai.
@@ -34,10 +36,6 @@ const heroTextStagger = Duration(milliseconds: 90);
 /// Testi della diapositiva che esce: sfumano in questo tempo (spec C §8.1).
 const heroTextExit = Duration(milliseconds: 250);
 
-/// Distanza dal basso del pulsante nell'angolo del carosello: sopra i
-/// pallini (spec M §8.4).
-const heroCornerBottom = 56.0;
-
 /// Trascinamento minimo (o velocità) che cambia diapositiva col dito.
 const heroSwipeDistance = 48.0;
 const heroSwipeVelocity = 300.0;
@@ -45,25 +43,43 @@ const heroSwipeVelocity = 300.0;
 /// Titoli in evidenza a tutta larghezza; cambia ogni 8 secondi con una
 /// dissolvenza incrociata (spec C §8.1).
 class HeroCarousel extends ConsumerStatefulWidget {
-  const HeroCarousel({super.key, required this.items, this.corner});
+  const HeroCarousel({
+    super.key,
+    required this.items,
+    this.extraAction,
+    this.autofocusPlay = true,
+    this.onCurrentChanged,
+  });
 
   final List<JellyfinItem> items;
 
-  /// In basso a destra, sopra i pallini: il pulsante "Cosa guardo
-  /// stasera?" (spec M §8.4).
-  final Widget? corner;
+  /// Dopo Dettagli, solo nella diapositiva attuale ("Stasera?" in TV).
+  final Widget? extraAction;
+
+  /// Sulla TV "Riproduci" prende il focus all'apertura.
+  final bool autofocusPlay;
+
+  /// Il titolo mostrato è cambiato (per l'alone).
+  final ValueChanged<JellyfinItem>? onCurrentChanged;
 
   static const interval = Duration(seconds: 8);
 
-  static const height = 460.0;
+  static const height = 500.0;
+  static const compactHeight = 470.0;
+  static const tvHeight = 300.0;
 
   /// Altezza della parte con le immagini: nel layout stretto al massimo
   /// 1,1 volte la larghezza e 0,8 volte l'altezza della finestra (il
   /// telefono in orizzontale vede ancora l'inizio delle righe).
   static double heightOf(BuildContext context) {
-    if (!FormFactor.of(context).compact) return height;
+    final form = FormFactor.of(context);
+    if (form.tv) return tvHeight;
+    if (!form.compact) return height;
     final size = MediaQuery.sizeOf(context);
-    return math.min(height, math.min(size.width * 1.1, size.height * 0.8));
+    return math.min(
+      compactHeight,
+      math.min(size.width * 1.1, size.height * 0.8),
+    );
   }
 
   @override
@@ -139,7 +155,14 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     }
     // La diapositiva col focus è stata sostituita (il carosello si è
     // riletto): il focus passa ai pulsanti di quella nuova.
-    if (_focusInside && widget.items.elementAtOrNull(_index)?.id != shownId) {
+    final shown = widget.items.elementAtOrNull(_index);
+    if (shown != null && shown.id != shownId) {
+      // Durante la costruzione: il genitore lo sa dopo il fotogramma.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onCurrentChanged?.call(shown);
+      });
+    }
+    if (_focusInside && shown?.id != shownId) {
       _focusCurrentSlide();
     }
   }
@@ -180,6 +203,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     unawaited(_fade.forward(from: 0));
     _progress.value = 0;
     _syncProgress();
+    widget.onCurrentChanged?.call(widget.items[next]);
   }
 
   /// Sulla TV, il nodo attorno al carosello (vedi `_focusInside`).
@@ -271,8 +295,8 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     final motion = WfMotion.of(context);
     final previous = _previous;
     final current = widget.items[_index];
-    final corner = widget.corner;
-    final autofocus = form.tv && _autofocusPending;
+    final autofocus = form.tv && widget.autofocusPlay && _autofocusPending;
+    final ticks = form.compact && !form.tv;
     _autofocusPending = false;
     // Sulla TV i pulsanti della diapositiva che esce non prendono il focus.
     Widget exclude(bool exiting, Widget slide) =>
@@ -341,21 +365,40 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
                               ? kAlwaysCompleteAnimation
                               : _fade,
                           textOpacity: kAlwaysCompleteAnimation,
+                          extraAction: widget.extraAction,
                         ),
                       ),
                     ),
                   ),
                 ),
-                Positioned(
-                  right: form.compact ? 16 : 32,
-                  bottom: form.touch ? 0 : 20,
-                  child: _dots(motion, touch: form.touch),
-                ),
-                if (corner != null && !form.compact)
+                // Nello stretto le tacche sotto i pulsanti, larghe quanto il
+                // testo; altrimenti la coda in basso a destra (in TV senza
+                // focus: si cambia titolo con Destra e con i tasti media).
+                if (ticks)
                   Positioned(
-                    right: 32,
-                    bottom: heroCornerBottom,
-                    child: corner,
+                    left: 16,
+                    right: 16,
+                    bottom: 4,
+                    child: HeroTicks(
+                      count: widget.items.length,
+                      index: _index,
+                      progress: _progress,
+                      onSelect: _goTo,
+                    ),
+                  )
+                else
+                  Positioned(
+                    right: form.tv ? 24 : 32,
+                    bottom: form.tv ? 24 : 56,
+                    child: ExcludeFocus(
+                      excluding: form.tv,
+                      child: HeroQueue(
+                        items: widget.items,
+                        index: _index,
+                        progress: _progress,
+                        onSelect: _goTo,
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -365,7 +408,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
     );
     // Sulla TV il focus dentro il carosello ferma il tempo (vedi
     // `_focusInside`) e ⏪/⏩ cambiano diapositiva.
-    final body = !form.tv
+    return !form.tv
         ? carousel
         : Focus(
             focusNode: _tvFocus,
@@ -378,71 +421,7 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
             },
             child: carousel,
           );
-    if (corner == null || !form.compact) return body;
-    // Nello stretto l'angolo coprirebbe il testo: va sotto il carosello.
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        body,
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: corner,
-        ),
-      ],
-    );
   }
-
-  /// Col dito ogni puntino si tocca su almeno [minTouchTarget] di lato.
-  Widget _dots(WfMotion motion, {required bool touch}) => Row(
-    children: [
-      for (var i = 0; i < widget.items.length; i++)
-        MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            key: ValueKey('hero-dot-$i'),
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _goTo(i),
-            child: Container(
-              constraints: touch
-                  ? const BoxConstraints(
-                      minWidth: minTouchTarget,
-                      minHeight: minTouchTarget,
-                    )
-                  : null,
-              alignment: touch ? Alignment.center : null,
-              padding: const EdgeInsets.fromLTRB(3, 8, 3, 8),
-              child: AnimatedContainer(
-                duration: motion.duration(WfMotion.medium),
-                curve: WfMotion.emphasized,
-                width: i == _index ? 26 : 6,
-                height: 6,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  color: i == _index
-                      ? WfColors.cream.withValues(alpha: 0.3)
-                      : WfColors.creamMuted,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                // Il puntino attivo si riempie d'oro con il tempo della
-                // diapositiva (anche con le animazioni ridotte).
-                child: i == _index
-                    ? AnimatedBuilder(
-                        animation: _progress,
-                        builder: (context, _) => FractionallySizedBox(
-                          key: const Key('hero-dot-fill'),
-                          alignment: Alignment.centerLeft,
-                          widthFactor: _progress.value,
-                          child: const ColoredBox(color: WfColors.gold),
-                        ),
-                      )
-                    : null,
-              ),
-            ),
-          ),
-        ),
-    ],
-  );
 }
 
 /// Elemento [index] dei testi della diapositiva che entra: sale di 10 px in
@@ -490,9 +469,13 @@ class _HeroSlide extends ConsumerWidget {
     required this.textOpacity,
     this.autofocus = false,
     this.onNext,
+    this.extraAction,
   });
 
   final JellyfinItem item;
+
+  /// Dopo Dettagli (solo la diapositiva attuale).
+  final Widget? extraAction;
 
   /// Il pulsante "Riproduci" prende il focus (sulla TV, la prima diapositiva).
   final bool autofocus;
@@ -527,9 +510,14 @@ class _HeroSlide extends ConsumerWidget {
     final urls = ref.watch(imageUrlsProvider);
     final logo = urls.logo(item);
     final meta = heroMeta(item, l);
-    final backdrop = WfImage(image: urls.backdrop(item));
-    final compact = FormFactor.of(context).compact;
+    final arrival = heroArrivalLabel(item, clock.now(), l);
+    final form = FormFactor.of(context);
+    final compact = form.compact && !form.tv;
+    final image = WfImage(image: urls.backdrop(item));
+    // Nello stretto il fondale è allineato in alto.
+    final backdrop = compact ? _topAligned(image) : image;
     final kenBurns = this.kenBurns;
+    final extraAction = this.extraAction;
 
     return Stack(
       fit: StackFit.expand,
@@ -579,10 +567,10 @@ class _HeroSlide extends ConsumerWidget {
           ),
         ),
         Positioned(
-          left: compact ? 16 : 32,
+          left: compact ? 16 : (form.tv ? 24 : 32),
           right: compact ? 16 : null,
-          bottom: 48,
-          width: compact ? null : 560,
+          bottom: compact ? 48 : (form.tv ? 24 : 56),
+          width: compact ? null : (form.tv ? 470 : 600),
           child: FadeTransition(
             opacity: textOpacity,
             child: Column(
@@ -592,7 +580,22 @@ class _HeroSlide extends ConsumerWidget {
                 _enter(
                   entrance,
                   0,
-                  logo != null
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (arrival != null) ...[
+                        Text(
+                          arrival,
+                          style: const TextStyle(
+                            color: WfColors.gold,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      logo != null
                       ? SizedBox(
                           height: compact ? 80 : 110,
                           width: compact ? 240 : 420,
@@ -604,10 +607,14 @@ class _HeroSlide extends ConsumerWidget {
                       : Text(
                           item.name.toUpperCase(),
                           maxLines: 2,
-                          style: WfText.display(compact ? 40 : 56),
+                          style: WfText.display(
+                            form.tv ? 64 : (compact ? 62 : 104),
+                          ),
                         ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 14),
                 _enter(
                   entrance,
                   1,
@@ -623,13 +630,16 @@ class _HeroSlide extends ConsumerWidget {
                     2,
                     Text(
                       item.overview!,
-                      maxLines: 3,
+                      maxLines: compact || form.tv ? 2 : 3,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(height: 1.45),
+                      style: TextStyle(
+                        height: 1.45,
+                        fontSize: compact || form.tv ? 12.5 : null,
+                      ),
                     ),
                   ),
                 ],
-                const SizedBox(height: 18),
+                SizedBox(height: form.tv ? 14 : 20),
                 _enter(
                   entrance,
                   3,
@@ -654,6 +664,7 @@ class _HeroSlide extends ConsumerWidget {
                           icon: LucideIcons.info,
                           onPressed: () => openItem(context, item),
                         ),
+                        ?extraAction,
                       ],
                     ),
                   ),
@@ -666,3 +677,20 @@ class _HeroSlide extends ConsumerWidget {
     );
   }
 }
+
+/// Come `BoxFit.cover`, ma allineato in alto quando il fondale (16:9) è più
+/// alto della diapositiva.
+// shortcut: presume fondali 16:9 (WfImage non ha `alignment`); se servono
+// altre proporzioni, aggiungere l'allineamento a `ImageBuilderFn`.
+Widget _topAligned(Widget image) => LayoutBuilder(
+  builder: (context, constraints) {
+    final height = constraints.maxWidth * 9 / 16;
+    if (height <= constraints.maxHeight) return image;
+    return OverflowBox(
+      alignment: Alignment.topCenter,
+      minHeight: height,
+      maxHeight: height,
+      child: image,
+    );
+  },
+);

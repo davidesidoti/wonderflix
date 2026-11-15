@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -227,6 +228,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.read(homeEntrancePlayedProvider.notifier).markPlayed(),
         child: ListView(
           controller: _scroll,
+          // Il carosello resta montato finché il suo alone (640 sotto di
+          // lui) può essere visibile.
+          scrollCacheExtent: const ScrollCacheExtent.pixels(700),
           // Il carosello parte dal bordo della finestra, sotto la barra;
           // senza carosello la prima riga inizia sotto la barra.
           padding: EdgeInsets.only(
@@ -234,16 +238,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             bottom: 40,
           ),
           children: [
-            if (featuredItems.isNotEmpty)
-              HeroCarousel(
-                items: featuredItems,
-                corner: _EntryButtons(
-                  onTonight: _openTonight,
-                  onMatch: _openMatch,
-                ),
-              ),
-            if (featuredItems.isEmpty)
-              _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
+            if (featuredItems.isNotEmpty) HeroCarousel(items: featuredItems),
+            // Fino all'intestazione di Stasera, Match e il dado stanno
+            // sopra le righe, a destra.
+            _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
             ...shown,
             const Align(
               alignment: Alignment.centerLeft,
@@ -373,7 +371,7 @@ class _CustomizeLink extends StatelessWidget {
   );
 }
 
-/// Senza carosello il dado sta in cima alle righe, a destra (spec M §8.4).
+/// Il dado in cima alle righe, a destra (spec M §8.4).
 class _TonightCorner extends StatelessWidget {
   const _TonightCorner({required this.onTonight, required this.onMatch});
 

@@ -14,7 +14,8 @@ class WfButton extends StatelessWidget {
     required this.onPressed,
     this.autofocus = false,
     this.overlay,
-  }) : primary = true;
+  })  : primary = true,
+        small = false;
 
   const WfButton.secondary({
     super.key,
@@ -23,12 +24,16 @@ class WfButton extends StatelessWidget {
     required this.onPressed,
     this.autofocus = false,
     this.overlay,
+    this.small = false,
   }) : primary = false;
 
   final String label;
   final IconData icon;
   final VoidCallback? onPressed;
   final bool primary;
+
+  /// Piccolo (32 di altezza) e pieno, per le intestazioni delle sezioni.
+  final bool small;
 
   /// Prende il fuoco appena compare (Invio lo preme).
   final bool autofocus;
@@ -40,8 +45,8 @@ class WfButton extends StatelessWidget {
 
   /// Il primario prende dal tema il bordo col focus della TV.
   Widget _button(bool tv) {
-    const size = Size(0, 44);
-    const padding = EdgeInsets.symmetric(horizontal: 20);
+    final size = Size(0, small ? 32 : 44);
+    final padding = EdgeInsets.symmetric(horizontal: small ? 12 : 20);
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(6));
     if (primary) {
       return FilledButton.icon(
@@ -61,6 +66,7 @@ class WfButton extends StatelessWidget {
         padding: padding,
         shape: shape,
         foregroundColor: WfColors.cream,
+        backgroundColor: small ? WfColors.surfaceHigh : null,
         side: const BorderSide(color: WfColors.border),
       ).copyWith(
           side: tvButtonSide(tv, const BorderSide(color: WfColors.border))),

@@ -821,6 +821,7 @@
   "adminArrUnauthorized": "API key rejected",
   "adminArrUnreachable": "Unreachable: check the address",
   "tonightButton": "What should I watch tonight?",
+  "tonightButtonShort": "Tonight?",
   "tonightTypeMovies": "Movies",
   "tonightTypeSeries": "Series",
   "tonightTypeBoth": "Both",

@@ -79,7 +79,7 @@ void main() {
 
   Future<void> pumpHome(WidgetTester tester,
       {SocialFeatures features = SocialFeatures.none,
-      double height = 1600}) async {
+      double height = 1800}) async {
     await pumpApp(tester, const HomeScreen(),
         surfaceSize: Size(1440, height),
         overrides: homeOverrides(
@@ -411,14 +411,35 @@ void main() {
     expect(find.byKey(const Key('home-customize')), findsOneWidget);
   });
 
-  testWidgets('il dado sul carosello', (tester) async {
+  // Il carosello non ha più l'angolo: il dado sta sotto, a destra, finché
+  // non va nell'intestazione di Stasera.
+  testWidgets('il dado sotto il carosello, a destra', (tester) async {
+    someRows();
+    await pumpHome(tester);
+    final button = find.byKey(const Key('tonight-button'));
+    expect(button, findsOneWidget);
+    expect(
+        find.descendant(of: find.byType(HeroCarousel), matching: button),
+        findsNothing);
+    expect(tester.getTopLeft(button).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(find.byType(HeroCarousel)).dy));
+    expect(tester.getTopRight(button).dx, greaterThan(1440 - 100));
+  });
+
+  testWidgets('la lista della Home tiene montato il carosello (alone)',
+      (tester) async {
     someRows();
     await pumpHome(tester);
     expect(
-        find.descendant(
-            of: find.byType(HeroCarousel),
-            matching: find.byKey(const Key('tonight-button'))),
-        findsOneWidget);
+        tester
+            .widget<ListView>(find
+                .ancestor(
+                    of: find.byType(HeroCarousel),
+                    matching: find.byType(ListView))
+                .first)
+            .scrollCacheExtent!
+            .value,
+        700);
   });
 
   testWidgets('senza carosello il dado è in cima alle righe, a destra',

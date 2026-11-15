@@ -978,6 +978,7 @@
   "adminArrUnauthorized": "Chiave API rifiutata",
   "adminArrUnreachable": "Non raggiungibile: controlla l'indirizzo",
   "tonightButton": "Cosa guardo stasera?",
+  "tonightButtonShort": "Stasera?",
   "tonightTypeMovies": "Film",
   "tonightTypeSeries": "Serie",
   "tonightTypeBoth": "Entrambi",

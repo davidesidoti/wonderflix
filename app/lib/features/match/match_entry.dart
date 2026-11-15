@@ -30,9 +30,12 @@ final matchEntryProvider = Provider<bool>((ref) {
 /// "Match" in Home, accanto a "Cosa guardo stasera?" (spec P §7.2). Come
 /// `TonightButton` non agisce da solo: [onPressed] è di chi lo mette.
 class MatchButton extends ConsumerWidget {
-  const MatchButton({super.key, required this.onPressed});
+  const MatchButton({super.key, required this.onPressed, this.small = false});
 
   final VoidCallback onPressed;
+
+  /// Piccolo, per l'intestazione di Stasera.
+  final bool small;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +44,7 @@ class MatchButton extends ConsumerWidget {
       key: const Key('match-button'),
       label: AppLocalizations.of(context).matchButton,
       icon: LucideIcons.heartHandshake,
+      small: small,
       onPressed: onPressed,
     );
   }

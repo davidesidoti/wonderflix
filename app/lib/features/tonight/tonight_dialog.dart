@@ -76,17 +76,33 @@ Future<void> openTonight(BuildContext context, WidgetRef ref) async {
 /// finestra da solo: lo fa [onPressed], di chi lo mette (la Home, con il suo
 /// contesto), perché il pulsante può essere smontato a finestra aperta.
 class TonightButton extends StatelessWidget {
-  const TonightButton({super.key, required this.onPressed});
+  const TonightButton({
+    super.key,
+    required this.onPressed,
+    this.short = false,
+    this.small = false,
+  });
 
   final VoidCallback onPressed;
 
+  /// "Stasera?" invece di "Cosa guardo stasera?" (tra i pulsanti del
+  /// carosello in TV).
+  final bool short;
+
+  /// Piccolo, per l'intestazione di Stasera.
+  final bool small;
+
   @override
-  Widget build(BuildContext context) => WfButton.secondary(
-    key: const Key('tonight-button'),
-    label: AppLocalizations.of(context).tonightButton,
-    icon: LucideIcons.dices,
-    onPressed: onPressed,
-  );
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return WfButton.secondary(
+      key: const Key('tonight-button'),
+      label: short ? l.tonightButtonShort : l.tonightButton,
+      icon: LucideIcons.dices,
+      small: small,
+      onPressed: onPressed,
+    );
+  }
 }
 
 /// La finestra (spec M §8.4): filtri, il titolo proposto, Riproduci,
