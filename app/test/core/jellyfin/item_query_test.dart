@@ -77,7 +77,8 @@ void main() {
     expect(
         p(const ItemQuery(kinds: {ItemKind.movie}, includeSortFields: true))[
             'fields'],
-        'PrimaryImageAspectRatio,Genres,SortName,DateCreated');
+        'PrimaryImageAspectRatio,Genres,SortName,DateCreated,'
+        'RecursiveItemCount,DateLastMediaAdded');
     expect(
         const ItemQuery(kinds: {ItemKind.movie}, includeSortFields: true)
             .copyWith(year: 2020)
@@ -99,7 +100,8 @@ void main() {
             kinds: {ItemKind.movie},
             includeSortFields: true,
             includeProviderIds: true))['fields'],
-        'PrimaryImageAspectRatio,Genres,SortName,DateCreated,ProviderIds');
+        'PrimaryImageAspectRatio,Genres,SortName,DateCreated,'
+        'RecursiveItemCount,DateLastMediaAdded,ProviderIds');
     expect(
         const ItemQuery(kinds: {ItemKind.movie}, includeProviderIds: true)
             .copyWith(year: 2020)

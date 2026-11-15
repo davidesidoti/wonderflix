@@ -36,8 +36,19 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
   Future<void> toggleFavorite(JellyfinItem item) => _toggle(
         item,
         (data) => data.copyWith(isFavorite: !data.isFavorite),
-        (api, userId, next) =>
-            api.setFavorite(userId, item.id, favorite: next.isFavorite),
+        (api, userId, next) async {
+          final confirmed =
+              await api.setFavorite(userId, item.id, favorite: next.isFavorite);
+          // Per una serie il server non rimanda l'avanzamento: resta quello di prima.
+          return UserItemData(
+            played: confirmed.played,
+            isFavorite: confirmed.isFavorite,
+            playbackPositionTicks: confirmed.playbackPositionTicks,
+            playedPercentage: confirmed.playedPercentage ?? next.playedPercentage,
+            unplayedItemCount:
+                confirmed.unplayedItemCount ?? next.unplayedItemCount,
+          );
+        },
       );
 
   Future<void> togglePlayed(JellyfinItem item) => _toggle(

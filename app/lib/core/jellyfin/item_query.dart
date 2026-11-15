@@ -151,7 +151,8 @@ class ItemQuery {
       if (includeSortFields || includeProviderIds)
         'fields': [
           cardImageParams['fields'],
-          if (includeSortFields) 'SortName,DateCreated',
+          if (includeSortFields)
+            'SortName,DateCreated,RecursiveItemCount,DateLastMediaAdded',
           if (includeProviderIds) 'ProviderIds',
         ].join(','),
       'userId': userId,

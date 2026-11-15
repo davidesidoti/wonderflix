@@ -106,6 +106,18 @@ void main() {
     expect(item.dateCreated, DateTime.utc(2024, 3, 1, 10, 20, 30, 123, 456));
   });
 
+  test('DateLastMediaAdded', () {
+    final item = JellyfinItem.fromJson({
+      'Id': 's',
+      'Name': 'S',
+      'Type': 'Series',
+      'DateLastMediaAdded': '2026-11-10T08:00:00Z',
+    });
+    expect(item.dateLastMediaAdded, DateTime.utc(2026, 11, 10, 8));
+    expect(JellyfinItem.fromJson({'Id': 's', 'Type': 'Series'}).dateLastMediaAdded,
+        isNull);
+  });
+
   test('data di aggiunta non valida: null', () {
     final item = JellyfinItem.fromJson(
         {'Id': 'm1', 'Type': 'Movie', 'DateCreated': 'ieri'});

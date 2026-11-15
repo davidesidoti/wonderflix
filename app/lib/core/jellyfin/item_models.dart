@@ -217,6 +217,7 @@ class JellyfinItem {
     this.genres = const [],
     this.sortName,
     this.dateCreated,
+    this.dateLastMediaAdded,
     this.premiereDate,
     this.status,
     this.endDate,
@@ -266,6 +267,7 @@ class JellyfinItem {
       genres: _stringList(json['Genres']),
       sortName: json['SortName'] as String?,
       dateCreated: _date(json['DateCreated']),
+      dateLastMediaAdded: _date(json['DateLastMediaAdded']),
       premiereDate: _date(json['PremiereDate']),
       status: json['Status'] as String?,
       endDate: _date(json['EndDate']),
@@ -317,6 +319,10 @@ class JellyfinItem {
   /// Aggiunta alla libreria. Arriva solo se chiesta
   /// (`ItemQuery.includeSortFields`).
   final DateTime? dateCreated;
+
+  /// Ultimo episodio aggiunto a una serie. Arriva solo se chiesta
+  /// (`ItemQuery.includeSortFields`).
+  final DateTime? dateLastMediaAdded;
 
   /// Prima uscita. Jellyfin la manda sempre negli elenchi (spec M §8.3,
   /// ordine dei film di una saga).

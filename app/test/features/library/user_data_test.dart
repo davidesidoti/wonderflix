@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/user_data.dart';
@@ -38,6 +39,22 @@ void main() {
     await pending;
     expect(api.favoriteCalls, [('m1', true)]);
     expect(overrides().effective(item).isFavorite, isTrue);
+  });
+
+  test('il cuore non cancella gli avanzamenti di una serie', () async {
+    // Il server risponde senza PlayedPercentage né UnplayedItemCount, come per
+    // una serie.
+    final series = testItem(
+        id: 's',
+        kind: ItemKind.series,
+        favorite: true,
+        playedPercentage: 40,
+        unplayedCount: 3);
+    await overrides().toggleFavorite(series);
+    final data = container.read(userDataOverridesProvider)['s']!;
+    expect(data.isFavorite, isFalse);
+    expect(data.playedPercentage, 40);
+    expect(data.unplayedItemCount, 3);
   });
 
   test('togglePlayed: in caso di errore torna allo stato precedente', () async {
