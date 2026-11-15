@@ -43,6 +43,10 @@ JellyfinItem fav(
 
 List<String> ids(List<JellyfinItem> items) => [for (final i in items) i.id];
 
+/// 25 titoli da iniziare, senza data né generi e dopo gli altri per nome: con loro la lista supera la
+/// soglia, e genere e ricerca filtrano.
+final filler = [for (var i = 0; i < 25; i++) fav('z$i', name: 'Zeta $i')];
+
 /// Tutti da iniziare: il primo è il titolo di punta, poi la lista.
 List<String> order(MyListView v) => ids([?v.hero, ...v.start]);
 
@@ -167,6 +171,7 @@ void main() {
             position: 5,
             genres: ['Horror'],
             created: DateTime.utc(2023)),
+        ...filler,
       ], filters: const MyListFilters(genre: 'Horror', search: 'bet'));
       expect(v.hero!.id, 'x');
       expect(ids(v.resume), ['y']);
@@ -289,9 +294,10 @@ void main() {
       fav('a', genres: ['Drama']),
       fav('b', genres: ['Dramma']),
       fav('c', genres: ['Horror']),
+      ...filler,
     ], filters: const MyListFilters(genre: 'Dramma'));
     expect([...ids([?v.hero]), ...ids(v.start)], unorderedEquals(['a', 'b']));
-    expect(v.tabCount, 3);
+    expect(v.tabCount, 28);
   });
 
   test('ricerca sul nome senza maiuscole', () {
@@ -299,6 +305,7 @@ void main() {
       fav('d', name: 'Dune'),
       fav('h', name: 'Heat'),
       fav('p', name: 'Dune: Parte Due'),
+      ...filler,
     ], filters: const MyListFilters(search: '  DUNE '));
     expect([...ids([?v.hero]), ...ids(v.start)], unorderedEquals(['d', 'p']));
   });
@@ -309,6 +316,7 @@ void main() {
     final items = [
       fav('a', name: 'Alpha', position: 5, created: DateTime.utc(2024)),
       fav('b', name: 'Beta', created: DateTime.utc(2023)),
+      ...filler,
     ];
     final onlyHero = view(items, filters: const MyListFilters(search: 'alpha'));
     expect(onlyHero.hero!.id, 'a');
@@ -317,6 +325,23 @@ void main() {
     expect(view(items, filters: const MyListFilters(search: 'zzz')).noResults,
         isTrue);
     expect(view(items).noResults, isFalse);
+  });
+
+  // Senza la riga dei generi e il campo di ricerca un filtro rimasto acceso
+  // nasconderebbe titoli senza modo di toglierlo.
+  test('fino a 24 preferiti genere e ricerca non filtrano', () {
+    final items = [
+      fav('a', genres: ['Dramma'], created: DateTime.utc(2024)),
+      fav('b', genres: ['Horror'], created: DateTime.utc(2023)),
+      fav('c', genres: ['Dramma'], created: DateTime.utc(2022)),
+    ];
+    expect(
+      order(view(items, filters: const MyListFilters(genre: 'Horror'))),
+      ['a', 'b', 'c'],
+    );
+    final search = view(items, filters: const MyListFilters(search: 'zzz'));
+    expect(order(search), ['a', 'b', 'c']);
+    expect(search.noResults, isFalse);
   });
 
   test('soglia: 24 preferiti no, 25 sì (tutte le schede)', () {

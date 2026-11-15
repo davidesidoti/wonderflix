@@ -268,6 +268,20 @@ void main() {
     expect(cardNames(tester), hasLength(10));
   });
 
+  testWidgets('la ricerca non filtra nella finestra stretta, che non ha il '
+      'campo', (tester) async {
+    await pumpList(tester, apiWith(many(25)));
+    await tester.enterText(find.byType(TextField), 'film 0');
+    await tester.pump();
+    expect(cardNames(tester), hasLength(10));
+
+    tester.view.physicalSize =
+        const Size(390, 3000) * tester.view.devicePixelRatio;
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(cardNames(tester), hasLength(24));
+  });
+
   testWidgets('con 24 titoli niente generi né ricerca', (tester) async {
     await pumpList(tester, apiWith(many(24)));
     expect(find.byType(CatalogGenreIndex), findsNothing);

@@ -225,7 +225,8 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
             final view = buildMyListView(
               items,
               widget.tab,
-              _filters,
+              // Nelle finestre strette (e in TV) il campo di ricerca non c'è.
+              form.compact ? _filters.copyWith(search: '') : _filters,
               overrides,
               added,
             );

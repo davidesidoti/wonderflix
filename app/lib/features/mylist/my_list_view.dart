@@ -126,7 +126,8 @@ class MyListView {
   final bool noResults;
 }
 
-/// Filtra e ordina nell'app i preferiti già caricati. [overrides]: dati
+/// Filtra e ordina nell'app i preferiti già caricati; genere e ricerca di
+/// [filters] valgono solo con `showRefinements`. [overrides]: dati
 /// utente cambiati in questa sessione (cuore e visto). [added]: date di
 /// aggiunta alla lista, con le chiavi di `jellyfinIdKey`.
 MyListView buildMyListView(
@@ -140,6 +141,12 @@ MyListView buildMyListView(
       overrides[item.id] ?? item.userData;
   // Tolti dal cuore in questa sessione: spariscono subito.
   final favorites = items.where((i) => userData(i).isFavorite).toList();
+  final showRefinements = favorites.length > myListRefinementsThreshold;
+  // Senza la riga dei generi e il campo di ricerca non si filtra: un filtro
+  // rimasto acceso nasconderebbe titoli senza modo di toglierlo.
+  final refine = showRefinements
+      ? filters
+      : filters.copyWith(genre: null, search: '');
   final inTab = favorites
       .where((i) => switch (tab) {
             MyListTab.all => true,
@@ -163,10 +170,10 @@ MyListView buildMyListView(
       : allStart.isNotEmpty
           ? allStart.first
           : null;
-  final search = filters.search.trim().toLowerCase();
+  final search = refine.search.trim().toLowerCase();
   bool passes(JellyfinItem i) =>
-      (filters.genre == null ||
-          i.genres.any((g) => genreLabel(g) == filters.genre)) &&
+      (refine.genre == null ||
+          i.genres.any((g) => genreLabel(g) == refine.genre)) &&
       i.name.toLowerCase().contains(search);
   List<JellyfinItem> shown(List<JellyfinItem> group) =>
       [for (final i in group) if (i != hero && passes(i)) i];
@@ -195,13 +202,13 @@ MyListView buildMyListView(
     startCount: allStart.length,
     watchedCount: allWatched.length,
     genres: genres,
-    showRefinements: favorites.length > myListRefinementsThreshold,
+    showRefinements: showRefinements,
     listEmpty: favorites.isEmpty,
     removableWatched: [
       for (final i in watched)
         if (i.status != 'Continuing') i
     ],
-    noResults: filters.hasRefinements && !inTab.any(passes),
+    noResults: refine.hasRefinements && !inTab.any(passes),
   );
 }
 
