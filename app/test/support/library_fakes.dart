@@ -109,6 +109,11 @@ class FakeLibraryApi implements LibraryApi {
   final nextUpCalls = <String?>[];
   final nextUpLimits = <int>[];
   final favoriteCalls = <(String, bool)>[];
+
+  /// Errore e attesa di [setFavorite] per singolo titolo (dopo aver registrato
+  /// la chiamata).
+  final favoriteErrors = <String, Object>{};
+  final favoriteGates = <String, Completer<void>>{};
   final playedCalls = <(String, bool)>[];
   final positionCalls = <(String, int)>[];
 
@@ -289,8 +294,11 @@ class FakeLibraryApi implements LibraryApi {
 
   @override
   Future<UserItemData> setFavorite(String userId, String itemId,
-      {required bool favorite}) {
+      {required bool favorite}) async {
     favoriteCalls.add((itemId, favorite));
+    await favoriteGates[itemId]?.future;
+    final failure = favoriteErrors[itemId];
+    if (failure != null) throw failure;
     return _answer(() => UserItemData(isFavorite: favorite));
   }
 

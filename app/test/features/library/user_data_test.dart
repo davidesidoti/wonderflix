@@ -1,24 +1,32 @@
+import 'dart:async';
+
+import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/user_data.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
   late FakeLibraryApi api;
+  late FakeDisplayPreferencesApi prefs;
   late ProviderContainer container;
 
   setUp(() {
     api = FakeLibraryApi();
+    prefs = FakeDisplayPreferencesApi();
     container = ProviderContainer.test(
       overrides: [
         libraryApiProvider.overrideWithValue(api),
+        displayPreferencesApiProvider.overrideWithValue(prefs),
         sessionControllerProvider
             .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
       ],
@@ -55,6 +63,69 @@ void main() {
     expect(data.isFavorite, isFalse);
     expect(data.playedPercentage, 40);
     expect(data.unplayedItemCount, 3);
+  });
+
+  group('La mia lista: la data', () {
+    final d0 = DateTime.utc(2026, 1, 2);
+
+    test('cuore acceso: la data di adesso; spento: la voce sparisce', () async {
+      final item = testItem(id: 'a', favorite: false);
+      await withClock(Clock.fixed(DateTime.utc(2026, 11, 15, 10)),
+          () => overrides().toggleFavorite(item));
+      expect(prefs.myListAddedWrites.last, {'a': DateTime.utc(2026, 11, 15, 10)});
+      await overrides().toggleFavorite(item);
+      expect(prefs.myListAddedWrites.last, isEmpty);
+    });
+
+    test('data non salvata: il cuore resta acceso', () async {
+      prefs.myListAddedWriteError = Exception('no');
+      final item = testItem(id: 'a', favorite: false);
+      await overrides().toggleFavorite(item);
+      expect(overrides().effective(item).isFavorite, isTrue);
+    });
+
+    test('setFavorites: una scrittura sola della data per tutti', () async {
+      final items = [for (final id in ['a', 'b', 'c']) testItem(id: id, favorite: true)];
+      prefs.myListAdded = {'a': d0, 'b': d0, 'c': d0, 'x': d0};
+      final failed = await overrides().setFavorites(items, favorite: false);
+      expect(failed, isEmpty);
+      expect(
+          api.favoriteCalls,
+          unorderedEquals([('a', false), ('b', false), ('c', false)]));
+      expect(prefs.myListAddedWrites, hasLength(1));
+      expect(prefs.myListAddedWrites.single, {'x': d0});
+    });
+
+    test('setFavorites con addedAt rimette le date di prima', () async {
+      final a = testItem(id: 'a', favorite: false);
+      await overrides().setFavorites([a], favorite: true, addedAt: {'a': d0});
+      expect(prefs.myListAddedWrites.last['a'], d0);
+      expect(overrides().effective(a).isFavorite, isTrue);
+    });
+
+    test("setFavorites: un fallimento torna com'era ed è nel risultato", () async {
+      final a = testItem(id: 'a', favorite: true);
+      final b = testItem(id: 'b', favorite: true);
+      api.favoriteErrors['b'] = ServerUnreachableException();
+      final failed = await overrides().setFavorites([a, b], favorite: false);
+      expect(failed.map((i) => i.id), ['b']);
+      expect(container.read(userDataOverridesProvider)['b']!.isFavorite, isTrue);
+      expect(container.read(userDataOverridesProvider)['a']!.isFavorite, isFalse);
+      expect(prefs.myListAddedWrites, hasLength(1));
+    });
+
+    test('setFavorites salta un titolo con una richiesta in corso', () async {
+      final a = testItem(id: 'a', favorite: false);
+      final b = testItem(id: 'b', favorite: false);
+      final gate = api.favoriteGates['a'] = Completer<void>();
+      final inFlight = overrides().toggleFavorite(a);
+      final all = overrides().setFavorites([a, b], favorite: true);
+      gate.complete();
+      await Future.wait([inFlight, all]);
+      expect(api.favoriteCalls.where((c) => c.$1 == 'a'), hasLength(1));
+      expect(api.favoriteCalls.where((c) => c.$1 == 'b'), hasLength(1));
+      expect(prefs.myListAdded.keys, unorderedEquals(['a', 'b']));
+    });
   });
 
   test('togglePlayed: in caso di errore torna allo stato precedente', () async {

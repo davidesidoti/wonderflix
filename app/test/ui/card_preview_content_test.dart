@@ -3,10 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/ui/card_preview.dart';
 
 import '../support/fake_session_controller.dart';
+import '../support/home_fakes.dart';
 import '../support/library_fakes.dart';
 import '../support/pump_app.dart';
 import '../support/test_data.dart';
@@ -36,6 +38,8 @@ void main() {
       overrides: [
         signedIn,
         libraryApiProvider.overrideWithValue(api ?? FakeLibraryApi()),
+        displayPreferencesApiProvider
+            .overrideWithValue(FakeDisplayPreferencesApi()),
       ],
     );
     return calls;
