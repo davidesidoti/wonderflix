@@ -114,7 +114,7 @@ class TvSidebarState extends ConsumerState<TvSidebar> {
       (route: '/movies', label: l.navMovies, icon: LucideIcons.film),
       (route: '/series', label: l.navSeries, icon: LucideIcons.tv),
       (route: tvTonightEntry, label: l.navTonight, icon: LucideIcons.dices),
-      (route: '/mylist', label: l.navMyList, icon: LucideIcons.bookmark),
+      (route: '/mylist', label: l.navMyList, icon: LucideIcons.heart),
       // Solo con le richieste con Seerr.
       if (ref.watch(requestsAvailableProvider))
         (

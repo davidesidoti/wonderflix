@@ -144,6 +144,15 @@ void main() {
     },
   );
 
+  test('retainOnly senza niente da togliere lascia lo stato com\'era', () async {
+    prefs.myListAdded = {'a': _d1};
+    final c = container();
+    final notifier = await open(c);
+    final before = c.read(myListAddedProvider);
+    notifier.retainOnly({'a', 'b'});
+    expect(identical(c.read(myListAddedProvider), before), isTrue);
+  });
+
   test('al cambio di utente si rilegge', () async {
     prefs.myListAdded = {'a': _d1};
     final c = container();

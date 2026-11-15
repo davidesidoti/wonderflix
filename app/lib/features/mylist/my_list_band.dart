@@ -117,7 +117,11 @@ class MyListBandAction extends ConsumerWidget {
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
-            children: [button, const SizedBox(width: 16), Flexible(child: phrase)],
+            children: [
+              button,
+              const SizedBox(width: 16),
+              Flexible(child: phrase),
+            ],
           );
   }
 }

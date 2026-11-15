@@ -21,6 +21,7 @@ import '../features/home/home_screen.dart';
 import '../features/inbox/inbox_panel.dart';
 import '../features/match/match_screen.dart';
 import '../features/mylist/my_list_screen.dart';
+import '../features/mylist/my_list_view.dart';
 import '../features/person/person_screen.dart';
 import '../features/player/player_screen.dart';
 import '../features/profiles/profiles_screen.dart';
@@ -252,9 +253,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                   underBar: false)),
           GoRoute(
               path: '/mylist',
-              pageBuilder: (context, state) =>
-                  shellPage(context, state, const MyListScreen(),
-                      underBar: true)),
+              pageBuilder: (context, state) => shellPage(
+                  context,
+                  state,
+                  MyListScreen(
+                      key: const ValueKey('mylist'),
+                      tab: MyListTab.parse(state.uri.queryParameters['kind'])),
+                  underBar: false)),
           GoRoute(
               path: '/requests',
               pageBuilder: (context, state) => shellPage(

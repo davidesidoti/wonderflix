@@ -66,7 +66,7 @@ class ShellBottomBar extends ConsumerWidget {
                   () => context.go('/home')),
               item('/search', l.navSearch, LucideIcons.search,
                   () => context.go('/search')),
-              item('/mylist', l.navMyList, LucideIcons.bookmark,
+              item('/mylist', l.navMyList, LucideIcons.heart,
                   () => context.go('/mylist')),
               // Solo con le richieste con Seerr (spec I §9.4).
               if (ref.watch(requestsAvailableProvider))

@@ -123,20 +123,20 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     final sagas = sagasAvailable && widget.view == CatalogView.sagas;
     final Widget tabs;
     if (widget.kind == ItemKind.series) {
-      tabs = _BandTab(label: l.navSeries, selected: true);
+      tabs = CatalogBandTab(label: l.navSeries, selected: true);
     } else if (!sagasAvailable) {
-      tabs = _BandTab(label: l.navMovies, selected: true);
+      tabs = CatalogBandTab(label: l.navMovies, selected: true);
     } else {
       tabs = Row(
         mainAxisSize: MainAxisSize.min,
         spacing: FormFactor.of(context).compact ? 14 : 20,
         children: [
-          _BandTab(
+          CatalogBandTab(
               key: ValueKey('catalog-view-${CatalogView.titles.name}'),
               label: l.navMovies,
               selected: !sagas,
               onTap: () => openCatalog(context, widget.kind)),
-          _BandTab(
+          CatalogBandTab(
               key: ValueKey('catalog-view-${CatalogView.sagas.name}'),
               label: l.collectionsTab,
               selected: sagas,
@@ -418,8 +418,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
 
 /// Una scheda del cartellone (FILM, SAGHE, SERIE): parola in Bebas, crema se
 /// scelta, al 32% l'altra. Senza [onTap] è solo il nome della pagina.
-class _BandTab extends StatelessWidget {
-  const _BandTab(
+class CatalogBandTab extends StatelessWidget {
+  const CatalogBandTab(
       {super.key, required this.label, required this.selected, this.onTap});
 
   final String label;

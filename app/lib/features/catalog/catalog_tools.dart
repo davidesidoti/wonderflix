@@ -160,13 +160,9 @@ class _CatalogToolsState extends State<CatalogTools> {
     );
   }
 
-  Widget _reverse(AppLocalizations l) => IconButton(
-    tooltip: l.catalogReverse,
+  Widget _reverse(AppLocalizations l) => CatalogReverseButton(
+    reversed: widget.query.reversed,
     onPressed: () => _change((q) => q.copyWith(reversed: !q.reversed)),
-    icon: Icon(
-      widget.query.reversed ? LucideIcons.arrowUp : LucideIcons.arrowDown,
-      size: 18,
-    ),
   );
 
   void _toggleHidden() => _change(
@@ -352,6 +348,29 @@ class _CatalogToolsState extends State<CatalogTools> {
       child: row,
     );
   }
+}
+
+/// Il pulsante del verso dell'ordine: freccia in giù col verso di default,
+/// in su con quello inverso.
+class CatalogReverseButton extends StatelessWidget {
+  const CatalogReverseButton({
+    super.key,
+    required this.reversed,
+    required this.onPressed,
+  });
+
+  final bool reversed;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: AppLocalizations.of(context).catalogReverse,
+    onPressed: onPressed,
+    icon: Icon(
+      reversed ? LucideIcons.arrowUp : LucideIcons.arrowDown,
+      size: 18,
+    ),
+  );
 }
 
 /// Interruttore degli attrezzi ("Nascondi i visti", "Nascondi le saghe

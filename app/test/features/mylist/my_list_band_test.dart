@@ -144,7 +144,12 @@ void main() {
     ) async {
       await pump(
         tester,
-        testItem(id: 'm1', name: 'Dune', runtimeMinutes: 120, positionTicks: 54 * _minute),
+        testItem(
+          id: 'm1',
+          name: 'Dune',
+          runtimeMinutes: 120,
+          positionTicks: 54 * _minute,
+        ),
         resuming: true,
       );
       expect(find.text('Riprendi'), findsOneWidget);
@@ -200,7 +205,9 @@ void main() {
       expect(find.text('Riprendi S1:E8'), findsOneWidget);
       expect(find.text('Riproduci'), findsNothing);
       expect(
-        find.textContaining('Da dove eri rimasto: Lost, S1:E8, l\'ultimo episodio'),
+        find.textContaining(
+          'Da dove eri rimasto: Lost, S1:E8, l\'ultimo episodio',
+        ),
         findsOneWidget,
       );
     });
@@ -210,7 +217,12 @@ void main() {
     ) async {
       await pump(
         tester,
-        testItem(id: 's1', name: 'Lost', kind: ItemKind.series, unplayedCount: 5),
+        testItem(
+          id: 's1',
+          name: 'Lost',
+          kind: ItemKind.series,
+          unplayedCount: 5,
+        ),
         overrides: [
           seriesNextEpisodeProvider.overrideWith(
             (ref, id) => testItem(
@@ -239,22 +251,23 @@ void main() {
       expect(find.text('player m1 1380000'), findsOneWidget);
     });
 
-    testWidgets('serie senza episodio ancora arrivato: il pulsante apre la scheda', (
-      tester,
-    ) async {
-      await pump(
-        tester,
-        testItem(id: 's1', kind: ItemKind.series),
-        overrides: [
-          seriesNextEpisodeProvider.overrideWith(
-            (ref, id) => Completer<JellyfinItem?>().future,
-          ),
-        ],
-      );
-      await tester.tap(find.text('Riproduci'));
-      await tester.pumpAndSettle();
-      expect(find.text('scheda s1'), findsOneWidget);
-    });
+    testWidgets(
+      'serie senza episodio ancora arrivato: il pulsante apre la scheda',
+      (tester) async {
+        await pump(
+          tester,
+          testItem(id: 's1', kind: ItemKind.series),
+          overrides: [
+            seriesNextEpisodeProvider.overrideWith(
+              (ref, id) => Completer<JellyfinItem?>().future,
+            ),
+          ],
+        );
+        await tester.tap(find.text('Riproduci'));
+        await tester.pumpAndSettle();
+        expect(find.text('scheda s1'), findsOneWidget);
+      },
+    );
 
     testWidgets('il nome del titolo apre la scheda', (tester) async {
       await pump(tester, testItem(id: 'm1', name: 'Dune'));

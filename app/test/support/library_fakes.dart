@@ -347,6 +347,7 @@ JellyfinItem testItem({
   String? premiereDate,
   String? status,
   String? endDate,
+  String? dateLastMediaAdded,
   int? tmdbId,
 }) =>
     JellyfinItem.fromJson({
@@ -382,6 +383,7 @@ JellyfinItem testItem({
       'PremiereDate': ?premiereDate,
       'Status': ?status,
       'EndDate': ?endDate,
+      'DateLastMediaAdded': ?dateLastMediaAdded,
       if (tmdbId != null) 'ProviderIds': {'Tmdb': '$tmdbId'},
     });
 

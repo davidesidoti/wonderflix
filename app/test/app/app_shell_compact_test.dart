@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/router.dart';
@@ -127,6 +128,15 @@ void main() {
     // L'avatar senza nome.
     expect(find.byKey(const Key('user-menu')), findsOneWidget);
     expect(find.text('Mario'), findsNothing);
+  });
+
+  testWidgets('icona della voce La mia lista: il cuore', (tester) async {
+    await pumpShell(tester);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('bottom-nav-/mylist')),
+            matching: find.byIcon(LucideIcons.heart)),
+        findsOneWidget);
   });
 
   testWidgets(

@@ -96,7 +96,8 @@ class MyListAdded extends AsyncNotifier<Map<String, DateTime>> {
   /// dalla lista. Non scrive: la pulizia va sul server con la scrittura dopo.
   void retainOnly(Set<String> ids) {
     final current = state.value;
-    if (current == null) return;
+    // Niente da togliere: nessuno stato nuovo, e nessuna ricostruzione.
+    if (current == null || current.keys.every(ids.contains)) return;
     state = AsyncData({
       for (final MapEntry(:key, :value) in current.entries)
         if (ids.contains(key)) key: value,
