@@ -182,6 +182,54 @@ void main() {
     expect(custom['nextUpHidden'], 's1:e1');
   });
 
+  /// Un server che tiene l'oggetto: GET lo dà più tardi, POST lo sostituisce
+  /// (con [failPosts] POST che falliscono, i primi).
+  void storing({int failPosts = 0}) {
+    var stored = serverPrefs();
+    adapter.handler = (options) async {
+      await Future<void>.delayed(Duration.zero);
+      if (options.method == 'GET') return FakeResponse(200, stored);
+      if (failPosts > 0) {
+        failPosts--;
+        return const FakeResponse(500);
+      }
+      stored = jsonDecode(jsonEncode(options.data)) as Map<String, dynamic>;
+      return const FakeResponse(204);
+    };
+  }
+
+  Map<String, dynamic> storedCustom() =>
+      (adapter.requests.lastWhere((r) => r.method == 'POST').data
+          as Map<String, dynamic>)['CustomPrefs'] as Map<String, dynamic>;
+
+  // Review m5: due scritture insieme leggevano lo stesso oggetto, e l'ultima
+  // cancellava la voce dell'altra.
+  test('due scritture insieme: una dopo l\'altra, restano tutte e due', () async {
+    storing();
+    await Future.wait([
+      api.writeMyListAdded('u1', {'a': DateTime.utc(2026, 11, 1)}),
+      api.writeNextUpHidden('u1', {'s1': 'e1'}),
+      api.writeHome('u1', const HomeUserPrefs(rows: ['myList'])),
+    ]);
+    expect(
+      [for (final r in adapter.requests) r.method],
+      ['GET', 'POST', 'GET', 'POST', 'GET', 'POST'],
+    );
+    final custom = storedCustom();
+    expect(custom['myListAdded'], isNotNull);
+    expect(custom['nextUpHidden'], 's1:e1');
+    expect(custom['homeRows'], 'myList');
+  });
+
+  test('una scrittura fallita non ferma quella dopo', () async {
+    storing(failPosts: 1);
+    final first = api.writeNextUpHidden('u1', {'s1': 'e1'});
+    final second = api.writeHome('u1', const HomeUserPrefs(rows: ['myList']));
+    await expectLater(first, throwsA(isA<ApiException>()));
+    await second;
+    expect(storedCustom()['homeRows'], 'myList');
+  });
+
   test('un errore di Jellyfin arriva a chi chiama', () async {
     adapter.handler = (_) => const FakeResponse(401);
     await expectLater(api.readHome('u1'), throwsA(isA<ApiException>()));

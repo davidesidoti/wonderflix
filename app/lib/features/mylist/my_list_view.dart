@@ -26,8 +26,8 @@ const myListRefinementsThreshold = 24;
 
 /// Spec §6.1. Film: visto se `played`, da continuare se ha un punto di
 /// ripresa, altrimenti da iniziare. Serie: vista se non restano episodi da
-/// vedere; da continuare se ne ha visti (`playedPercentage`, o meno episodi
-/// da vedere che nella serie); da iniziare negli altri casi, anche senza
+/// vedere; da continuare se ne ha visti (`playedPercentage`, o senza di lui
+/// meno episodi da vedere che nella serie); da iniziare negli altri casi, anche senza
 /// conteggi.
 MyListGroup myListGroup(JellyfinItem item, UserItemData data) {
   if (item.kind != ItemKind.series) {
@@ -40,8 +40,11 @@ MyListGroup myListGroup(JellyfinItem item, UserItemData data) {
   if (unplayed == null) return MyListGroup.start;
   if (unplayed == 0) return MyListGroup.watched;
   final total = item.recursiveItemCount;
-  final started = (data.playedPercentage ?? 0) > 0 ||
-      (total != null && unplayed < total);
+  final percentage = data.playedPercentage;
+  // I conteggi decidono solo senza playedPercentage: 0 vuol dire mai vista.
+  final started = percentage != null
+      ? percentage > 0
+      : (total != null && unplayed < total);
   return started ? MyListGroup.resume : MyListGroup.start;
 }
 

@@ -129,9 +129,21 @@ class DisplayPreferencesApi {
   Future<Map<String, dynamic>> _read(String userId) async => asJsonMap(
       await _http.get(_path, query: _query(userId), quietStatuses: _quiet));
 
+  /// L'aggiornamento in corso: uno alla volta, se no due insieme leggono lo
+  /// stesso oggetto e l'ultimo cancella le voci dell'altro. Non fallisce mai.
+  Future<void> _updates = Future.value();
+
   /// Jellyfin riscrive l'oggetto intero: si rilegge, si cambia `CustomPrefs`
-  /// e si rimanda tutto.
+  /// e si rimanda tutto, in fila dopo gli altri aggiornamenti.
   Future<void> _update(
+      String userId, void Function(Map<String, dynamic> custom) change) {
+    final run = _updates.then((_) => _readChangeWrite(userId, change));
+    // Un errore va a chi chiama, non ferma la fila.
+    _updates = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
+  Future<void> _readChangeWrite(
       String userId, void Function(Map<String, dynamic> custom) change) async {
     final prefs = Map<String, dynamic>.of(await _read(userId));
     final custom =

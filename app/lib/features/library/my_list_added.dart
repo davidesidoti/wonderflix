@@ -59,14 +59,24 @@ class MyListAdded extends AsyncNotifier<Map<String, DateTime>> {
     // La mappa si prende quando tocca a questa scrittura: la più recente. Se
     // fallisce si torna indietro prima della scrittura dopo, che se no la
     // manderebbe lo stesso.
-    final done = _writes
-        .then((_) => api.writeMyListAdded(userId, state.value ?? const {}))
-        .then<bool>((_) => true, onError: (Object error) {
+    final done = _writes.then((_) async {
+      // Cambiato utente con la scrittura in fila: lo stato è del nuovo, e non
+      // va scritto su quello di prima.
+      if (!ref.mounted || ref.read(currentUserIdProvider) != userId) {
+        return false;
+      }
+      await api.writeMyListAdded(userId, state.value ?? const {});
+      return true;
+    }).then<bool>((ok) => ok, onError: (Object error) {
       _log.info('Date di La mia lista non salvate: ${error.runtimeType}');
       if (ref.mounted) {
+        // Torna indietro solo chi ha ancora il valore di questa modifica: una
+        // modifica dopo, alla stessa voce, resta.
+        final now = state.value ?? const <String, DateTime>{};
         state = AsyncData(
-          _with(state.value ?? const {}, {
-            for (final key in keys.keys) key: before[key],
+          _with(now, {
+            for (final MapEntry(:key, :value) in keys.entries)
+              if (now[key] == value) key: before[key],
           }),
         );
       }

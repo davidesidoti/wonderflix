@@ -130,6 +130,48 @@ void main() {
     },
   );
 
+  // Review m3: on fallito, off, on; tornando indietro dal primo l'ultima
+  // data non si perde.
+  test(
+    'scrittura fallita: non torna indietro una voce cambiata dopo',
+    () async {
+      final first = Completer<void>();
+      prefs = _FailFirstWrite(first);
+      final c = container();
+      final notifier = await open(c);
+      final on = notifier.change({'a': _d1});
+      final off = notifier.change({'a': null});
+      final again = notifier.change({'a': _d2});
+      await pumpEventQueue();
+      first.complete();
+      expect(await on, isFalse);
+      expect(await off, isTrue);
+      expect(await again, isTrue);
+      expect(c.read(myListAddedProvider).value, {'a': _d2});
+      expect(prefs.myListAddedWrites.last, {'a': _d2});
+    },
+  );
+
+  // Review m4.
+  test(
+    'cambio di utente con una scrittura in fila: non va al vecchio',
+    () async {
+      final c = container();
+      final notifier = await open(c);
+      prefs.myListAddedWriteGate = Completer();
+      final first = notifier.change({'a': _d1});
+      final queued = notifier.change({'b': _d2});
+      await pumpEventQueue();
+      prefs.myListAdded = {'z': _d0};
+      session.quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
+      expect(await c.read(myListAddedProvider.future), {'z': _d0});
+      prefs.myListAddedWriteGate!.complete();
+      await first;
+      expect(await queued, isFalse);
+      expect(prefs.myListAddedWrites, hasLength(1));
+    },
+  );
+
   test(
     'retainOnly non scrive; la scrittura dopo non ha le voci tolte',
     () async {
@@ -161,4 +203,24 @@ void main() {
     session.quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
     expect(await c.read(myListAddedProvider.future), isEmpty);
   });
+}
+
+/// La prima scrittura aspetta [gate] e fallisce, le altre riescono.
+class _FailFirstWrite extends FakeDisplayPreferencesApi {
+  _FailFirstWrite(this.gate);
+
+  final Completer<void> gate;
+
+  @override
+  Future<void> writeMyListAdded(
+    String userId,
+    Map<String, DateTime> added,
+  ) async {
+    if (myListAddedWrites.isNotEmpty) {
+      return super.writeMyListAdded(userId, added);
+    }
+    myListAddedWrites.add({...added});
+    await gate.future;
+    throw Exception('giù');
+  }
 }

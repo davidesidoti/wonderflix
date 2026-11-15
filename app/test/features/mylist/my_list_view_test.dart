@@ -116,6 +116,12 @@ void main() {
       expect(myListGroup(s, s.userData), MyListGroup.resume);
     });
 
+    test('serie con playedPercentage 0: da iniziare, conteggi a parte', () {
+      final s = fav('s',
+          kind: ItemKind.series, unplayed: 3, recursive: 8, percentage: 0);
+      expect(myListGroup(s, s.userData), MyListGroup.start);
+    });
+
     test('dati della sessione al posto di quelli caricati', () {
       final r = view([fNew], overrides: {
         'fn': const UserItemData(isFavorite: true, played: true)
