@@ -227,6 +227,11 @@ class _ResumeCard extends ConsumerWidget {
     final series = item.kind == ItemKind.series;
     final nextUp = series ? ref.watch(myListNextUpProvider).value : null;
     final next = nextUp?[jellyfinIdKey(item.id)];
+    // "Riprendi" solo se il play riprende davvero: per una serie, il
+    // prossimo episodio già iniziato.
+    final target = series ? next : item;
+    final resuming =
+        target != null && watchUserData(ref, target).playbackPositionTicks > 0;
     return MyListRemovable(
       item: item,
       imageHeight: width * 9 / 16,
@@ -235,6 +240,7 @@ class _ResumeCard extends ConsumerWidget {
       onPlay: () => series && nextUp == null
           ? openItem(context, item)
           : unawaited(playItem(context, ref, item)),
+      playTooltip: resuming ? AppLocalizations.of(context).previewResume : null,
       child: LandscapeCard(
         item: item,
         heroSource: heroSource,

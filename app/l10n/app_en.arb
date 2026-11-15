@@ -109,6 +109,8 @@
   "@myListRemoveWatchedConfirm": {"placeholders": {"count": {"type": "int"}}},
   "myListRemoveConfirm": "Remove",
   "myListCancel": "Cancel",
+  "myListRestoreFailed": "{count, plural, =1{Couldn't put back 1 title} other{Couldn't put back {count} titles}}",
+  "@myListRestoreFailed": {"placeholders": {"count": {"type": "int"}}},
   "myListNoResults": "No titles in your list match these filters.",
   "myListGoMovies": "Go to movies",
   "myListGoSeries": "Go to series",

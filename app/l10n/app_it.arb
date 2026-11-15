@@ -125,6 +125,8 @@
   "@myListRemoveWatchedConfirm": {"placeholders": {"count": {"type": "int"}}},
   "myListRemoveConfirm": "Togli",
   "myListCancel": "Annulla",
+  "myListRestoreFailed": "{count, plural, =1{Non sono riuscito a rimettere 1 titolo} other{Non sono riuscito a rimettere {count} titoli}}",
+  "@myListRestoreFailed": {"placeholders": {"count": {"type": "int"}}},
   "myListNoResults": "Nessun titolo della lista con questi filtri.",
   "myListGoMovies": "Vai ai film",
   "myListGoSeries": "Vai alle serie",

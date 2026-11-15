@@ -9,6 +9,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/mylist/my_list_screen.dart';
+import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -211,6 +212,57 @@ void main() {
     await hover(tester, find.text('Ronin'));
     expect(find.byTooltip('Togli dalla lista'), findsOneWidget);
     expect(find.byTooltip('Riprendi'), findsOneWidget);
+    // In basso a destra dell'immagine 16:9, a 8 px dai bordi.
+    final image = tester.getRect(
+      find.descendant(
+        of: find.byType(LandscapeCard),
+        matching: find.byType(AspectRatio),
+      ),
+    );
+    final play = tester.getRect(
+      find.ancestor(
+        of: find.byTooltip('Riprendi'),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(play.bottom, moreOrLessEquals(image.bottom - 8));
+    expect(play.right, moreOrLessEquals(image.right - 8));
+
+    await hover(tester, find.text('Parasite'));
+    expect(find.byTooltip('Togli dalla lista'), findsOneWidget);
+    expect(find.byTooltip('Riprendi'), findsNothing);
+    expect(find.byTooltip('Riproduci'), findsNothing);
+  });
+
+  testWidgets('un titolo senza data: Annulla non gliene scrive una', (
+    tester,
+  ) async {
+    final prefs = FakeDisplayPreferencesApi()..myListAdded = {'i': d0};
+    final api = apiWith(library());
+    await pumpList(tester, api, prefs: prefs);
+    await hover(tester, find.text('Parasite'));
+    await tester.tap(find.byTooltip('Togli dalla lista'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(api.favoriteCalls.last, ('p', true));
+    expect(cardNames(tester), contains('Parasite'));
+    for (final write in prefs.myListAddedWrites) {
+      expect(write.keys, isNot(contains('p')));
+    }
+  });
+
+  testWidgets('Annulla non riuscito: un avviso lo dice', (tester) async {
+    final api = apiWith(library());
+    await pumpList(tester, api);
+    await hover(tester, find.text('Parasite'));
+    await tester.tap(find.byTooltip('Togli dalla lista'));
+    await tester.pumpAndSettle();
+    api.favoriteErrors['p'] = Exception('no');
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(find.text('Non sono riuscito a rimettere 1 titolo'), findsOneWidget);
+    expect(cardNames(tester), isNot(contains('Parasite')));
   });
 
   for (final (name, touch, tv) in [

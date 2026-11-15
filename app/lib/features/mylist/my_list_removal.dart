@@ -27,9 +27,10 @@ Future<void> removeFromMyList(
   // La card tolta sparisce subito, e con lei `ref`: Annulla usa il container.
   final container = ProviderScope.containerOf(context, listen: false);
   final overrides = ref.read(userDataOverridesProvider.notifier);
-  // Le date prima di togliere: togliendo si cancellano.
+  // Le date prima di togliere: togliendo si cancellano. Ogni id c'è, `null`
+  // per chi non ne aveva una: Annulla non gliela inventa.
   final added = ref.read(myListAddedProvider).value ?? const {};
-  final dates = {for (final i in items) i.id: ?added[jellyfinIdKey(i.id)]};
+  final dates = {for (final i in items) i.id: added[jellyfinIdKey(i.id)]};
   final failed = await overrides.setFavorites(items, favorite: false);
   // Non tolti anche i saltati (una richiesta già in corso).
   final removed = [
@@ -50,11 +51,18 @@ Future<void> removeFromMyList(
           : SnackBarAction(
               label: l.actionUndo,
               onPressed: () => unawaited(() async {
-                await overrides.setFavorites(
+                final notRestored = await overrides.setFavorites(
                   removed,
                   favorite: true,
                   addedAt: dates,
                 );
+                if (notRestored.isNotEmpty) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(l.myListRestoreFailed(notRestored.length)),
+                    ),
+                  );
+                }
                 // Una lista ricaricata intanto non ha più i titoli.
                 container.invalidate(favoritesProvider);
               }()),
@@ -73,12 +81,16 @@ class MyListRemovable extends ConsumerStatefulWidget {
     required this.child,
     required this.imageHeight,
     this.onPlay,
+    this.playTooltip,
   });
 
   final JellyfinItem item;
   final Widget child;
   final double imageHeight;
   final VoidCallback? onPlay;
+
+  /// Il tooltip del play; senza, "Riproduci".
+  final String? playTooltip;
 
   @override
   ConsumerState<MyListRemovable> createState() => _MyListRemovableState();
@@ -121,6 +133,8 @@ class _MyListRemovableState extends ConsumerState<MyListRemovable> {
                     ], message: l.myListRemoved(item.name)),
                   ),
                   style: IconButton.styleFrom(
+                    // Senza i 48 px di Material: il bordo è quello visibile.
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     minimumSize: const Size.square(36),
                     fixedSize: const Size.square(36),
                     backgroundColor: WfColors.bg.withValues(alpha: 0.75),
@@ -134,9 +148,11 @@ class _MyListRemovableState extends ConsumerState<MyListRemovable> {
                   top: widget.imageHeight - _gap - _playSize,
                   right: _gap,
                   child: IconButton(
-                    tooltip: l.previewResume,
+                    tooltip: widget.playTooltip ?? l.actionPlay,
                     onPressed: onPlay,
                     style: IconButton.styleFrom(
+                      // Senza i 48 px di Material: il bordo è quello visibile.
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       minimumSize: const Size.square(_playSize),
                       fixedSize: const Size.square(_playSize),
                       backgroundColor: WfColors.gold,

@@ -70,12 +70,13 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
   /// Accende o spegne il cuore di [items], una richiesta per titolo in
   /// parallelo (come [toggleFavorite]); i titoli con una richiesta in corso si
   /// saltano. Alla fine una sola scrittura delle date: [addedAt] (o adesso)
-  /// per i riusciti accesi, `null` per i riusciti spenti. Restituisce i
+  /// per i riusciti accesi, `null` per i riusciti spenti. Un id in [addedAt]
+  /// con `null` si riaccende senza data (nessuna voce scritta). Restituisce i
   /// titoli non riusciti; non lancia errori.
   Future<List<JellyfinItem>> setFavorites(
     List<JellyfinItem> items, {
     required bool favorite,
-    Map<String, DateTime> addedAt = const {},
+    Map<String, DateTime?> addedAt = const {},
   }) async {
     final failed = <JellyfinItem>[];
     final done = <String>[];
@@ -94,12 +95,18 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
           }
         }(),
     ]);
-    if (done.isNotEmpty && ref.mounted) {
-      final now = clock.now().toUtc();
-      await ref.read(myListAddedProvider.notifier).change({
-        for (final id in done)
-          jellyfinIdKey(id): favorite ? addedAt[id] ?? now : null,
-      });
+    final now = clock.now().toUtc();
+    final dates = <String, DateTime?>{
+      for (final id in done)
+        if (!favorite)
+          jellyfinIdKey(id): null
+        else if (!addedAt.containsKey(id))
+          jellyfinIdKey(id): now
+        else
+          jellyfinIdKey(id): ?addedAt[id],
+    };
+    if (dates.isNotEmpty && ref.mounted) {
+      await ref.read(myListAddedProvider.notifier).change(dates);
     }
     return failed;
   }
