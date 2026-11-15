@@ -178,7 +178,7 @@ Jellyfin non salva quando un titolo diventa preferito. L'app la salva per conto 
 
 - Cartellone come nel catalogo compatto (220 px, titolo 64), con il pulsante oro e la frase sotto, su due righe se serve.
 - Attrezzi: Ordina senza la parola "Ordina", più il verso. Oltre i 24 titoli c'è la riga dei generi ma non la ricerca: lo spazio manca, e Cerca sta già nella barra.
-- Da continuare in una colonna di card larghe a tutta larghezza. Da iniziare e Visti a 3 colonne su 390 px.
+- Da continuare in una colonna di card larghe a tutta larghezza. Da iniziare e Visti con le colonne del catalogo (2 su 390 px).
 - Nessun cuore sulle card (§9).
 - Barra in basso: voce "Lista" con il cuore.
 
