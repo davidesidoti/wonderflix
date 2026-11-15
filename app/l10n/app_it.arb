@@ -1897,5 +1897,16 @@
   "catalogSeriesContinuing": "In corso",
   "catalogSeriesToWatch": "{count, plural, =1{1 episodio da vedere} other{{count} episodi da vedere}}",
   "@catalogSeriesToWatch": {"placeholders": {"count": {"type": "int"}}},
-  "catalogSeriesAllWatched": "Vista tutta"
+  "catalogSeriesAllWatched": "Vista tutta",
+  "homeTonight": "Stasera",
+  "homeTonightCount": "{count} da guardare",
+  "@homeTonightCount": {"placeholders": {"count": {"type": "int"}}},
+  "homeUndecided": "Non sai cosa scegliere?",
+  "homeUpcoming": "In arrivo",
+  "homeUpcomingCount": "{count, plural, =1{1 uscita} other{{count} uscite}}",
+  "@homeUpcomingCount": {"placeholders": {"count": {"type": "int"}}},
+  "homeDayToday": "oggi",
+  "homeDayTomorrow": "domani",
+  "homeDayAfterTomorrow": "dopodomani",
+  "homeUpcomingMovie": "Film, in digitale"
 }

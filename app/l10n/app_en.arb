@@ -1696,5 +1696,16 @@
   "catalogSeriesContinuing": "In progress",
   "catalogSeriesToWatch": "{count, plural, =1{1 episode to watch} other{{count} episodes to watch}}",
   "@catalogSeriesToWatch": {"placeholders": {"count": {"type": "int"}}},
-  "catalogSeriesAllWatched": "All watched"
+  "catalogSeriesAllWatched": "All watched",
+  "homeTonight": "Tonight",
+  "homeTonightCount": "{count} to watch",
+  "@homeTonightCount": {"placeholders": {"count": {"type": "int"}}},
+  "homeUndecided": "Can't decide?",
+  "homeUpcoming": "Coming up",
+  "homeUpcomingCount": "{count, plural, =1{1 release} other{{count} releases}}",
+  "@homeUpcomingCount": {"placeholders": {"count": {"type": "int"}}},
+  "homeDayToday": "today",
+  "homeDayTomorrow": "tomorrow",
+  "homeDayAfterTomorrow": "in 2 days",
+  "homeUpcomingMovie": "Movie, digital"
 }
