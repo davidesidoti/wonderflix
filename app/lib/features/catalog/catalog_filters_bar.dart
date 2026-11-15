@@ -100,11 +100,13 @@ class FilterPicker<T> extends StatelessWidget {
       {super.key,
       required this.value,
       required this.items,
-      required this.onChanged});
+      required this.onChanged,
+      this.autofocus = false});
 
   final T value;
   final Map<T, String> items;
   final ValueChanged<T> onChanged;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +121,7 @@ class FilterPicker<T> extends StatelessWidget {
         ),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<T>(
+            autofocus: autofocus,
             // Nello stretto riempie la riga: col testo lungo non sfora. Sulla
             // TV (larga 960) no: i filtri stanno in una riga sopra la griglia.
             isExpanded:

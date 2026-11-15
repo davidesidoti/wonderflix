@@ -180,8 +180,8 @@ class _GroupTitle extends StatelessWidget {
   }
 }
 
-/// Le card 16:9 di Da continuare: vanno a capo, o in colonna a tutta
-/// larghezza nello stretto.
+/// Le card 16:9 di Da continuare: vanno a capo, in colonna a tutta
+/// larghezza nello stretto, in una fila sulla TV.
 class _ResumeCards extends StatelessWidget {
   const _ResumeCards({required this.items});
 
@@ -201,9 +201,20 @@ class _ResumeCards extends StatelessWidget {
               width: column ? constraints.maxWidth : 300,
             ),
         ];
-        return column
-            ? Column(spacing: 16, children: cards)
-            : Wrap(spacing: 16, runSpacing: 20, children: cards);
+        if (column) return Column(spacing: 16, children: cards);
+        // Sulla TV una fila che scorre di lato col focus (spec §13).
+        if (form.tv) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 16,
+              children: cards,
+            ),
+          );
+        }
+        return Wrap(spacing: 16, runSpacing: 20, children: cards);
       },
     );
   }

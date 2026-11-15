@@ -21,11 +21,15 @@ class MyListTools extends StatefulWidget {
     required this.view,
     required this.filters,
     required this.onChanged,
+    this.autofocus = false,
   });
 
   final MyListView view;
   final MyListFilters filters;
   final ValueChanged<MyListFilters> onChanged;
+
+  /// Sulla TV senza titolo di punta il focus parte da Ordina.
+  final bool autofocus;
 
   @override
   State<MyListTools> createState() => _MyListToolsState();
@@ -59,6 +63,7 @@ class _MyListToolsState extends State<MyListTools> {
     String label(String name) => narrow ? name : '${l.catalogSortShort}: $name';
     final sort = FilterPicker<CatalogSort>(
       value: filters.sort,
+      autofocus: widget.autofocus,
       items: {
         CatalogSort.dateAdded: label(l.myListSortAdded),
         CatalogSort.title: label(l.catalogSortTitle),

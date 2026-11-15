@@ -17,6 +17,7 @@ import 'package:wonderflix/features/library/user_data.dart';
 import 'package:wonderflix/features/mylist/my_list_screen.dart';
 import 'package:wonderflix/features/mylist/my_list_view.dart';
 import 'package:wonderflix/ui/card_preview.dart';
+import 'package:wonderflix/ui/landscape_card.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/skeletons.dart';
 
@@ -541,5 +542,52 @@ void main() {
     expect(cardNames(tester), ['Arrival']);
     expect(find.byType(CardPreview), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compatto 390 px: generi sì, ricerca no, colonne del catalogo', (
+    tester,
+  ) async {
+    await pumpList(
+      tester,
+      apiWith([
+        testItem(
+          id: 'h',
+          name: 'Heat',
+          favorite: true,
+          positionTicks: 10 * _minute,
+          dateCreated: '2025-01-01T00:00:00Z',
+        ),
+        testItem(
+          id: 'al',
+          name: 'Alien',
+          favorite: true,
+          runtimeMinutes: 118,
+          positionTicks: 52 * _minute,
+          dateCreated: '2025-01-02T00:00:00Z',
+        ),
+        ...many(30),
+      ]),
+      size: const Size(390, 3000),
+    );
+    expect(find.byType(CatalogGenreIndex), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    // Ordina senza la parola "Ordina".
+    expect(find.text('Aggiunti alla lista'), findsOneWidget);
+    // Da continuare a tutta larghezza (390 - 2 * 16).
+    expect(tester.getSize(find.byType(LandscapeCard)).width, 358);
+    // Stessa griglia del catalogo: a 358 px sono 2 colonne.
+    final delegate =
+        tester.widget<SliverGrid>(find.byType(SliverGrid)).gridDelegate
+            as SliverGridDelegateWithMaxCrossAxisExtent;
+    expect(delegate.maxCrossAxisExtent, 180);
+    expect(
+      delegate.mainAxisExtent,
+      catalogCellExtent(358, TextScaler.noScaling),
+    );
+    final lefts = {
+      for (final e in find.byType(PosterCard).evaluate())
+        tester.getTopLeft(find.byWidget(e.widget)).dx,
+    };
+    expect(lefts, hasLength(2));
   });
 }

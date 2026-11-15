@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -166,25 +168,32 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
           ),
       ],
     );
+    // Sulla TV col focus nel cartellone o negli attrezzi la pagina torna in
+    // cima, nei gruppi scorre oltre il cartellone (spec §13).
+    Widget top(Widget sliver) => tv
+        ? tvScrollOnFocus(scroll: _scroll, offset: () => 0, child: sliver)
+        : sliver;
     Widget band({
       Widget? tabs,
       JellyfinItem? hero,
       InlineSpan? line,
       Widget? action,
-    }) => SliverToBoxAdapter(
-      child: SizedBox(
-        height: height - barGap,
-        child: OverflowBox(
-          alignment: Alignment.topCenter,
-          minHeight: height,
-          maxHeight: height,
-          child: CatalogBand(
-            title: l.navMyList.toUpperCase(),
-            height: height,
-            tabs: tabs,
-            hero: hero,
-            line: line,
-            action: action,
+    }) => top(
+      SliverToBoxAdapter(
+        child: SizedBox(
+          height: height - barGap,
+          child: OverflowBox(
+            alignment: Alignment.topCenter,
+            minHeight: height,
+            maxHeight: height,
+            child: CatalogBand(
+              title: l.navMyList.toUpperCase(),
+              height: height,
+              tabs: tabs,
+              hero: hero,
+              line: line,
+              action: action,
+            ),
           ),
         ),
       ),
@@ -254,6 +263,14 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
               ];
             }
             final hero = view.hero;
+            final groups = myListGroupSlivers(
+              context,
+              view: view,
+              side: side,
+              watchedOpen: _watchedOpen,
+              onToggleWatched: () =>
+                  setState(() => _watchedOpen = !_watchedOpen),
+            );
             return [
               band(
                 tabs: tabs,
@@ -270,29 +287,33 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
                     : MyListBandAction(
                         hero: hero,
                         resuming: view.resumeCount > 0,
+                        autofocus: tv,
                       ),
               ),
-              SliverPadding(
-                padding: EdgeInsets.symmetric(horizontal: side),
-                sliver: SliverToBoxAdapter(
-                  child: MyListTools(
-                    view: view,
-                    filters: _filters,
-                    onChanged: (filters) => setState(() => _filters = filters),
+              top(
+                SliverPadding(
+                  padding: EdgeInsets.symmetric(horizontal: side),
+                  sliver: SliverToBoxAdapter(
+                    child: MyListTools(
+                      view: view,
+                      filters: _filters,
+                      autofocus: tv && hero == null,
+                      onChanged: (filters) =>
+                          setState(() => _filters = filters),
+                    ),
                   ),
                 ),
               ),
               if (view.noResults)
                 SliverToBoxAdapter(child: _noResults(l))
+              else if (tv)
+                tvScrollOnFocus(
+                  scroll: _scroll,
+                  offset: () => max(_scroll.offset, height),
+                  child: SliverMainAxisGroup(slivers: groups),
+                )
               else
-                ...myListGroupSlivers(
-                  context,
-                  view: view,
-                  side: side,
-                  watchedOpen: _watchedOpen,
-                  onToggleWatched: () =>
-                      setState(() => _watchedOpen = !_watchedOpen),
-                ),
+                ...groups,
             ];
           },
         );
@@ -313,6 +334,8 @@ class _MyListScreenState extends ConsumerState<MyListScreen>
   /// "Vai ai film" (oro) e "Vai alle serie" (bordato).
   Widget _go(AppLocalizations l, ItemKind kind) => kind == ItemKind.movie
       ? FilledButton(
+          // Sulla TV il focus parte da qui (spec §11).
+          autofocus: FormFactor.of(context).tv,
           onPressed: () => openCatalog(context, ItemKind.movie),
           child: Text(l.myListGoMovies),
         )
