@@ -1908,5 +1908,9 @@
   "homeDayToday": "oggi",
   "homeDayTomorrow": "domani",
   "homeDayAfterTomorrow": "dopodomani",
-  "homeUpcomingMovie": "Film, in digitale"
+  "homeUpcomingMovie": "Film, in digitale",
+  "ticketMinutes": "{minutes} min",
+  "@ticketMinutes": {"placeholders": {"minutes": {"type": "int"}}},
+  "ticketLeft": "restano",
+  "ticketNext": "Prossimo"
 }

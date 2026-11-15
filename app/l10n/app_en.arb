@@ -1707,5 +1707,9 @@
   "homeDayToday": "today",
   "homeDayTomorrow": "tomorrow",
   "homeDayAfterTomorrow": "in 2 days",
-  "homeUpcomingMovie": "Movie, digital"
+  "homeUpcomingMovie": "Movie, digital",
+  "ticketMinutes": "{minutes} min",
+  "@ticketMinutes": {"placeholders": {"minutes": {"type": "int"}}},
+  "ticketLeft": "left",
+  "ticketNext": "Up next"
 }
