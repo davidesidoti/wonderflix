@@ -164,4 +164,23 @@ void main() {
       findsWidgets,
     );
   });
+
+  testWidgets('con action la mostra sotto la riga; senza, niente', (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: CatalogBand(
+          title: 'La mia lista',
+          height: 320,
+          line: TextSpan(text: 'Riga.'),
+          action: Text('azione'),
+        ),
+      ),
+    );
+    expect(find.text('azione'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('azione')).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text('Riga.')).dy + 16),
+    );
+  });
 }

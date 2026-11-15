@@ -116,6 +116,7 @@ class CatalogBand extends ConsumerWidget {
     this.hero,
     this.line,
     this.tabs,
+    this.action,
   });
 
   final String title;
@@ -123,6 +124,9 @@ class CatalogBand extends ConsumerWidget {
   final JellyfinItem? hero;
   final InlineSpan? line;
   final Widget? tabs;
+
+  /// Sotto [line]: il pulsante di La mia lista.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -208,6 +212,11 @@ class CatalogBand extends ConsumerWidget {
                               fontSize: lineSize,
                             ),
                           ),
+                        ),
+                      if (action != null)
+                        Padding(
+                          padding: EdgeInsets.only(top: form.tv ? 10 : 16),
+                          child: action,
                         ),
                     ],
                   ),
