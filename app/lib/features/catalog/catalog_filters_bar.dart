@@ -1,98 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
-import '../../core/jellyfin/item_models.dart';
-import '../../core/jellyfin/item_query.dart';
-import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/tv_focusable.dart';
 
 /// Altezza di una riga di menu della barra dei filtri.
 const filtersBarHeight = 40.0;
-
-/// Ordinamento, genere, anno e visto/non visto. Generi e anni li dà chi la
-/// usa: il catalogo quelli del server, La mia lista quelli dei suoi titoli.
-class CatalogFiltersBar extends StatelessWidget {
-  const CatalogFiltersBar({
-    super.key,
-    required this.filters,
-    required this.query,
-    required this.onChanged,
-  });
-
-  /// Generi e anni proposti nei menu.
-  final LibraryFilters filters;
-  final ItemQuery query;
-  final ValueChanged<ItemQuery> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final genre = query.genres.isEmpty ? null : query.genres.first;
-
-    final children = <Widget>[
-        FilterPicker<CatalogSort>(
-          value: query.sort,
-          items: {
-            CatalogSort.title: '${l.catalogSortLabel}: ${l.catalogSortTitle}',
-            CatalogSort.dateAdded: '${l.catalogSortLabel}: ${l.catalogSortDateAdded}',
-            CatalogSort.year: '${l.catalogSortLabel}: ${l.catalogSortYear}',
-            CatalogSort.rating: '${l.catalogSortLabel}: ${l.catalogSortRating}',
-          },
-          onChanged: (sort) => onChanged(query.copyWith(sort: sort)),
-        ),
-        FilterPicker<String?>(
-          value: genre,
-          items: {
-            null: l.catalogAllGenres,
-            for (final g in filters.genres) g: g,
-          },
-          onChanged: (g) =>
-              onChanged(query.copyWith(genres: g == null ? const {} : {g})),
-        ),
-        FilterPicker<int?>(
-          value: query.year,
-          items: {
-            null: l.catalogAllYears,
-            for (final y in filters.years) y: '$y',
-          },
-          onChanged: (y) => onChanged(query.copyWith(year: y)),
-        ),
-        SegmentedButton<WatchedFilter>(
-          showSelectedIcon: false,
-          segments: [
-            ButtonSegment(value: WatchedFilter.all, label: Text(l.catalogWatchedAll)),
-            ButtonSegment(
-                value: WatchedFilter.unwatched,
-                label: Text(l.catalogWatchedUnwatched)),
-            ButtonSegment(
-                value: WatchedFilter.watched, label: Text(l.catalogWatchedWatched)),
-          ],
-          selected: {query.watched},
-          onSelectionChanged: (s) => onChanged(query.copyWith(watched: s.first)),
-        ),
-        if (query.hasFilters)
-          TextButton(
-            onPressed: () => onChanged(query.clearFilters()),
-            child: Text(l.catalogClearFilters),
-          ),
-    ];
-    // Sulla TV una riga sola, che scorre di lato se non basta: la griglia
-    // sotto resta alta.
-    if (FormFactor.of(context).tv) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(spacing: 12, children: children),
-      );
-    }
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: children,
-    );
-  }
-}
 
 /// Un menu della barra dei filtri (catalogo, La mia lista, vista "Saghe").
 class FilterPicker<T> extends StatelessWidget {
