@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../app/navigation.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/landscape_card.dart';
 import '../../ui/poster_card.dart';
@@ -15,6 +18,8 @@ import '../../ui/wf_image.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
+import '../playback/play_launcher.dart';
+import 'my_list_removal.dart';
 import 'my_list_view.dart';
 
 /// Il prossimo episodio di ogni serie iniziata, con chiave
@@ -100,6 +105,7 @@ List<Widget> myListGroupSlivers(
       box(
         _WatchedHeader(
           items: view.watched,
+          removable: view.removableWatched,
           open: watchedOpen,
           onToggle: onToggleWatched,
         ),
@@ -126,10 +132,16 @@ Widget _posterGrid(List<JellyfinItem> items, double side, String source) =>
             ),
           ),
           delegate: SliverChildBuilderDelegate(
-            (context, i) => PosterCard(
-              item: items[i],
-              heroSource: '$source.$i',
-              catalogStyle: true,
+            (context, i) => LayoutBuilder(
+              builder: (context, cell) => MyListRemovable(
+                item: items[i],
+                imageHeight: cell.maxWidth * 3 / 2,
+                child: PosterCard(
+                  item: items[i],
+                  heroSource: '$source.$i',
+                  catalogStyle: true,
+                ),
+              ),
             ),
             childCount: items.length,
           ),
@@ -179,17 +191,21 @@ class _ResumeCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final form = FormFactor.of(context);
     final column = form.compact && !form.tv;
-    final cards = [
-      for (final (i, item) in items.indexed)
-        _ResumeCard(
-          item: item,
-          heroSource: 'mylist.resume.$i',
-          width: column ? double.infinity : 300,
-        ),
-    ];
-    return column
-        ? Column(spacing: 16, children: cards)
-        : Wrap(spacing: 16, runSpacing: 20, children: cards);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cards = [
+          for (final (i, item) in items.indexed)
+            _ResumeCard(
+              item: item,
+              heroSource: 'mylist.resume.$i',
+              width: column ? constraints.maxWidth : 300,
+            ),
+        ];
+        return column
+            ? Column(spacing: 16, children: cards)
+            : Wrap(spacing: 16, runSpacing: 20, children: cards);
+      },
+    );
   }
 }
 
@@ -208,19 +224,27 @@ class _ResumeCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Solo le serie leggono il prossimo episodio: senza serie, nessuna
     // richiesta.
-    final nextUp = item.kind == ItemKind.series
-        ? ref.watch(myListNextUpProvider).value
-        : null;
+    final series = item.kind == ItemKind.series;
+    final nextUp = series ? ref.watch(myListNextUpProvider).value : null;
     final next = nextUp?[jellyfinIdKey(item.id)];
-    return LandscapeCard(
+    return MyListRemovable(
       item: item,
-      heroSource: heroSource,
-      width: width,
-      subtitle: myListResumeLine(
-        AppLocalizations.of(context),
-        item,
-        watchUserData(ref, item),
-        next,
+      imageHeight: width * 9 / 16,
+      // Come il cartellone: finché il prossimo episodio non arriva, la
+      // serie apre la scheda.
+      onPlay: () => series && nextUp == null
+          ? openItem(context, item)
+          : unawaited(playItem(context, ref, item)),
+      child: LandscapeCard(
+        item: item,
+        heroSource: heroSource,
+        width: width,
+        subtitle: myListResumeLine(
+          AppLocalizations.of(context),
+          item,
+          watchUserData(ref, item),
+          next,
+        ),
       ),
     );
   }
@@ -231,11 +255,15 @@ class _ResumeCard extends ConsumerWidget {
 class _WatchedHeader extends ConsumerWidget {
   const _WatchedHeader({
     required this.items,
+    required this.removable,
     required this.open,
     required this.onToggle,
   });
 
   final List<JellyfinItem> items;
+
+  /// `MyListView.removableWatched`: senza, niente "Togli i visti".
+  final List<JellyfinItem> removable;
   final bool open;
   final VoidCallback onToggle;
 
@@ -271,7 +299,7 @@ class _WatchedHeader extends ConsumerWidget {
         ),
       ),
     );
-    return Wrap(
+    final header = Wrap(
       spacing: 16,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
@@ -298,6 +326,50 @@ class _WatchedHeader extends ConsumerWidget {
             ),
           ),
       ],
+    );
+    if (removable.isEmpty) return header;
+    return Row(
+      children: [
+        Expanded(child: header),
+        TextButton.icon(
+          onPressed: () => unawaited(_removeWatched(context, ref)),
+          icon: const Icon(LucideIcons.heartOff, size: 16),
+          label: Text(l.myListRemoveWatched),
+        ),
+      ],
+    );
+  }
+
+  /// Fuori dalla TV toglie subito (c'è Annulla); in TV l'Annulla della
+  /// SnackBar non si raggiunge in tempo, quindi prima chiede conferma.
+  Future<void> _removeWatched(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
+    final count = removable.length;
+    if (FormFactor.of(context).tv) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: Text(l.myListRemoveWatchedConfirm(count)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l.myListRemoveConfirm),
+            ),
+            TextButton(
+              autofocus: true,
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l.myListCancel),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+    }
+    await removeFromMyList(
+      context,
+      ref,
+      removable,
+      message: l.myListRemovedWatched(count),
     );
   }
 }
