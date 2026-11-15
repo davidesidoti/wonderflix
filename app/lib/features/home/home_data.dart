@@ -4,14 +4,17 @@ import '../../core/jellyfin/item_models.dart';
 /// ultimi 365 giorni.
 DateTime nextUpCutoff(DateTime now) => now.subtract(const Duration(days: 365));
 
-/// Fino a [max] titoli recenti con uno sfondo, alternando film e serie.
+/// Fino a [max] titoli recenti con uno sfondo e non ancora visti, alternando
+/// film e serie.
 List<JellyfinItem> pickFeatured(
   List<JellyfinItem> movies,
   List<JellyfinItem> series, {
   int max = 5,
 }) {
   final withBackdrop = [movies, series]
-      .map((list) => list.where((i) => i.backdropTags.isNotEmpty).toList())
+      .map((list) => list
+          .where((i) => i.backdropTags.isNotEmpty && !i.userData.played)
+          .toList())
       .toList();
   final featured = <JellyfinItem>[];
   for (var i = 0; featured.length < max; i++) {

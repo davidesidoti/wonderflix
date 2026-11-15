@@ -31,6 +31,7 @@ class ItemQuery {
     this.personId,
     this.includeSortFields = false,
     this.includeProviderIds = false,
+    this.includeOverview = false,
   });
 
   final Set<ItemKind> kinds;
@@ -57,6 +58,9 @@ class ItemQuery {
   /// (`JellyfinItem.tmdbId`): la ricerca lo usa per non ripetere in
   /// "Da richiedere" i titoli che la libreria ha già.
   final bool includeProviderIds;
+
+  /// Chiede anche `Overview` e `ChildCount` (trama e stagioni del carosello).
+  final bool includeOverview;
 
   /// Valore di [decade] per "Prima" (prima del 1990).
   static const olderDecades = 0;
@@ -99,6 +103,7 @@ class ItemQuery {
         personId: personId,
         includeSortFields: includeSortFields,
         includeProviderIds: includeProviderIds,
+        includeOverview: includeOverview,
       );
 
   /// Toglie genere, anno e visti; il resto (tipi, ordinamento, preferiti,
@@ -148,11 +153,12 @@ class ItemQuery {
             : [for (var y = d; y < d + 10; y++) y];
     return {
       ...cardImageParams,
-      if (includeSortFields || includeProviderIds)
+      if (includeSortFields || includeProviderIds || includeOverview)
         'fields': [
           cardImageParams['fields'],
           if (includeSortFields)
             'SortName,DateCreated,RecursiveItemCount,DateLastMediaAdded',
+          if (includeOverview) 'Overview,ChildCount',
           if (includeProviderIds) 'ProviderIds',
         ].join(','),
       'userId': userId,

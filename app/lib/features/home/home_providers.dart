@@ -123,7 +123,12 @@ Future<List<JellyfinItem>> _latest(Ref ref, ItemKind kind) {
   final api = ref.watch(libraryApiProvider);
   final userId = ref.watch(currentUserIdProvider);
   return api
-      .items(ItemQuery(kinds: {kind}, sort: CatalogSort.dateAdded),
+      .items(
+          ItemQuery(
+              kinds: {kind},
+              sort: CatalogSort.dateAdded,
+              includeSortFields: true,
+              includeOverview: true),
           userId: userId, startIndex: 0, limit: homeRowLimit)
       .then((page) => page.items);
 }

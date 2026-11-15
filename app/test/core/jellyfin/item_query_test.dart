@@ -109,6 +109,17 @@ void main() {
         isTrue);
   });
 
+  test('Overview e ChildCount solo se richiesti', () {
+    Map<String, dynamic> p(ItemQuery q) =>
+        q.toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
+    expect(p(const ItemQuery(kinds: {ItemKind.movie}))['fields'],
+        isNot(contains('Overview')));
+    const query = ItemQuery(
+        kinds: {ItemKind.movie}, includeSortFields: true, includeOverview: true);
+    expect(p(query)['fields'], allOf(contains('Overview'), contains('ChildCount')));
+    expect(query.copyWith(year: 2020).includeOverview, isTrue);
+  });
+
   test('clearFilters toglie solo genere, anno e visti', () {
     const query = ItemQuery(
       kinds: {ItemKind.movie, ItemKind.series},

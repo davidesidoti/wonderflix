@@ -15,9 +15,9 @@ import '../../ui/card_preview.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
-import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../playback/play_launcher.dart';
+import 'hero_labels.dart';
 
 /// Autoplay del carosello; spento nei widget test (`pumpApp`) salvo
 /// richiesta, perché un carosello che avanza da solo non si ferma mai.
@@ -526,16 +526,7 @@ class _HeroSlide extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final urls = ref.watch(imageUrlsProvider);
     final logo = urls.logo(item);
-    final runtime = item.runtime;
-    final seasons = item.childCount;
-    final meta = [
-      if (item.productionYear != null) '${item.productionYear}',
-      if (item.kind == ItemKind.movie && runtime != null)
-        formatRuntime(runtime),
-      if (item.kind == ItemKind.series && seasons != null)
-        l.detailSeasons(seasons),
-      ...item.genres.take(2),
-    ].join(' · ');
+    final meta = heroMeta(item, l);
     final backdrop = WfImage(image: urls.backdrop(item));
     final compact = FormFactor.of(context).compact;
     final kenBurns = this.kenBurns;

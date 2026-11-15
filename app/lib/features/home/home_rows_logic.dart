@@ -247,7 +247,7 @@ Future<List<FriendsWatchedItem>> loadFriendsWatched(
 /// passata, "Domani", poi giorno della settimana e data.
 String upcomingDayLabel(DateTime when, DateTime now, AppLocalizations l) {
   final local = when.toLocal();
-  final days = _calendarDays(now.toLocal(), local);
+  final days = calendarDays(now.toLocal(), local);
   if (days <= 0) return l.upcomingToday;
   if (days == 1) return l.upcomingTomorrow;
   return DateFormat.MMMEd(l.localeName).format(local);
@@ -277,7 +277,7 @@ String _twoDigits(int number) => number.toString().padLeft(2, '0');
 
 /// Giorni di calendario tra le due date (locali), senza l'effetto dell'ora
 /// legale.
-int _calendarDays(DateTime from, DateTime to) =>
+int calendarDays(DateTime from, DateTime to) =>
     DateTime.utc(to.year, to.month, to.day)
         .difference(DateTime.utc(from.year, from.month, from.day))
         .inDays;

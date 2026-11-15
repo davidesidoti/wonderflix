@@ -13,6 +13,16 @@ void main() {
         ['m0', 's0', 'm1', 'm2', 'm3']);
   });
 
+  test('pickFeatured salta i visti', () {
+    final movies = [
+      testItem(id: 'm0'),
+      testItem(id: 'm1', played: true),
+      testItem(id: 'm2'),
+    ];
+    final series = [testItem(id: 's0', kind: ItemKind.series)];
+    expect(pickFeatured(movies, series).map((i) => i.id), ['m0', 's0', 'm2']);
+  });
+
   test('nextUpCutoff', () {
     expect(nextUpCutoff(DateTime.utc(2026, 9, 29)), DateTime.utc(2025, 9, 29));
   });
