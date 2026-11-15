@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home, bozza B</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+    --mu:rgba(242,234,211,.6); --dim:rgba(242,234,211,.32);
+    --page:#1c1c1c; --note:#b9b4a6;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+  .doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+  .doc > h1 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+  .doc p { max-width:78ch; }
+  .doc ul { max-width:78ch; padding-left:20px; }
+  .doc li { margin:4px 0; }
+  .doc li b, .doc p b { color:var(--cr); font-weight:600; }
+  section.s { margin:48px 0; }
+  section.s > h2 { font:400 28px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+  section.s > p { margin:0 0 16px; }
+  .scroll { overflow-x:auto; padding-bottom:6px; }
+  button { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .pair { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+
+  .app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; position:relative; flex:none; }
+  .app.desk { width:1280px; height:800px; }
+  .app.phone { width:390px; height:780px; }
+  .app.tv { width:960px; height:540px; }
+  .nav { position:absolute; left:0; right:0; top:0; z-index:5; display:flex; align-items:center; gap:22px; height:56px; padding:0 32px; background:linear-gradient(180deg,rgba(10,10,10,.85),rgba(10,10,10,0)); transition:background .2s; }
+  .app.solid .nav, .app.solid .top { background:var(--bg); }
+  .nav .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+  .nav a { color:var(--cr); text-decoration:none; padding:18px 0 15px; border-bottom:2px solid transparent; }
+  .nav a.on { color:var(--gold); border-color:var(--gold); }
+  .nav .me { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#6b4a8a,#2a1d38); flex:none; }
+  .body { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:#333 transparent; }
+  .page { position:relative; isolation:isolate; }
+
+  /* alone: il fondale del carosello, sfocato, scende dietro le prime righe */
+  .glow { position:absolute; left:0; right:0; top:500px; height:640px; z-index:-1; background:center/cover; filter:blur(70px) saturate(1.3); opacity:.28; transition:background-image 1s; -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 140px,transparent 100%); mask-image:linear-gradient(180deg,transparent 0,#000 140px,transparent 100%); }
+
+  /* carosello con la coda */
+  .hero { position:relative; height:500px; overflow:hidden; }
+  .slide { position:absolute; inset:0; background:#000 center 20%/cover; opacity:0; transition:opacity .9s; }
+  .slide.on { opacity:1; }
+  .slide::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.78) 34%,rgba(10,10,10,0) 70%), linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 50%); }
+  .slide .txt { position:absolute; left:32px; bottom:56px; width:600px; }
+  .slide .kick { color:var(--gold); font-weight:600; font-size:12.5px; }
+  .slide h3 { margin:6px 0 0; font:400 104px/.84 'Bebas Neue'; letter-spacing:1px; }
+  .slide .meta { color:var(--mu); margin-top:14px; }
+  .slide .ov { margin-top:10px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; max-width:58ch; }
+  .btns { display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; }
+  .b { height:38px; display:inline-flex; align-items:center; gap:8px; padding:0 18px; border-radius:6px; font-weight:700; font-size:13px; letter-spacing:.3px; cursor:pointer; border:1px solid transparent; white-space:nowrap; }
+  .b.p { background:var(--gold); color:var(--bg); }
+  .b.s { background:rgba(10,10,10,.35); color:var(--cr); border-color:rgba(242,234,211,.35); font-weight:600; }
+  .b.q { height:32px; padding:0 12px; background:var(--sh); color:var(--cr); border-color:var(--bd); font-weight:500; }
+  .b svg { width:15px; height:15px; flex:none; }
+  .queue { position:absolute; right:32px; bottom:56px; display:flex; gap:12px; align-items:flex-end; z-index:2; }
+  .qi { width:92px; cursor:pointer; opacity:.75; transition:opacity .2s, transform .2s; }
+  .qi:hover { opacity:1; transform:translateY(-3px); }
+  .qi .qp { aspect-ratio:2/3; border-radius:5px; background:var(--sh) center/cover; box-shadow:0 8px 24px rgba(0,0,0,.6); }
+  .qi .t { font-size:11px; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--mu); }
+  .qi .run { height:2px; background:rgba(242,234,211,.2); margin-top:5px; border-radius:1px; overflow:hidden; }
+  .qi.next { opacity:1; width:108px; }
+  .qi.next .t { color:var(--cr); }
+  .qi.next .run i { display:block; height:100%; width:0; background:var(--gold); animation:fill 8s linear forwards; }
+  .qi:not(.next) .run { visibility:hidden; }
+  @keyframes fill { to { width:100%; } }
+
+  /* sezioni */
+  .sec { padding-top:28px; }
+  .sh { display:flex; align-items:center; gap:12px; padding:0 32px; min-height:40px; }
+  .sh h4 { margin:0; font:400 26px/1 'Bebas Neue'; letter-spacing:1px; display:flex; align-items:center; gap:10px; }
+  .sh h4 a { color:inherit; text-decoration:none; display:inline-flex; align-items:center; gap:8px; }
+  .sh h4 a svg { width:18px; height:18px; color:var(--gold); transition:transform .15s; }
+  .sh h4 a:hover svg { transform:translateX(3px); }
+  .sh .n { font:500 12px/1 Inter; color:var(--dim); font-variant-numeric:tabular-nums; }
+  .sh .side { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .sh .side .hint { color:var(--mu); font-size:12.5px; }
+  .arr { display:flex; gap:4px; }
+  .arr button { width:32px; height:32px; border-radius:50%; background:none; border:0; color:var(--cr); cursor:pointer; display:grid; place-items:center; }
+  .arr button:hover { background:var(--sh); }
+  .arr button:disabled { color:var(--dim); cursor:default; background:none; }
+  .arr[hidden] { display:none; }
+  .strip { display:flex; gap:16px; overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; padding:10px 32px 4px; }
+  .strip::-webkit-scrollbar { display:none; }
+
+  /* Stasera: i biglietti */
+  .tk { flex:none; width:392px; height:124px; display:flex; background:var(--sf); border-radius:8px; position:relative; cursor:pointer; transition:transform .18s, box-shadow .18s; }
+  .tk:hover, .tk.focus { transform:translateY(-3px); box-shadow:0 0 0 2px var(--gold); }
+  .tk .pic { width:220px; flex:none; border-radius:8px 0 0 8px; background:var(--sh) center/cover; position:relative; }
+  .tk .pic .pbar { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(0,0,0,.55); border-radius:0 0 0 8px; overflow:hidden; }
+  .tk .pic .pbar i { display:block; height:100%; background:var(--gold); }
+  .tk .stub { flex:1; min-width:0; padding:12px 14px 12px 16px; display:flex; flex-direction:column; border-left:1px dashed #333; }
+  .tk::before, .tk::after { content:''; position:absolute; left:213px; width:14px; height:14px; border-radius:50%; background:var(--bg); }
+  .tk::before { top:-7px; } .tk::after { bottom:-7px; }
+  .tk b { font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tk .ep { color:var(--mu); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tk .big { margin-top:auto; font:400 30px/1 'Bebas Neue'; letter-spacing:1px; }
+  .tk .big small { font:500 11px/1 Inter; color:var(--mu); letter-spacing:0; margin-left:5px; }
+  .tk.new .big { color:var(--gold); font-size:22px; }
+
+  /* card */
+  .card { flex:none; cursor:pointer; min-width:0; }
+  .img { position:relative; border-radius:6px; background:var(--sh) center/cover; transition:transform .18s, box-shadow .18s, filter .18s; }
+  .card:hover .img { transform:translateY(-3px); box-shadow:0 0 0 2px var(--gold); }
+  .card b { display:block; font-weight:600; font-size:13px; margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .l2 { display:block; color:var(--mu); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+  .card .l2 .r { color:var(--gold); }
+  .pst { width:160px; } .pst .img { aspect-ratio:2/3; }
+  .seen .img { filter:saturate(.55) brightness(.8); }
+  .seen:hover .img { filter:none; }
+  .chk { position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--gold); color:var(--bg); display:grid; place-items:center; }
+  .chk svg { width:12px; height:12px; }
+
+  /* amici: chi l'ha visto sopra la locandina */
+  .fr { width:176px; }
+  .fr .who { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; color:var(--mu); white-space:nowrap; overflow:hidden; }
+  .fr .who b { margin:0; display:inline; font-size:12px; color:var(--cr); }
+  .faces { display:flex; flex:none; }
+  .faces i { width:22px; height:22px; border-radius:50%; border:2px solid var(--bg); margin-right:-7px; display:grid; place-items:center; font:600 10px/1 Inter; font-style:normal; color:var(--cr); }
+  .faces i:last-child { margin-right:0; }
+  .fr .img { aspect-ratio:2/3; }
+
+  /* agenda della settimana */
+  .week { display:flex; gap:0; overflow-x:auto; scrollbar-width:none; padding:10px 32px 4px; }
+  .week::-webkit-scrollbar { display:none; }
+  .day { flex:none; width:236px; padding:0 16px 0 0; margin-right:16px; border-right:1px solid var(--sf); }
+  .day:last-child { border-right:0; }
+  .day .dh { display:flex; align-items:baseline; gap:8px; margin-bottom:10px; }
+  .day .dh big { font:400 44px/.9 'Bebas Neue'; letter-spacing:1px; }
+  .day .dh span { font:400 18px/1 'Bebas Neue'; letter-spacing:1px; color:var(--mu); }
+  .day .dh em { font-style:normal; font-size:11.5px; color:var(--gold); font-weight:600; margin-left:auto; }
+  .day.soon .dh big { color:var(--gold); }
+  .ev { display:flex; gap:10px; align-items:center; padding:6px 0; cursor:pointer; border-radius:6px; }
+  .ev:hover .th { box-shadow:0 0 0 2px var(--gold); }
+  .ev .th { flex:none; width:96px; aspect-ratio:16/9; border-radius:4px; background:var(--sh) center/cover; transition:box-shadow .15s; }
+  .ev .th.p { width:40px; aspect-ratio:2/3; }
+  .ev b { display:block; font-weight:600; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ev .l2 { display:block; color:var(--mu); font-size:11.5px; }
+  .ev div { min-width:0; }
+
+  .custom { display:inline-flex; align-items:center; gap:8px; margin:26px 32px 40px; color:var(--gold); font-weight:500; background:none; border:0; cursor:pointer; padding:0; }
+
+  /* telefono */
+  .phone .nav { display:none; }
+  .phone .top { position:absolute; left:0; right:0; top:0; z-index:5; height:48px; display:flex; align-items:center; padding:0 16px; background:linear-gradient(180deg,rgba(10,10,10,.8),rgba(10,10,10,0)); transition:background .2s; }
+  .phone .top .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:auto; }
+  .phone .hero { height:470px; }
+  .phone .slide { background-position:center top; }
+  .phone .slide::before { background:linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,.75) 34%,rgba(10,10,10,0) 68%); }
+  .phone .slide .txt { left:16px; right:16px; width:auto; bottom:30px; }
+  .phone .slide h3 { font-size:62px; }
+  .phone .slide .ov { -webkit-line-clamp:2; font-size:12.5px; }
+  .phone .queue { display:none; }
+  .phone .bar { position:absolute; left:16px; right:16px; bottom:12px; height:2px; display:flex; gap:4px; z-index:2; }
+  .phone .bar i { flex:1; background:rgba(242,234,211,.2); border-radius:1px; overflow:hidden; }
+  .phone .bar i.on::after { content:''; display:block; height:100%; width:0; background:var(--gold); animation:fill 8s linear forwards; }
+  .phone .bar i.done { background:var(--gold); }
+  .phone .glow { top:470px; }
+  .phone .sh { padding:0 16px; flex-wrap:wrap; }
+  .phone .sh .side { margin-left:0; width:100%; padding-top:8px; }
+  .phone .sh .side .hint { display:none; }
+  .phone .strip, .phone .week { padding:10px 16px 4px; gap:10px; }
+  .phone .tk { width:300px; height:104px; }
+  .phone .tk .pic { width:150px; }
+  .phone .tk::before, .phone .tk::after { left:143px; }
+  .phone .tk .big { font-size:24px; }
+  .phone .pst { width:112px; } .phone .fr { width:124px; }
+  .phone .day { width:200px; }
+  .phone .body { bottom:56px; }
+  .phonenav { position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-around; height:56px; align-items:center; border-top:1px solid var(--sf); color:var(--mu); font-size:11px; background:var(--bg); }
+  .phonenav .on { color:var(--gold); }
+  .bar { display:none; }
+  .phone .bar { display:flex; }
+
+  /* tv */
+  .tv .nav { display:none; }
+  .tv .rail { position:absolute; left:0; top:0; bottom:0; width:64px; z-index:6; background:linear-gradient(90deg,var(--bg) 60%,rgba(10,10,10,0)); display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:28px; color:var(--mu); }
+  .tv .rail i { width:20px; height:20px; border-radius:4px; border:2px solid currentColor; opacity:.8; }
+  .tv .rail i.on { color:var(--gold); opacity:1; }
+  .tv .body { left:64px; overflow:hidden; }
+  .tv .hero { height:300px; }
+  .tv .slide .txt { left:24px; width:470px; bottom:24px; }
+  .tv .slide h3 { font-size:64px; }
+  .tv .slide .ov { -webkit-line-clamp:2; font-size:12.5px; }
+  .tv .btns { margin-top:14px; }
+  .tv .queue { right:24px; bottom:24px; gap:10px; }
+  .tv .qi { width:62px; } .tv .qi.next { width:72px; }
+  .tv .sec { padding-top:4px; }
+  .tv .sh { padding:0 24px; }
+  .tv .sh h4 { font-size:22px; }
+  .tv .strip { padding:12px 24px 4px; }
+  .tv .tk { width:330px; height:108px; }
+  .tv .tk .pic { width:182px; }
+  .tv .tk::before, .tv .tk::after { left:175px; }
+  .tv .glow { top:300px; }
+  @media (prefers-reduced-motion: reduce) { .slide, .tk, .img, .qi, .glow { transition:none; } .qi.next .run i, .phone .bar i.on::after { animation:none; width:100%; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Home, bozza B</h1>
+  <p>Stessi dati della bozza A (la Home di davide.sidoti il 15 novembre), stessi colori e caratteri. Inventati: i minuti che restano, le stagioni di Black Clover, i giorni di arrivo del carosello e i voti delle locandine. La bozza A tiene la struttura di oggi e la corregge; questa cambia la forma della pagina.</p>
+  <ul>
+    <li><b>Carosello con la coda.</b> Al posto dei puntini, in basso a destra, le locandine dei prossimi titoli: quella che arriva si riempie d'oro col tempo e ogni locandina si clicca. Il titolo è più grande, sopra c'è il perché ("Arrivato martedì"). Il fondale, sfocato, fa da alone dietro le prime righe.</li>
+    <li><b>Stasera.</b> Continua a guardare e Prossimi episodi diventano una riga sola di biglietti: immagine, poi la matrice con titolo, episodio e i minuti che restano (o "Nuovo"). Match e "Cosa guardo stasera?" stanno nella sua intestazione, accanto alla domanda a cui rispondono.</li>
+    <li><b>Visti dagli amici.</b> Chi l'ha visto sta sopra la locandina, con la faccia: la riga si legge come "Garg ha visto…".</li>
+    <li><b>La settimana.</b> Serie e Film in arrivo diventano una riga sola a giorni, come un pezzo del Calendario: il giorno in grande, in oro se è entro due giorni, sotto le uscite di quel giorno.</li>
+    <li><b>Intestazioni con il conteggio</b> e, dove la riga ha una pagina, il link.</li>
+  </ul>
+  <p>Due righe che oggi si nascondono e si spostano una per una (Continua/Prossimi, Serie/Film in arrivo) diventano una: in Personalizza la Home resterebbero come due voci, accese o spente, ma andrebbero spostate insieme.</p>
+
+  <section class="s">
+    <h2>Desktop</h2>
+    <p>Clicca una locandina della coda per cambiare titolo, scorri per vedere le sezioni.</p>
+    <div class="scroll"><div class="app desk" id="desk"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Telefono e TV</h2>
+    <p>Sul telefono la coda diventa una barra di tacche sotto il carosello e le intestazioni vanno a capo. In TV il carosello è alto 300, la coda resta (si cambia titolo con Destra dall'ultimo pulsante, come oggi) e il focus parte dal primo biglietto.</p>
+    <div class="pair">
+      <div class="app phone" id="phone"></div>
+      <div class="app tv" id="tv"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const P = p => `https://image.tmdb.org/t/p/w342${p}`;
+const B = (p, w = 780) => `https://image.tmdb.org/t/p/w${w}${p}`;
+const ico = {
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>',
+  dice:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/></svg>',
+  arrow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5 9-10"/></svg>',
+  sliders:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
+};
+
+const hero = [
+  { t:'Hope', k:'Film · arrivato martedì', p:'/fbFxZSSw2kQoAkyXosVoOyBX0Z4.jpg', b:'/j96rurZqmBjyY37Fncl3IB0qJNe.jpg', m:'2026 · 2h 37m · Fantascienza · Mistero', o:"Nel remoto villaggio sudcoreano di Hope Harbor, il capo della polizia Bum-seok e l'agente Sung-ae vengono chiamati a indagare su una creatura misteriosa che sta seminando il caos nella comunità." },
+  { t:"L'Istituto", k:'Serie · arrivata giovedì', p:'/mOvJlMBwWGwlbzUEOC2KrZQHj0U.jpg', b:'/wWleS7DxsoGCkOPisNf8OZ2udiD.jpg', m:'2025 · 1 stagione · Thriller · Miniserie', o:"Luke Ellis, un quattordicenne prodigio, viene rapito nel cuore della notte e portato all'Istituto, una struttura simile a una prigione nel Maine rurale che ospita adolescenti dotati di poteri psichici." },
+  { t:'Black Clover', k:'Serie · arrivata venerdì', p:'/zObHoFAX6P7DirR2dybN3cVC1Ms.jpg', b:'/qu9epTZh29fGUkY7ZYc9PVsv0Ig.jpg', m:'2017 · 4 stagioni · Azione · Avventura', o:'In un mondo dove la magia è al centro della vita quotidiana sono nati Asta, un ragazzo privo di ogni abilità magica, e il suo amico Yuno, dotato di grande forza magica legata al vento.' },
+  { t:'Osiris', k:'Film · arrivato ieri', p:'/szCUaJsdWO7dTR14MTTHXuxge8b.jpg', b:'/ySHUoK4utUOiSfCinw81H1TsV0E.jpg', m:'2025 · Fantascienza · Azione', o:'Il commando delle Forze Speciali, nel corso di una missione militare, viene rapito da una misteriosa astronave. Al risveglio a bordo, si ritrovano preda di una spietata razza aliena, in lotta per la sopravvivenza.' },
+];
+const tonight = [
+  { t:'VisionQuest', e:'S1:E8 · Per sempre', b:'/31o1Ufd7bStD5dGEcpzapOjwaqx.jpg', p:.06, left:52 },
+  { t:'Supernatural', e:'S1:E10 · La rivolta', b:'/lirPqYLTtd6XZqGn4cS1wiesTq0.jpg', p:.32, left:28 },
+  { t:'Lanterns', e:'S1:E8 · Episodio 8', b:'/wJjnJbVUwPz0GADAgpFt9nWtzUu.jpg', p:.47, left:31 },
+  { t:'Fallout', e:'S1:E7 · La Radio', b:'/coaPCIqQBPUZsOnJcWZxhaORcDT.jpg', p:.1, left:55 },
+  { t:'Carrie', e:'S1:E2 · Lingua straniera', b:'/9yCJtipMeDe8uAdSJKvw8BnYfRz.jpg', nu:true },
+  { t:'Crystal Lake', e:'S1:E2 · Part 2', b:'/wxiBsKFEOOFK8eQStWOykNORlXY.jpg', nu:true },
+  { t:'IT: Welcome to Derry', e:'S1:E4 · Il grande, vorticoso sistema', b:'/2fOKVDoc2O3eZmBZesWPuE5kgPN.jpg', nu:true },
+  { t:'What If...?', e:'S2:E1 · E se... Nebula si fosse unita alla Nova Corps?', b:'/jnzoh5qoxRLFRIQAxnl6D3RStPC.jpg', nu:true },
+  { t:'Loki', e:'S2:E1 · Ouroboros', b:'/q3jHCb4dMfYF6ojikKuHd6LscxC.jpg', nu:true },
+];
+const friends = [
+  { t:'Dexter: Resurrection', p:'/o2Oyi3boT100bY5kCP4MBiTeetO.jpg', by:'Garg e CaptainC', f:['G','C'] },
+  { t:'Sakamoto Days', p:'/qTNIxDIzKjLLuS17fxdXjcKAlW7.jpg', by:'Garg', f:['G'] },
+  { t:'Sharp Objects', p:'/1SGovj2qDdkJexvhFiXllj9EYfu.jpg', by:'Garg', f:['G'] },
+  { t:'Constellation', p:'/7lTxUijEP1VLI9slBmfDxyXg56G.jpg', by:'Garg', f:['G'] },
+  { t:'The Outsider', p:'/aMiPwPQjQI1EZN3xP2V0sSU37dc.jpg', by:'Garg', f:['G'] },
+];
+const latest = [
+  { t:'Hope', y:2026, r:'7,1', p:'/fbFxZSSw2kQoAkyXosVoOyBX0Z4.jpg' },
+  { t:"Ace Ventura - L'acchiappanimali", y:1994, r:'6,6', p:'/ptTaBr68fiHfjDVNmQRoOantMDy.jpg', seen:true },
+  { t:'Beautiful Boy', y:2018, r:'7,2', p:'/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg' },
+  { t:'I Swear - È più forte di me', y:2025, r:'7,6', p:'/aEIT9GFMGYytuUFCiVSv21OhkWk.jpg' },
+  { t:'Osiris', y:2025, r:'5,9', p:'/szCUaJsdWO7dTR14MTTHXuxge8b.jpg' },
+  { t:'The Wrestler', y:2008, r:'7,4', p:'/A0Uq6fZG9UVbaFZmwF593ESz8LE.jpg' },
+  { t:'È colpa nostra?', y:2025, r:'7,0', p:'/yYNEQnwnExMcvLVRGhLuWOGDY0r.jpg' },
+  { t:'Colony', y:2026, r:'6,3', p:'/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg' },
+  { t:'Chernobyl', y:2019, r:'8,7', p:'/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg' },
+];
+const week = [
+  { wd:'mar', d:17, when:'dopodomani', soon:true, ev:[{ t:'Odissea', l:'Film, in digitale', p:'/qQhInj9fw3S2bMbiEujVldthgKe.jpg' }] },
+  { wd:'mer', d:18, ev:[{ t:'Best Medicine', l:'S2:E8', b:'/fRi1Qf51rtFzrYM3gvl9ihGjT5Q.jpg' }] },
+  { wd:'ven', d:20, ev:[
+    { t:"Grey's Anatomy", l:'S23:E6', b:'/A4NwkQXTXElE5iAsne5RpvS8R2Z.jpg' },
+    { t:'MobLand', l:'S2:E10', b:'/h0OC7ouop8YLwbAVfS3UUE2Lw4T.jpg' },
+    { t:'Tulsa King', l:'S4:E6', b:'/mNHRGO1gFpR2CYZdANe72kcKq7G.jpg' } ] },
+  { wd:'lun', d:23, ev:[{ t:'The Social - Il prezzo della verità', l:'Film, in digitale', p:'/mJv5sV2knJtLy5ELIOilryhV59o.jpg' }] },
+  { wd:'lun', d:'7', m:'dic', ev:[{ t:'Clayface', l:'Film, in digitale', p:'/t6snh7pOxNjqs5rwP28TZmTQ0Ul.jpg' }] },
+];
+const faceColor = { G:'linear-gradient(135deg,#3f6f8f,#1e3446)', C:'linear-gradient(135deg,#8f5a3f,#46261e)' };
+
+const ticket = r => `<div class="tk${r.nu ? ' new' : ''}" tabindex="0"><span class="pic" style="background-image:url(${B(r.b)})">${r.nu ? '' : `<span class="pbar"><i style="width:${r.p * 100}%"></i></span>`}</span><span class="stub"><b>${r.t}</b><span class="ep">${r.e}</span><span class="big">${r.nu ? 'Nuovo episodio' : `${r.left} min<small>restano</small>`}</span></span></div>`;
+const friend = r => `<div class="card fr" tabindex="0"><div class="who"><span class="faces">${r.f.map(f => `<i style="background:${faceColor[f]}">${f}</i>`).join('')}</span><span><b>${r.by}</b></span></div><div class="img" style="background-image:url(${P(r.p)})"></div><b>${r.t}</b></div>`;
+const poster = r => `<div class="card pst${r.seen ? ' seen' : ''}" tabindex="0"><div class="img" style="background-image:url(${P(r.p)})">${r.seen ? `<span class="chk">${ico.check}</span>` : ''}</div><b>${r.t}</b><span class="l2">${r.y} · <span class="r">★</span> ${r.r}</span></div>`;
+const day = d => `<div class="day${d.soon ? ' soon' : ''}"><div class="dh"><big>${d.d}</big><span>${d.wd} ${d.m || 'nov'}</span>${d.when ? `<em>${d.when}</em>` : ''}</div>${d.ev.map(e => `<div class="ev"><span class="th${e.p ? ' p' : ''}" style="background-image:url(${e.p ? P(e.p) : B(e.b, 300)})"></span><div><b>${e.t}</b><span class="l2">${e.l}</span></div></div>`).join('')}</div>`;
+
+const head = (title, n, link, side = '') => `<div class="sh"><h4>${link ? `<a href="#" title="Apre ${link}">${title} ${ico.arrow}</a>` : title}</h4><span class="n">${n}</span><div class="side">${side}<div class="arr"><button aria-label="Indietro">‹</button><button aria-label="Avanti">›</button></div></div></div>`;
+
+const heroHtml = (tvFocus) => `<div class="hero">${hero.map((h, i) => `<div class="slide${i ? '' : ' on'}" style="background-image:url(${B(h.b, 1280)})"><div class="txt"><div class="kick">${h.k}</div><h3>${h.t}</h3><div class="meta">${h.m}</div><div class="ov">${h.o}</div><div class="btns"><span class="b p">${ico.play} Riproduci</span><span class="b s">${ico.info} Dettagli</span></div></div></div>`).join('')}<div class="queue"></div><div class="bar">${hero.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div></div>`;
+
+const sections = (tv) => [
+  `<div class="sec">${head('Stasera', '9 da guardare', null, tv ? '' : `<span class="hint">Non sai cosa scegliere?</span><span class="b q">${ico.heart} Match</span><span class="b q">${ico.dice} Cosa guardo stasera?</span>`)}<div class="strip">${tonight.map(ticket).join('')}</div></div>`,
+  `<div class="sec">${head('Visti dagli amici', '5')}<div class="strip">${friends.map(friend).join('')}</div></div>`,
+  `<div class="sec">${head('Film aggiunti di recente', '9', 'Film, dai più nuovi')}<div class="strip">${latest.map(poster).join('')}</div></div>`,
+  `<div class="sec">${head('In arrivo', '7 uscite', 'Calendario')}<div class="week strip">${week.map(day).join('')}</div></div>`,
+].join('') + `<button class="custom">${ico.sliders} Personalizza la Home</button>`;
+
+document.getElementById('desk').innerHTML = `<div class="body"><div class="page"><div class="glow"></div>${heroHtml()}${sections()}</div></div><div class="nav"><span class="logo">WonderFlix</span><a class="on">Home</a><a>Film</a><a>Serie</a><a>La mia lista</a><a>Richieste</a><a>Calendario</a><a>Cerca</a><span class="me"><span class="av"></span>davide.sidoti</span></div>`;
+document.getElementById('phone').innerHTML = `<div class="body"><div class="page"><div class="glow"></div>${heroHtml()}${sections()}</div></div><div class="top"><span class="logo">WonderFlix</span><span class="av"></span></div><div class="phonenav"><span class="on">Home</span><span>Cerca</span><span>La mia lista</span><span>Richieste</span><span>Altro</span></div>`;
+document.querySelectorAll('#phone .arr').forEach(a => a.remove());
+document.getElementById('tv').innerHTML = `<div class="rail"><i class="on"></i><i></i><i></i><i></i><i></i></div><div class="body"><div class="page"><div class="glow"></div>${heroHtml()}${sections(true)}</div></div>`;
+document.querySelector('#tv .slide .btns').insertAdjacentHTML('beforeend', `<span class="b s">${ico.dice} Stasera?</span>`);
+document.querySelector('#tv .tk').classList.add('focus');
+document.querySelectorAll('#tv .arr').forEach(a => a.remove());
+
+// Frecce: solo se la riga scorre; spente sul lato già raggiunto.
+document.querySelectorAll('.sec').forEach(s => {
+  const strip = s.querySelector('.strip'), arr = s.querySelector('.arr');
+  if (!strip || !arr) return;
+  const [prev, next] = arr.querySelectorAll('button');
+  const sync = () => {
+    const max = strip.scrollWidth - strip.clientWidth;
+    arr.hidden = max <= 2;
+    prev.disabled = strip.scrollLeft <= 2;
+    next.disabled = strip.scrollLeft >= max - 2;
+  };
+  prev.onclick = () => strip.scrollBy({ left: -strip.clientWidth * .8 });
+  next.onclick = () => strip.scrollBy({ left: strip.clientWidth * .8 });
+  strip.addEventListener('scroll', sync, { passive: true });
+  addEventListener('load', sync); sync();
+});
+
+// Barra piena sotto il carosello.
+document.querySelectorAll('.desk .body, .phone .body').forEach(b => b.addEventListener('scroll', () =>
+  b.closest('.app').classList.toggle('solid', b.scrollTop > 400), { passive: true }));
+
+// Carosello con la coda: le prossime tre locandine; la prima si riempie col tempo.
+document.querySelectorAll('.app').forEach(app => {
+  const h = app.querySelector('.hero');
+  if (!h) return;
+  const slides = h.querySelectorAll('.slide'), queue = h.querySelector('.queue'), ticks = h.querySelectorAll('.bar i');
+  const glow = app.querySelector('.glow');
+  const auto = !app.classList.contains('tv');
+  let i = 0, timer;
+  const render = () => {
+    queue.innerHTML = [1, 2, 3].map(k => {
+      const n = (i + k) % hero.length;
+      return `<div class="qi${k === 1 ? ' next' : ''}" data-n="${n}"><div class="qp" style="background-image:url(${P(hero[n].p)})"></div><div class="t">${hero[n].t}</div><div class="run"><i></i></div></div>`;
+    }).join('');
+    queue.querySelectorAll('.qi').forEach(q => q.onclick = () => go(+q.dataset.n));
+    ticks.forEach((t, k) => { t.className = k < i ? 'done' : k === i ? 'on' : ''; });
+    glow.style.backgroundImage = `url(${B(hero[i].b, 300)})`;
+    if (!auto) queue.querySelectorAll('.run i').forEach(r => r.style.animation = 'none');
+  };
+  const go = n => {
+    slides[i].classList.remove('on');
+    i = (n + slides.length) % slides.length;
+    slides[i].classList.add('on');
+    render();
+    clearTimeout(timer);
+    if (auto) timer = setTimeout(() => go(i + 1), 8000);
+  };
+  render();
+  if (auto) timer = setTimeout(() => go(1), 8000);
+});
+</script>
+</body>
+</html>

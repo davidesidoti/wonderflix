@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home, bozza</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+    --mu:rgba(242,234,211,.6); --dim:rgba(242,234,211,.32);
+    --page:#1c1c1c; --note:#b9b4a6; --bad:#C8463C;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+  .doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+  .doc > h1 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+  .doc p { max-width:78ch; }
+  section.s { margin:48px 0; }
+  section.s > h2 { font:400 28px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+  section.s > p { margin:0 0 16px; }
+  .scroll { overflow-x:auto; padding-bottom:6px; }
+  button { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+  .pair { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .cap { color:var(--note); font-size:13px; margin:8px 0 0; max-width:60ch; }
+  .cap b { color:var(--cr); font-weight:600; }
+  .tag { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:4px; margin-bottom:6px; }
+  .tag.old { background:rgba(200,70,60,.18); color:#e58a80; }
+  .tag.new { background:rgba(212,166,74,.18); color:var(--gold); }
+
+  /* telaio dell'app */
+  .app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; position:relative; flex:none; }
+  .app.desk { width:1280px; height:800px; }
+  .app.phone { width:390px; height:780px; }
+  .app.tv { width:960px; height:540px; }
+  .nav { position:absolute; left:0; right:0; top:0; z-index:5; display:flex; align-items:center; gap:22px; height:56px; padding:0 32px; background:linear-gradient(180deg,rgba(10,10,10,.85),rgba(10,10,10,0)); }
+  .app.solid .nav, .app.solid .top { background:var(--bg); }
+  .nav .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+  .nav a { color:var(--cr); text-decoration:none; padding:18px 0 15px; border-bottom:2px solid transparent; }
+  .nav a.on { color:var(--gold); border-color:var(--gold); }
+  .nav .me { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .av { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,#6b4a8a,#2a1d38); flex:none; }
+  .body { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:#333 transparent; }
+
+  /* carosello */
+  .hero { position:relative; height:460px; overflow:hidden; }
+  .slide { position:absolute; inset:0; background:#000 center 20%/cover; opacity:0; transition:opacity .9s; }
+  .slide.on { opacity:1; }
+  .slide::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.8) 35%,rgba(10,10,10,0) 75%), linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 45%); }
+  .slide .txt { position:absolute; left:32px; bottom:48px; width:560px; }
+  .slide h3 { margin:0; font:400 72px/.9 'Bebas Neue'; letter-spacing:1px; }
+  .slide .meta { color:var(--mu); margin-top:10px; }
+  .slide .ov { margin-top:10px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; max-width:60ch; }
+  .btns { display:flex; gap:12px; margin-top:18px; flex-wrap:wrap; }
+  .b { height:36px; display:inline-flex; align-items:center; gap:8px; padding:0 16px; border-radius:6px; font-weight:700; font-size:13px; letter-spacing:.3px; cursor:pointer; border:1px solid transparent; }
+  .b.p { background:var(--gold); color:var(--bg); }
+  .b.s { background:rgba(10,10,10,.35); color:var(--cr); border-color:rgba(242,234,211,.35); font-weight:600; }
+  .b.q { background:rgba(10,10,10,.6); color:var(--cr); border-color:var(--bd); font-weight:500; backdrop-filter:blur(6px); }
+  .b svg { width:15px; height:15px; }
+  .dots { position:absolute; right:32px; bottom:20px; display:flex; gap:6px; z-index:2; }
+  .dots i { width:6px; height:6px; border-radius:3px; background:var(--mu); cursor:pointer; transition:width .3s; overflow:hidden; }
+  .dots i.on { width:26px; background:rgba(242,234,211,.3); }
+  .dots i.on::after { content:''; display:block; height:100%; width:0; background:var(--gold); animation:fill 8s linear forwards; }
+  @keyframes fill { to { width:100%; } }
+  .corner { position:absolute; right:32px; bottom:56px; display:flex; gap:10px; z-index:2; }
+
+  /* righe */
+  .row { padding-top:24px; }
+  .rh { display:flex; align-items:center; gap:8px; padding:0 32px; height:40px; }
+  .rh h4 { margin:0; font:400 24px/1 'Bebas Neue'; letter-spacing:1px; display:flex; align-items:center; gap:8px; }
+  .rh h4 a { color:inherit; text-decoration:none; display:inline-flex; align-items:center; gap:8px; }
+  .rh h4 a svg { width:18px; height:18px; color:var(--gold); transition:transform .15s; }
+  .rh h4 a:hover svg { transform:translateX(3px); }
+  .rh .arr { margin-left:auto; display:flex; gap:4px; }
+  .rh .arr button { width:32px; height:32px; border-radius:50%; background:none; border:0; color:var(--cr); cursor:pointer; display:grid; place-items:center; }
+  .rh .arr button:hover { background:var(--sh); }
+  .rh .arr button:disabled { color:var(--dim); cursor:default; background:none; }
+  .rh .arr[hidden] { display:none; }
+  .strip { display:flex; gap:16px; overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; padding:8px 32px 4px; }
+  .strip::-webkit-scrollbar { display:none; }
+
+  .card { flex:none; cursor:pointer; min-width:0; }
+  .img { position:relative; border-radius:6px; background:var(--sh) center/cover; transition:transform .18s, box-shadow .18s, filter .18s; }
+  .card:hover .img, .card.focus .img { transform:translateY(-3px); box-shadow:0 0 0 2px var(--gold); }
+  .card b { display:block; font-weight:600; font-size:13.5px; margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .l2 { display:block; color:var(--mu); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pst { width:160px; } .pst .img { aspect-ratio:2/3; }
+  .lnd { width:300px; } .lnd .img { aspect-ratio:16/9; }
+  .seen .img { filter:saturate(.55) brightness(.8); }
+  .seen:hover .img { filter:none; }
+  .chk { position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:50%; background:var(--gold); color:var(--bg); display:grid; place-items:center; }
+  .chk svg { width:12px; height:12px; }
+  .pbar { position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(0,0,0,.55); border-radius:0 0 6px 6px; overflow:hidden; }
+  .pbar i { display:block; height:100%; background:var(--gold); }
+
+  /* Continua a guardare: il tempo che resta */
+  .res { width:340px; } .res .img { aspect-ratio:16/9; }
+  .res .img::after { content:''; position:absolute; inset:0; border-radius:6px; background:linear-gradient(0deg,rgba(10,10,10,.85) 0,rgba(10,10,10,0) 45%); }
+  .res .left { position:absolute; left:12px; bottom:12px; z-index:1; font:400 26px/1 'Bebas Neue'; letter-spacing:1px; }
+  .res .left small { font:500 11px/1 Inter; color:var(--mu); letter-spacing:0; margin-left:4px; }
+  .res .pbar { z-index:1; }
+
+  /* Visti dagli amici: le facce */
+  .faces { position:absolute; left:8px; bottom:8px; display:flex; }
+  .faces i { width:22px; height:22px; border-radius:50%; border:2px solid var(--bg); margin-right:-7px; display:grid; place-items:center; font:600 10px/1 Inter; font-style:normal; color:var(--cr); }
+
+  /* In arrivo: l'agenda */
+  .ag { width:300px; }
+  .ag .img { aspect-ratio:16/9; display:flex; overflow:hidden; }
+  .ag .day { width:62px; flex:none; background:var(--sf); border-right:1px solid var(--bd); display:flex; flex-direction:column; align-items:center; justify-content:center; font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--mu); }
+  .ag .day big { font-size:38px; line-height:.95; color:var(--cr); }
+  .ag .day.soon big, .ag .day.soon { color:var(--gold); }
+  .ag .pic { flex:1; background:var(--sh) center/cover; }
+  .agp { width:160px; }
+  .agp .img { aspect-ratio:2/3; }
+  .agp .date { position:absolute; left:0; top:10px; background:var(--bg); padding:4px 8px 3px 8px; border-radius:0 4px 4px 0; font:400 17px/1 'Bebas Neue'; letter-spacing:1px; }
+
+  .custom { display:inline-flex; align-items:center; gap:8px; margin:22px 32px 40px; color:var(--gold); font-weight:500; background:none; border:0; cursor:pointer; padding:0; }
+
+  /* telefono */
+  .phone .nav { display:none; }
+  .phone .top { position:absolute; left:0; right:0; top:0; z-index:5; height:48px; display:flex; align-items:center; gap:14px; padding:0 16px; background:linear-gradient(180deg,rgba(10,10,10,.8),rgba(10,10,10,0)); }
+  .phone .top .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:auto; }
+  .phone .hero { height:440px; }
+  .phone .slide { background-position:center top; }
+  .phone .slide::before { background:linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,.75) 30%,rgba(10,10,10,0) 65%); }
+  .phone .slide .txt { left:16px; right:16px; width:auto; bottom:34px; }
+  .phone .slide h3 { font-size:52px; }
+  .phone .slide .ov { -webkit-line-clamp:2; font-size:12.5px; }
+  .phone .dots { right:auto; left:16px; bottom:12px; }
+  .phone .under { display:flex; gap:10px; padding:4px 16px 0; }
+  .phone .rh { padding:0 16px; }
+  .phone .strip { padding:8px 16px 4px; gap:10px; }
+  .phone .pst, .phone .agp { width:112px; }
+  .phone .res { width:250px; }
+  .phone .lnd, .phone .ag { width:220px; }
+  .phone .ag .day { width:50px; } .phone .ag .day big { font-size:30px; }
+  .phone .body { bottom:56px; }
+  .phonenav { position:absolute; left:0; right:0; bottom:0; z-index:6; display:flex; justify-content:space-around; height:56px; align-items:center; border-top:1px solid var(--sf); color:var(--mu); font-size:11px; background:var(--bg); }
+  .phonenav .on { color:var(--gold); }
+
+  /* tv */
+  .tv .nav { display:none; }
+  .tv .side { position:absolute; left:0; top:0; bottom:0; width:64px; z-index:6; background:linear-gradient(90deg,var(--bg) 60%,rgba(10,10,10,0)); display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:28px; color:var(--mu); }
+  .tv .side i { width:20px; height:20px; border-radius:4px; border:2px solid currentColor; opacity:.8; }
+  .tv .side i.on { color:var(--gold); opacity:1; }
+  .tv .body { left:64px; overflow:hidden; }
+  .tv .slide .txt { left:24px; width:520px; bottom:30px; }
+  .tv .slide h3 { font-size:56px; }
+  .tv .slide .ov { -webkit-line-clamp:2; font-size:12.5px; }
+  .tv .rh { padding:0 24px; }
+  .tv .strip { padding:12px 24px 4px; gap:16px; }
+  .tv .b.f { box-shadow:0 0 0 2px var(--cr); }
+  .tv .tvold .hero { height:432px; }
+  .tv .tvold .slide .txt { bottom:44px; }
+  .tv .tvnew .hero { height:290px; }
+  .tv .tvnew .slide::before { background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.8) 38%,rgba(10,10,10,0) 78%), linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 55%); }
+  .tv .res { width:250px; }
+  .tv .card.focus .img { transform:scale(1.06); box-shadow:0 0 0 2px var(--gold); }
+
+  /* prima e dopo, pezzi */
+  .piece { background:var(--bg); color:var(--cr); border-radius:8px; padding:4px 0 18px; width:620px; flex:none; font-size:13px; }
+  .piece .rh { padding:0 20px; }
+  .piece .strip { padding:8px 20px 4px; }
+  .oldarr { margin-left:118px; display:flex; gap:4px; }
+  .note-bad { outline:1px dashed var(--bad); outline-offset:3px; border-radius:4px; }
+  @media (prefers-reduced-motion: reduce) { .slide, .img, .dots i { transition:none; } .dots i.on::after { animation:none; width:100%; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Home, bozza</h1>
+  <p>I dati sono quelli della Home di davide.sidoti la sera del 15 novembre (app installata): stessi titoli, episodi, amici e uscite. Immagini e trame vengono da TMDB tramite Seerr. Inventati: i minuti che restano in Continua a guardare e le stagioni di Black Clover.</p>
+  <p>Lo stile non cambia (Noir &amp; Oro, Bebas Neue e Inter). Cambiano tre cose: si correggono i difetti che si vedono oggi, ogni tipo di riga prende una forma che dice cosa contiene, e la TV ha una Home pensata per 960×540.</p>
+
+  <section class="s">
+    <h2>Desktop, la proposta</h2>
+    <p>Carosello con trama e generi in italiano, senza titoli già visti (Ace Ventura, visto, oggi è in evidenza). Frecce delle righe sul bordo destro, spente all'inizio e alla fine, assenti se la riga ci sta tutta. I titoli delle righe che hanno una pagina sono link. Passa il mouse sulle card e prova le frecce.</p>
+    <div class="scroll"><div class="app desk" id="desk"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Prima e dopo, i pezzi</h2>
+    <p>Tre dettagli della Home di oggi, accanto alla proposta.</p>
+    <div class="pair" style="margin-bottom:28px">
+      <div>
+        <span class="tag old">Oggi</span>
+        <div class="piece">
+          <div class="rh"><h4>Continua a guardare</h4><div class="oldarr note-bad">
+            <button class="b s" style="height:28px;padding:0 6px;border:0;background:none">‹</button><button class="b s" style="height:28px;padding:0 6px;border:0;background:none">›</button></div></div>
+          <div class="rh" style="margin-top:6px"><h4>Film in arrivo</h4><div class="oldarr note-bad" style="margin-left:150px">
+            <button class="b s" style="height:28px;padding:0 6px;border:0;background:none">‹</button><button class="b s" style="height:28px;padding:0 6px;border:0;background:none">›</button></div></div>
+        </div>
+        <p class="cap"><b>Frecce a metà riga.</b> Nell'intestazione il titolo è <code>Flexible</code> e accanto c'è uno <code>Spacer</code>: si dividono a metà lo spazio, e la parte che il titolo non usa resta vuota. Le frecce finiscono a metà schermo, in un punto diverso per ogni riga. Ci sono anche con 4 card che stanno tutte nella finestra.</p>
+      </div>
+      <div>
+        <span class="tag new">Proposta</span>
+        <div class="piece">
+          <div class="rh"><h4>Continua a guardare</h4></div>
+          <div class="rh" style="margin-top:6px"><h4><a href="#">Film in arrivo <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></h4><div class="arr"><button disabled aria-label="Indietro">‹</button><button aria-label="Avanti">›</button></div></div>
+        </div>
+        <p class="cap"><b>Titolo a sinistra, frecce sul bordo.</b> Le frecce compaiono solo se la riga scorre, e quella del lato già raggiunto è spenta. "Film in arrivo" apre il Calendario: il titolo diventa un link quando la riga ha una pagina (<code>MediaRow.onTitleTap</code> c'è già, la Home non lo usa).</p>
+      </div>
+    </div>
+    <div class="pair" style="margin-bottom:28px">
+      <div>
+        <span class="tag old">Oggi</span>
+        <div class="piece" style="padding:18px 20px">
+          <div style="font:400 44px/.9 'Bebas Neue';letter-spacing:1px">L'Istituto</div>
+          <div style="color:var(--mu);margin-top:10px" class="note-bad">2025 · Mini-Series · Thriller</div>
+          <div class="btns"><span class="b p">Riproduci</span><span class="b s">Dettagli</span></div>
+        </div>
+        <p class="cap"><b>Carosello senza trama.</b> Il codice mostra fino a tre righe di trama e il numero di stagioni, ma i titoli arrivano da <code>LibraryApi.items</code>, che non chiede <code>Overview</code> né <code>ChildCount</code>. I generi sono quelli grezzi del server: "Mini-Series", "Action · Adventure" accanto a "Fantascienza · Mistero".</p>
+      </div>
+      <div>
+        <span class="tag new">Proposta</span>
+        <div class="piece" style="padding:18px 20px">
+          <div style="font:400 44px/.9 'Bebas Neue';letter-spacing:1px">L'Istituto</div>
+          <div style="color:var(--mu);margin-top:10px">2025 · 1 stagione · Thriller · Miniserie</div>
+          <div style="margin-top:10px;line-height:1.45;max-width:60ch">Luke Ellis, un quattordicenne prodigio, viene rapito nel cuore della notte e portato all'Istituto, una struttura simile a una prigione nel Maine rurale che ospita adolescenti dotati di poteri psichici.</div>
+          <div class="btns"><span class="b p">Riproduci</span><span class="b s">Dettagli</span></div>
+        </div>
+        <p class="cap"><b>Trama, stagioni, generi in italiano.</b> Le letture del carosello chiedono anche <code>Overview,ChildCount</code>; i generi passano da <code>genreLabel</code> come nel catalogo.</p>
+      </div>
+    </div>
+    <div class="pair">
+      <div>
+        <span class="tag old">Oggi</span>
+        <div class="piece"><div class="strip" id="oldUp"></div></div>
+        <p class="cap"><b>Le uscite sembrano titoli qualsiasi.</b> "S02E08" altrove è "S2:E8" (<code>episodeCode</code>), e la data è un dettaglio grigio in fondo.</p>
+      </div>
+      <div>
+        <span class="tag new">Proposta</span>
+        <div class="piece"><div class="strip" id="newUp"></div></div>
+        <p class="cap"><b>Un'agenda.</b> Il giorno in grande accanto all'immagine, in oro se è entro due giorni. Il codice dell'episodio è quello del resto dell'app.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="s">
+    <h2>Telefono</h2>
+    <p>La stessa Home: carosello alto con l'immagine in alto (le facce restano sopra i testi), Match e "Cosa guardo stasera?" sotto, niente frecce (si scorre col dito), card più piccole.</p>
+    <div class="scroll"><div class="app phone" id="phone"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>TV</h2>
+    <p>La Fire Stick disegna a 960×540, quindi la Home usa il layout stretto: il carosello è alto 432 su 540 e della prima riga si vede solo il titolo. Nella proposta il carosello è alto 290, "Cosa guardo stasera?" sta tra i suoi pulsanti e la prima riga si vede intera.</p>
+    <div class="pair">
+      <div><span class="tag old">Oggi</span><div class="app tv"><div class="side"><i class="on"></i><i></i><i></i><i></i><i></i></div><div class="body tvold" id="tvOld"></div></div></div>
+      <div><span class="tag new">Proposta</span><div class="app tv"><div class="side"><i class="on"></i><i></i><i></i><i></i><i></i></div><div class="body tvnew" id="tvNew"></div></div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const P = p => `https://image.tmdb.org/t/p/w342${p}`;
+const B = (p, w = 780) => `https://image.tmdb.org/t/p/w${w}${p}`;
+const ico = {
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>',
+  dice:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/></svg>',
+  arrow:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5 9-10"/></svg>',
+  sliders:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>',
+};
+
+const hero = [
+  { t:'Hope', b:'/j96rurZqmBjyY37Fncl3IB0qJNe.jpg', m:'2026 · 2h 37m · Fantascienza · Mistero', o:"Nel remoto villaggio sudcoreano di Hope Harbor, il capo della polizia Bum-seok e l'agente Sung-ae vengono chiamati a indagare su una creatura misteriosa che sta seminando il caos nella comunità." },
+  { t:"L'Istituto", b:'/wWleS7DxsoGCkOPisNf8OZ2udiD.jpg', m:'2025 · 1 stagione · Thriller · Miniserie', o:"Luke Ellis, un quattordicenne prodigio, viene rapito nel cuore della notte e portato all'Istituto, una struttura simile a una prigione nel Maine rurale che ospita adolescenti dotati di poteri psichici." },
+  { t:'Black Clover', b:'/qu9epTZh29fGUkY7ZYc9PVsv0Ig.jpg', m:'2017 · 4 stagioni · Azione · Avventura', o:'In un mondo dove la magia è al centro della vita quotidiana sono nati Asta, un ragazzo privo di ogni abilità magica, e il suo amico Yuno, dotato di grande forza magica legata al vento.' },
+  { t:'Osiris', b:'/ySHUoK4utUOiSfCinw81H1TsV0E.jpg', m:'2025 · Fantascienza · Azione', o:'Il commando delle Forze Speciali, nel corso di una missione militare, viene rapito da una misteriosa astronave. Al risveglio a bordo, si ritrovano preda di una spietata razza aliena, in lotta per la sopravvivenza.' },
+];
+const resume = [
+  { t:'VisionQuest', e:'S1:E8 · Per sempre', b:'/31o1Ufd7bStD5dGEcpzapOjwaqx.jpg', p:.06, left:52 },
+  { t:'Supernatural', e:'S1:E10 · La rivolta', b:'/lirPqYLTtd6XZqGn4cS1wiesTq0.jpg', p:.32, left:28 },
+  { t:'Lanterns', e:'S1:E8 · Episodio 8', b:'/wJjnJbVUwPz0GADAgpFt9nWtzUu.jpg', p:.47, left:31 },
+  { t:'Fallout', e:'S1:E7 · La Radio', b:'/coaPCIqQBPUZsOnJcWZxhaORcDT.jpg', p:.1, left:55 },
+];
+const nextUp = [
+  { t:'Carrie', e:'S1:E2 · Lingua straniera', b:'/9yCJtipMeDe8uAdSJKvw8BnYfRz.jpg' },
+  { t:'Crystal Lake', e:'S1:E2 · Part 2', b:'/wxiBsKFEOOFK8eQStWOykNORlXY.jpg' },
+  { t:'IT: Welcome to Derry', e:'S1:E4 · Il grande, vorticoso sistema', b:'/2fOKVDoc2O3eZmBZesWPuE5kgPN.jpg' },
+  { t:'What If...?', e:'S2:E1 · E se... Nebula si fosse unita alla Nova Corps?', b:'/jnzoh5qoxRLFRIQAxnl6D3RStPC.jpg' },
+  { t:'Loki', e:'S2:E1 · Ouroboros', b:'/q3jHCb4dMfYF6ojikKuHd6LscxC.jpg' },
+];
+const friends = [
+  { t:'Dexter: Resurrection', p:'/o2Oyi3boT100bY5kCP4MBiTeetO.jpg', by:'Garg e CaptainC', f:['G','C'] },
+  { t:'Sakamoto Days', p:'/qTNIxDIzKjLLuS17fxdXjcKAlW7.jpg', by:'Garg', f:['G'] },
+  { t:'Sharp Objects', p:'/1SGovj2qDdkJexvhFiXllj9EYfu.jpg', by:'Garg', f:['G'] },
+  { t:'Constellation', p:'/7lTxUijEP1VLI9slBmfDxyXg56G.jpg', by:'Garg', f:['G'] },
+  { t:'The Outsider', p:'/aMiPwPQjQI1EZN3xP2V0sSU37dc.jpg', by:'Garg', f:['G'] },
+];
+const latest = [
+  { t:'Hope', y:2026, p:'/fbFxZSSw2kQoAkyXosVoOyBX0Z4.jpg' },
+  { t:"Ace Ventura - L'acchiappanimali", y:1994, p:'/ptTaBr68fiHfjDVNmQRoOantMDy.jpg', seen:true },
+  { t:'Beautiful Boy', y:2018, p:'/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg' },
+  { t:'I Swear - È più forte di me', y:2025, p:'/aEIT9GFMGYytuUFCiVSv21OhkWk.jpg' },
+  { t:'Osiris', y:2025, p:'/szCUaJsdWO7dTR14MTTHXuxge8b.jpg' },
+  { t:'The Wrestler', y:2008, p:'/A0Uq6fZG9UVbaFZmwF593ESz8LE.jpg' },
+  { t:'È colpa nostra?', y:2025, p:'/yYNEQnwnExMcvLVRGhLuWOGDY0r.jpg' },
+  { t:'Colony', y:2026, p:'/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg' },
+  { t:'Chernobyl', y:2019, p:'/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg' },
+];
+const upSeries = [
+  { t:'Best Medicine', e:'S2:E8', old:'S02E08', wd:'mer', d:18, soon:true, b:'/fRi1Qf51rtFzrYM3gvl9ihGjT5Q.jpg' },
+  { t:"Grey's Anatomy", e:'S23:E6', old:'S23E06', wd:'ven', d:20, b:'/A4NwkQXTXElE5iAsne5RpvS8R2Z.jpg' },
+  { t:'MobLand', e:'S2:E10', old:'S02E10', wd:'ven', d:20, b:'/h0OC7ouop8YLwbAVfS3UUE2Lw4T.jpg' },
+  { t:'Tulsa King', e:'S4:E6', old:'S04E06', wd:'ven', d:20, b:'/mNHRGO1gFpR2CYZdANe72kcKq7G.jpg' },
+];
+const upMovies = [
+  { t:'Odissea', d:'17 nov', p:'/qQhInj9fw3S2bMbiEujVldthgKe.jpg' },
+  { t:'The Social - Il prezzo della verità', d:'23 nov', p:'/mJv5sV2knJtLy5ELIOilryhV59o.jpg' },
+  { t:'Clayface', d:'7 dic', p:'/t6snh7pOxNjqs5rwP28TZmTQ0Ul.jpg' },
+];
+const faceColor = { G:'linear-gradient(135deg,#3f6f8f,#1e3446)', C:'linear-gradient(135deg,#8f5a3f,#46261e)' };
+
+const cards = {
+  res: r => `<div class="card res" tabindex="0"><div class="img" style="background-image:url(${B(r.b)})"><span class="left">${r.left} min<small>restano</small></span><div class="pbar"><i style="width:${r.p*100}%"></i></div></div><b>${r.t}</b><span class="l2">${r.e}</span></div>`,
+  lnd: r => `<div class="card lnd" tabindex="0"><div class="img" style="background-image:url(${B(r.b)})"></div><b>${r.t}</b><span class="l2">${r.e}</span></div>`,
+  fr: r => `<div class="card pst" tabindex="0"><div class="img" style="background-image:url(${P(r.p)})"><span class="faces">${r.f.map(f => `<i style="background:${faceColor[f]}">${f}</i>`).join('')}</span></div><b>${r.t}</b><span class="l2">Visto da ${r.by}</span></div>`,
+  pst: r => `<div class="card pst${r.seen ? ' seen' : ''}" tabindex="0"><div class="img" style="background-image:url(${P(r.p)})">${r.seen ? `<span class="chk">${ico.check}</span>` : ''}</div><b>${r.t}</b><span class="l2">${r.y}</span></div>`,
+  ag: r => `<div class="card ag" tabindex="0"><div class="img"><span class="day${r.soon ? ' soon' : ''}">${r.wd}<big>${r.d}</big>nov</span><span class="pic" style="background-image:url(${B(r.b)})"></span></div><b>${r.t}</b><span class="l2">${r.e}</span></div>`,
+  agOld: r => `<div class="card lnd" style="width:220px"><div class="img" style="background-image:url(${B(r.b)})"></div><b>${r.t}</b><span class="l2">${r.old} · ${r.wd} ${r.d} nov</span></div>`,
+  agp: r => `<div class="card agp" tabindex="0"><div class="img" style="background-image:url(${P(r.p)})"><span class="date">${r.d}</span></div><b>${r.t}</b><span class="l2">Digitale</span></div>`,
+};
+
+const row = (title, kind, items, link) => `<div class="row"><div class="rh"><h4>${link ? `<a href="#" title="Apre ${link}">${title} ${ico.arrow}</a>` : title}</h4><div class="arr"><button aria-label="Indietro">‹</button><button aria-label="Avanti">›</button></div></div><div class="strip">${items.map(cards[kind]).join('')}</div></div>`;
+
+const heroHtml = (corner, inBtns) => `<div class="hero">${hero.map((h, i) => `<div class="slide${i ? '' : ' on'}" style="background-image:url(${B(h.b, 1280)})"><div class="txt"><h3>${h.t}</h3><div class="meta">${h.m}</div><div class="ov">${h.o}</div><div class="btns"><span class="b p${inBtns ? ' f' : ''}">${ico.play} Riproduci</span><span class="b s">${ico.info} Dettagli</span>${inBtns ? `<span class="b s">${ico.dice} Stasera?</span>` : ''}</div></div></div>`).join('')}${corner ? `<div class="corner"><span class="b q">${ico.heart} Match</span><span class="b q">${ico.dice} Cosa guardo stasera?</span></div>` : ''}<div class="dots">${hero.map((_, i) => `<i class="${i ? '' : 'on'}"></i>`).join('')}</div></div>`;
+
+const rowsHtml = [
+  row('Continua a guardare', 'res', resume),
+  row('Prossimi episodi', 'lnd', nextUp),
+  row('Visti dagli amici', 'fr', friends),
+  row('Film aggiunti di recente', 'pst', latest, 'Film, dai più nuovi'),
+  row('Serie in arrivo', 'ag', upSeries, 'Calendario'),
+  row('Film in arrivo', 'agp', upMovies, 'Calendario'),
+].join('') + `<button class="custom">${ico.sliders} Personalizza la Home</button>`;
+
+document.getElementById('desk').innerHTML = `<div class="body">${heroHtml(true)}${rowsHtml}</div><div class="nav"><span class="logo">WonderFlix</span><a class="on">Home</a><a>Film</a><a>Serie</a><a>La mia lista</a><a>Richieste</a><a>Calendario</a><a>Cerca</a><span class="me"><span class="av"></span>davide.sidoti</span></div>`;
+
+document.getElementById('phone').innerHTML = `<div class="body">${heroHtml(false)}<div class="under"><span class="b q">${ico.heart} Match</span><span class="b q">${ico.dice} Cosa guardo stasera?</span></div>${rowsHtml}</div><div class="top"><span class="logo">WonderFlix</span><span class="av"></span></div><div class="phonenav"><span class="on">Home</span><span>Cerca</span><span>La mia lista</span><span>Richieste</span><span>Altro</span></div>`;
+document.querySelectorAll('#phone .arr').forEach(a => a.remove());
+
+document.getElementById('tvOld').innerHTML = `${heroHtml(false, false).replace('class="b p"', 'class="b p f"')}<div style="padding:4px 24px 0"><span class="b s">${ico.dice} Cosa guardo stasera?</span></div><div class="row" style="padding-top:12px"><div class="rh"><h4>Continua a guardare</h4></div></div>`;
+document.getElementById('tvNew').innerHTML = `${heroHtml(false, true)}<div class="row" style="padding-top:2px"><div class="rh"><h4>Continua a guardare</h4></div><div class="strip">${resume.map(cards.res).join('')}</div></div>`;
+document.querySelectorAll('#tvNew .b.p').forEach(b => b.classList.remove('f'));
+document.querySelector('#tvNew .res').classList.add('focus');
+
+document.getElementById('oldUp').innerHTML = upSeries.slice(0, 2).map(cards.agOld).join('');
+document.getElementById('newUp').innerHTML = upSeries.slice(0, 2).map(cards.ag).join('');
+
+// Frecce: solo se la riga scorre; spente sul lato già raggiunto.
+document.querySelectorAll('.row').forEach(r => {
+  const strip = r.querySelector('.strip'), arr = r.querySelector('.arr');
+  if (!strip || !arr) return;
+  const [prev, next] = arr.querySelectorAll('button');
+  const sync = () => {
+    const max = strip.scrollWidth - strip.clientWidth;
+    arr.hidden = max <= 2;
+    prev.disabled = strip.scrollLeft <= 2;
+    next.disabled = strip.scrollLeft >= max - 2;
+  };
+  prev.onclick = () => strip.scrollBy({ left: -strip.clientWidth * .8 });
+  next.onclick = () => strip.scrollBy({ left: strip.clientWidth * .8 });
+  strip.addEventListener('scroll', sync, { passive: true });
+  addEventListener('load', sync); sync();
+});
+
+// Barra piena appena si scende sotto il carosello, come nell'app.
+document.querySelectorAll('.desk .body, .phone .body').forEach(b => b.addEventListener('scroll', () =>
+  b.closest('.app').classList.toggle('solid', b.scrollTop > 380), { passive: true }));
+
+// Carosello: ogni 8 s, i puntini cambiano diapositiva.
+document.querySelectorAll('.hero').forEach(h => {
+  const slides = h.querySelectorAll('.slide'), dots = h.querySelectorAll('.dots i');
+  let i = 0, timer;
+  const go = n => {
+    slides[i].classList.remove('on'); dots[i].classList.remove('on');
+    i = (n + slides.length) % slides.length;
+    slides[i].classList.add('on'); void dots[i].offsetWidth; dots[i].classList.add('on');
+    clearTimeout(timer); timer = setTimeout(() => go(i + 1), 8000);
+  };
+  dots.forEach((d, n) => d.onclick = () => go(n));
+  if (!h.closest('.tv')) timer = setTimeout(() => go(1), 8000);
+});
+</script>
+</body>
+</html>
