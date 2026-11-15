@@ -45,24 +45,8 @@ class MyListAdded extends AsyncNotifier<Map<String, DateTime>> {
   Future<bool> change(Map<String, DateTime?> changes) async {
     final api = ref.read(displayPreferencesApiProvider);
     final userId = ref.read(currentUserIdProvider);
-    await future;
-    if (_stale) {
-      // Una sola rilettura anche con più modifiche insieme: la seconda trova
-      // nello stato quella della prima.
-      try {
-        final server = await (_reread ??= api.readMyListAdded(userId));
-        if (_stale) {
-          state = AsyncData(server);
-          _stale = false;
-        }
-      } on Object catch (error) {
-        _reread = null;
-        _log.info('Date di La mia lista non lette: ${error.runtimeType}');
-        return false;
-      }
-    }
-    // Lo stato, non `future`: una modifica appena prima è già lì.
-    final current = state.value ?? const <String, DateTime>{};
+    final current = await fresh();
+    if (current == null) return false;
     final keys = {
       for (final MapEntry(:key, :value) in changes.entries)
         jellyfinIdKey(key): value,
@@ -90,6 +74,31 @@ class MyListAdded extends AsyncNotifier<Map<String, DateTime>> {
     });
     _writes = done;
     return done;
+  }
+
+  /// Le date di adesso, dopo la lettura in corso, e rilette se quella
+  /// all'apertura non è riuscita; `null` se non si leggono.
+  Future<Map<String, DateTime>?> fresh() async {
+    final api = ref.read(displayPreferencesApiProvider);
+    final userId = ref.read(currentUserIdProvider);
+    await future;
+    if (_stale) {
+      // Una sola rilettura anche con più chiamate insieme: la seconda trova
+      // nello stato quella della prima.
+      try {
+        final server = await (_reread ??= api.readMyListAdded(userId));
+        if (_stale) {
+          state = AsyncData(server);
+          _stale = false;
+        }
+      } on Object catch (error) {
+        _reread = null;
+        _log.info('Date di La mia lista non lette: ${error.runtimeType}');
+        return null;
+      }
+    }
+    // Lo stato, non `future`: una modifica appena prima è già lì.
+    return state.value ?? const {};
   }
 
   /// Tiene solo le date di [ids] (chiavi `jellyfinIdKey`): i titoli usciti

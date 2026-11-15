@@ -198,8 +198,13 @@ class FakeDisplayPreferencesApi implements DisplayPreferencesApi {
   /// registrato la chiamata).
   Completer<void>? myListAddedWriteGate;
 
+  /// Se valorizzato, [readMyListAdded] aspetta che si completi.
+  Completer<void>? myListAddedReadGate;
+
   @override
   Future<Map<String, DateTime>> readMyListAdded(String userId) async {
+    final gate = myListAddedReadGate;
+    if (gate != null) await gate.future;
     final error = myListAddedReadError;
     if (error != null) throw error;
     return {...myListAdded};

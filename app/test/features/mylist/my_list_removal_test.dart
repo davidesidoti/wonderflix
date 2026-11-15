@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -250,6 +252,44 @@ void main() {
     for (final write in prefs.myListAddedWrites) {
       expect(write.keys, isNot(contains('p')));
     }
+  });
+
+  // Le date ancora in lettura: togliendo si aspettano, se no Annulla
+  // rimetterebbe il titolo senza la sua.
+  testWidgets('tolto mentre le date caricano: Annulla rimette la data', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    final prefs = FakeDisplayPreferencesApi()
+      ..myListAdded = {'p': d0}
+      ..myListAddedReadGate = gate;
+    await pumpList(tester, apiWith(library()), prefs: prefs);
+    await hover(tester, find.text('Parasite'));
+    await tester.tap(find.byTooltip('Togli dalla lista'));
+    await tester.pump();
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(prefs.myListAddedWrites.last.keys, isNot(contains('p')));
+
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(prefs.myListAddedWrites.last['p'], d0);
+  });
+
+  testWidgets('date non lette all\'apertura: si rileggono prima di togliere', (
+    tester,
+  ) async {
+    final prefs = FakeDisplayPreferencesApi()
+      ..myListAdded = {'p': d0}
+      ..myListAddedReadError = Exception('no');
+    await pumpList(tester, apiWith(library()), prefs: prefs);
+    prefs.myListAddedReadError = null;
+    await hover(tester, find.text('Parasite'));
+    await tester.tap(find.byTooltip('Togli dalla lista'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(prefs.myListAddedWrites.last['p'], d0);
   });
 
   testWidgets('Annulla non riuscito: un avviso lo dice', (tester) async {

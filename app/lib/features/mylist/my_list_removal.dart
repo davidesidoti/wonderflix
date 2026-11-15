@@ -27,9 +27,11 @@ Future<void> removeFromMyList(
   // La card tolta sparisce subito, e con lei `ref`: Annulla usa il container.
   final container = ProviderScope.containerOf(context, listen: false);
   final overrides = ref.read(userDataOverridesProvider.notifier);
-  // Le date prima di togliere: togliendo si cancellano. Ogni id c'è, `null`
-  // per chi non ne aveva una: Annulla non gliela inventa.
-  final added = ref.read(myListAddedProvider).value ?? const {};
+  // Le date prima di togliere: togliendo si cancellano. Si aspettano anche
+  // se in lettura, o da rileggere: se no Annulla le perderebbe. Ogni id c'è,
+  // `null` per chi non ne aveva una: Annulla non gliela inventa.
+  final added =
+      await container.read(myListAddedProvider.notifier).fresh() ?? const {};
   final dates = {for (final i in items) i.id: added[jellyfinIdKey(i.id)]};
   final failed = await overrides.setFavorites(items, favorite: false);
   // Non tolti anche i saltati (una richiesta già in corso).
