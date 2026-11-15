@@ -180,54 +180,11 @@ class _CatalogToolsState extends State<CatalogTools> {
   String _hideLabel(AppLocalizations l) =>
       _series ? l.catalogHideWatchedSeries : l.catalogHideWatched;
 
-  Widget _hideSwitch(AppLocalizations l) {
-    final on = widget.query.watched == WatchedFilter.unwatched;
-    final tv = FormFactor.of(context).tv;
-    return TvFocusable(
-      onActivate: _toggleHidden,
-      child: Semantics(
-        toggled: on,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            canRequestFocus: !tv,
-            onTap: _toggleHidden,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 8,
-              children: [
-                Container(
-                  width: 30,
-                  height: 18,
-                  padding: const EdgeInsets.all(2),
-                  alignment: on ? Alignment.centerRight : Alignment.centerLeft,
-                  decoration: BoxDecoration(
-                    color: on ? WfColors.gold : WfColors.border,
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: on ? WfColors.bg : WfColors.cream,
-                    ),
-                  ),
-                ),
-                Text(
-                  _hideLabel(l),
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: on ? WfColors.cream : WfColors.creamMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _hideSwitch(AppLocalizations l) => CatalogSwitch(
+    on: widget.query.watched == WatchedFilter.unwatched,
+    label: _hideLabel(l),
+    onToggle: _toggleHidden,
+  );
 
   Widget _searchField(AppLocalizations l, {bool autofocus = false}) => SizedBox(
     height: 36,
@@ -393,6 +350,70 @@ class _CatalogToolsState extends State<CatalogTools> {
         border: Border(top: BorderSide(color: WfColors.surface)),
       ),
       child: row,
+    );
+  }
+}
+
+/// Interruttore degli attrezzi ("Nascondi i visti", "Nascondi le saghe
+/// finite"): levetta oro quando è acceso, e il nome.
+class CatalogSwitch extends StatelessWidget {
+  const CatalogSwitch({
+    super.key,
+    required this.on,
+    required this.label,
+    required this.onToggle,
+  });
+
+  final bool on;
+  final String label;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final tv = FormFactor.of(context).tv;
+    return TvFocusable(
+      onActivate: onToggle,
+      child: Semantics(
+        toggled: on,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            canRequestFocus: !tv,
+            onTap: onToggle,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 8,
+              children: [
+                Container(
+                  width: 30,
+                  height: 18,
+                  padding: const EdgeInsets.all(2),
+                  alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+                  decoration: BoxDecoration(
+                    color: on ? WfColors.gold : WfColors.border,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: on ? WfColors.bg : WfColors.cream,
+                    ),
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: on ? WfColors.cream : WfColors.creamMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -71,7 +71,7 @@ void main() {
     expect(sortCollections(sagas, CollectionSort.name).map((c) => c.id), ['a', 'd', 'm']);
     expect(sortCollections(sagas, CollectionSort.size).map((c) => c.id), ['m', 'a', 'd']);
     // Senza data in fondo.
-    expect(sortCollections(sagas, CollectionSort.dateAdded).map((c) => c.id), ['m', 'a', 'd']);
+    expect(sortCollections(sagas, CollectionSort.added).map((c) => c.id), ['m', 'a', 'd']);
     // L'elenco di partenza non cambia.
     expect(sagas.map((c) => c.id), ['m', 'd', 'a']);
   });
@@ -83,7 +83,7 @@ void main() {
       testCollection(id: 'b', name: 'Beta'),
       testCollection(id: 'a', name: 'Alfa'),
     ];
-    expect(sortCollections(noDates, CollectionSort.dateAdded).map((c) => c.id),
+    expect(sortCollections(noDates, CollectionSort.added).map((c) => c.id),
         ['a', 'b', 'z']);
     // Con la stessa data: per nome.
     final sameDate = DateTime.utc(2026, 3, 1);
@@ -91,7 +91,7 @@ void main() {
       testCollection(id: 'b', name: 'Beta', dateCreated: sameDate),
       testCollection(id: 'a', name: 'Alfa', dateCreated: sameDate),
     ];
-    expect(sortCollections(dated, CollectionSort.dateAdded).map((c) => c.id),
+    expect(sortCollections(dated, CollectionSort.added).map((c) => c.id),
         ['a', 'b']);
     // Con lo stesso nome: per id, in qualunque ordine partano.
     final twins = [
@@ -114,5 +114,27 @@ void main() {
     expect(sagaTarget([first, testItem(id: 'm4', played: true)], data)!.id, 'm1');
     expect(sagaTarget(const [], data), isNull);
     expect(watchedCount([first, second, third], data), 1);
+  });
+
+  test('cleanSagaName: toglie il suffisso di collezione in fondo', () {
+    expect(cleanSagaName('Avengers - Collezione'), 'Avengers');
+    expect(cleanSagaName('Batman Collection'), 'Batman');
+    expect(cleanSagaName('Alien - collection'), 'Alien');
+    expect(cleanSagaName('Toy Story COLLEZIONE'), 'Toy Story');
+    expect(cleanSagaName('Il padrino'), 'Il padrino');
+    expect(cleanSagaName('Collection'), 'Collection',
+        reason: 'senza nient\'altro il nome resta');
+  });
+
+  test('sagaFilms e sagaDone: film trovati nell\'ordine della saga', () {
+    final saga = testCollection(itemIds: ['m2', 'm1', 'gone']);
+    final items = {
+      'm1': testItem(id: 'm1', played: true),
+      'm2': testItem(id: 'm2', played: true),
+    };
+    expect(sagaFilms(saga, items).map((item) => item.id), ['m2', 'm1']);
+    expect(sagaDone(saga, items), isTrue);
+    expect(sagaDone(saga, {'m1': testItem(id: 'm1')}), isFalse);
+    expect(sagaDone(saga, const {}), isFalse, reason: 'nessun film: non finita');
   });
 }

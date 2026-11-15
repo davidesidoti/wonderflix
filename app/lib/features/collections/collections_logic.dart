@@ -10,7 +10,7 @@ enum CollectionSort {
   size,
 
   /// Dalla più recente; senza data in fondo, a parità per nome.
-  dateAdded,
+  added,
 }
 
 /// Lettere accentate e la loro forma semplice, per la ricerca.
@@ -103,7 +103,7 @@ List<CollectionSummary> sortCollections(
         final bySize = b.size.compareTo(a.size);
         return bySize != 0 ? bySize : _byName(a, b);
       },
-    CollectionSort.dateAdded => (a, b) {
+    CollectionSort.added => (a, b) {
         final first = a.dateCreated;
         final second = b.dateCreated;
         if (first != null && second != null) {
@@ -133,3 +133,22 @@ JellyfinItem? sagaTarget(List<JellyfinItem> items,
 int watchedCount(List<JellyfinItem> items,
         UserItemData Function(JellyfinItem item) userDataOf) =>
     items.where((item) => userDataOf(item).played).length;
+
+/// Suffisso di collezione in fondo al nome (" - Collezione", " Collection"…).
+final _sagaSuffix =
+    RegExp(r'\s+(-\s+)?(collezione|collection)\s*$', caseSensitive: false);
+
+/// Il nome della saga senza il suffisso di collezione (spec §9).
+String cleanSagaName(String name) => name.replaceFirst(_sagaSuffix, '');
+
+/// I film di [saga] che l'utente vede, nell'ordine di `itemIds`; [items] per
+/// `jellyfinIdKey` (vedi `sagaItemsProvider`).
+List<JellyfinItem> sagaFilms(
+        CollectionSummary saga, Map<String, JellyfinItem> items) =>
+    [for (final id in saga.itemIds) ?items[id]];
+
+/// Una saga è finita se ha dei film e l'utente li ha visti tutti.
+bool sagaDone(CollectionSummary saga, Map<String, JellyfinItem> items) {
+  final films = sagaFilms(saga, items);
+  return films.isNotEmpty && films.every((film) => film.userData.played);
+}

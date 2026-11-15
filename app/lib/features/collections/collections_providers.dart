@@ -4,6 +4,7 @@ import 'package:logging/logging.dart';
 import '../../app/providers.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/jellyfin/json_fields.dart';
 import '../../core/social/collections_api.dart';
 import '../../core/social/collections_models.dart';
 import '../library/library_providers.dart';
@@ -64,4 +65,29 @@ final collectionItemsProvider = FutureProvider.autoDispose
   return ref
       .watch(libraryApiProvider)
       .collectionItems(ref.watch(currentUserIdProvider), collectionId);
+});
+
+/// I film di tutte le saghe, con i dati dell'utente, per `jellyfinIdKey`
+/// (spec §9): una sola lettura per tutti gli `itemIds`. Come
+/// [collectionsProvider] resta in cache dopo una lettura riuscita; si rilegge
+/// quando cambiano la libreria o i dati dell'utente.
+final sagaItemsProvider =
+    FutureProvider.autoDispose<Map<String, JellyfinItem>>((ref) async {
+  ref.watch(libraryRevisionProvider);
+  ref.watch(userDataRevisionProvider);
+  final api = ref.watch(libraryApiProvider);
+  final sagas = await ref.watch(collectionsProvider.future);
+  final ids = {for (final saga in sagas) ...saga.itemIds}.toList();
+  if (ids.isEmpty) return const {};
+  // L'utente c'è: senza, le saghe sarebbero vuote (vedi sopra).
+  final userId = ref.read(currentUserIdProvider);
+  final link = ref.keepAlive();
+  try {
+    final items = await api.itemsByIds(userId, ids);
+    return Map.unmodifiable({for (final item in items) jellyfinIdKey(item.id): item});
+  } on Object catch (error) {
+    link.close();
+    _log.info('film delle saghe non letti: ${error.runtimeType}');
+    rethrow;
+  }
 });

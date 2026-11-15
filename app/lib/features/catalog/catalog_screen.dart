@@ -17,7 +17,6 @@ import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
 import '../../ui/tv_focusable.dart';
 import '../collections/collections_grid.dart';
-import '../collections/collections_providers.dart';
 import '../social/social_providers.dart';
 import 'catalog_band.dart';
 import 'catalog_controller.dart';
@@ -137,24 +136,8 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     }
     final height = catalogBandHeight(context);
 
-    if (sagas) {
-      // Il catalogo dei titoli si legge solo nella vista dei titoli.
-      final list = ref.watch(collectionsProvider).value;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CatalogBand(
-            title: l.collectionsTab,
-            height: height,
-            tabs: tabs,
-            line: list == null || list.isEmpty
-                ? null
-                : TextSpan(text: l.collectionsCount(list.length)),
-          ),
-          const Expanded(child: CollectionsGrid()),
-        ],
-      );
-    }
+    // Il catalogo dei titoli si legge solo nella vista dei titoli.
+    if (sagas) return CollectionsGrid(tabs: tabs, height: height);
     return _titles(context, l, tabs, height);
   }
 

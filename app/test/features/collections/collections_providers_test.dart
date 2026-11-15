@@ -169,4 +169,41 @@ void main() {
     await c.read(collectionItemsProvider('c1').future);
     expect(library.collectionItemsCalls, ['c1', 'c1']);
   });
+
+  test('i film delle saghe: una lettura con tutti gli id, per jellyfinIdKey',
+      () async {
+    collections.collectionsList = [
+      testCollection(id: 'c1', itemIds: ['m1', 'm2']),
+      testCollection(id: 'c2', itemIds: ['m2', 'm3']),
+    ];
+    library.itemsById
+      ..['m1'] = testItem(id: 'M-1')
+      ..['m3'] = testItem(id: 'm3', played: true);
+    final c = container();
+    c.listen(sagaItemsProvider, (_, _) {});
+    final items = await c.read(sagaItemsProvider.future);
+    expect(library.itemsByIdsCalls, [
+      ['m1', 'm2', 'm3'],
+    ]);
+    expect(items.keys, unorderedEquals(['m1', 'm3']));
+    expect(items['m3']!.userData.played, isTrue);
+  });
+
+  test('i film delle saghe: senza saghe nessuna lettura', () async {
+    collections.collectionsList = [];
+    final c = container();
+    c.listen(sagaItemsProvider, (_, _) {});
+    expect(await c.read(sagaItemsProvider.future), isEmpty);
+    expect(library.itemsByIdsCalls, isEmpty);
+  });
+
+  test('i film delle saghe si rileggono quando cambiano i dati utente',
+      () async {
+    final c = container();
+    c.listen(sagaItemsProvider, (_, _) {});
+    await c.read(sagaItemsProvider.future);
+    c.read(userDataRevisionProvider.notifier).bump();
+    await c.read(sagaItemsProvider.future);
+    expect(library.itemsByIdsCalls, hasLength(2));
+  });
 }
