@@ -142,7 +142,7 @@ void main() {
       MaterialApp(
         builder: (context, child) => FormFactorScope(
           tv: true,
-          child: Shortcuts(shortcuts: tvActivateShortcuts, child: child!),
+          child: Shortcuts(shortcuts: tvShortcuts, child: child!),
         ),
         home: Scaffold(
           body: ElevatedButton(
@@ -157,6 +157,43 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pump();
     expect(pressed, 1);
+  });
+
+  testWidgets('giù esce da un campo di testo e arriva al pulsante', (
+    tester,
+  ) async {
+    final field = FocusNode();
+    final button = FocusNode();
+    addTearDown(field.dispose);
+    addTearDown(button.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => FormFactorScope(
+          tv: true,
+          child: Shortcuts(shortcuts: tvShortcuts, child: child!),
+        ),
+        home: Scaffold(
+          body: Column(
+            children: [
+              TextField(focusNode: field, autofocus: true),
+              ElevatedButton(
+                focusNode: button,
+                onPressed: () {},
+                child: const Text('Accedi'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(field.hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(button.hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(field.hasFocus, isTrue);
   });
 
   // Una pagina lunga col pulsante in fondo, fuori dallo schermo (600 px).

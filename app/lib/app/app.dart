@@ -70,9 +70,9 @@ class _WonderflixAppState extends ConsumerState<WonderflixApp> {
             child: kIsWeb ? page : UpdateGate(child: page),
           ),
         );
-        // Il tasto OK del telecomando (select) vale come Invio.
+        // OK vale come Invio, su/giù escono dai campi di testo.
         return tv
-            ? Shortcuts(shortcuts: tvActivateShortcuts, child: scoped)
+            ? Shortcuts(shortcuts: tvShortcuts, child: scoped)
             : scoped;
       },
       localizationsDelegates: AppLocalizations.localizationsDelegates,

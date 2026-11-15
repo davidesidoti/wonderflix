@@ -12,6 +12,7 @@ import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/quick_connect_flow.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/profile_fakes.dart';
@@ -230,6 +231,44 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null));
     return () => exits;
   }
+
+  testWidgets('TV: il telecomando passa sui campi senza tastiera, OK li apre',
+      (tester) async {
+    await pumpLogin(tester, tv: true);
+    FocusNode frame(String key) => Focus.of(tester.element(find.descendant(
+        of: find.ancestor(
+            of: find.byKey(Key(key)), matching: find.byType(TvFocusable)),
+        matching: find.byType(AnimatedScale))));
+    bool inside(String key) =>
+        FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<
+                FilledButton>() ==
+            tester.widget(find.byKey(Key(key)));
+
+    frame('login-username').requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(frame('login-password').hasPrimaryFocus, isTrue);
+    expect(hasFocus(tester, 'login-password'), isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(inside('login-submit'), isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(frame('login-username').hasPrimaryFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    await tester.pump();
+    expect(hasFocus(tester, 'login-username'), isTrue);
+    // "Avanti" della tastiera apre la password.
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+    await tester.pump();
+    expect(hasFocus(tester, 'login-password'), isTrue);
+  });
 
   testWidgets('TV, aggiungere un profilo: Indietro torna a "Chi guarda?"',
       (tester) async {

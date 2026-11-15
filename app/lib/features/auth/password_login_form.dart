@@ -9,6 +9,7 @@ import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_text_field_frame.dart';
 import 'session_controller.dart';
 
 class PasswordLoginForm extends ConsumerStatefulWidget {
@@ -30,6 +31,9 @@ class PasswordLoginForm extends ConsumerStatefulWidget {
 class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
   late final _username = TextEditingController(text: widget.initialUsername);
   final _password = TextEditingController();
+  final _usernameFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _passwordFrame = GlobalKey<TvTextFieldFrameState>();
   bool _busy = false;
   String? _error;
 
@@ -37,6 +41,8 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
   void dispose() {
     _username.dispose();
     _password.dispose();
+    _usernameFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -73,21 +79,33 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
           ErrorBanner(_error!),
           const SizedBox(height: 12),
         ],
-        TextField(
-          key: const Key('login-username'),
-          controller: _username,
-          autofocus: !tv && widget.initialUsername == null,
-          textInputAction: TextInputAction.next,
-          decoration: InputDecoration(hintText: l.loginUsername),
+        TvTextFieldFrame(
+          focusNode: _usernameFocus,
+          child: TextField(
+            key: const Key('login-username'),
+            controller: _username,
+            focusNode: _usernameFocus,
+            autofocus: !tv && widget.initialUsername == null,
+            textInputAction: TextInputAction.next,
+            // Sulla TV "Avanti" della tastiera apre subito la password.
+            onSubmitted:
+                tv ? (_) => _passwordFrame.currentState?.startTyping() : null,
+            decoration: InputDecoration(hintText: l.loginUsername),
+          ),
         ),
         const SizedBox(height: 10),
-        TextField(
-          key: const Key('login-password'),
-          controller: _password,
-          autofocus: !tv && widget.initialUsername != null,
-          obscureText: true,
-          onSubmitted: (_) => unawaited(_submit()),
-          decoration: InputDecoration(hintText: l.loginPassword),
+        TvTextFieldFrame(
+          key: _passwordFrame,
+          focusNode: _passwordFocus,
+          child: TextField(
+            key: const Key('login-password'),
+            controller: _password,
+            focusNode: _passwordFocus,
+            autofocus: !tv && widget.initialUsername != null,
+            obscureText: true,
+            onSubmitted: (_) => unawaited(_submit()),
+            decoration: InputDecoration(hintText: l.loginPassword),
+          ),
         ),
         const SizedBox(height: 16),
         FilledButton(

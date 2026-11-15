@@ -10,9 +10,15 @@ const tvFocusColor = WfColors.gold;
 /// Ingrandimento dell'elemento col focus sulla TV.
 const tvFocusScale = 1.05;
 
-/// Il tasto OK del telecomando (`select`) vale come Invio.
-const tvActivateShortcuts = <ShortcutActivator, Intent>{
+/// Il tasto OK del telecomando (`select`) vale come Invio, e su/giù escono
+/// anche da un campo di testo: senza, dopo la tastiera il fuoco resta nel
+/// campo (Flutter usa le frecce per il cursore) e "Accedi" non si raggiunge.
+const tvShortcuts = <ShortcutActivator, Intent>{
   SingleActivator(LogicalKeyboardKey.select): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.arrowUp):
+      DirectionalFocusIntent(TraversalDirection.up, ignoreTextFields: false),
+  SingleActivator(LogicalKeyboardKey.arrowDown):
+      DirectionalFocusIntent(TraversalDirection.down, ignoreTextFields: false),
 };
 
 /// Rende [child] raggiungibile col telecomando: bordo oro e ingrandimento col
