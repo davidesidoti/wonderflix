@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -48,7 +49,11 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
   final _scroll = SmoothScrollController();
 
   /// Ordinamento e filtri scelti: si applicano alla lista già caricata.
-  ItemQuery _filters = myListInitialFilters;
+  // Provvisorio (Task 6): la barra del catalogo parla ancora `ItemQuery`.
+  ItemQuery _filters = const ItemQuery(
+    kinds: {ItemKind.movie, ItemKind.series},
+    sort: CatalogSort.dateAdded,
+  );
 
   /// Cresce a ogni scelta nella barra: la griglia nuova sostituisce la
   /// vecchia in dissolvenza e le card rientrano. Togliere un cuore non lo
@@ -95,10 +100,19 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
                 onRetry: () => ref.invalidate(favoritesProvider)),
           ),
           data: (items) {
-            final view = buildMyListView(items, _filters, overrides);
+            final view = buildMyListView(
+              items,
+              MyListTab.all,
+              MyListFilters(
+                sort: _filters.sort,
+                genre: _filters.genres.isEmpty ? null : _filters.genres.first,
+              ),
+              overrides,
+              const {},
+            );
             if (view.listEmpty) return (0, _empty(l));
             return (
-              view.items.length,
+              _shown(view).length,
               KeyedSubtree(
                 key: const ValueKey('data'),
                 child: Builder(builder: (context) => _content(context, view)),
@@ -147,8 +161,24 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
             style: const TextStyle(color: WfColors.creamMuted)),
       );
 
+  // Provvisorio: il titolo di punta qui è una card come le altre, ma solo se
+  // passa il genere scelto.
+  List<JellyfinItem> _shown(MyListView view) {
+    final hero = view.hero;
+    final genre = _filters.genres.isEmpty ? null : _filters.genres.first;
+    final heroPasses = hero != null &&
+        (genre == null || hero.genres.any((g) => genreLabel(g) == genre));
+    return [
+      if (heroPasses) hero,
+      ...view.resume,
+      ...view.start,
+      ...view.watched,
+    ];
+  }
+
   Widget _content(BuildContext context, MyListView view) {
     final l = AppLocalizations.of(context);
+    final shown = _shown(view);
     // Ricaricando la lista, la pagina vecchia sfuma mentre arriva la nuova:
     // `_scroll` va solo alla griglia che entra in entrambi i `WfSwitcher`.
     final leaving = WfSwitcher.isOutgoing(context);
@@ -158,7 +188,7 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: CatalogFiltersBar(
-            filters: view.options,
+            filters: LibraryFilters(genres: [for (final g in view.genres) g.label]),
             query: _filters,
             onChanged: _setFilters,
           ),
@@ -167,12 +197,12 @@ class _MyListScreenState extends ConsumerState<MyListScreen> {
         Expanded(
           child: WfSwitcher(
             expand: true,
-            child: view.items.isEmpty
+            child: shown.isEmpty
                 ? _noResults(l)
                 : KeyedSubtree(
                     key: ValueKey(('grid', _revision)),
                     child: Builder(
-                      builder: (context) => _grid(view.items,
+                      builder: (context) => _grid(shown,
                           attachScroll:
                               !leaving && !WfSwitcher.isOutgoing(context)),
                     ),

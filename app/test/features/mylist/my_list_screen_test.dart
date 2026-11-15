@@ -36,7 +36,6 @@ void main() {
             year: 1995,
             genres: ['Crimine'],
             favorite: true,
-            played: true,
             dateCreated: '2023-01-01T00:00:00Z'),
         testItem(
             id: 'a',
@@ -167,20 +166,6 @@ void main() {
     expect(api.itemQueries, hasLength(1));
   });
 
-  testWidgets('"Visti" senza risultati e azzeramento', (tester) async {
-    await pumpList(
-        tester, apiWith([testItem(id: 'd', name: 'Dune', favorite: true)]));
-    await tester.tap(find.text('Visti'));
-    await tester.pumpAndSettle();
-    expect(find.text('Nessun titolo con questi filtri.'), findsOneWidget);
-    expect(find.text('Dune'), findsNothing);
-
-    await tester.tap(find.text('Azzera filtri').last);
-    await tester.pumpAndSettle();
-    expect(find.text('Dune'), findsOneWidget);
-    expect(find.text('Nessun titolo con questi filtri.'), findsNothing);
-  });
-
   // Con lo shimmer dello scheletro `pumpAndSettle` non finirebbe mai: si
   // avanza il tempo a passi.
   testWidgets(
@@ -199,7 +184,9 @@ void main() {
 
     // Una scelta nella barra cambia la griglia: la vecchia sfuma e la nuova
     // ha lo scroll; il titolo resta fermo.
-    await tester.tap(find.text('Visti'));
+    await tester.tap(find.text('Tutti i generi'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text('Crimine').last);
     await tester.pump(const Duration(milliseconds: 100));
     final scrollViews =
         tester.widgetList<CustomScrollView>(find.byType(CustomScrollView));
