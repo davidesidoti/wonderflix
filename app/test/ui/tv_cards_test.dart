@@ -32,6 +32,8 @@ void main() {
         tester,
         FormFactorScope(
           tv: tv,
+          // Nei test la piattaforma è Android: senza questo sarebbe modo tocco.
+          touchOverride: false,
           child: Scaffold(
             body: MediaRow(
               title: 'Riga',
@@ -108,6 +110,8 @@ void main() {
 
   testWidgets('fuori dalla TV: le frecce di riga ci sono', (tester) async {
     await pumpRow(tester, poster, taps: [], tv: false);
+    // Le frecce compaiono un frame dopo la misura della riga.
+    await tester.pump();
     expect(find.byKey(const Key('row-previous')), findsOneWidget);
     expect(find.byKey(const Key('row-next')), findsOneWidget);
   });

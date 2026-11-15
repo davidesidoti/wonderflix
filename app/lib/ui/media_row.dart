@@ -44,6 +44,9 @@ class MediaRow extends StatefulWidget {
     this.animateEntrance = false,
     this.onTitleTap,
     this.trailing,
+    this.count,
+    this.titleSize = 24,
+    this.topSpacing = 24,
   });
 
   final String title;
@@ -60,8 +63,16 @@ class MediaRow extends StatefulWidget {
   /// Con [onTitleTap] il titolo è un link, con una freccia (spec K §8.3).
   final VoidCallback? onTitleTap;
 
-  /// A destra nell'intestazione, prima delle frecce.
+  /// A destra nell'intestazione, prima delle frecce; nelle finestre strette
+  /// va su una riga sua sotto il titolo.
   final Widget? trailing;
+
+  /// Piccolo accanto al titolo (per esempio "9 da guardare").
+  final String? count;
+
+  /// Corpo del titolo e aria sopra la riga.
+  final double titleSize;
+  final double topSpacing;
 
   @override
   State<MediaRow> createState() => _MediaRowState();
@@ -69,6 +80,32 @@ class MediaRow extends StatefulWidget {
 
 class _MediaRowState extends State<MediaRow> {
   final _controller = SmoothScrollController();
+
+  /// La riga è più larga della finestra, e a quale capo si trova: pilota le
+  /// frecce (solo se scorre, spenta quella del capo raggiunto).
+  bool _scrolls = false;
+  bool _atStart = true;
+  bool _atEnd = false;
+
+  bool _onScroll(Notification n) {
+    final metrics = n is ScrollMetricsNotification
+        ? n.metrics
+        : n is ScrollNotification
+        ? n.metrics
+        : null;
+    if (metrics == null || metrics.axis != Axis.horizontal) return false;
+    final scrolls = metrics.maxScrollExtent > 0;
+    final atStart = metrics.pixels <= metrics.minScrollExtent + 0.5;
+    final atEnd = metrics.pixels >= metrics.maxScrollExtent - 0.5;
+    if (scrolls != _scrolls || atStart != _atStart || atEnd != _atEnd) {
+      setState(() {
+        _scrolls = scrolls;
+        _atStart = atStart;
+        _atEnd = atEnd;
+      });
+    }
+    return false;
+  }
 
   /// Sulla TV il nodo di ogni card costruita, per posizione.
   final _tvSlots = <int, FocusNode>{};
@@ -152,7 +189,7 @@ class _MediaRowState extends State<MediaRow> {
     final title = Text(
       widget.title,
       overflow: TextOverflow.ellipsis,
-      style: WfText.display(24),
+      style: WfText.display(widget.titleSize),
     );
     final onTap = widget.onTitleTap;
     if (onTap == null) return title;
@@ -225,43 +262,78 @@ class _MediaRowState extends State<MediaRow> {
         child: list,
       );
     }
+    // Titolo e conteggio prendono lo spazio libero, allineati a sinistra: le
+    // frecce stanno sempre sul bordo destro, qualunque sia il titolo.
+    final heading = Expanded(
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(child: _title()),
+            if (widget.count != null) ...[
+              const SizedBox(width: 12),
+              Text(
+                widget.count!,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: WfColors.cream.withValues(alpha: 0.32),
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    final arrows = !form.touch && !form.tv && _scrolls;
     return Padding(
-      padding: const EdgeInsets.only(top: 24),
+      padding: EdgeInsets.only(top: widget.topSpacing),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: EdgeInsets.symmetric(horizontal: side),
-            child: Row(
-              children: [
-                Flexible(child: _title()),
-                const Spacer(),
-                ?widget.trailing,
-                if (!form.tv) ...[
-                  IconButton(
-                    key: const Key('row-previous'),
-                    onPressed: () => _scroll(-1),
-                    icon: const Icon(
-                      LucideIcons.chevronLeft,
+            child: ConstrainedBox(
+              // Con le frecce che compaiono a riga misurata l'intestazione
+              // non cambia altezza.
+              constraints: BoxConstraints(
+                minHeight: form.touch || form.tv ? 0 : 48,
+              ),
+              child: Row(
+                children: [
+                  heading,
+                  if (!form.compact) ?widget.trailing,
+                  if (arrows) ...[
+                    IconButton(
+                      key: const Key('row-previous'),
+                      onPressed: _atStart ? null : () => _scroll(-1),
+                      icon: const Icon(LucideIcons.chevronLeft),
                       color: WfColors.cream,
                     ),
-                  ),
-                  IconButton(
-                    key: const Key('row-next'),
-                    onPressed: () => _scroll(1),
-                    icon: const Icon(
-                      LucideIcons.chevronRight,
+                    IconButton(
+                      key: const Key('row-next'),
+                      onPressed: _atEnd ? null : () => _scroll(1),
+                      icon: const Icon(LucideIcons.chevronRight),
                       color: WfColors.cream,
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
+          if (form.compact && widget.trailing != null)
+            Padding(
+              padding: EdgeInsets.fromLTRB(side, 8, side, 0),
+              child: widget.trailing,
+            ),
           const SizedBox(height: 8),
           SizedBox(
             height: widget.height + (form.tv ? 2 * tvRowFocusPadding : 0),
-            child: list,
+            child: NotificationListener<Notification>(
+              onNotification: _onScroll,
+              child: list,
+            ),
           ),
         ],
       ),
