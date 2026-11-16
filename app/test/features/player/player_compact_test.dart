@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/library/item_labels.dart';
@@ -9,11 +10,13 @@ import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
 import 'package:wonderflix/features/player/player_side_panel_host.dart';
 import 'package:wonderflix/features/player/post_play.dart';
+import 'package:wonderflix/features/player/seek_bar.dart';
 import 'package:wonderflix/features/player/queue_panel/queue_panel.dart';
 import 'package:wonderflix/features/ratings/rating_round_controller.dart';
 import 'package:wonderflix/features/ratings/rating_round_panel.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/form_factor.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/library_fakes.dart';
 import '../../support/playback_fakes.dart';
@@ -45,12 +48,18 @@ void main() {
     Size size, {
     bool touch = true,
     bool chatUnread = false,
+    bool party = true,
+    double textScale = 1,
+    ValueChanged<double>? onRate,
   }) async {
     final calls = <String>[];
     await pumpApp(
       tester,
       Scaffold(
-        body: PlayerOverlay(
+        body: Builder(builder: (context) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
+          child: PlayerOverlay(
           view: PlayerViewState(
             status: PlayerStatus.ready,
             playing: true,
@@ -69,15 +78,17 @@ void main() {
           onToggleFullscreen: () => calls.add('fullscreen'),
           onNextEpisode: () => calls.add('next'),
           onPrevious: () => calls.add('previous'),
-          partyQueue: true,
+          partyQueue: party,
           partyBadge: const SizedBox(width: 80, height: 32),
           onWatchTogether: (_) => calls.add('together'),
-          onToggleChat: () => calls.add('chat'),
+          onToggleChat: party ? () => calls.add('chat') : null,
           chatUnread: chatUnread,
-          onToggleReactions: () => calls.add('reactions'),
+          onToggleReactions: party ? () => calls.add('reactions') : null,
           reactionsLink: LayerLink(),
-          onToggleQueue: () => calls.add('queue'),
+          onToggleQueue: party ? () => calls.add('queue') : null,
+          onRate: onRate,
         ),
+        )),
       ),
       surfaceSize: size,
       touch: touch,
@@ -98,7 +109,7 @@ void main() {
         final play = tester.getRect(find.byTooltip(l.playerPause));
         expect(play.center.dx, closeTo(size.width / 2, 1));
         expect(play.center.dy, closeTo(size.height / 2, 1));
-        expect(play.width, 64);
+        expect(play.width, PlayerOverlay.centerPlaySize);
         final rewind = tester.getRect(find.byTooltip(l.playerRewind));
         final forward = tester.getRect(find.byTooltip(l.playerForward));
         expect(rewind.center.dy, closeTo(play.center.dy, 1));
@@ -124,71 +135,127 @@ void main() {
       tester,
     ) async {
       final calls = await pumpOverlay(tester, size);
-      final commands = {
+      final buttons = {
         l.playerAudioAndSubtitles: 'tracks',
-        l.partyQueueOpen: 'queue',
+        l.playerNextInQueue: 'next',
+        l.watchPartyWatchTogether: 'together',
+      };
+      for (final MapEntry(key: label, value: call) in buttons.entries) {
+        await tester.tap(find.widgetWithText(WfButton, label));
+        expect(calls.last, call, reason: label);
+      }
+      final menu = {
         l.partyChatOpen: 'chat',
         l.partyReactionsOpen: 'reactions',
-        l.watchPartyWatchTogether: 'together',
+        l.partyQueueOpen: 'queue',
         l.playerPreviousInQueue: 'previous',
-        l.playerNextInQueue: 'next',
         l.playerFullscreen: 'fullscreen',
         l.playerMute: 'mute',
-        l.playerBackToDetail: 'back',
       };
-      var inMenu = 0;
-      for (final MapEntry(key: tooltip, value: call) in commands.entries) {
-        final button = find.byTooltip(tooltip);
-        if (button.evaluate().isNotEmpty) {
-          await tester.tap(button);
-        } else {
-          inMenu++;
-          await tester.tap(find.byTooltip(l.playerMoreControls));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text(tooltip));
-          await tester.pumpAndSettle();
-        }
-        expect(calls.last, call, reason: tooltip);
+      for (final MapEntry(key: label, value: call) in menu.entries) {
+        await tester.tap(find.widgetWithText(WfButton, l.playerMore));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(label));
+        await tester.pumpAndSettle();
+        expect(calls.last, call, reason: label);
       }
-      if (size.width < 400) {
-        expect(inMenu, greaterThan(0), reason: 'in verticale non entrano');
+      await tester.tap(find.byTooltip(l.playerBackToDetail));
+      expect(calls.last, 'back');
+    });
+
+    testWidgets('telefono: nessun overflow col testo a 1,3 ($name)', (
+      tester,
+    ) async {
+      await pumpOverlay(tester, size, textScale: 1.3);
+      expect(tester.takeException(), isNull);
+      for (final element in find.byType(WfButton).evaluate()) {
+        final rect = tester.getRect(find.byWidget(element.widget));
+        expect(Offset.zero & size, _contains(rect));
       }
     });
   }
 
-  testWidgets('stretto col mouse: resta il volume, senza overflow', (
+  testWidgets('telefono: titolo Bebas, trio 52/68, quattro pulsanti con la '
+      'parola', (tester) async {
+    await pumpOverlay(tester, const Size(390, 780), party: false);
+    expect(tester.takeException(), isNull);
+    expect(
+        tester.widget<Text>(find.text(cardTitle(episode))).style?.fontFamily,
+        WfText.display(26).fontFamily);
+    expect(tester.getSize(find.byTooltip(l.playerPause)).width, 68);
+    expect(tester.getSize(find.byTooltip(l.playerRewind)).width, 52);
+    for (final label in [
+      l.playerAudioAndSubtitles,
+      l.playerNextEpisode,
+      l.watchPartyWatchTogether,
+      l.playerMore,
+    ]) {
+      final button = find.widgetWithText(WfButton, label);
+      expect(button, findsOneWidget, reason: label);
+      // Alto 44; una parola lunga va a capo (il font dei test è largo).
+      expect(tester.getSize(button).height, greaterThanOrEqualTo(44),
+          reason: label);
+    }
+    // Due colonne, "Altro" per ultimo.
+    final tracks = tester
+        .getRect(find.widgetWithText(WfButton, l.playerAudioAndSubtitles));
+    final more = tester.getRect(find.widgetWithText(WfButton, l.playerMore));
+    expect(more.left, greaterThan(tracks.right));
+    expect(more.top, greaterThan(tracks.bottom));
+    expect(tester.getSize(find.byType(SeekBar)).height, 44);
+    expect(find.byKey(const Key('volume-slider')), findsNothing);
+    expect(find.byTooltip(l.playerMute), findsNothing, reason: 'è in Altro');
+  });
+
+  testWidgets('telefono: Altro tiene il resto, Velocità fuori dal party', (
+    tester,
+  ) async {
+    await pumpOverlay(tester, const Size(390, 780));
+    await tester.tap(find.widgetWithText(WfButton, l.playerMore));
+    await tester.pumpAndSettle();
+    for (final label in [
+      l.partyChatOpen,
+      l.partyReactionsOpen,
+      l.partyQueueOpen,
+      l.playerPreviousInQueue,
+      l.playerFullscreen,
+      l.playerMute,
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text(l.playerSpeed), findsNothing, reason: 'nel party 1×');
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    final rates = <double>[];
+    await pumpOverlay(tester, const Size(390, 780),
+        party: false, onRate: rates.add);
+    await tester.tap(find.widgetWithText(WfButton, l.playerMore));
+    await tester.pumpAndSettle();
+    expect(find.text(l.partyChatOpen), findsNothing);
+    expect(find.text(l.playerPreviousEpisode), findsOneWidget);
+    await tester.tap(find.text(l.playerSpeed));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1,5×'));
+    await tester.pumpAndSettle();
+    expect(rates, [1.5]);
+  });
+
+  testWidgets('stretto col mouse: niente cursore del volume, senza overflow', (
     tester,
   ) async {
     for (final size in phoneSizes) {
       await pumpOverlay(tester, size, touch: false);
       expect(tester.takeException(), isNull, reason: '$size');
-      // In verticale non c'è posto: resta il muto.
+      expect(find.byKey(const Key('volume-slider')), findsNothing);
       expect(
-        find.byKey(const Key('volume-slider')),
-        size.width < 480 ? findsNothing : findsOneWidget,
-        reason: '$size',
-      );
+          tester.getSize(find.byType(SeekBar)).height, SeekBar.defaultHeight);
     }
   });
 
-  testWidgets('stretto col mouse in orizzontale: volume e tutte le icone, '
-      'allineate a destra', (tester) async {
-    await pumpOverlay(tester, const Size(844, 390), touch: false);
-    expect(tester.takeException(), isNull);
-    expect(find.byKey(const Key('volume-slider')), findsOneWidget);
-    expect(find.byTooltip(l.playerMoreControls), findsNothing);
-    final right = find
-        .byType(IconButton)
-        .evaluate()
-        .map((e) => tester.getRect(find.byWidget(e.widget)).right)
-        .reduce((a, b) => a > b ? a : b);
-    expect(right, closeTo(844 - 12, 0.5));
-  });
-
-  testWidgets('stretto: la chat nel menu ⋯ porta il puntino sul ⋯', (
+  testWidgets('stretto: la chat in Altro porta il puntino su Altro', (
     tester,
   ) async {
-    // In verticale la chat non entra nella riga.
     const size = Size(390, 844);
     await pumpOverlay(tester, size, chatUnread: true);
     expect(tester.takeException(), isNull);
@@ -203,11 +270,11 @@ void main() {
     expect(dotOnMore(), findsNothing);
   });
 
-  testWidgets('largo (1440×900): niente menu ⋯ né play al centro', (
+  testWidgets('largo (1440×900): niente Altro né play al centro', (
     tester,
   ) async {
     await pumpOverlay(tester, const Size(1440, 900));
-    expect(find.byTooltip(l.playerMoreControls), findsNothing);
+    expect(find.text(l.playerMore), findsNothing);
     final play = tester.getRect(find.byTooltip(l.playerPause));
     expect(play.center.dy, greaterThan(800));
   });
@@ -509,11 +576,15 @@ void main() {
       surfaceSize: const Size(390, 780),
       touch: true,
     );
+    final sheet = tester.getRect(find.byKey(const Key('panel-sheet')));
+    expect(sheet.height,
+        closeTo(780 * PlayerSidePanelHost.compactHeightFraction, 1));
     final panel = tester.getRect(find.byKey(const Key('panel')));
     expect(panel.width, 390);
     expect(panel.bottom, 780);
-    expect(panel.height,
-        closeTo(780 * PlayerSidePanelHost.compactHeightFraction, 1));
+    // Il pannello sta sotto la maniglia.
+    expect(panel.top,
+        greaterThan(tester.getRect(find.byKey(const Key('panel-sheet-handle'))).bottom));
   });
 
   testWidgets("TV: il post-play mostra l'immagine dell'episodio, senza trama",

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -11,6 +10,8 @@ import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/tv_focusable.dart';
+import '../../ui/wf_buttons.dart';
+import '../../ui/wf_menus.dart';
 import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
@@ -172,8 +173,8 @@ class PlayerOverlay extends StatelessWidget {
         ? cardSubtitle(item)
         : null;
     final volume = view.muted ? 0.0 : view.volume;
-    // Layout stretto (spec §4.5): titolo più piccolo, -10/play/+10 al centro,
-    // in basso le icone che entrano e le altre nel menu ⋯.
+    // Layout stretto (spec §4.4): -10/play/+10 al centro, in basso la barra
+    // e i pulsanti con la parola, il resto in "Altro".
     // Sulla TV la fila larga anche su uno schermo stretto, senza volume,
     // schermo intero, guarda insieme e indietro (c'è il tasto Indietro).
     final tv = FormFactor.of(context).tv;
@@ -205,7 +206,6 @@ class PlayerOverlay extends StatelessWidget {
       icon: Icon(volume == 0 ? LucideIcons.volumeX : LucideIcons.volume2),
       tooltip: view.muted ? l.playerUnmute : l.playerMute,
       shortcut: 'M',
-      size: compact ? minTouchTarget : null,
       onPressed: onToggleMute,
     );
     final next = onNextEpisode == null
@@ -247,6 +247,10 @@ class PlayerOverlay extends StatelessWidget {
       zones: seekZones(view.segments),
       preview: preview,
       previewAt: previewAt,
+      // Col dito sul telefono l'area tattile è alta quanto un pulsante.
+      height: compact && FormFactor.of(context).touch
+          ? minTouchTarget
+          : SeekBar.defaultHeight,
     );
     final chat = onToggleChat == null
         ? null
@@ -335,9 +339,7 @@ class PlayerOverlay extends StatelessWidget {
                               Text(cardTitle(item),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: compact
-                                      ? Theme.of(context).textTheme.titleLarge
-                                      : WfText.display(28)),
+                                  style: WfText.display(compact ? 26 : 28)),
                               if (episode != null)
                                 Text(episode,
                                     maxLines: 1,
@@ -409,28 +411,23 @@ class PlayerOverlay extends StatelessWidget {
                     children: [
                       if (compact) ...[
                         seekBar,
-                        Row(
-                          children: [
-                            mute,
-                            // Col mouse in una finestra stretta il volume
-                            // resta, più corto; sotto [compactSliderMinWidth]
-                            // non ci sta (c'è il muto).
-                            if (slider != null &&
-                                MediaQuery.sizeOf(context).width >=
-                                    compactSliderMinWidth)
-                              SizedBox(width: 80, child: slider),
-                            const SizedBox(width: 4),
-                            RepaintBoundary(
-                                child: Row(children: [
+                        RepaintBoundary(
+                          child: Row(
+                            children: [
                               PositionLabel(engine: engine),
                               const SizedBox(width: 8),
-                              RemainingLabel(
-                                  engine: engine, rate: rate, withEnd: false),
-                            ])),
-                            const SizedBox(width: 8),
-                            Expanded(child: _compactCommands(l)),
-                          ],
+                              Expanded(
+                                child: Align(
+                                  alignment: AlignmentDirectional.centerEnd,
+                                  child: RemainingLabel(
+                                      engine: engine, rate: rate),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(height: 12),
+                        _compactCommands(context, l),
                       ] else ...[
                         Row(
                           children: [
@@ -570,140 +567,143 @@ class PlayerOverlay extends StatelessWidget {
   );
 
   /// Lati dei pulsanti al centro nel layout stretto.
-  static const centerPlaySize = 64.0;
-  static const centerSeekSize = 56.0;
+  static const centerPlaySize = 68.0;
+  static const centerSeekSize = 52.0;
 
-  /// Nel layout stretto col mouse, finestra minima per il cursore del volume.
-  static const compactSliderMinWidth = 480.0;
+  /// Spazio tra i pulsanti con la parola del layout stretto.
+  static const _compactGap = 10.0;
 
-  /// I comandi della riga in basso nel layout stretto, dal più usato: quelli
-  /// che non entrano finiscono nel menu ⋯ (nessuno si perde).
-  Widget _compactCommands(AppLocalizations l) {
-    final commands = <_Command>[
-      _Command(const Icon(LucideIcons.captions), l.playerAudioAndSubtitles,
-          (_) => onToggleTracks()),
-      if (onNextEpisode case final next?)
-        _Command(const Icon(LucideIcons.skipForward),
-            partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
-            (_) => next(),
-            shortcut: 'N'),
+  /// Da questa larghezza (telefono in orizzontale) i pulsanti stanno in una
+  /// riga sola: in due righe arriverebbero al play al centro.
+  static const _compactOneRowWidth = 600.0;
+
+  /// I pulsanti con la parola del layout stretto (spec §4.4): Audio e
+  /// sottotitoli, Episodio successivo, Guarda insieme e "Altro" per ultimo,
+  /// che tiene gli altri comandi (nessuno si perde).
+  Widget _compactCommands(BuildContext context, AppLocalizations l) {
+    final more = <_Command>[
       if (onToggleChat case final chat?)
-        _Command(
-            _WithDot(
-                show: chatUnread,
-                child: const Icon(LucideIcons.messageCircle)),
-            l.partyChatOpen,
-            (_) => chat(),
-            shortcut: l.playerKeyEnter,
-            key: const Key('player-chat-button'),
-            dot: chatUnread),
+        _Command(LucideIcons.messageCircle, l.partyChatOpen, (_) => chat()),
       if (onToggleReactions case final reactions?)
-        _Command(const Icon(LucideIcons.smilePlus), l.partyReactionsOpen,
-            (_) => reactions(),
-            shortcut: '1–6',
-            key: const Key('player-reactions-button'), reactions: true),
-      if (onToggleFullscreen case final toggle?)
-        _Command(
-            Icon(fullscreen ? LucideIcons.minimize : LucideIcons.maximize),
-            fullscreen ? l.playerExitFullscreen : l.playerFullscreen,
-            (_) => toggle(),
-            shortcut: 'F'),
+        _Command(LucideIcons.smilePlus, l.partyReactionsOpen,
+            (_) => reactions()),
       if (onToggleQueue case final queue?)
-        _Command(const Icon(LucideIcons.listVideo), l.partyQueueOpen,
-            (_) => queue(),
-            key: const Key('player-queue-button')),
+        _Command(LucideIcons.listVideo, l.partyQueueOpen, (_) => queue()),
       if (onPrevious case final previous?)
-        _Command(const Icon(LucideIcons.skipBack),
+        _Command(LucideIcons.skipBack,
             partyQueue ? l.playerPreviousInQueue : l.playerPreviousEpisode,
-            (_) => previous(),
-            shortcut: 'P'),
-      if (onWatchTogether case final together?)
-        _Command(const Icon(LucideIcons.users), l.watchPartyWatchTogether,
-            together),
+            (_) => previous()),
+      // Nel watch party la velocità resta 1× (`onRate` null).
+      if (onRate case final onRate?)
+        _Command(
+            LucideIcons.gauge,
+            l.playerSpeed,
+            (anchor) => unawaited(
+                showSpeedMenu(anchor, rate: rate, onSelected: onRate))),
+      if (onToggleFullscreen case final toggle?)
+        _Command(fullscreen ? LucideIcons.minimize : LucideIcons.maximize,
+            fullscreen ? l.playerExitFullscreen : l.playerFullscreen,
+            (_) => toggle()),
+      _Command(view.muted ? LucideIcons.volumeX : LucideIcons.volume2,
+          view.muted ? l.playerUnmute : l.playerMute, (_) => onToggleMute()),
     ];
-    return LayoutBuilder(builder: (context, constraints) {
-      final slots = (constraints.maxWidth / minTouchTarget).floor();
-      final shown = commands.length <= slots
-          ? commands.length
-          : math.max(0, slots - 1);
-      final more = commands.sublist(shown);
-      // La barretta delle reazioni si aggancia al suo pulsante; se è nel
-      // menu, al ⋯.
-      final reactionsInMenu = more.any((command) => command.reactions);
-      // Un puntino nel menu (messaggi non letti) si vede anche sul ⋯.
-      final dotInMenu = more.any((command) => command.dot);
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          for (final command in commands.take(shown))
-            _anchored(
-              command.reactions ? reactionsLink : null,
-              Builder(
-                builder: (buttonContext) => PlayerIconButton(
-                  key: command.key,
-                  icon: command.icon,
-                  tooltip: command.tooltip,
-                  shortcut: command.shortcut,
-                  size: minTouchTarget,
-                  onPressed: () => command.run(buttonContext),
-                ),
-              ),
+    const align = AlignmentDirectional.centerStart;
+    final buttons = <Widget>[
+      WfButton.secondary(
+        label: l.playerAudioAndSubtitles,
+        icon: LucideIcons.captions,
+        alignment: align,
+        onPressed: onToggleTracks,
+      ),
+      if (onNextEpisode case final next?)
+        WfButton.secondary(
+          label: partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
+          icon: LucideIcons.skipForward,
+          alignment: align,
+          onPressed: next,
+        ),
+      if (onWatchTogether case final together?)
+        Builder(
+          // Il menu delle modalità si ancora al pulsante.
+          builder: (buttonContext) => WfButton.secondary(
+            label: l.watchPartyWatchTogether,
+            icon: LucideIcons.users,
+            alignment: align,
+            onPressed: () => together(buttonContext),
+          ),
+        ),
+      // La barretta delle reazioni si aggancia ad "Altro", che le tiene.
+      _anchored(
+        onToggleReactions == null ? null : reactionsLink,
+        Builder(
+          builder: (buttonContext) => WfButton.secondary(
+            key: const Key('player-more-controls'),
+            label: l.playerMore,
+            icon: LucideIcons.ellipsis,
+            iconWidget: _WithDot(
+              show: chatUnread && onToggleChat != null,
+              child: const Icon(LucideIcons.ellipsis, size: 18),
             ),
-          if (more.isNotEmpty)
-            _anchored(
-              reactionsInMenu ? reactionsLink : null,
-              Builder(
-                builder: (buttonContext) => PopupMenuButton<_Command>(
-                  key: const Key('player-more-controls'),
-                  tooltip: l.playerMoreControls,
-                  icon: _WithDot(
-                      show: dotInMenu,
-                      child: const Icon(LucideIcons.ellipsis)),
-                  iconColor: WfColors.cream,
-                  style: _sizedStyle(minTouchTarget),
-                  itemBuilder: (_) => [
-                    for (final command in more)
-                      PopupMenuItem(
-                        value: command,
-                        child: Row(
-                          children: [
-                            command.icon,
-                            const SizedBox(width: 12),
-                            Flexible(child: Text(command.tooltip)),
-                          ],
-                        ),
-                      ),
-                  ],
-                  // Il menu delle modalità di "Guarda insieme" si ancora al ⋯.
-                  onSelected: (command) => command.run(buttonContext),
-                ),
-              ),
-            ),
+            alignment: align,
+            onPressed: () => unawaited(_showMore(buttonContext, more)),
+          ),
+        ),
+      ),
+    ];
+    final columns =
+        MediaQuery.sizeOf(context).width >= _compactOneRowWidth ? 4 : 2;
+    return Column(
+      children: [
+        for (var row = 0; row < buttons.length; row += columns) ...[
+          if (row > 0) const SizedBox(height: _compactGap),
+          Row(
+            children: [
+              for (var i = row; i < row + columns; i++) ...[
+                if (i > row) const SizedBox(width: _compactGap),
+                Expanded(
+                    child: i < buttons.length ? buttons[i] : const SizedBox()),
+              ],
+            ],
+          ),
         ],
-      );
-    });
+      ],
+    );
+  }
+
+  /// Il menu di "Altro", ancorato ad [anchor].
+  static Future<void> _showMore(
+      BuildContext anchor, List<_Command> commands) async {
+    final picked = await showMenu<_Command>(
+      context: anchor,
+      position: menuPositionBelow(anchor,
+          estimatedHeight: commands.length * kMinInteractiveDimension),
+      popUpAnimationStyle: wfPopUpAnimation(anchor),
+      items: [
+        for (final command in commands)
+          PopupMenuItem(
+            value: command,
+            child: Row(
+              children: [
+                Icon(command.icon),
+                const SizedBox(width: 12),
+                Flexible(child: Text(command.label)),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (picked != null && anchor.mounted) picked.run(anchor);
   }
 }
 
-/// Un comando della riga in basso nel layout stretto: un pulsante o una
-/// voce del menu ⋯. [run] riceve il contesto del pulsante che lo lancia.
+/// Una voce di "Altro" nel layout stretto. [run] riceve il contesto di
+/// "Altro" (vi si ancorano i menu che apre).
 class _Command {
-  const _Command(this.icon, this.tooltip, this.run,
-      {this.shortcut, this.key, this.reactions = false, this.dot = false});
+  const _Command(this.icon, this.label, this.run);
 
-  final Widget icon;
-  final String tooltip;
+  final IconData icon;
+  final String label;
   final ValueChanged<BuildContext> run;
-
-  /// Tasto della tastiera che fa lo stesso (non su dito e TV).
-  final String? shortcut;
-  final Key? key;
-
-  /// Il pulsante delle reazioni (la barretta si aggancia a lui).
-  final bool reactions;
-
-  /// L'icona ha il puntino oro (messaggi non letti).
-  final bool dot;
 }
 
 /// Pulsante quadrato di lato [size], senza margini aggiunti dal tema.

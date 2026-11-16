@@ -12,7 +12,8 @@ import '../../ui/form_factor.dart';
 /// esce in `fast`; con le animazioni ridotte solo dissolvenza. Chiuso, non è
 /// nell'albero (e le voci rientrano scaglionate alla prossima apertura). Lo
 /// usano "Audio e sottotitoli" e la coda del watch party (spec H §9.1).
-/// Nel layout stretto (spec §4.5) sale dal basso, a tutta larghezza.
+/// Nel layout stretto (spec §4.4) è un foglio dal basso, a tutta larghezza:
+/// maniglia, angoli tondi in alto; trascinato giù chiama [onClose].
 class PlayerSidePanelHost extends StatefulWidget {
   const PlayerSidePanelHost({
     super.key,
@@ -20,10 +21,14 @@ class PlayerSidePanelHost extends StatefulWidget {
     required this.panel,
     this.width = defaultWidth,
     this.maxWidthFraction = defaultMaxWidthFraction,
+    this.onClose,
   });
 
   final bool open;
   final Widget panel;
+
+  /// Il foglio dal basso trascinato giù.
+  final VoidCallback? onClose;
 
   /// Larghezza del pannello, e la parte della finestra che può occupare al
   /// massimo.
@@ -38,6 +43,10 @@ class PlayerSidePanelHost extends StatefulWidget {
 
   /// Nel layout stretto: la parte della finestra che può occupare in altezza.
   static const compactHeightFraction = 0.7;
+
+  /// Il foglio si chiude trascinato giù di più, o più veloce (px/s).
+  static const closeDragDistance = 80.0;
+  static const closeDragVelocity = 700.0;
 
   /// Larghezza del pannello in uno spazio largo [available]. La usa l'host,
   /// e chi deve lasciargli posto (la pillola del player): i due conti non
@@ -93,6 +102,51 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
     super.dispose();
   }
 
+  double _drag = 0;
+
+  /// Il pannello nel foglio dal basso, con la maniglia che lo chiude.
+  Widget _sheet() => ClipRRect(
+        key: const Key('panel-sheet'),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        child: ColoredBox(
+          color: WfColors.surface,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: (_) => _drag = 0,
+                onVerticalDragUpdate: (details) => _drag += details.delta.dy,
+                onVerticalDragEnd: (details) {
+                  if (_drag > PlayerSidePanelHost.closeDragDistance ||
+                      (details.primaryVelocity ?? 0) >
+                          PlayerSidePanelHost.closeDragVelocity) {
+                    widget.onClose?.call();
+                  }
+                },
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10, bottom: 4),
+                  child: Center(
+                    child: SizedBox(
+                      key: const Key('panel-sheet-handle'),
+                      width: 36,
+                      height: 4,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: WfColors.cream.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(child: widget.panel),
+            ],
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final reduced = WfMotion.of(context).isReduced;
@@ -130,10 +184,10 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
                     child: SafeArea(
                       top: false,
                       child: reduced
-                          ? Opacity(opacity: t, child: widget.panel)
+                          ? Opacity(opacity: t, child: _sheet())
                           : FractionalTranslation(
                               translation: Offset(0, 1 - t),
-                              child: widget.panel,
+                              child: _sheet(),
                             ),
                     ),
                   )

@@ -132,8 +132,8 @@ void main() {
     final tips = tester.widgetList<KeyTooltip>(find.byType(KeyTooltip));
     final keys = {for (final t in tips) t.message: t.shortcut};
     expect(keys['Pausa'], 'Spazio');
-    expect(keys['Schermo intero'], 'F');
-    expect(keys['Chat'], 'Invio');
+    expect(keys['Indietro di 10 secondi'], '←');
+    // Schermo intero e Chat stanno in "Altro", con la parola.
   });
 
   testWidgets('KeyCap ha la misura della bozza', (tester) async {

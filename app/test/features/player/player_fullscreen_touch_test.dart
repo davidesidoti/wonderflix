@@ -157,11 +157,11 @@ void main() {
       await pumpPlayer(tester, touch: true, surfaceSize: const Size(390, 844));
       expect(window.fullScreenCalls, isEmpty);
       expect(window.orientationCalls, isEmpty);
-      // La riga stretta ha i suoi comandi; schermo intero non c'è, né lì né
-      // nel menu ⋯ (con un comando in meno qui tutti entrano nella riga).
-      expect(find.byTooltip(l.playerAudioAndSubtitles), findsOneWidget);
-      expect(find.byTooltip(l.playerFullscreen), findsNothing);
-      expect(find.byTooltip(l.playerMoreControls), findsNothing);
+      // Schermo intero non c'è, neanche in "Altro".
+      await tester.tap(find.text(l.playerMore));
+      await tester.pumpAndSettle();
+      expect(find.text(l.playerMute), findsOneWidget, reason: 'menu aperto');
+      expect(find.text(l.playerFullscreen), findsNothing);
       await unmount(tester);
     },
   );

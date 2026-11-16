@@ -8,7 +8,6 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 /// Le chiavi del piano 28 (i Task successivi le estendono).
 const _keys = [
   'navMore',
-  'playerMoreControls',
   'playerTapToPlay',
 ];
 
@@ -37,10 +36,8 @@ void main() {
   });
 
   test('menu dei controlli del player', () {
-    expect(lookupAppLocalizations(const Locale('it')).playerMoreControls,
-        'Altri controlli');
-    expect(lookupAppLocalizations(const Locale('en')).playerMoreControls,
-        'More controls');
+    expect(lookupAppLocalizations(const Locale('it')).playerMore, 'Altro');
+    expect(lookupAppLocalizations(const Locale('en')).playerMore, 'More');
   });
 
   test('avvio bloccato dal browser', () {

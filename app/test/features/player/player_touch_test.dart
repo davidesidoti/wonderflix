@@ -249,7 +249,7 @@ void main() {
     await pumpPlayer(tester, touch: true);
     engine.emitPosition(const Duration(minutes: 1));
     await tester.pump();
-    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.tap(find.text('Audio e sottotitoli'));
     await tester.pumpAndSettle();
     expect(find.byType(TracksPanel), findsOneWidget);
 
@@ -262,7 +262,7 @@ void main() {
 
   testWidgets('rotazione col player aperto: niente eccezioni', (tester) async {
     await pumpPlayer(tester, touch: true, surfaceSize: const Size(390, 844));
-    await tester.tap(find.byTooltip('Audio e sottotitoli'));
+    await tester.tap(find.text('Audio e sottotitoli'));
     await tester.pumpAndSettle();
     for (final size in const [Size(844, 390), Size(390, 844), Size(1440, 900)]) {
       await tester.binding.setSurfaceSize(size);
@@ -277,7 +277,10 @@ void main() {
   testWidgets('tocco: niente cursore del volume', (tester) async {
     await pumpPlayer(tester, touch: true);
     expect(find.byKey(const Key('volume-slider')), findsNothing);
-    expect(find.byTooltip('Disattiva audio'), findsOneWidget);
+    // Il muto sta in "Altro".
+    await tester.tap(find.text('Altro'));
+    await tester.pumpAndSettle();
+    expect(find.text('Disattiva audio'), findsOneWidget);
     await unmount(tester);
   });
 

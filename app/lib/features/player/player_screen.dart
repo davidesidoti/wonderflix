@@ -2351,6 +2351,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     _tracksScope,
                     PlayerSidePanelHost(
                       open: tracksPanelOpen,
+                      onClose: _chrome.closePanel,
                       panel: TracksPanel(
                         audio: view.audioStreams,
                         subtitles: view.subtitleStreams,
@@ -2394,6 +2395,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       includeSemantics: false,
                       child: PlayerSidePanelHost(
                         open: queuePanelOpen,
+                        onClose: () => _chrome.closePopup(PlayerPopup.queue),
                         panel: PartyQueuePanel(
                           onClose: () =>
                               _chrome.closePopup(PlayerPopup.queue),
@@ -2415,6 +2417,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       includeSemantics: false,
                       child: PlayerSidePanelHost(
                         open: ratingPanelOpen,
+                        onClose: _closeRatingPanel,
                         panel: RatingRoundPanel(onClose: _closeRatingPanel),
                       ),
                     ),

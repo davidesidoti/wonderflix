@@ -16,7 +16,8 @@ class WfButton extends StatelessWidget {
     this.overlay,
   })  : primary = true,
         small = false,
-        iconWidget = null;
+        iconWidget = null,
+        alignment = null;
 
   const WfButton.secondary({
     super.key,
@@ -27,6 +28,7 @@ class WfButton extends StatelessWidget {
     this.overlay,
     this.small = false,
     this.iconWidget,
+    this.alignment,
   }) : primary = false;
 
   final String label;
@@ -47,6 +49,10 @@ class WfButton extends StatelessWidget {
 
   /// Al posto dell'icona [icon] (es. il dado che gira di "Un altro").
   final Widget? iconWidget;
+
+  /// Dove sta il contenuto in un pulsante più largo di lui; `null` = al
+  /// centro.
+  final AlignmentGeometry? alignment;
 
   /// Il primario prende dal tema il bordo col focus della TV.
   Widget _button(bool tv) {
@@ -70,6 +76,7 @@ class WfButton extends StatelessWidget {
         minimumSize: size,
         padding: padding,
         shape: shape,
+        alignment: alignment,
         foregroundColor: WfColors.cream,
         backgroundColor: small ? WfColors.surfaceHigh : null,
         side: const BorderSide(color: WfColors.border),

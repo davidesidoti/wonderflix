@@ -292,6 +292,60 @@ void main() {
     expect(find.byType(TracksPanel), findsNothing);
   });
 
+  testWidgets('foglio: maniglia, angoli, si chiude trascinando giù',
+      (tester) async {
+    var closed = 0;
+    Future<void> pumpSheet() => pumpApp(
+          tester,
+          Scaffold(
+            body: PlayerSidePanelHost(
+              open: true,
+              panel: const SizedBox.expand(),
+              onClose: () => closed++,
+            ),
+          ),
+          surfaceSize: const Size(390, 780),
+          touch: true,
+        );
+    await pumpSheet();
+    final handle = find.byKey(const Key('panel-sheet-handle'));
+    expect(handle, findsOneWidget);
+    expect(tester.getSize(handle), const Size(36, 4));
+    expect(tester.getCenter(handle).dx, 195);
+    final clip =
+        tester.widget<ClipRRect>(find.byKey(const Key('panel-sheet')));
+    expect(clip.borderRadius,
+        const BorderRadius.vertical(top: Radius.circular(16)));
+
+    // Un trascinamento corto e lento non chiude.
+    await tester.timedDrag(
+        handle, const Offset(0, 40), const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+    expect(closed, 0);
+    await tester.drag(handle, const Offset(0, 200));
+    await tester.pumpAndSettle();
+    expect(closed, 1);
+  });
+
+  testWidgets('desktop e TV: nessuna maniglia', (tester) async {
+    for (final (size, tv) in [
+      (const Size(1440, 900), false),
+      (const Size(960, 540), true),
+    ]) {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PlayerSidePanelHost(
+              open: true, panel: const SizedBox.expand(), onClose: () {}),
+        ),
+        surfaceSize: size,
+        tv: tv,
+      );
+      expect(find.byKey(const Key('panel-sheet-handle')), findsNothing,
+          reason: '$size');
+    }
+  });
+
   testWidgets('host: uscendo parte piano e accelera', (tester) async {
     final open = await pumpHost(tester, motion: MotionLevel.full);
     open.value = true;
