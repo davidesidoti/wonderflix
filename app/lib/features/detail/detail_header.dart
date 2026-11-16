@@ -11,6 +11,7 @@ import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/expandable_text.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
@@ -305,15 +306,23 @@ class DetailHeader extends ConsumerWidget {
         if (overview != null) ...[
           const SizedBox(height: 12),
           StaggerItem(
-            index: 3,
+            index: 2,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 680),
-              child: Text(
-                overview,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(height: 1.45),
-              ),
+              // In TV niente "Altro" (bozza): due righe con ellissi.
+              child: tv
+                  ? Text(
+                      overview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(height: 1.45),
+                    )
+                  : ExpandableText(
+                      overview,
+                      maxLines: 3,
+                      expandedMaxLines: compact ? null : 10,
+                      style: const TextStyle(height: 1.45),
+                    ),
             ),
           ),
         ],

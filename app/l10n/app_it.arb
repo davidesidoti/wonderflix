@@ -78,6 +78,7 @@
   "@detailKickerMovie": {"placeholders": {"director": {"type": "String"}}},
   "detailKickerSeries": "Serie · {year}",
   "@detailKickerSeries": {"placeholders": {"year": {"type": "String"}}},
+  "detailShowMore": "Altro",
   "detailRemaining": "rimangono {time}",
   "@detailRemaining": {"placeholders": {"time": {"type": "String"}}},
   "detailNoEpisodes": "Nessun episodio disponibile.",

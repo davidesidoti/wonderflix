@@ -121,6 +121,20 @@ void main() {
     });
   }
 
+  testWidgets('trama lunghissima aperta: il titolo resta nello schermo',
+      (tester) async {
+    final long = 'Una trama lunga che va su più righe. ' * 60;
+    api.itemsById['m1'] =
+        testItem(id: 'm1', name: 'Dune: Parte Due', overview: long);
+    await pumpDetail(tester, surfaceSize: const Size(1280, 800));
+    expect(tester.widget<Text>(find.text(long)).maxLines, 3);
+    await tester.tap(find.text('Altro'));
+    await tester.pump();
+    expect(tester.widget<Text>(find.text(long)).maxLines, 10);
+    expect(tester.getTopLeft(find.text('DUNE: PARTE DUE')).dy,
+        greaterThanOrEqualTo(0));
+  });
+
   testWidgets('film senza regista: la riga oro dice solo Film', (tester) async {
     api.itemsById['m1'] = testItem(id: 'm1', name: 'Dune: Parte Due');
     await pumpDetail(tester);
