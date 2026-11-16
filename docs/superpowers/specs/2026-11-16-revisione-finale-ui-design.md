@@ -122,7 +122,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
   - commento del voto (`rating_widgets.dart:87`, usato anche da `rating_round_panel.dart`);
   - messaggio di Consiglia a… (`recommend_panel.dart:228`);
   - campi del recupero password, senza autofocus (`recovery_panel.dart:301-368`).
-- Il focus è quello di tutta la TV (bordo crema 2 e scala 1,06), anche sui pulsanti del player e sulle carte di Chi guarda? (oggi solo l'anello o il velo oro).
+- Il focus è quello di tutta la TV: `TvFocusable` (bordo oro 2 e scala `tvFocusScale`, sui pulsanti oro bordo crema, `tvFocusSideOnGold`). Vale anche sui pulsanti del player e sulle carte di Chi guarda?, dove oggi c'è solo l'anello o il velo oro. Le bozze disegnano il bordo crema e la scala 1,06: vale il codice.
 
 ### 3.6 Generi (`core/jellyfin/genre_labels.dart`)
 
@@ -322,7 +322,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 ### 6.1 Menu ⋯ (`item_actions_menu.dart`)
 
 - **Voci con icona Lucide**, in gruppi con un nome in frase normale:
-  - **La tua visione:** Togli da Continua a guardare, Togli da / Rimetti in Prossimi episodi; nello stretto anche Consiglia a… e Richiedi stagioni…;
+  - **La tua visione:** Togli da Continua a guardare, Togli da / Rimetti in Prossimi episodi; Richiedi stagioni… (ovunque, §5.1); nello stretto anche Ricomincia (Consiglia a… sul telefono è tra le sei azioni, §5.1);
   - **Controlla e segnala:** Segnala un problema…, Info tecniche…, Sottotitoli…;
   - **Admin:** Modifica metadati…, Identifica…, Aggiorna metadati…, Locandina e sfondo….
 - I puntini ci sono su tutte le voci che aprono una finestra, mai su quelle che agiscono subito.
@@ -447,7 +447,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 
 - **Gruppi per giorno:** "Oggi", "Ieri", "Questa settimana", "Prima" (dalla data della voce).
 - **Per gli admin**, un selettore "Per te · Server" (pastiglie col numero):
-  - "Server" raccoglie gli avvisi di download, spazio, riavvio e recupero account, e le richieste in attesa;
+  - "Server" raccoglie gli avvisi di download, spazio, riavvio e recupero account, le richieste in attesa e le segnalazioni aperte;
   - "Per te" tutto il resto;
   - la divisione usa i tipi che il plugin manda già;
   - chi non è admin non vede il selettore.
@@ -608,7 +608,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 
 - **Titolo:**
   - "Accedi a WonderFlix";
-  - con sessione scaduta "Bentornato, {nome}", avatar, nome già scritto e "Non sei tu?";
+  - con sessione scaduta "Ciao, {nome}" (neutro: "Bentornato" sarebbe al maschile), avatar, nome già scritto e "Non sei tu?";
   - l'avviso di sessione scaduta è neutro (grigio con orologio), non il riquadro rosso.
 - **Campi:**
   - etichetta sopra;
@@ -618,7 +618,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 - **Quick Connect:**
   - codice in Bebas 68 tabellare;
   - due passi numerati col nome vero della voce: "Su un dispositivo già collegato apri Impostazioni › Account › Autorizza un dispositivo" e "Scrivi il codice e premi Autorizza";
-  - in TV, "Scrivi all'admin" diventa testo ("Chiedi all'admin di autorizzarti").
+  - in TV, "Scrivi all'admin" diventa testo ("Chiedi all'admin di autorizzarti"), anche nel modulo password e nel recupero.
 
 ### 9.3 Server irraggiungibile (`unreachable_screen.dart`)
 
@@ -729,7 +729,7 @@ Già verificati il 16 novembre:
   - **Accesso:**
     - tre stati dell'irraggiungibile dal tipo di errore;
     - conto che riparte dopo "Riprova ora";
-    - "Bentornato" con sessione scaduta;
+    - "Ciao, {nome}" con sessione scaduta;
     - testi per piattaforma;
     - banner su due righe sotto 640.
   - **Misure:** nessun overflow a 1280×800, 390×780 e 960×540.

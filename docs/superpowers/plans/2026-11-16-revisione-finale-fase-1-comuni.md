@@ -34,8 +34,8 @@
 ### Task 1: Generi che mancano
 
 **Files:**
-- Modify: `app/lib/core/jellyfin/genre_labels.dart`
-- Test: `app/test/core/jellyfin/genre_labels_test.dart` (crealo se non c'è; se c'è, aggiungi i casi)
+- Modify: `app/lib/core/jellyfin/genre_labels.dart`, `app/lib/ui/card_preview.dart`, `app/lib/features/player/pause_screen.dart`
+- Test: `app/test/core/jellyfin/genre_labels_test.dart` (crealo se non c'è; se c'è, aggiungi i casi), `app/test/ui/card_preview_content_test.dart`, il test della pausa in `app/test/features/player/`
 
 **Interfaces:**
 - Produces: `genreLabel(String) -> String` con le voci nuove (firma invariata).
@@ -58,9 +58,11 @@ test('Poliziesco manda al server anche Crime', () {
 });
 ```
 
-- [ ] **Step 2:** `flutter test test/core/jellyfin/genre_labels_test.dart` → FAIL.
-- [ ] **Step 3:** aggiungi le sette voci a `_labels`.
-- [ ] **Step 4:** stesso comando → PASS. Poi `flutter test test/features/catalog` (i generi uniti del catalogo) → PASS.
+E due test di widget, nei test già esistenti di `card_preview` (`test/ui/card_preview_content_test.dart`) e della pausa (`test/features/player/…pause…`): un titolo con generi `['Drama', 'Dramma', 'Crime', 'Thriller']` mostra "Dramma · Poliziesco" (tradotti, senza doppioni, al massimo 2).
+
+- [ ] **Step 2:** `flutter test test/core/jellyfin/genre_labels_test.dart test/ui/card_preview_content_test.dart` più il test della pausa → FAIL.
+- [ ] **Step 3:** aggiungi le sette voci a `_labels`. In `ui/card_preview.dart:369` (oggi `item.genres.take(3).join(' · ')`) e `features/player/pause_screen.dart:21` (`item.genres.take(2)`) usa i generi passati da `genreLabel`, senza doppioni, al massimo 2, come `heroMeta` in `features/home/hero_labels.dart` (riusa la stessa funzione se è pubblica, sennò estraila lì). `detail_header.dart` lo fa la fase 3; `tmdb_title_screen.dart` ha già i generi italiani di TMDB.
+- [ ] **Step 4:** stessi comandi → PASS. Poi `flutter test test/features/catalog test/features/home` → PASS.
 - [ ] **Step 5: Commit** `fix(app): traduzioni dei generi che restavano in inglese`
 
 ### Task 2: Controlli a tema
