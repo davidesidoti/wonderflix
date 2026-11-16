@@ -109,6 +109,98 @@ void main() {
     expect(r.left >= viewport.left && r.right <= viewport.right, isTrue);
   });
 
+  group('pagina in cima', () {
+    // Una pagina TV (960×540): un carosello alto 300 e sotto una riga di card,
+    // poi altre righe più in basso.
+    Future<List<FocusNode>> pumpPage(WidgetTester tester) async {
+      final nodes = List.generate(6, (_) => FocusNode());
+      addTearDown(() {
+        for (final n in nodes) {
+          n.dispose();
+        }
+      });
+      Widget row(int first) => SizedBox(
+        height: 120,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = first; i < first + 3; i++)
+                TvFocusable(
+                  focusNode: nodes[i],
+                  onActivate: () {},
+                  child: SizedBox(key: Key('c$i'), width: 400, height: 108),
+                ),
+            ],
+          ),
+        ),
+      );
+      await _pump(
+        tester,
+        Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 960,
+            height: 540,
+            child: SingleChildScrollView(
+              key: const Key('page'),
+              child: Column(
+                children: [
+                  const SizedBox(height: 300),
+                  const SizedBox(height: 40),
+                  row(0),
+                  const SizedBox(height: 600),
+                  row(3),
+                  const SizedBox(height: 600),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      return nodes;
+    }
+
+    double pageOffset(WidgetTester tester) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byKey(const Key('page')),
+            matching: find.byType(Scrollable),
+          ).first,
+        )
+        .position
+        .pixels;
+
+    testWidgets('una card che si vede a pagina ferma non fa scendere la pagina', (
+      tester,
+    ) async {
+      final nodes = await pumpPage(tester);
+      nodes[0].requestFocus();
+      await tester.pumpAndSettle();
+      expect(pageOffset(tester), 0);
+      // Anche l'ultima card della riga: la riga scorre di lato, la pagina no.
+      nodes[2].requestFocus();
+      await tester.pumpAndSettle();
+      expect(pageOffset(tester), 0);
+      final r = tester.getRect(find.byKey(const Key('c2')));
+      expect(r.right <= 960, isTrue);
+    });
+
+    testWidgets('una card più in basso si centra; tornando su la pagina risale', (
+      tester,
+    ) async {
+      final nodes = await pumpPage(tester);
+      nodes[3].requestFocus();
+      await tester.pumpAndSettle();
+      expect(pageOffset(tester), greaterThan(0));
+      final r = tester.getRect(find.byKey(const Key('c3')));
+      expect((r.center.dy - 270).abs(), lessThan(30));
+      nodes[0].requestFocus();
+      await tester.pumpAndSettle();
+      expect(pageOffset(tester), 0);
+    });
+  });
+
   testWidgets('fuori dalla TV restituisce il figlio', (tester) async {
     await _pump(
       tester,

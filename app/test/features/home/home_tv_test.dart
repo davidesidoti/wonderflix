@@ -100,6 +100,25 @@ void main() {
       final first = find.byKey(const ValueKey('resume-r1'));
       expect(first, findsOneWidget);
       expect(_focusIn(first), isTrue);
+      // Il primo biglietto si vede a pagina ferma: la pagina resta in cima e
+      // il carosello si vede intero.
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(WfMotion.fast);
+      }
+      final page = tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byKey(const Key('home-rows')),
+                  matching: find.byWidgetPredicate(
+                    (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+                  ),
+                )
+                .first,
+          )
+          .position;
+      expect(page.pixels, 0);
+      expect(tester.getRect(find.byType(HeroCarousel)).top, greaterThanOrEqualTo(0));
       final row = find.ancestor(
         of: find.text('Stasera'),
         matching: find.byType(MediaRow),

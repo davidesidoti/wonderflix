@@ -54,12 +54,38 @@ class _TvFocusableState extends State<TvFocusable> {
     setState(() => _focused = focused);
     widget.onFocusChange?.call(focused);
     if (focused) {
-      Scrollable.ensureVisible(
-        context,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 200),
-      );
+      const duration = Duration(milliseconds: 200);
+      Scrollable.ensureVisible(context, alignment: 0.5, duration: duration);
+      // Una card che si vede tutta con la pagina in cima tiene la pagina in
+      // cima: centrarla taglierebbe l'inizio (il carosello della Home).
+      // L'animazione nuova prende il posto di quella di `ensureVisible` solo
+      // sulla pagina; la riga resta centrata.
+      final page = _verticalScrollable(context);
+      final box = context.findRenderObject();
+      final pageBox = page?.context.findRenderObject();
+      if (page != null && box is RenderBox && pageBox is RenderBox) {
+        final position = page.position;
+        final bottom =
+            box.localToGlobal(Offset(0, box.size.height), ancestor: pageBox).dy +
+            position.pixels;
+        if (bottom <= position.viewportDimension) {
+          position.animateTo(
+            position.minScrollExtent,
+            duration: duration,
+            curve: Curves.ease,
+          );
+        }
+      }
     }
+  }
+
+  /// La lista verticale più vicina che contiene l'elemento (la pagina).
+  static ScrollableState? _verticalScrollable(BuildContext context) {
+    var scrollable = Scrollable.maybeOf(context);
+    while (scrollable != null && scrollable.position.axis != Axis.vertical) {
+      scrollable = Scrollable.maybeOf(scrollable.context);
+    }
+    return scrollable;
   }
 
   @override
