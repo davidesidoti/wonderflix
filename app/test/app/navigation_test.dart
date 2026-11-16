@@ -51,6 +51,14 @@ void main() {
   });
 
   test('playerRoute porta con sé da dove si parte', () {
-    expect(playerRoute('e4', fromHome: true), '/play/e4?from=home');
+    expect(playerRoute('e4', origin: PlayerOrigin.home), '/play/e4?from=home');
+    expect(playerRoute('e4', origin: PlayerOrigin.detail),
+        '/play/e4?from=detail');
+    expect(playerRoute('e4', origin: PlayerOrigin.other), '/play/e4');
+    expect(playerRoute('e4'), '/play/e4');
+    for (final origin in PlayerOrigin.values) {
+      expect(playerOriginFrom(Uri.parse(playerRoute('e4', origin: origin))),
+          origin);
+    }
   });
 }

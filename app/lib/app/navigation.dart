@@ -89,20 +89,24 @@ class PlayerReplacement {
 
 const playerReplacement = PlayerReplacement();
 
+/// Da dove si apre il player: la ← dice "Torna alla Home", "Torna alla scheda"
+/// o, da ogni altra pagina, "Torna indietro".
+enum PlayerOrigin { home, detail, other }
+
 /// Percorso del player; [start] è la posizione di partenza, [fullscreen]
 /// dice che la finestra è già a schermo intero (passaggio all'episodio
 /// successivo), [party] è l'id dell'elemento nella coda del watch party,
-/// [fromHome] dice che si è partiti dalla Home (la ← dice "Torna alla Home").
+/// [origin] dice da dove si è partiti (cosa dice la ←).
 String playerRoute(String itemId,
     {Duration start = Duration.zero,
     bool fullscreen = false,
     String? party,
-    bool fromHome = false}) {
+    PlayerOrigin origin = PlayerOrigin.other}) {
   final query = {
     if (start > Duration.zero) 'start': '${start.inMilliseconds}',
     if (fullscreen) 'fs': '1',
     'party': ?party,
-    if (fromHome) 'from': 'home',
+    if (origin != PlayerOrigin.other) 'from': origin.name,
   };
   return Uri(
     path: '/play/$itemId',
@@ -123,6 +127,11 @@ String trailerRoute(TrailerSubject subject,
     queryParameters: query.isEmpty ? null : query,
   ).toString();
 }
+
+/// Origine dal parametro `from` del percorso.
+PlayerOrigin playerOriginFrom(Uri uri) => PlayerOrigin.values.firstWhere(
+    (o) => o.name == uri.queryParameters['from'],
+    orElse: () => PlayerOrigin.other);
 
 /// Posizione di partenza dal parametro `start` (millisecondi) del percorso.
 Duration playerStartFrom(Uri uri) => Duration(

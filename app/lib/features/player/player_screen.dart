@@ -85,15 +85,15 @@ class PlayerScreen extends ConsumerStatefulWidget {
       {super.key,
       required this.args,
       this.fullscreen = false,
-      this.fromHome = false});
+      this.origin = PlayerOrigin.other});
 
   final PlayerArgs args;
 
   /// La finestra è già a schermo intero (arrivo dall'episodio precedente).
   final bool fullscreen;
 
-  /// Aperto dalla Home: la ← dice "Torna alla Home".
-  final bool fromHome;
+  /// Da dove si è aperto: cosa dice la ←.
+  final PlayerOrigin origin;
 
   /// Attesa massima del report di fine alla chiusura della finestra.
   static const closeTimeout = Duration(seconds: 2);
@@ -339,11 +339,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Dove porta la ←: nel gruppo uscire dal player è uscire dal gruppo.
   String get _backLabel {
     final l = AppLocalizations.of(context);
-    return _inParty
-        ? l.watchPartyLeave
-        : widget.fromHome
-            ? l.playerBackHome
-            : l.playerBackToDetail;
+    if (_inParty) return l.watchPartyLeave;
+    return switch (widget.origin) {
+      PlayerOrigin.home => l.playerBackHome,
+      PlayerOrigin.detail => l.playerBackToDetail,
+      // Senza pagina sotto (link diretto, ricarica sul web) `_exit` va alla Home.
+      PlayerOrigin.other =>
+        context.canPop() ? l.playerBackGeneric : l.playerBackHome,
+    };
   }
 
   PlayerController get _controller =>
@@ -864,7 +867,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final start = action is ResumeAction ? action.position : Duration.zero;
     context.pushReplacement(
         playerRoute(next.id,
-            start: start, fullscreen: _fullscreen, fromHome: widget.fromHome),
+            start: start, fullscreen: _fullscreen, origin: widget.origin),
         extra: playerReplacement);
   }
 
@@ -907,7 +910,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final start = action is ResumeAction ? action.position : Duration.zero;
     context.pushReplacement(
         playerRoute(previous.id,
-            start: start, fullscreen: _fullscreen, fromHome: widget.fromHome),
+            start: start, fullscreen: _fullscreen, origin: widget.origin),
         extra: playerReplacement);
   }
 
@@ -1031,7 +1034,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
           fullscreen: _fullscreen,
           party: entry.playlistItemId,
-          fromHome: widget.fromHome,
+          origin: widget.origin,
         ),
         extra: playerReplacement);
   }

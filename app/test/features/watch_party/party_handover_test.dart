@@ -293,7 +293,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(watchPartySessionProvider).inGroup, isTrue);
 
-    await tester.tap(find.byTooltip(l.playerBackToDetail));
+    await tester.tap(find.byTooltip(l.playerBackGeneric));
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
     expect(window.fullScreenCalls, [true, false]);

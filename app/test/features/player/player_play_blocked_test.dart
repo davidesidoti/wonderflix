@@ -62,6 +62,7 @@ void main() {
               start: playerStartFrom(state.uri),
               party: null,
             ),
+            origin: PlayerOrigin.detail,
           ),
         ),
       ],

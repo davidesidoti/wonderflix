@@ -87,14 +87,18 @@ Future<void> playItem(
         !fromStart && action is ResumeAction ? action.position : Duration.zero;
     // `last`, non `uri`: l'uri ignora le pagine aperte con push (una scheda
     // sopra la Home).
-    final fromHome = GoRouter.of(context)
-            .routerDelegate
-            .currentConfiguration
-            .last
-            .matchedLocation ==
-        '/home';
+    final location = GoRouter.of(context)
+        .routerDelegate
+        .currentConfiguration
+        .last
+        .matchedLocation;
+    final origin = location == '/home'
+        ? PlayerOrigin.home
+        : location.startsWith('/item/')
+            ? PlayerOrigin.detail
+            : PlayerOrigin.other;
     await _open(context, launch,
-        playerRoute(target.id, start: start, fromHome: fromHome));
+        playerRoute(target.id, start: start, origin: origin));
   } finally {
     if (identical(_launch, launch)) _launch = null;
   }

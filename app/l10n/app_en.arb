@@ -130,6 +130,7 @@
   "@playerErrorDetailLine": {"placeholders": {"detail": {"type": "String"}}},
   "playerBackToDetail": "Back to details",
   "playerBackHome": "Back to Home",
+  "playerBackGeneric": "Go back",
   "playerSpeed": "Speed",
   "playerPause": "Pause",
   "playerRewind": "Back 10 seconds",

@@ -146,6 +146,7 @@
   "@playerErrorDetailLine": {"placeholders": {"detail": {"type": "String"}}},
   "playerBackToDetail": "Torna alla scheda",
   "playerBackHome": "Torna alla Home",
+  "playerBackGeneric": "Torna indietro",
   "playerSpeed": "Velocità",
   "playerPause": "Pausa",
   "playerRewind": "Indietro di 10 secondi",

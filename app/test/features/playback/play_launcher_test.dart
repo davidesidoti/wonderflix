@@ -102,7 +102,7 @@ void main() {
   testWidgets('dalla Home il player lo sa', (tester) async {
     for (final (at, shown) in [
       ('/home', 'player m1 - from home'),
-      ('/', 'player m1 -'),
+      ('/movies', 'player m1 -'),
     ]) {
       await pumpLauncher(tester, testItem(id: 'm1'), at: at);
       await tapPlay(tester);
@@ -110,13 +110,13 @@ void main() {
     }
   });
 
-  testWidgets('da una scheda aperta sopra la Home: non è la Home',
+  testWidgets('da una scheda aperta sopra la Home: è la scheda',
       (tester) async {
     final router = await pumpLauncher(tester, testItem(id: 'm1'), at: '/home');
     unawaited(router.push('/item/m1'));
     await tester.pumpAndSettle();
     await tapPlay(tester);
-    expect(find.text('player m1 -'), findsOneWidget);
+    expect(find.text('player m1 - from detail'), findsOneWidget);
   });
 
   testWidgets('serie: riproduce il prossimo episodio', (tester) async {

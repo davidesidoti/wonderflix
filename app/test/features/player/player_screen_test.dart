@@ -92,10 +92,12 @@ void main() {
     WidgetTester tester, {
     bool settle = true,
     List<Override> overrides = const [],
-    String route = '/play/e4',
+    String route = '/play/e4?from=detail',
+    bool pushed = true,
     Size size = const Size(1440, 900),
   }) async {
     router = GoRouter(
+      initialLocation: pushed ? '/' : route,
       routes: [
         GoRoute(
           path: '/',
@@ -111,7 +113,7 @@ void main() {
               party: state.uri.queryParameters['party'],
             ),
             fullscreen: state.uri.queryParameters['fs'] == '1',
-            fromHome: state.uri.queryParameters['from'] == 'home',
+            origin: playerOriginFrom(state.uri),
           ),
         ),
       ],
@@ -172,7 +174,7 @@ void main() {
         ),
       ),
     );
-    unawaited(router.push(route));
+    if (pushed) unawaited(router.push(route));
     if (settle) {
       await tester.pumpAndSettle();
     } else {
@@ -977,13 +979,26 @@ void main() {
   });
 
   testWidgets('la freccia dice dove torna', (tester) async {
-    await pumpPlayer(tester, route: playerRoute('e4'));
+    await pumpPlayer(tester,
+        route: playerRoute('e4', origin: PlayerOrigin.detail));
     expect(find.byTooltip('Torna alla scheda'), findsOneWidget);
     expect(find.byTooltip('Indietro'), findsNothing,
         reason: "resta solo 'Indietro di 10 secondi'");
     await unmount(tester);
-    await pumpPlayer(tester, route: playerRoute('e4', fromHome: true));
+    await pumpPlayer(tester,
+        route: playerRoute('e4', origin: PlayerOrigin.home));
     expect(find.byTooltip('Torna alla Home'), findsOneWidget);
+    await unmount(tester);
+    // Da catalogo, Cerca, La mia lista...: non dice scheda né Home.
+    await pumpPlayer(tester, route: playerRoute('e4'));
+    expect(find.byTooltip('Torna indietro'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('la freccia senza pagina sotto porta alla Home', (tester) async {
+    await pumpPlayer(tester, route: playerRoute('e4'), pushed: false);
+    expect(find.byTooltip('Torna alla Home'), findsOneWidget);
+    expect(find.byTooltip('Torna indietro'), findsNothing);
     await unmount(tester);
   });
 
