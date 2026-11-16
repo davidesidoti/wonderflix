@@ -4,12 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/backdrop_image.dart';
+import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../tonight/tonight_logic.dart';
 
-/// La carta di un titolo da votare: sfondo, titolo, dati e trama (come la
-/// proposta di "Cosa guardo stasera?").
+/// La carta verticale di un titolo da votare (spec §5.4): locandina sfumata
+/// in basso, nome, dati e trama su 3 righe.
 class MatchCard extends ConsumerWidget {
   const MatchCard({super.key, required this.item});
 
@@ -18,28 +18,31 @@ class MatchCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final urls = ref.watch(imageUrlsProvider);
     final overview = item.overview;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(14),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          BackdropImage(backdrop: urls.backdrop(item), fallback: urls.poster(item)),
-          const DecoratedBox(
+          WfImage(image: ref.watch(imageUrlsProvider).poster(item)),
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                colors: [WfColors.bg, Colors.transparent],
-                stops: [0.1, 0.8],
+                colors: [
+                  WfColors.bg,
+                  WfColors.bg.withValues(alpha: 0.6),
+                  Colors.transparent,
+                ],
+                stops: const [0, 0.34, 0.6],
               ),
             ),
           ),
           Positioned(
-            left: 20,
-            right: 20,
-            bottom: 16,
+            left: 16,
+            right: 16,
+            bottom: 14,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,13 +50,19 @@ class MatchCard extends ConsumerWidget {
                 Text(item.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: WfText.display(32)),
-                const SizedBox(height: 4),
+                    style: WfText.display(34).copyWith(height: 0.9)),
+                const SizedBox(height: 6),
                 Text(tonightMeta(l, item),
-                    style: const TextStyle(color: WfColors.creamMuted)),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: WfColors.creamMuted, fontSize: 12)),
                 if (overview != null) ...[
-                  const SizedBox(height: 8),
-                  Text(overview, maxLines: 3, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 6),
+                  Text(overview,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, height: 1.45)),
                 ],
               ],
             ),

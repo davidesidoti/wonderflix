@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/features/match/match_card.dart';
 import 'package:wonderflix/features/match/match_swipe_deck.dart';
 
 import '../../support/library_fakes.dart';
@@ -19,7 +21,12 @@ class _Page extends StatefulWidget {
 
 class _PageState extends State<_Page> {
   final cards = [
-    testItem(id: 'm1', name: 'Uno'),
+    testItem(
+        id: 'm1',
+        name: 'Uno',
+        year: 2021,
+        runtimeMinutes: 155,
+        genres: const ['Science Fiction', 'Drama']),
     testItem(id: 'm2', name: 'Due'),
     testItem(id: 'm3', name: 'Tre'),
   ];
@@ -42,9 +49,10 @@ void main() {
   setUp(votes.clear);
 
   Future<void> pumpDeck(WidgetTester tester,
-      {MotionLevel motion = MotionLevel.reduced}) {
+      {MotionLevel motion = MotionLevel.reduced,
+      Size surfaceSize = const Size(1280, 800)}) {
     return pumpApp(tester, const Scaffold(body: Center(child: _Page())),
-        motion: motion);
+        motion: motion, surfaceSize: surfaceSize);
   }
 
   final top = find.text('Uno');
@@ -137,5 +145,56 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(votes, [true]);
+  });
+
+  final topCard = find.byKey(const ValueKey('m1'));
+
+  testWidgets('la carta è verticale, larga 270, col nome in Bebas 34',
+      (tester) async {
+    await pumpDeck(tester);
+
+    final size = tester.getSize(topCard);
+    expect(size.width, 270);
+    expect(size.height, 405);
+    expect(tester.widget<Text>(top).style?.fontSize, 34);
+    expect(tester.widget<Text>(top).style?.fontFamily, WfText.displayFamily);
+    expect(find.text('2021 · 2h 35m · Fantascienza · Dramma'), findsOneWidget);
+    expect(find.byType(MatchCard), findsNWidgets(3));
+  });
+
+  testWidgets('nello stretto la carta è larga 250 e i pulsanti senza scritte',
+      (tester) async {
+    await pumpDeck(tester, surfaceSize: const Size(390, 780));
+
+    expect(tester.getSize(topCard).width, 250);
+    expect(find.text('No · ←'), findsNothing);
+    expect(find.text('Sì · →'), findsNothing);
+    final no = tester.getRect(find.byKey(const Key('match-no')));
+    final yes = tester.getRect(find.byKey(const Key('match-yes')));
+    expect(yes.left - no.right, 56);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pulsanti tondi da 64 con i tasti sotto e "Ne restano"',
+      (tester) async {
+    await pumpDeck(tester);
+
+    final no = tester.getRect(find.byKey(const Key('match-no')));
+    final yes = tester.getRect(find.byKey(const Key('match-yes')));
+    expect(no.size, const Size(64, 64));
+    expect(yes.size, const Size(64, 64));
+    expect(yes.left - no.right, 44);
+    expect(tester.getTopLeft(find.text('No · ←')).dy, greaterThan(no.bottom));
+    expect(tester.getTopLeft(find.text('Sì · →')).dy, greaterThan(yes.bottom));
+    expect(find.text('Ne restano 3'), findsOneWidget);
+  });
+
+  testWidgets('durante il trascinamento compaiono i timbri SÌ e NO',
+      (tester) async {
+    await pumpDeck(tester);
+
+    expect(tester.widget<Text>(find.text('SÌ')).style?.color, WfColors.online);
+    expect(tester.widget<Text>(find.text('NO')).style?.color, WfColors.error);
+    expect(tester.widget<Text>(find.text('SÌ')).style?.fontSize, 34);
   });
 }

@@ -569,6 +569,64 @@ void main() {
       await tester.pump();
     });
 
+    /// 30 titoli: io ne ho votati 12, sara.lippolis ha finito; due match e
+    /// un quasi match.
+    MatchState longState() {
+      for (var i = 1; i <= 30; i++) {
+        library.itemsById['t$i'] = testItem(
+            id: 't$i',
+            name: 'Un titolo davvero lunghissimo numero $i',
+            overview: 'Una trama lunga ' * 40,
+            genres: const ['Science Fiction', 'Drama', 'Adventure']);
+      }
+      return testMatchState(
+          phase: MatchPhase.voting,
+          members: const [
+            MatchMember(userId: 'u1', name: 'Mario', voted: 12),
+            MatchMember(userId: 'u2', name: 'sara.lippolis', voted: 30),
+          ],
+          stack: [for (var i = 1; i <= 30; i++) 't$i'],
+          matches: const ['t1', 't2'],
+          nearMatches: const [MatchNearMatch(itemId: 't3', yes: 1, of: 2)]);
+    }
+
+    testWidgets('in votazione i posti stanno a destra del titolo, senza regole',
+        (tester) async {
+      await pumpRoom(tester,
+          state: longState(), surfaceSize: const Size(1280, 800));
+
+      final title = tester.getRect(find.text('MATCH'));
+      final seats = tester.getRect(find.byType(MatchSeats));
+      expect(seats.left, greaterThan(title.right));
+      expect(seats.top, closeTo(title.top, 12));
+      expect(find.textContaining('Votate gli stessi titoli'), findsNothing);
+      expect(find.text('Ne restano 18'), findsOneWidget);
+      expect(find.text('Avvia il party con 2 titoli'), findsOneWidget);
+    });
+
+    testWidgets('nello stretto avatar da 30 e la riga di chi vota',
+        (tester) async {
+      await pumpRoom(tester,
+          state: longState(), surfaceSize: const Size(390, 780));
+
+      expect(find.byType(MatchSeats), findsNothing);
+      expect(find.text('Tu 12 su 30 · sara.lippolis ha finito'), findsOneWidget);
+      expect(
+          tester.getSize(find.byKey(const Key('match-avatar-u1'))).width, 30);
+    });
+
+    for (final size in const [Size(1280, 800), Size(390, 780)]) {
+      testWidgets('votazione con nomi e trame lunghe senza overflow a $size',
+          (tester) async {
+        await pumpRoom(tester, state: longState(), surfaceSize: size);
+        await tester.scrollUntilVisible(
+            find.byKey(const Key('match-start-party')), 200,
+            scrollable: find.byType(Scrollable).first);
+
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     Future<ProviderContainer> closeWithParty(WidgetTester tester) async {
       final container = await pumpRoom(tester,
           state: testMatchState(

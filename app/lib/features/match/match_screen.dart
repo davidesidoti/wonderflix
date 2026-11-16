@@ -43,8 +43,8 @@ const _leadMaxWidth = 560.0;
 /// Pausa prima di riprovare un "no" automatico che non è partito.
 const _autoRetryDelay = Duration(seconds: 2);
 
-/// Larghezza massima del mazzo.
-const _deckMaxWidth = 560.0;
+/// Avatar dei membri nell'intestazione della votazione nello stretto.
+const _memberAvatarSize = 30.0;
 
 /// La sala del match (spec P §7.3): attesa e votazione. Lasciare la pagina fa uscire dalla sala.
 class MatchScreen extends ConsumerStatefulWidget {
@@ -198,26 +198,100 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final state = _isThisRoom(view) ? view!.state : null;
     final compact = FormFactor.of(context).compact;
     final side = compact ? 16.0 : 32.0;
+    final voting = state != null && state.phase == MatchPhase.voting;
+    final title = Text(l.matchPageTitle.toUpperCase(),
+        style: WfText.display(compact ? 40 : 56));
     return ListView(
       padding: EdgeInsets.fromLTRB(side, 22, side, 40),
       children: [
-        Text(l.matchPageTitle.toUpperCase(),
-            style: WfText.display(compact ? 40 : 56)),
-        const SizedBox(height: 10),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _leadMaxWidth),
-            child: Text(l.matchLead, style: _muted.copyWith(fontSize: 14)),
+        if (voting) ...[
+          _votingHeader(l, view!, state, title, compact),
+          SizedBox(height: compact ? 16 : 24),
+          _voting(l, view, state),
+        ] else ...[
+          title,
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _leadMaxWidth),
+              child: Text(l.matchLead, style: _muted.copyWith(fontSize: 14)),
+            ),
           ),
+          const SizedBox(height: 28),
+          if (state != null) _waiting(l, state, compact),
+        ],
+      ],
+    );
+  }
+
+  /// Titolo e posti sulla stessa riga (spec §5.4); nello stretto gli avatar
+  /// (bordo oro a chi ha finito) e sotto "Tu 12 su 30 · Sara ha finito" (§5.6).
+  Widget _votingHeader(AppLocalizations l, MatchRoomView view,
+      MatchState state, Widget title, bool compact) {
+    final me = ref.watch(currentUserIdProvider);
+    if (!compact) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          title,
+          const SizedBox(width: 24),
+          Expanded(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: MatchSeats(state: state, me: me),
+            ),
+          ),
+        ],
+      );
+    }
+    final total = state.stack.length;
+    int voted(MatchMember m) => m.userId == me ? view.position(me) : m.voted;
+    bool done(MatchMember m) => total > 0 && voted(m) >= total;
+    final status = [
+      l.matchYou(view.position(me), total),
+      for (final m in state.members)
+        if (m.userId != me)
+          done(m)
+              ? l.matchFriendDone(m.name)
+              : l.matchFriendVoted(m.name, m.voted, total),
+    ].join(' · ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            title,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final m in state.members)
+                    Container(
+                      key: Key('match-avatar-${m.userId}'),
+                      foregroundDecoration: done(m)
+                          ? BoxDecoration(
+                              shape: BoxShape.circle,
+                              border:
+                                  Border.all(color: WfColors.gold, width: 2))
+                          : null,
+                      child: UserAvatar.lookup(
+                          userId: m.userId,
+                          name: m.name,
+                          size: _memberAvatarSize),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 28),
-        if (state != null && state.phase == MatchPhase.voting) ...[
-          MatchSeats(state: state),
-          const SizedBox(height: 32),
-          _voting(l, view!, state),
-        ] else if (state != null)
-          _waiting(l, state, compact),
+        const SizedBox(height: 4),
+        Text(status,
+            style: TextStyle(
+                color: WfColors.cream.withValues(alpha: 0.32), fontSize: 12)),
       ],
     );
   }
@@ -334,40 +408,24 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         : const <JellyfinItem>[];
     final celebrating = _celebrate.firstOrNull;
     final deck = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _deckMaxWidth),
-        child: topId == null
-            ? _endOfStack(l, view, state)
-            : !loaded
-            ? const Center(child: CircularProgressIndicator())
-            : MatchSwipeDeck(
-                cards: cards,
-                onVote: (yes) => _vote(cards.first.id, yes),
-              ),
-      ),
+      child: topId == null
+          ? _endOfStack(l, view, state)
+          : !loaded
+          ? const CircularProgressIndicator()
+          : MatchSwipeDeck(
+              cards: cards,
+              left: ids.length,
+              onVote: (yes) => _vote(cards.first.id, yes),
+            ),
     );
-    final matches = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MatchColumn(
-          state: state,
-          titles: titles,
-          chosen: _firstChoice,
-          onChoose: state.isCreator(ref.watch(currentUserIdProvider))
-              ? (id) => setState(() => _firstChoice = id)
-              : null,
-        ),
-        if (state.isCreator(ref.watch(currentUserIdProvider)) &&
-            (state.matches.isNotEmpty || state.nearMatches.isNotEmpty)) ...[
-          const SizedBox(height: 24),
-          WfButton.primary(
-            key: const Key('match-start-party'),
-            label: l.matchStartParty,
-            icon: LucideIcons.play,
-            onPressed: _partyStarting ? null : () => unawaited(_startParty()),
-          ),
-        ],
-      ],
+    final matches = MatchColumn(
+      state: state,
+      titles: titles,
+      chosen: _firstChoice,
+      onChoose: state.isCreator(ref.watch(currentUserIdProvider))
+          ? (id) => setState(() => _firstChoice = id)
+          : null,
+      onStartParty: _partyStarting ? null : () => unawaited(_startParty()),
     );
     // Nello stretto il mazzo sta sopra e i match sotto: affiancati non ci
     // stanno.
@@ -379,9 +437,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         : Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 3, child: deck),
-              const SizedBox(width: 32),
-              Expanded(flex: 2, child: matches),
+              Expanded(child: deck),
+              const SizedBox(width: 40),
+              SizedBox(width: matchColumnWidth, child: matches),
             ],
           );
     if (celebrating == null) return row;

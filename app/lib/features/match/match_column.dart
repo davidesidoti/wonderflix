@@ -1,19 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/social/match_models.dart';
 import '../../l10n/gen/app_localizations.dart';
-import '../../ui/wf_image.dart';
-import '../library/library_providers.dart';
+import '../../ui/form_factor.dart';
+import '../../ui/wf_buttons.dart';
+import 'match_queue.dart';
+import 'match_ticket.dart';
 
-/// Larghezza della locandina di una voce.
-const _posterWidth = 48.0;
+/// Larghezza della colonna dei match sul desktop.
+const matchColumnWidth = 360.0;
 
-/// La colonna dei match (spec P §7.3): i match nell'ordine di uscita, sotto i
-/// quasi match con "N su M". Con [onChoose] le voci si possono scegliere come
-/// primo titolo del party ([chosen] dice "Parte per primo").
+/// Larghezza dei biglietti nella fila dello stretto.
+const _stripTicketWidth = 250.0;
+
+const _muted = TextStyle(color: WfColors.creamMuted, fontSize: 12);
+
+/// I match come biglietti (spec §5.5): i match nell'ordine di uscita, sotto i
+/// quasi match al 75% con "1 sì su 2". Con [onChoose] (chi ha aperto) un clic
+/// sceglie il primo titolo del party: [chosen], altrimenti quello che
+/// `matchPartyOrder` mette in testa, ha "Parte per primo"; sotto "Avvia il
+/// party con n titoli", spento se [onStartParty] è `null`.
+/// Nello stretto i biglietti stanno in una fila orizzontale.
 class MatchColumn extends StatelessWidget {
   const MatchColumn({
     super.key,
@@ -21,109 +31,111 @@ class MatchColumn extends StatelessWidget {
     required this.titles,
     this.chosen,
     this.onChoose,
+    this.onStartParty,
   });
 
   final MatchState state;
   final Map<String, JellyfinItem?> titles;
   final String? chosen;
   final ValueChanged<String>? onChoose;
+  final VoidCallback? onStartParty;
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final compact = FormFactor.of(context).compact;
+    final width = compact ? _stripTicketWidth : matchColumnWidth;
+    final party = matchPartyOrder(state, first: chosen);
+    // Chi non ha aperto non sa quale partirà: nessun "Parte per primo".
+    final first = onChoose == null ? null : party.firstOrNull;
+
+    Widget ticket(String id, {String? note}) => MatchTicket(
+      key: Key('match-column-$id'),
+      id: id,
+      item: titles[id],
+      chosen: first == id,
+      note: note,
+      width: width,
+      onTap: onChoose == null ? null : () => onChoose!(id),
+    );
+
+    Widget list(List<Widget> tickets) => compact
+        ? SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final (i, t) in tickets.indexed)
+                  Padding(
+                    padding: EdgeInsets.only(left: i == 0 ? 0 : 10),
+                    child: t,
+                  ),
+              ],
+            ),
+          )
+        : Column(
+            children: [
+              for (final t in tickets)
+                Padding(padding: const EdgeInsets.only(bottom: 10), child: t),
+            ],
+          );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _heading(l.matchMatches),
-        if (state.matches.isEmpty)
-          Text(l.matchNoMatches,
-              style: const TextStyle(color: WfColors.creamMuted)),
-        for (final id in state.matches) _Entry(
-            id: id,
-            item: titles[id],
-            chosen: chosen == id,
-            onChoose: onChoose),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Wrap(
+            spacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            children: [
+              Text(l.matchLikedByAll, style: WfText.display(26)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  state.matches.isEmpty
+                      ? l.matchNoMatches
+                      : l.matchCount(state.matches.length),
+                  style: _muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (state.matches.isNotEmpty)
+          list([for (final id in state.matches) ticket(id)]),
         if (state.nearMatches.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          _heading(l.matchNearMatches),
-          for (final near in state.nearMatches)
-            _Entry(
-                id: near.itemId,
-                item: titles[near.itemId],
-                chosen: chosen == near.itemId,
-                onChoose: onChoose,
-                subtitle: l.matchYesOf(near.yes, near.of)),
-        ],
-      ],
-    );
-  }
-
-  Widget _heading(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-      );
-}
-
-class _Entry extends ConsumerWidget {
-  const _Entry(
-      {required this.id,
-      required this.item,
-      required this.chosen,
-      required this.onChoose,
-      this.subtitle});
-
-  final String id;
-  final JellyfinItem? item;
-  final bool chosen;
-  final ValueChanged<String>? onChoose;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
-    final item = this.item;
-    final body = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: _posterWidth,
-            child: AspectRatio(
-              aspectRatio: 2 / 3,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: WfImage(
-                    image: item == null
-                        ? null
-                        : ref.watch(imageUrlsProvider).poster(item)),
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 10),
+            child: Text(
+              l.matchNearMatches,
+              style: _muted.copyWith(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item?.name ?? '',
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                if (subtitle != null)
-                  Text(subtitle!,
-                      style: const TextStyle(color: WfColors.creamMuted)),
-                if (chosen)
-                  Text(l.matchPlaysFirst,
-                      style: const TextStyle(color: WfColors.gold)),
-              ],
+          Opacity(
+            opacity: 0.75,
+            child: list([
+              for (final near in state.nearMatches)
+                ticket(near.itemId, note: l.matchNearOf(near.yes, near.of)),
+            ]),
+          ),
+        ],
+        if (onChoose != null && party.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: compact ? double.infinity : matchColumnWidth,
+            height: 44,
+            child: WfButton.primary(
+              key: const Key('match-start-party'),
+              label: l.matchStartPartyWith(party.length),
+              icon: LucideIcons.play,
+              onPressed: onStartParty,
             ),
           ),
         ],
-      ),
-    );
-    return KeyedSubtree(
-      key: Key('match-column-$id'),
-      child: onChoose == null
-          ? body
-          : InkWell(onTap: () => onChoose?.call(id), child: body),
+      ],
     );
   }
 }

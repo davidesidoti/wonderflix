@@ -9,6 +9,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import 'match_card.dart';
 
 /// Quanta parte della larghezza della carta basta per votare (spec P §7.3).
@@ -20,20 +21,38 @@ const matchSwipeVelocity = 800.0;
 /// Rotazione massima della carta, in radianti (12°).
 const matchSwipeMaxAngle = 12 * math.pi / 180;
 
-/// Rapporto larghezza / altezza della carta.
-const _cardAspect = 1.5;
+/// Rapporto larghezza / altezza della carta (verticale, spec §5.4).
+const _cardAspect = 2 / 3;
+
+/// Larghezza della carta: desktop e stretto.
+const _cardWidth = 270.0;
+const _compactCardWidth = 250.0;
 
 /// Quante carte si vedono impilate.
 const _visibleCards = 3;
 
-/// Di quanto si rimpicciolisce ogni carta sotto la prima.
-const _peekScaleStep = 0.04;
+/// Le carte sotto: rimpicciolite, ruotate di ±4°, spostate di lato e più
+/// scure.
+const _peekScale = 0.95;
+const _peekAngle = 4 * math.pi / 180;
+const _peekShift = Offset(26, 10);
+const _peekShade = Color(0x99000000);
 
 /// Fin dove vola la carta, in larghezze di carta.
 const _flyDistance = 1.4;
 
-const _buttonSize = 28.0;
-const _labelBorder = 3.0;
+/// Pulsanti tondi: diametro e icona; distanza tra i due.
+const _buttonSize = 64.0;
+const _iconSize = 28.0;
+const _buttonGap = 44.0;
+const _compactButtonGap = 56.0;
+
+/// Timbri "SÌ" / "NO": bordo e rotazione (12°).
+const _stampBorder = 3.0;
+const _stampAngle = 12 * math.pi / 180;
+
+/// "Ne restano" e le scritte sotto i pulsanti.
+final _dim = WfColors.cream.withValues(alpha: 0.32);
 
 /// Il mazzo del match: la carta in cima si trascina o si vota con ✗ ✓ e ← →.
 /// [cards] ha in [0] la carta in cima. Il voto parte a fine volo, una volta
@@ -43,9 +62,13 @@ class MatchSwipeDeck extends StatefulWidget {
       {super.key,
       required this.cards,
       required this.onVote,
+      this.left,
       this.enabled = true});
 
   final List<JellyfinItem> cards;
+
+  /// Per "Ne restano" (predefinito: quante sono [cards]).
+  final int? left;
 
   /// `true` = sì, `false` = no. Risponde `false` se il voto non è partito: la
   /// carta torna al centro e si può votare di nuovo.
@@ -154,6 +177,9 @@ class _MatchSwipeDeckState extends State<MatchSwipeDeck>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final compact = FormFactor.of(context).compact;
+    final cardWidth = compact ? _compactCardWidth : _cardWidth;
+    _width = cardWidth;
     final shown = widget.cards.take(_visibleCards).toList();
     return Focus(
       autofocus: true,
@@ -161,51 +187,74 @@ class _MatchSwipeDeckState extends State<MatchSwipeDeck>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AspectRatio(
-            aspectRatio: _cardAspect,
-            child: LayoutBuilder(builder: (context, box) {
-              _width = box.maxWidth;
-              return Stack(
-                children: [
-                  for (var i = shown.length - 1; i >= 1; i--)
-                    Positioned.fill(
-                      key: ValueKey(shown[i].id),
-                      child: Transform.scale(
-                          scale: 1 - _peekScaleStep * i,
-                          child: MatchCard(item: shown[i])),
-                    ),
-                  if (shown.isNotEmpty)
-                    Positioned.fill(
-                      key: ValueKey(shown[0].id),
-                      child: _top(shown[0], l),
-                    ),
-                ],
-              );
-            }),
+          SizedBox(
+            width: cardWidth,
+            height: cardWidth / _cardAspect,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                for (var i = shown.length - 1; i >= 1; i--)
+                  Positioned.fill(
+                    key: ValueKey(shown[i].id),
+                    child: _peek(shown[i], i.isOdd ? 1 : -1),
+                  ),
+                if (shown.isNotEmpty)
+                  Positioned.fill(
+                    key: ValueKey(shown[0].id),
+                    child: _top(shown[0], l),
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
           Row(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _VoteButton(
-                  key: const Key('match-no'),
+                  buttonKey: const Key('match-no'),
                   tooltip: l.matchNo,
+                  hint: compact ? null : l.matchNoKey,
                   icon: LucideIcons.x,
                   color: WfColors.error,
                   onPressed: () => _vote(false)),
-              const SizedBox(width: 32),
+              SizedBox(width: compact ? _compactButtonGap : _buttonGap),
               _VoteButton(
-                  key: const Key('match-yes'),
+                  buttonKey: const Key('match-yes'),
                   tooltip: l.matchYes,
+                  hint: compact ? null : l.matchYesKey,
                   icon: LucideIcons.check,
                   color: WfColors.online,
                   onPressed: () => _vote(true)),
             ],
           ),
+          // Sul desktop sotto i pulsanti ci sono le scritte dei tasti.
+          SizedBox(height: compact ? 16 : 38),
+          Text(l.matchLeft(widget.left ?? widget.cards.length),
+              style: TextStyle(
+                  color: _dim,
+                  fontSize: 12,
+                  fontFeatures: const [FontFeature.tabularFigures()])),
         ],
       ),
     );
   }
+
+  /// Una carta sotto la prima: [side] 1 a destra, -1 a sinistra.
+  Widget _peek(JellyfinItem item, int side) => Transform.translate(
+        offset: Offset(_peekShift.dx * side, _peekShift.dy),
+        child: Transform.rotate(
+          angle: _peekAngle * side,
+          child: Transform.scale(
+            scale: _peekScale,
+            child: ColorFiltered(
+              colorFilter:
+                  const ColorFilter.mode(_peekShade, BlendMode.srcATop),
+              child: MatchCard(item: item),
+            ),
+          ),
+        ),
+      );
 
   /// La carta in cima: trascinata, in volo o di ritorno.
   Widget _top(JellyfinItem item, AppLocalizations l) {
@@ -237,17 +286,19 @@ class _MatchSwipeDeckState extends State<MatchSwipeDeck>
                   fit: StackFit.expand,
                   children: [
                     child!,
-                    _Label(
+                    _Stamp(
                         opacityKey: const Key('match-label-yes'),
                         text: l.matchYes,
                         color: WfColors.online,
                         opacity: x > 0 ? progress : 0,
+                        angle: -_stampAngle,
                         alignment: Alignment.topLeft),
-                    _Label(
+                    _Stamp(
                         opacityKey: const Key('match-label-no'),
                         text: l.matchNo,
                         color: WfColors.error,
                         opacity: x < 0 ? progress : 0,
+                        angle: _stampAngle,
                         alignment: Alignment.topRight),
                   ],
                 ),
@@ -261,67 +312,103 @@ class _MatchSwipeDeckState extends State<MatchSwipeDeck>
   }
 }
 
-/// "SÌ" / "NO" sulla carta, in proporzione alla distanza.
-class _Label extends StatelessWidget {
-  const _Label(
+/// Il timbro "SÌ" / "NO" sulla carta, in proporzione alla distanza.
+class _Stamp extends StatelessWidget {
+  const _Stamp(
       {required this.opacityKey,
       required this.text,
       required this.color,
       required this.opacity,
+      required this.angle,
       required this.alignment});
 
   final Key opacityKey;
   final String text;
   final Color color;
   final double opacity;
+  final double angle;
   final Alignment alignment;
 
   @override
   Widget build(BuildContext context) => Align(
         alignment: alignment,
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
           child: Opacity(
             key: opacityKey,
             opacity: opacity,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: color, width: _labelBorder),
-                borderRadius: BorderRadius.circular(8),
+            child: Transform.rotate(
+              angle: angle,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+                decoration: BoxDecoration(
+                  border: Border.all(color: color, width: _stampBorder),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(text.toUpperCase(),
+                    style: WfText.display(34, color: color)
+                        .copyWith(letterSpacing: 2)),
               ),
-              child: Text(text.toUpperCase(),
-                  style: WfText.display(32).copyWith(color: color)),
             ),
           ),
         ),
       );
 }
 
+/// Pulsante tondo del voto; sotto, sul desktop, il tasto ([hint]).
 class _VoteButton extends StatelessWidget {
   const _VoteButton(
-      {super.key,
+      {required this.buttonKey,
       required this.tooltip,
+      required this.hint,
       required this.icon,
       required this.color,
       required this.onPressed});
 
+  final Key buttonKey;
   final String tooltip;
+  final String? hint;
   final IconData icon;
   final Color color;
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => IconButton(
-        tooltip: tooltip,
-        iconSize: _buttonSize,
-        padding: const EdgeInsets.all(16),
-        style: IconButton.styleFrom(
-          backgroundColor: WfColors.surfaceHigh,
-          foregroundColor: color,
-          side: BorderSide(color: color, width: 2),
+  Widget build(BuildContext context) {
+    final hint = this.hint;
+    // La scritta sta sotto senza allargare il pulsante (la distanza resta 44).
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SizedBox.square(
+          key: buttonKey,
+          dimension: _buttonSize,
+          child: IconButton(
+            tooltip: tooltip,
+            iconSize: _iconSize,
+            padding: EdgeInsets.zero,
+            style: IconButton.styleFrom(
+              fixedSize: const Size.square(_buttonSize),
+              shape: const CircleBorder(),
+              backgroundColor: WfColors.surface,
+              foregroundColor: color,
+              side: BorderSide(color: color.withValues(alpha: 0.6), width: 2),
+            ),
+            icon: Icon(icon),
+            onPressed: onPressed,
+          ),
         ),
-        icon: Icon(icon),
-        onPressed: onPressed,
-      );
+        if (hint != null)
+          Positioned(
+            top: _buttonSize + 8,
+            left: -24,
+            right: -24,
+            child: Text(hint,
+                maxLines: 1,
+                softWrap: false,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _dim, fontSize: 11)),
+          ),
+      ],
+    );
+  }
 }
