@@ -414,6 +414,14 @@ void main() {
     expect(find.byKey(const Key('home-customize')), findsOneWidget);
   });
 
+  /// La lista verticale della Home (non lo scheletro che sta uscendo).
+  ScrollPosition homeList(WidgetTester tester) => tester
+      .state<ScrollableState>(find.descendant(
+          of: find.byKey(const Key('home-rows')),
+          matching: find.byWidgetPredicate((w) =>
+              w is Scrollable && w.axisDirection == AxisDirection.down)).first)
+      .position;
+
   void fullTonight() => library
     ..resumeItems = [
       testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30),
@@ -477,29 +485,59 @@ void main() {
     expect(tester.getTopRight(button).dx, greaterThan(1440 - 100));
   });
 
-  testWidgets('l\'alone sotto il carosello resta scorrendo di 700 px',
-      (tester) async {
+  testWidgets('l\'alone scorre con la pagina e resta dipinto quando il '
+      'carosello è uscito', (tester) async {
     someRows();
     await pumpHome(tester, height: 900);
     final glow = find.byType(HomeGlow);
     expect(glow, findsOneWidget);
     expect(tester.getTopLeft(glow).dy,
         moreOrLessEquals(tester.getBottomLeft(find.byType(HeroCarousel)).dy));
-    expect(
-        tester
-            .widget<ListView>(find
-                .ancestor(
-                    of: find.byType(HeroCarousel),
-                    matching: find.byType(ListView))
-                .first)
-            .scrollCacheExtent!
-            .value,
-        700);
-    final position =
-        tester.state<ScrollableState>(find.byType(Scrollable).first).position;
-    position.jumpTo(700);
+    // Fuori dalla lista: la lista non dipinge un figlio uscito dallo
+    // schermo, anche se ciò che sborda si vedrebbe ancora.
+    expect(find.ancestor(of: glow, matching: find.byType(Scrollable)),
+        findsNothing);
+    final position = homeList(tester);
+    position.jumpTo(HeroCarousel.height + 100);
     await tester.pump();
     expect(glow, findsOneWidget);
+    final rect = tester.getRect(glow);
+    expect(rect.top, moreOrLessEquals(-100));
+    expect(rect.bottom, greaterThan(0), reason: 'ancora sullo schermo');
+    expect(find.byType(HeroCarousel).hitTestable(), findsNothing,
+        reason: 'il carosello è uscito');
+  });
+
+  testWidgets('rimontato, il carosello riparte dal primo e l\'alone con lui',
+      (tester) async {
+    someRows();
+    library.onItems = (query, start, limit) => query.favoritesOnly
+        ? pageOf([testItem(id: 'f1', name: 'Interstellar')])
+        : query.kinds.contains(ItemKind.series)
+            ? pageOf([
+                testItem(id: 's1', name: 'The Bear', kind: ItemKind.series),
+              ])
+            : pageOf([
+                testItem(id: 'm1', name: 'Dune'),
+                testItem(id: 'm2', name: 'Alien'),
+              ]);
+    await pumpHome(tester, height: 900);
+    HomeGlow glowWidget() => tester.widget<HomeGlow>(find.byType(HomeGlow));
+    final firstId = glowWidget().item.id;
+    await tester.tap(find.byKey(const ValueKey('hero-queue-1')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final secondId = glowWidget().item.id;
+    expect(secondId, isNot(firstId));
+    final position = homeList(tester);
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    expect(find.byType(HeroCarousel), findsNothing,
+        reason: 'la lista deve averlo smontato');
+    position.jumpTo(0);
+    await tester.pump();
+    await tester.pump();
+    expect(glowWidget().item.id, firstId);
   });
 
   testWidgets('senza titoli in evidenza niente alone', (tester) async {
@@ -582,8 +620,7 @@ void main() {
           ]);
       await settle(tester);
       expect(find.text('Stasera'), findsOneWidget);
-      final position =
-          tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+      final position = homeList(tester);
       for (var y = 0.0; y < position.maxScrollExtent; y += 400) {
         position.jumpTo(y);
         await tester.pump();

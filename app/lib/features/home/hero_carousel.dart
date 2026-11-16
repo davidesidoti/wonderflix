@@ -136,6 +136,17 @@ class _HeroCarouselState extends ConsumerState<HeroCarousel>
       ref.read(carouselAutoplayProvider) && widget.items.length > 1;
 
   @override
+  void initState() {
+    super.initState();
+    // Anche il primo titolo: rimontato (la lista l'ha smontato scorrendo) il
+    // carosello riparte dal primo, e l'alone deve seguirlo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final first = widget.items.firstOrNull;
+      if (mounted && first != null) widget.onCurrentChanged?.call(first);
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _tickersEnabled = TickerMode.valuesOf(context).enabled;

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -257,11 +256,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         play: _animate,
         onPlayed: () =>
             ref.read(homeEntrancePlayedProvider.notifier).markPlayed(),
-        child: ListView(
+        child: Stack(
+          children: [
+            if (featuredItems.isNotEmpty) _glow(featuredItems),
+            _list(featuredItems, shown, tv: tv, hasTonight: hasTonight),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _list(List<JellyfinItem> featuredItems, List<Widget> shown,
+          {required bool tv, required bool hasTonight}) =>
+      ListView(
           controller: _scroll,
-          // Il carosello resta montato finché il suo alone (640 sotto di
-          // lui) può essere visibile.
-          scrollCacheExtent: const ScrollCacheExtent.pixels(700),
           // Il carosello parte dal bordo della finestra, sotto la barra;
           // senza carosello la prima riga inizia sotto la barra.
           padding: EdgeInsets.only(
@@ -270,7 +278,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           children: [
             if (featuredItems.isNotEmpty)
-              _heroWithGlow(featuredItems, tv: tv, hasTonight: hasTonight),
+              HeroCarousel(
+                items: featuredItems,
+                extraAction: tv
+                    ? TonightButton(short: true, onPressed: _openTonight)
+                    : null,
+                autofocusPlay: !hasTonight,
+                onCurrentChanged: (item) => _glowId.value = item.id,
+              ),
             // Senza Stasera Match e il dado stanno sopra le righe, a destra;
             // in TV "Stasera?" è già nel carosello.
             if (!hasTonight && !(tv && featuredItems.isNotEmpty))
@@ -281,42 +296,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: _CustomizeLink(),
             ),
           ],
-        ),
-      ),
-    );
-  }
+        );
 
-  /// Il carosello con l'alone sotto (spec §5.4): l'alone sta dietro le prime
-  /// sezioni, che la lista dipinge dopo.
-  Widget _heroWithGlow(List<JellyfinItem> items,
-          {required bool tv, required bool hasTonight}) =>
-      Stack(
-        clipBehavior: Clip.none,
-        children: [
-          HeroCarousel(
-            items: items,
-            extraAction: tv
-                ? TonightButton(short: true, onPressed: _openTonight)
-                : null,
-            autofocusPlay: !hasTonight,
-            onCurrentChanged: (item) => _glowId.value = item.id,
-          ),
-          Positioned(
-            top: HeroCarousel.heightOf(context),
-            left: 0,
-            right: 0,
-            height: homeGlowHeight,
-            child: IgnorePointer(
-              child: ValueListenableBuilder(
-                valueListenable: _glowId,
-                builder: (context, id, _) => HomeGlow(
+  /// L'alone (spec §5.4): dietro la lista, sotto il carosello, e scorre con
+  /// lei. Non è un figlio della lista: la lista non dipinge un figlio uscito
+  /// dallo schermo, e l'alone sparirebbe di colpo appena il carosello esce.
+  Widget _glow(List<JellyfinItem> items) => Positioned(
+        top: 0,
+        left: 0,
+        right: 0,
+        height: homeGlowHeight,
+        child: IgnorePointer(
+          child: ListenableBuilder(
+            listenable: Listenable.merge([_scroll, _glowId]),
+            builder: (context, _) {
+              final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+              final id = _glowId.value;
+              return Transform.translate(
+                offset: Offset(0, HeroCarousel.heightOf(context) - offset),
+                child: HomeGlow(
                   item: items.firstWhere((item) => item.id == id,
                       orElse: () => items.first),
                 ),
-              ),
-            ),
+              );
+            },
           ),
-        ],
+        ),
       );
 
   /// Una sezione arrivata all'apertura entra con le altre; una arrivata dopo
