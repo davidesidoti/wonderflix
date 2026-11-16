@@ -11,10 +11,15 @@ String formatRuntime(Duration duration) {
 }
 
 /// "18 min" sotto l'ora (minuti per eccesso), da un'ora in su "1h 15m".
-String shortDuration(AppLocalizations l, Duration d) =>
-    d < const Duration(hours: 1)
-    ? l.ticketMinutes((d.inSeconds / 60).ceil())
-    : formatRuntime(d);
+String shortDuration(AppLocalizations l, Duration d) {
+  final minutes = (d.inSeconds / 60).ceil();
+  return minutes < 60
+      ? l.ticketMinutes(minutes)
+      // 59m30s arrotonda a "1h", non a "60 min".
+      : formatRuntime(
+          d < const Duration(hours: 1) ? const Duration(hours: 1) : d,
+        );
+}
 
 /// "23:14" oppure "1:02:03".
 String formatClock(Duration duration) {

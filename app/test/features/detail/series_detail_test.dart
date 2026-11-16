@@ -59,10 +59,12 @@ void main() {
       {String? seasonId,
       MotionLevel motion = MotionLevel.reduced,
       List<Override> extra = const [],
-      Size surfaceSize = const Size(1440, 900)}) async {
+      Size surfaceSize = const Size(1440, 900),
+      bool tv = false}) async {
     await pumpApp(
         tester, Scaffold(body: ItemDetailScreen(itemId: 's1', seasonId: seasonId)),
         surfaceSize: surfaceSize,
+        tv: tv,
         overrides: [
           ...extra,
           libraryApiProvider.overrideWithValue(api),
@@ -229,6 +231,19 @@ void main() {
     expect(api.positionCalls, [('e4', 0)]);
     expect(button('e4').extra, isEmpty);
   });
+
+  for (final (name, size, tv) in const [
+    ('telefono', Size(390, 780), false),
+    ('TV', Size(960, 540), true),
+  ]) {
+    testWidgets('$name: con il ⋯ vuoto niente "Altro"', (tester) async {
+      // Segnalazioni spente, utente non admin, niente da riprendere.
+      api.nextUpItems = [];
+      await pumpSeries(tester, surfaceSize: size, tv: tv);
+      expect(find.text('Visto'), findsOneWidget);
+      expect(find.text('Altro'), findsNothing);
+    });
+  }
 
   testWidgets('menu "⋯": senza episodio in Prossimi episodi nessuna voce',
       (tester) async {

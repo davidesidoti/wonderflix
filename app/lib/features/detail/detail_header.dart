@@ -17,6 +17,7 @@ import '../../ui/poster_card.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
+import '../admin/admin_providers.dart';
 import '../friends/friends_controller.dart';
 import '../home/next_up_hidden.dart';
 import '../home/resume_removal.dart';
@@ -26,6 +27,7 @@ import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
 import '../ratings/friend_ratings_row.dart';
 import '../ratings/rate_panel.dart';
+import '../reports/reports_providers.dart';
 import '../ratings/rating_widgets.dart';
 import '../recommendations/recommend_panel.dart';
 import '../requests/request_seasons.dart';
@@ -334,6 +336,21 @@ class DetailHeader extends ConsumerWidget {
     final nextUp = _nextUpAction(context, ref, l);
     final resume = _resumeAction(context, ref, l);
     final kicker = detailKicker(item, l);
+    // "Altro" con la parola (telefono e TV) solo se il ⋯ ha voci: senza,
+    // `ItemActionsButton` è vuoto. Stessi gruppi che calcola lui.
+    _LabeledAction? labeledMore(List<ExtraItemAction> extra) {
+      final groups = itemActionGroups(
+        kind: item.kind,
+        reports: ref.watch(socialAvailabilityProvider.select((f) => f.reports)),
+        canManageSubtitles: !tv && ref.watch(canManageSubtitlesProvider),
+        isAdmin: !tv && ref.watch(isAdminProvider),
+      );
+      if (groups.isEmpty && extra.isEmpty) return null;
+      return _LabeledAction(
+        button: ItemActionsButton(item: item, tvOnly: tv, extra: extra),
+        label: l.detailActionMore,
+      );
+    }
 
     return DetailHeaderFrame(
       controller: controller,
@@ -453,26 +470,17 @@ class DetailHeader extends ConsumerWidget {
                                 ),
                                 label: l.detailActionRecommend,
                               ),
-                            _LabeledAction(
-                              button: ItemActionsButton(
-                                item: item,
-                                extra: [
-                                  ?resume,
-                                  ?nextUp,
-                                  if (restart != null)
-                                    (
-                                      label: l.actionRestart,
-                                      onSelected: restart,
-                                    ),
-                                  if (requestSeasons != null)
-                                    (
-                                      label: l.requestsMoreSeasons,
-                                      onSelected: requestSeasons,
-                                    ),
-                                ],
-                              ),
-                              label: l.detailActionMore,
-                            ),
+                            ?labeledMore([
+                              ?resume,
+                              ?nextUp,
+                              if (restart != null)
+                                (label: l.actionRestart, onSelected: restart),
+                              if (requestSeasons != null)
+                                (
+                                  label: l.requestsMoreSeasons,
+                                  onSelected: requestSeasons,
+                                ),
+                            ]),
                           ])
                             Expanded(child: labeled),
                         ],
@@ -485,12 +493,6 @@ class DetailHeader extends ConsumerWidget {
                     runSpacing: 12,
                     children: [
                       ?play,
-                      if (trailer != null)
-                        WfButton.secondary(
-                          label: l.actionTrailer,
-                          icon: LucideIcons.clapperboard,
-                          onPressed: trailer,
-                        ),
                       if (restart != null)
                         _LabeledAction(
                           button: _ActionIcon(
@@ -499,6 +501,12 @@ class DetailHeader extends ConsumerWidget {
                             onPressed: restart,
                           ),
                           label: l.actionRestart,
+                        ),
+                      if (trailer != null)
+                        WfButton.secondary(
+                          label: l.actionTrailer,
+                          icon: LucideIcons.clapperboard,
+                          onPressed: trailer,
                         ),
                       _LabeledAction(
                         button: favorite,
@@ -525,14 +533,7 @@ class DetailHeader extends ConsumerWidget {
                           ),
                           label: l.recommendButton,
                         ),
-                      _LabeledAction(
-                        button: ItemActionsButton(
-                          item: item,
-                          tvOnly: true,
-                          extra: [?resume, ?nextUp],
-                        ),
-                        label: l.detailActionMore,
-                      ),
+                      ?labeledMore([?resume, ?nextUp]),
                     ],
                   )
                 : Column(

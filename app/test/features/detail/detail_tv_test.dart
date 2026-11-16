@@ -295,9 +295,9 @@ void main() {
       await pumpDetail(tester, 'm1');
       final xs = [
         tester.getCenter(find.text('Riprendi da 23:14')).dx,
+        tester.getCenter(find.byTooltip('Ricomincia')).dx,
         tester.getCenter(find.text('Trailer')).dx,
         for (final tooltip in [
-          'Ricomincia',
           'Aggiungi a La mia lista',
           'Segna come visto',
           'Vota',
@@ -317,9 +317,11 @@ void main() {
     await pumpDetail(tester, 'm1');
     await tester.pumpAndSettle();
     expect(hasFocus(tester, find.text('Riprendi da 23:14')), isTrue);
-    // Riprendi → Trailer.
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-    await tester.pumpAndSettle();
+    // Riprendi → Ricomincia → Trailer.
+    for (var i = 0; i < 2; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+    }
     expect(hasFocus(tester, find.text('Trailer')), isTrue);
   });
 

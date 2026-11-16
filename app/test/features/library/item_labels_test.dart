@@ -1,12 +1,21 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/library/item_labels.dart';
+import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 void main() {
   test('formatRuntime', () {
     expect(formatRuntime(const Duration(hours: 2, minutes: 46)), '2h 46m');
     expect(formatRuntime(const Duration(minutes: 45)), '45m');
     expect(formatRuntime(const Duration(hours: 2)), '2h');
+  });
+
+  test("shortDuration: minuti per eccesso sotto l'ora", () {
+    final l = lookupAppLocalizations(const Locale('it'));
+    expect(shortDuration(l, const Duration(minutes: 17, seconds: 1)), '18 min');
+    expect(shortDuration(l, const Duration(minutes: 59, seconds: 30)), '1h');
+    expect(shortDuration(l, const Duration(hours: 1, minutes: 15)), '1h 15m');
   });
 
   test('formatClock', () {
