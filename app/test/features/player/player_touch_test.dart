@@ -260,6 +260,15 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('telefono 390×780 pronto: niente eccezioni di overflow', (
+    tester,
+  ) async {
+    await pumpPlayer(tester, touch: true, surfaceSize: const Size(390, 780));
+    expect(find.byKey(const Key('fake-video')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await unmount(tester);
+  });
+
   testWidgets('rotazione col player aperto: niente eccezioni', (tester) async {
     await pumpPlayer(tester, touch: true, surfaceSize: const Size(390, 844));
     await tester.tap(find.text('Audio e sottotitoli'));

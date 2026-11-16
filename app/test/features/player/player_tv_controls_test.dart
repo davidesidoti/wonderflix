@@ -224,6 +224,13 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('TV 960×540 pronto: niente eccezioni di overflow', (tester) async {
+    await pumpPlayer(tester, size: const Size(960, 540));
+    expect(find.byKey(const Key('fake-video')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await unmount(tester);
+  });
+
   testWidgets('TV: cerchi da 56 e icone da 30, play/pausa 32', (tester) async {
     await pumpPlayer(tester, size: const Size(960, 540));
     final tracks = find.byTooltip('Audio e sottotitoli');

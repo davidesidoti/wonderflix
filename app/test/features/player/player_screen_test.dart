@@ -193,6 +193,14 @@ void main() {
       .widget<AnimatedOpacity>(find.byKey(const Key('player-controls-bottom')))
       .opacity;
 
+  testWidgets('pronto a 1280×800: niente eccezioni di overflow', (tester) async {
+    await pumpPlayer(tester, size: const Size(1280, 800));
+    expect(find.byKey(const Key('fake-video')), findsOneWidget);
+    expect(find.byTooltip('Pausa'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await unmount(tester);
+  });
+
   testWidgets('video, titolo, episodio e controlli', (tester) async {
     await pumpPlayer(tester);
     expect(find.byKey(const Key('fake-video')), findsOneWidget);
