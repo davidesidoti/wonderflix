@@ -18,7 +18,8 @@ class WfButton extends StatelessWidget {
         small = false,
         iconWidget = null,
         alignment = null,
-        dense = false;
+        dense = false,
+        gold = false;
 
   const WfButton.secondary({
     super.key,
@@ -31,6 +32,7 @@ class WfButton extends StatelessWidget {
     this.iconWidget,
     this.alignment,
     this.dense = false,
+    this.gold = false,
   }) : primary = false;
 
   final String label;
@@ -60,6 +62,9 @@ class WfButton extends StatelessWidget {
   /// con i puntini.
   final bool dense;
 
+  /// Testo, icona e bordo oro (es. "Il tuo voto" nei voti degli amici).
+  final bool gold;
+
   /// Il primario prende dal tema il bordo col focus della TV.
   Widget _button(bool tv) {
     final size = Size(0, small ? 32 : 44);
@@ -75,6 +80,7 @@ class WfButton extends StatelessWidget {
         label: Text(label),
       );
     }
+    final side = BorderSide(color: gold ? WfColors.gold : WfColors.border);
     return OutlinedButton.icon(
       onPressed: onPressed,
       autofocus: autofocus,
@@ -83,11 +89,10 @@ class WfButton extends StatelessWidget {
         padding: padding,
         shape: shape,
         alignment: alignment,
-        foregroundColor: WfColors.cream,
+        foregroundColor: gold ? WfColors.gold : WfColors.cream,
         backgroundColor: small ? WfColors.surfaceHigh : null,
-        side: const BorderSide(color: WfColors.border),
-      ).copyWith(
-          side: tvButtonSide(tv, const BorderSide(color: WfColors.border))),
+        side: side,
+      ).copyWith(side: tvButtonSide(tv, side)),
       icon: iconWidget ?? Icon(icon, size: 18),
       label: dense
           ? Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)

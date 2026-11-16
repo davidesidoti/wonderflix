@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/shell_panels.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/ratings/rate_panel.dart';
 import 'package:wonderflix/core/social/rating_models.dart';
@@ -122,6 +123,13 @@ void main() {
     await pumpRow(tester);
     expect(find.text('Il tuo voto: 8'), findsOneWidget);
     expect(find.byIcon(LucideIcons.pencil), findsOneWidget);
+    // Un pulsante del kit, in oro.
+    final button = find.descendant(
+        of: find.byKey(const Key('friend-ratings-action')),
+        matching: find.byType(OutlinedButton));
+    expect(button, findsOneWidget);
+    expect(tester.widget<OutlinedButton>(button).style!.foregroundColor!
+        .resolve({}), WfColors.gold);
   });
 
   testWidgets('senza canRate né mine niente azione', (tester) async {

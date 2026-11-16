@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../support/pump_app.dart';
@@ -121,5 +122,24 @@ void main() {
       expect(style.animationDuration, WfMotion(level).duration(WfMotion.fast),
           reason: '$level');
     }
+  });
+
+  testWidgets('WfButton.secondary gold: testo, icona e bordo oro',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Center(
+        child: WfButton.secondary(
+            label: 'Il tuo voto: 8',
+            icon: LucideIcons.pencil,
+            gold: true,
+            onPressed: () {}),
+      ),
+    );
+    final style = tester
+        .widget<OutlinedButton>(find.byType(OutlinedButton))
+        .style!;
+    expect(style.foregroundColor!.resolve({}), WfColors.gold);
+    expect(style.side!.resolve({})!.color, WfColors.gold);
   });
 }

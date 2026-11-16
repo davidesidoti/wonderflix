@@ -79,6 +79,31 @@ void main() {
     expect(find.text('Questo film'), findsNWidgets(2));
   });
 
+  testWidgets('Fa parte di ha la misura di Simili', (tester) async {
+    await pumpRows(tester);
+    final card = find.byType(PosterCard).first;
+    expect(tester.getSize(card).width, 160);
+    final row = find.ancestor(of: card, matching: find.byType(SizedBox));
+    expect(
+        tester
+            .widgetList<SizedBox>(row)
+            .any((b) => b.height == 300 && b.width == null),
+        isTrue);
+  });
+
+  testWidgets('Fa parte di nel layout stretto: card 112 e riga 230',
+      (tester) async {
+    await pumpApp(tester, rows,
+        overrides: overrides(features: const SocialFeatures(collections: true)),
+        surfaceSize: const Size(390, 1400));
+    await tester.pump();
+    await tester.pump();
+    final card = find.byType(PosterCard).first;
+    expect(tester.getSize(card).width, 112);
+    final row = find.ancestor(of: card, matching: find.byType(SizedBox));
+    expect(tester.widgetList<SizedBox>(row).any((b) => b.height == 230), isTrue);
+  });
+
   testWidgets('plugin senza saghe: nessuna riga e nessuna chiamata',
       (tester) async {
     await pumpRows(tester, features: SocialFeatures.none);

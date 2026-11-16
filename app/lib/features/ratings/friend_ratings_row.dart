@@ -10,6 +10,7 @@ import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/media_row.dart';
 import '../../ui/user_avatar.dart';
+import '../../ui/wf_buttons.dart';
 import '../library/user_data.dart';
 import '../social/social_providers.dart';
 import 'rating_widgets.dart';
@@ -66,14 +67,13 @@ class FriendRatingsRow extends ConsumerWidget {
       itemCount: data.friends.length + 1,
       trailing: mine == null && !data.canRate
           ? null
-          : TextButton.icon(
+          : WfButton.secondary(
               key: const Key('friend-ratings-action'),
+              small: true,
+              label: mine == null ? l.ratingVote : l.ratingMine(mine.score),
+              icon: mine == null ? LucideIcons.star : LucideIcons.pencil,
+              gold: mine != null,
               onPressed: onRate == null ? null : () => onRate!(data),
-              icon: Icon(mine == null ? LucideIcons.star : LucideIcons.pencil,
-                  size: 16, color: WfColors.gold),
-              label: Text(
-                  mine == null ? l.ratingVote : l.ratingMine(mine.score),
-                  style: const TextStyle(color: WfColors.gold)),
             ),
       itemBuilder: (context, i) => i == 0
           ? _AverageBox(data: data)

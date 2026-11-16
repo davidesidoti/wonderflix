@@ -58,7 +58,7 @@ class _SagaRow extends ConsumerWidget {
     return MediaRow(
       title: l.collectionPartOf(saga.name),
       onTitleTap: () => openCollection(context, saga.id),
-      height: 300,
+      height: rowPosterSize(context).rowHeight,
       itemCount: items.length,
       // Le card volano con la riga, come "Simili".
       animateEntrance: true,
@@ -68,7 +68,7 @@ class _SagaRow extends ConsumerWidget {
         // Il film aperto non si riapre: né clic, né anteprima, né volo.
         return PosterCard(
           item: item,
-          width: 160,
+          width: rowPosterSize(context).width,
           heroSource: isCurrent ? null : 'saga.${saga.id}.$i',
           markLabel: isCurrent ? l.collectionThisMovie : null,
           openable: !isCurrent,
