@@ -473,6 +473,83 @@ void main() {
       expect(card.width, lessThanOrEqualTo(380));
     });
   }
+
+  // La Fire Stick è a 960×540: stretta, ma non è un telefono (spec §3.5).
+  const tvSize = Size(960, 540);
+
+  testWidgets('TV: il pannello Audio e sottotitoli è laterale', (tester) async {
+    await pumpApp(
+      tester,
+      const PlayerSidePanelHost(
+        open: true,
+        panel: ColoredBox(key: Key('panel'), color: Colors.red),
+      ),
+      surfaceSize: tvSize,
+      tv: true,
+    );
+    expect(
+      tester.getRect(find.byKey(const Key('panel'))),
+      const Rect.fromLTWH(960 - 380, 0, 380, 540),
+    );
+  });
+
+  testWidgets('stretto fuori dalla TV: il pannello è un foglio dal basso',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const PlayerSidePanelHost(
+        open: true,
+        panel: ColoredBox(key: Key('panel'), color: Colors.red),
+      ),
+      surfaceSize: const Size(390, 780),
+      touch: true,
+    );
+    final panel = tester.getRect(find.byKey(const Key('panel')));
+    expect(panel.width, 390);
+    expect(panel.bottom, 780);
+    expect(panel.height,
+        closeTo(780 * PlayerSidePanelHost.compactHeightFraction, 1));
+  });
+
+  testWidgets("TV: il post-play mostra l'immagine dell'episodio, senza trama",
+      (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: PostPlayLayer(
+          episode: episode,
+          countdown: false,
+          paused: false,
+          showImage: true,
+          onPlay: () {},
+          onWatchCredits: () {},
+        ),
+      ),
+      surfaceSize: tvSize,
+      tv: true,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('post-play-image')), findsOneWidget);
+    expect(find.text(episode.overview!), findsNothing);
+    final play = tester.getRect(find.byType(PlayNowButton));
+    expect(Offset.zero & tvSize, _contains(play));
+  });
+
+  testWidgets('TV: la pausa usa le misure del desktop', (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(body: PauseScreen(item: episode, visible: true)),
+      surfaceSize: tvSize,
+      tv: true,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getTopLeft(find.text(l.playerWatching.toUpperCase())).dx,
+      PauseScreen.textInset,
+    );
+  });
 }
 
 /// `rect` è tutto dentro il rettangolo atteso (mezzo punto di tolleranza).

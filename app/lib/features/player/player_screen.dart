@@ -123,6 +123,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   late final _nextCardScope = _layerScope('player-next-card');
   late final _postPlayScope = _layerScope('player-post-play');
   late final _tracksScope = _layerScope('player-tracks');
+  late final _errorScope = _layerScope('player-error');
   final _layerScopes = <FocusScopeNode>[];
 
   /// Il pulsante play/pausa: sulla TV Giù ci porta il focus.
@@ -1130,6 +1131,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (key == LogicalKeyboardKey.goBack) return KeyEventResult.ignored;
     if (!tvCommands.containsKey(key)) return null;
     if (event is KeyUpEvent) return KeyEventResult.ignored;
+    // Sull'errore frecce e OK sono dei suoi pulsanti (spec §4.6).
+    if (ref.read(playerControllerProvider(widget.args)).status ==
+        PlayerStatus.error) {
+      return KeyEventResult.ignored;
+    }
     final command = tvCommands[key];
     // Un pulsante ha il focus ("Salta intro" anche a controlli nascosti); un
     // pulsante dei controlli nascosti non conta.
@@ -1733,7 +1739,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final formFactor = FormFactor.of(context);
     final touch = formFactor.touch;
-    final compact = formFactor.compact;
+    // La TV è stretta (960) ma usa le posizioni del desktop (spec §3.5).
+    final compact = formFactor.compact && !formFactor.tv;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
     // Pannello o chat aperti: il tocco sul film li chiude e basta; sul film
     // piccolo del post-play torna a tutto schermo. `true` se ha chiuso.
@@ -1754,6 +1761,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         formFactor.tv
             ? FocusScope(key: key, node: node, child: child)
             : ExcludeFocus(key: key, child: child);
+    // Come [focusLayer], ma fuori dalla TV lo strato resta com'era.
+    Widget tvScope(FocusScopeNode node, Widget child) =>
+        formFactor.tv ? FocusScope(node: node, child: child) : child;
 
     // Sulla TV l'Indietro di sistema passa da Esc: chiude prima pannelli e
     // controlli, poi esce da `_exit()`.
@@ -1870,14 +1880,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 if (view.status == PlayerStatus.error)
-                  PlayerErrorLayer(
-                    key: const ValueKey('player-error'),
-                    item: view.item,
-                    error: view.error,
-                    onRetry: () => unawaited(controller.retry()),
-                    onBack: _exit,
-                    // Nel gruppo uscire dal player è uscire dal gruppo.
-                    backLabel: _inParty ? l.watchPartyLeave : l.playerBack,
+                  // Sulla TV un livello di focus suo: "Riprova" prende il
+                  // focus anche se ce l'ha il player (spec §4.6).
+                  tvScope(
+                    _errorScope,
+                    PlayerErrorLayer(
+                      key: const ValueKey('player-error'),
+                      item: view.item,
+                      error: view.error,
+                      onRetry: () => unawaited(controller.retry()),
+                      onBack: _exit,
+                      // Nel gruppo uscire dal player è uscire dal gruppo.
+                      backLabel: _inParty ? l.watchPartyLeave : l.playerBack,
+                    ),
                   )
                 else
                   // I controlli non prendono il focus della tastiera: le
@@ -2224,7 +2239,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               // Nel layout stretto il pannello è in basso.
                               right: sidePanelOpen && !compact
                                   ? PlayerSidePanelHost.widthFor(
-                                      constraints.maxWidth)
+                                      constraints.maxWidth,
+                                      tv: formFactor.tv)
                                   : 0,
                               duration: motion.isReduced
                                   ? Duration.zero

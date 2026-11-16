@@ -56,6 +56,7 @@ void main() {
     WidgetTester tester, {
     bool tv = true,
     bool settle = true,
+    Size size = const Size(1440, 900),
   }) async {
     router = GoRouter(
       routes: [
@@ -76,10 +77,9 @@ void main() {
       ],
     );
     addTearDown(router.dispose);
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    tester.view.physicalSize =
-        const Size(1440, 900) * tester.view.devicePixelRatio;
+    tester.view.physicalSize = size * tester.view.devicePixelRatio;
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       ProviderScope(
@@ -308,6 +308,20 @@ void main() {
     expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
     await back(tester);
     expect(router.state.uri.path, '/');
+    await unmount(tester);
+  });
+
+  testWidgets('TV: Riprova ha il focus quando il video fallisce',
+      (tester) async {
+    engine.failOpens = 2;
+    await pumpPlayer(tester, size: const Size(960, 540));
+    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(Focus.of(tester.element(find.text('Riprova'))).hasFocus, isTrue,
+        reason: 'Riprova deve avere il focus');
+    final opens = engine.opened.length;
+    await press(tester, LogicalKeyboardKey.select);
+    expect(engine.opened.length, greaterThan(opens));
+    expect(find.text('Riprova'), findsNothing);
     await unmount(tester);
   });
 

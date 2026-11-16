@@ -421,6 +421,7 @@ class PlayerErrorLayer extends StatelessWidget {
                       WfButton.primary(
                           label: l.retry,
                           icon: LucideIcons.rotateCcw,
+                          autofocus: true,
                           onPressed: onRetry),
                       WfButton.secondary(
                           label: backLabel,

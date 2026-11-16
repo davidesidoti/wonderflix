@@ -457,7 +457,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Guarda i titoli'), findsOneWidget);
     expect(focusOnPlayNow(), isTrue);
-    await press(tester, LogicalKeyboardKey.arrowRight);
+    // Layout largo (con l'immagine): sotto il film piccolo i due pulsanti
+    // vanno su due righe, si scende al secondo.
+    await press(tester, LogicalKeyboardKey.arrowDown);
     expect(focusedOn(find.text('Guarda i titoli')), isTrue);
     expect(tester.takeException(), isNull);
     await unmount(tester);

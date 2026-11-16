@@ -63,7 +63,8 @@ class _PauseScreenState extends State<PauseScreen> {
     if (!_present) return const SizedBox.shrink();
     final motion = WfMotion.of(context);
     final visible = widget.visible;
-    final compact = FormFactor.of(context).compact;
+    final form = FormFactor.of(context);
+    final compact = form.compact && !form.tv;
     final inset =
         compact ? PauseScreen.compactTextInset : PauseScreen.textInset;
     return IgnorePointer(

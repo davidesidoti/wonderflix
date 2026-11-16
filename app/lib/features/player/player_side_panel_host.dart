@@ -33,6 +33,9 @@ class PlayerSidePanelHost extends StatefulWidget {
   static const defaultWidth = 360.0;
   static const defaultMaxWidthFraction = 0.35;
 
+  /// Larghezza sulla TV (spec §4.5): fissa, a 960 la frazione darebbe 336.
+  static const tvWidth = 380.0;
+
   /// Nel layout stretto: la parte della finestra che può occupare in altezza.
   static const compactHeightFraction = 0.7;
 
@@ -41,8 +44,9 @@ class PlayerSidePanelHost extends StatefulWidget {
   /// possono divergere.
   static double widthFor(double available,
           {double width = defaultWidth,
-          double maxWidthFraction = defaultMaxWidthFraction}) =>
-      math.min(width, available * maxWidthFraction);
+          double maxWidthFraction = defaultMaxWidthFraction,
+          bool tv = false}) =>
+      tv ? tvWidth : math.min(width, available * maxWidthFraction);
 
   @override
   State<PlayerSidePanelHost> createState() => _PlayerSidePanelHostState();
@@ -92,13 +96,17 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
   @override
   Widget build(BuildContext context) {
     final reduced = WfMotion.of(context).isReduced;
-    final compact = FormFactor.of(context).compact;
+    final form = FormFactor.of(context);
+    // La TV è stretta (960) ma il pannello resta laterale (spec §3.5).
+    final compact = form.compact && !form.tv;
     // La larghezza si misura sullo spazio che l'host ha davvero (nel player
     // è la finestra intera), non su `MediaQuery`.
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = PlayerSidePanelHost.widthFor(constraints.maxWidth,
-            width: widget.width, maxWidthFraction: widget.maxWidthFraction);
+            width: widget.width,
+            maxWidthFraction: widget.maxWidthFraction,
+            tv: form.tv);
         return AnimatedBuilder(
           animation: _progress,
           builder: (context, _) {

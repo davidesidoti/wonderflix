@@ -102,9 +102,9 @@ class PostPlayFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
-    final inset = FormFactor.of(context).compact
-        ? postPlayCompactInset
-        : postPlayInset;
+    final form = FormFactor.of(context);
+    final inset =
+        form.compact && !form.tv ? postPlayCompactInset : postPlayInset;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: active ? 1 : 0),
       duration: motion.duration(WfMotion.slow),
@@ -192,8 +192,10 @@ class PostPlayLayer extends ConsumerWidget {
     final start = (shrink ~/ 2).inMicroseconds / total.inMicroseconds;
     final episode = this.episode;
     // Nel layout stretto le informazioni vanno sotto il film, senza
-    // l'immagine (spec §4.5).
-    final compact = FormFactor.of(context).compact;
+    // l'immagine (spec §4.5). La TV ha il layout largo ma senza trama, per
+    // stare nei 540 di altezza (spec §4.7).
+    final form = FormFactor.of(context);
+    final compact = form.compact && !form.tv;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: total,
@@ -202,7 +204,7 @@ class PostPlayLayer extends ConsumerWidget {
           Opacity(opacity: t.clamp(0.0, 1.0), child: child),
       child: LayoutBuilder(builder: (context, constraints) {
         if (episode == null) return const SizedBox.expand();
-        final overview = episode.overview;
+        final overview = form.tv ? null : episode.overview;
         return Stack(
           children: [
             Positioned.fromRect(

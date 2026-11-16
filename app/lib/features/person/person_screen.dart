@@ -77,8 +77,9 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
     final bio = person?.overview;
     final films =
         person == null ? null : ref.watch(filmographyProvider(widget.personId));
-    // Nello stretto la foto sta sopra il nome, più piccola.
-    final compact = FormFactor.of(context).compact;
+    // Nello stretto la foto sta sopra il nome, più piccola (non in TV).
+    final form = FormFactor.of(context);
+    final compact = form.compact && !form.tv;
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
