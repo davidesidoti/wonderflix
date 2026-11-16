@@ -23,6 +23,7 @@ Future<T?> showWfDialog<T>(
   double maxWidth = 480,
   String? semanticLabel,
   bool fullPageWhenCompact = true,
+  EdgeInsets padding = const EdgeInsets.all(24),
 }) {
   if (fullPageWhenCompact && FormFactor.of(context).compact) {
     return Navigator.of(context, rootNavigator: true).push(
@@ -66,6 +67,8 @@ Future<T?> showWfDialog<T>(
     builder: (context) => Dialog(
       backgroundColor: WfColors.surface,
       surfaceTintColor: Colors.transparent,
+      // Il contenuto che arriva ai bordi (padding zero) resta negli angoli.
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: const BorderSide(color: WfColors.border),
@@ -79,7 +82,7 @@ Future<T?> showWfDialog<T>(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: padding,
             child: Builder(builder: builder),
           ),
         ),

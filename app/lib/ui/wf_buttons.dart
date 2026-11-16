@@ -15,7 +15,8 @@ class WfButton extends StatelessWidget {
     this.autofocus = false,
     this.overlay,
   })  : primary = true,
-        small = false;
+        small = false,
+        iconWidget = null;
 
   const WfButton.secondary({
     super.key,
@@ -25,6 +26,7 @@ class WfButton extends StatelessWidget {
     this.autofocus = false,
     this.overlay,
     this.small = false,
+    this.iconWidget,
   }) : primary = false;
 
   final String label;
@@ -42,6 +44,9 @@ class WfButton extends StatelessWidget {
   /// "Salta intro"). Sta dentro la scala e l'alone, quindi li segue; non
   /// prende i clic.
   final Widget? overlay;
+
+  /// Al posto dell'icona [icon] (es. il dado che gira di "Un altro").
+  final Widget? iconWidget;
 
   /// Il primario prende dal tema il bordo col focus della TV.
   Widget _button(bool tv) {
@@ -70,7 +75,7 @@ class WfButton extends StatelessWidget {
         side: const BorderSide(color: WfColors.border),
       ).copyWith(
           side: tvButtonSide(tv, const BorderSide(color: WfColors.border))),
-      icon: Icon(icon, size: 18),
+      icon: iconWidget ?? Icon(icon, size: 18),
       label: Text(label),
     );
   }

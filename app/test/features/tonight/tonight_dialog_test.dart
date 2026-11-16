@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wonderflix/app/motion.dart';
@@ -51,6 +52,7 @@ void main() {
     WidgetTester tester, {
     MotionLevel motion = MotionLevel.reduced,
     Size surfaceSize = const Size(1440, 900),
+    bool tv = false,
   }) async {
     await pumpApp(
       tester,
@@ -69,6 +71,7 @@ void main() {
       ),
       motion: motion,
       surfaceSize: surfaceSize,
+      tv: tv,
       overrides: [
         libraryApiProvider.overrideWithValue(library),
         sharedPreferencesProvider.overrideWithValue(prefs),
@@ -112,7 +115,9 @@ void main() {
     expect(find.text('Un altro'), findsOneWidget);
   });
 
-  testWidgets('Un altro: il prossimo, e il dado gira', (tester) async {
+  testWidgets('Un altro: il prossimo, e il dado del pulsante gira', (
+    tester,
+  ) async {
     library.randomPages.add(pageOf([dune, alien]));
     await openDialog(tester, motion: MotionLevel.full);
     await tester.tap(find.byKey(const Key('tonight-another')));
@@ -121,6 +126,13 @@ void main() {
     expect(find.text('Alien'), findsOneWidget);
     final dice = tester.widget<AnimatedRotation>(
       find.byKey(const Key('tonight-dice')),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('tonight-another')),
+        matching: find.byKey(const Key('tonight-dice')),
+      ),
+      findsOneWidget,
     );
     expect(dice.turns, 1);
     expect(dice.duration, WfMotion.slow);
@@ -145,6 +157,242 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
+
+  Future<void> another(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('tonight-another')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  /// Gli id di "Già proposti", da sinistra a destra.
+  List<String> history(WidgetTester tester) {
+    const prefix = 'tonight-history-';
+    final keys = [
+      for (final element
+          in find
+              .byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>).value.startsWith(prefix),
+              )
+              .evaluate())
+        (element.widget.key! as ValueKey<String>).value,
+    ];
+    double left(String key) => tester.getTopLeft(find.byKey(Key(key))).dx;
+    keys.sort((a, b) => left(a).compareTo(left(b)));
+    return [for (final key in keys) key.substring(prefix.length)];
+  }
+
+  testWidgets('desktop: la locandina a sinistra, il perché, il nome grande', (
+    tester,
+  ) async {
+    final film = testItem(
+      id: 'm1',
+      name: 'Dune',
+      year: 2021,
+      runtimeMinutes: 155,
+      genres: ['Science Fiction'],
+      rating: 8.1,
+      overview: 'Paul Atreides arriva su Arrakis.',
+    );
+    library.randomPages.add(pageOf([film]));
+    await openDialog(tester);
+    final poster = find.byKey(const Key('tonight-poster'));
+    expect(tester.getSize(poster).width, 172);
+    expect(
+      tester.getTopRight(poster).dx,
+      lessThan(tester.getTopLeft(find.text('Dune')).dx),
+    );
+    expect(find.text('Un film che non hai mai visto'), findsOneWidget);
+    expect(tester.widget<Text>(find.text('Dune')).style?.fontSize, 46);
+    expect(find.text('2021 · 2h 35m · Fantascienza'), findsOneWidget);
+    expect(
+      tester.getBottomLeft(find.byKey(const Key('ask-type'))).dy,
+      lessThan(tester.getTopLeft(poster).dy),
+    );
+    expect(find.byType(SegmentedButton<Object>), findsNothing);
+    expect(tester.getSize(find.byType(TonightDialog)).width, 760);
+  });
+
+  testWidgets('una serie: il suo perché', (tester) async {
+    await prefs.setString(tonightTypeKey, 'series');
+    library.randomPages.add(
+      pageOf([
+        testItem(
+          id: 's1',
+          name: 'Dark',
+          kind: ItemKind.series,
+          recursiveCount: 8,
+          unplayedCount: 8,
+        ),
+      ]),
+    );
+    await openDialog(tester);
+    expect(find.text('Una serie che non hai mai iniziato'), findsOneWidget);
+  });
+
+  final five = [
+    for (final n in [1, 2, 3, 4, 5]) testItem(id: 'm$n', name: 'Titolo $n'),
+  ];
+
+  testWidgets('Già proposti: Un altro ci mette il titolo, al massimo 3', (
+    tester,
+  ) async {
+    library.randomPages.add(pageOf(five));
+    await openDialog(tester);
+    expect(find.text('Già proposti'), findsNothing);
+    await another(tester);
+    expect(find.text('Già proposti'), findsOneWidget);
+    expect(history(tester), ['m1']);
+    await another(tester);
+    await another(tester);
+    expect(history(tester), ['m1', 'm2', 'm3']);
+    await another(tester);
+    expect(history(tester), ['m2', 'm3', 'm4']);
+    expect(find.text('Titolo 5'), findsOneWidget);
+  });
+
+  testWidgets('Già proposti: un clic rimette il titolo, quello di prima in '
+      'fondo', (tester) async {
+    library.randomPages.add(pageOf(five));
+    await openDialog(tester);
+    await another(tester);
+    await another(tester);
+    expect(history(tester), ['m1', 'm2']);
+    await tester.tap(find.byKey(const Key('tonight-history-m1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Titolo 1'), findsOneWidget);
+    expect(find.text('Titolo 3'), findsNothing);
+    expect(history(tester), ['m2', 'm3']);
+    // Dopo il clic "Un altro" va avanti con la pescata.
+    await another(tester);
+    expect(find.text('Titolo 4'), findsOneWidget);
+    expect(history(tester), ['m2', 'm3', 'm1']);
+  });
+
+  testWidgets('cambiare un filtro svuota Già proposti', (tester) async {
+    library.randomPages.add(pageOf(five));
+    await openDialog(tester);
+    await another(tester);
+    expect(history(tester), ['m1']);
+    await pick(tester, 'ask-type', 'Serie');
+    expect(history(tester), isEmpty);
+    expect(find.text('Già proposti'), findsNothing);
+  });
+
+  testWidgets('Un altro finito in errore: in Già proposti solo il titolo '
+      "che c'era", (tester) async {
+    library.randomPages.add(pageOf([dune]));
+    await openDialog(tester);
+    library.error = const ServerUnreachableException();
+    await another(tester);
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(history(tester), ['m1']);
+    library.error = null;
+    library.randomPages
+      ..clear()
+      ..add(pageOf([alien]));
+    await tester.tap(find.text('Riprova'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Alien'), findsOneWidget);
+    expect(history(tester), ['m1']);
+  });
+
+  testWidgets('Un altro senza titoli: in Già proposti solo il titolo che '
+      "c'era", (tester) async {
+    library.randomPages.addAll([
+      pageOf([dune]),
+      pageOf([], 0),
+    ]);
+    await openDialog(tester);
+    await another(tester);
+    expect(find.text('Nessun titolo con questi filtri'), findsOneWidget);
+    expect(history(tester), ['m1']);
+  });
+
+  double pickOpacity(WidgetTester tester, String name) => tester
+      .widget<Opacity>(
+        find
+            .ancestor(of: find.text(name), matching: find.byType(Opacity))
+            .first,
+      )
+      .opacity;
+
+  testWidgets('il titolo nuovo entra in dissolvenza', (tester) async {
+    library.randomPages.add(pageOf([dune, alien]));
+    await openDialog(tester, motion: MotionLevel.full);
+    await tester.tap(find.byKey(const Key('tonight-another')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(pickOpacity(tester, 'Alien'), lessThan(1));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(pickOpacity(tester, 'Alien'), 1);
+  });
+
+  testWidgets('con le animazioni ridotte il titolo è subito in vista', (
+    tester,
+  ) async {
+    library.randomPages.add(pageOf([dune, alien]));
+    await openDialog(tester);
+    await tester.tap(find.byKey(const Key('tonight-another')));
+    await tester.pump();
+    await tester.pump();
+    expect(pickOpacity(tester, 'Alien'), 1);
+  });
+
+  testWidgets('stretto: locandina a tutta larghezza, pulsanti in due righe', (
+    tester,
+  ) async {
+    final long = testItem(
+      id: 'm3',
+      name:
+          'Il titolo molto lungo di un film che va su due righe, '
+          'con il sottotitolo che ne aggiunge altre',
+      genres: ['Fantascienza', 'Avventura', 'Dramma'],
+      rating: 7.5,
+      overview: List.filled(
+        12,
+        'Una trama molto lunga che occupa righe.',
+      ).join(' '),
+    );
+    library.randomPages.add(pageOf([long]));
+    await openDialog(tester, surfaceSize: const Size(390, 780));
+    expect(tester.takeException(), isNull);
+    final poster = tester.getSize(find.byKey(const Key('tonight-poster')));
+    expect(poster.width, 390 - 32);
+    expect(poster.height, lessThanOrEqualTo(330));
+    final another = find.byKey(const Key('tonight-another'));
+    final play = find.byKey(const Key('tonight-play'));
+    final details = find.byKey(const Key('tonight-details'));
+    await tester.ensureVisible(details);
+    await tester.pump();
+    expect(tester.getTopLeft(another).dy, tester.getTopLeft(play).dy);
+    expect(
+      tester.getTopLeft(details).dy,
+      greaterThan(tester.getBottomLeft(play).dy),
+    );
+    expect(tester.getSize(details).width, 390 - 32);
+  });
+
+  testWidgets('TV: il focus parte da Un altro, Su va alla frase', (
+    tester,
+  ) async {
+    library.randomPages.add(pageOf([dune, alien]));
+    await openDialog(tester, tv: true);
+    FocusNode node(Finder of) => Focus.of(
+      tester.element(
+        find.descendant(of: of, matching: find.byType(Text)).first,
+      ),
+    );
+    expect(node(find.byKey(const Key('tonight-another'))).hasFocus, isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    const words = ['ask-type', 'ask-duration', 'ask-genre', 'ask-rating'];
+    expect(words.any((key) => node(find.byKey(Key(key))).hasFocus), isTrue);
+    expect(tester.getSize(find.byType(TonightDialog)).width, 680);
+  });
 
   testWidgets("con Serie la durata non c'è", (tester) async {
     library.randomPages.add(pageOf([dune]));

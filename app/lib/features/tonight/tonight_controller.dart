@@ -122,6 +122,14 @@ class TonightController extends Notifier<TonightState> {
     await _pick(state.filters);
   }
 
+  /// Rimette [item] come titolo proposto ("Già proposti"), senza pescare: una
+  /// pescata in corso non vale più.
+  void restore(JellyfinItem item) {
+    _generation++;
+    ref.read(tonightSeenProvider.notifier).add(item.id);
+    state = TonightState(filters: state.filters, pick: AsyncData(item));
+  }
+
   /// Pesca il titolo da proporre con [filters], che sono quelli dello stato o
   /// quelli che [setFilters] sta mettendo.
   Future<void> _pick(TonightFilters filters) async {

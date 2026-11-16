@@ -112,6 +112,22 @@ void main() {
     expect(library.randomCalls, hasLength(1));
   });
 
+  test('restore rimette un titolo senza chiamare, e vale una pescata in '
+      'corso', () async {
+    library.randomPages.add(pageOf([movie('m1')], 1));
+    final c = container();
+    await settle();
+    final gate = library.randomGate = Completer<void>();
+    final pending = c.read(tonightControllerProvider.notifier).another();
+    c.read(tonightControllerProvider.notifier).restore(movie('old'));
+    gate.complete();
+    await pending;
+    await settle();
+    expect(pickId(c), 'old');
+    expect(c.read(tonightSeenProvider), contains('old'));
+    expect(library.randomCalls, hasLength(2));
+  });
+
   test('finita la pescata se ne fa un\'altra, e i già proposti non tornano',
       () async {
     library.randomPages
