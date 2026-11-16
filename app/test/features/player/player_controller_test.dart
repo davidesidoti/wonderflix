@@ -320,6 +320,35 @@ void main() {
     expect(view().audioIndex, 2);
   });
 
+  test('setRate arriva al motore e allo stato', () async {
+    final controller = await start();
+    await controller.setRate(1.5);
+    expect(engine.rates.last, 1.5);
+    expect(view().rate, 1.5);
+  });
+
+  test('la velocità resta dopo una riapertura e dopo Riprova', () async {
+    engine = FakeVideoEngine(selectsEmbeddedTracks: false)
+      ..engineTracks = testEngineTracks;
+    final controller = await start();
+    await controller.setRate(1.5);
+    engine.rates.clear();
+    await controller.selectAudio(2);
+    await pumpEventQueue();
+    expect(engine.opened, hasLength(2));
+    expect(engine.rates.last, 1.5);
+
+    engine.rates.clear();
+    await controller.retry();
+    expect(engine.rates.last, 1.5);
+    expect(view().rate, 1.5);
+  });
+
+  test('a 1× la apertura non tocca la velocità', () async {
+    await start();
+    expect(engine.rates, isEmpty);
+  });
+
   test('con mpv selectAudio in direct play non riapre', () async {
     final controller = await start();
     await controller.selectAudio(2);

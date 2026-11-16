@@ -43,6 +43,7 @@ class PlayerViewState {
     this.buffering = false,
     this.volume = 100,
     this.muted = false,
+    this.rate = 1.0,
     this.audioIndex,
     this.subtitleIndex,
     this.subtitleDelay = Duration.zero,
@@ -63,6 +64,9 @@ class PlayerViewState {
   /// 0–100.
   final double volume;
   final bool muted;
+
+  /// Velocità di riproduzione (1 = normale).
+  final double rate;
 
   /// Indici Jellyfin (`MediaStream.Index`) delle tracce in uso; `null` =
   /// nessuna.
@@ -103,6 +107,7 @@ class PlayerViewState {
     bool? buffering,
     double? volume,
     bool? muted,
+    double? rate,
     Object? audioIndex = _keep,
     Object? subtitleIndex = _keep,
     Duration? subtitleDelay,
@@ -121,6 +126,7 @@ class PlayerViewState {
         buffering: buffering ?? this.buffering,
         volume: volume ?? this.volume,
         muted: muted ?? this.muted,
+        rate: rate ?? this.rate,
         audioIndex:
             identical(audioIndex, _keep) ? this.audioIndex : audioIndex as int?,
         subtitleIndex: identical(subtitleIndex, _keep)
@@ -302,6 +308,7 @@ class PlayerController extends Notifier<PlayerViewState> {
       await _engine.open(plan.source);
       if (stale()) return;
       await _engine.setVolume(_view.muted ? 0 : _view.volume);
+      if (_view.rate != 1.0) await _engine.setRate(_view.rate);
       // 1.0 è la scala di partenza di mpv.
       if (_settings.subtitleScale != 1.0) {
         await _engine.setSubtitleScale(_settings.subtitleScale);
@@ -517,6 +524,12 @@ class PlayerController extends Notifier<PlayerViewState> {
   }
 
   Future<void> changeVolumeBy(double delta) => setVolume(_view.volume + delta);
+
+  /// Velocità di riproduzione; resta anche se il video si riapre.
+  Future<void> setRate(double rate) async {
+    _emit(_view.copyWith(rate: rate));
+    await _engine.setRate(rate);
+  }
 
   Future<void> toggleMute() async {
     final muted = !_view.muted;
