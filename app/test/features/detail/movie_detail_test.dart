@@ -49,11 +49,13 @@ void main() {
   });
 
   Future<void> pumpDetail(WidgetTester tester,
-      {List<Override> extra = const []}) async {
+      {List<Override> extra = const [],
+      Size surfaceSize = const Size(1440, 900)}) async {
     // In app la schermata vive dentro lo Scaffold dell'AppShell (servono
     // Material e ScaffoldMessenger per IconButton e SnackBar).
     await pumpApp(
         tester, const Scaffold(body: ItemDetailScreen(itemId: 'm1')),
+        surfaceSize: surfaceSize,
         overrides: [
       ...extra,
       libraryApiProvider.overrideWithValue(api),
@@ -97,6 +99,27 @@ void main() {
     final title = tester.widget<Text>(find.text('DUNE: PARTE DUE'));
     expect(title.style?.fontSize, 96);
   });
+
+  for (final (name, size, fontSize) in [
+    ('stretto', const Size(390, 780), 48.0),
+    ('desktop', const Size(1440, 900), 96.0),
+  ]) {
+    testWidgets('titolo su due righe $name: sta sopra la riga dei dati',
+        (tester) async {
+      api.itemsById['m1'] = testItem(
+          id: 'm1',
+          name: 'Il signore degli anelli la compagnia dell anello edizione '
+              'estesa con scene mai viste prima',
+          genres: const ['Drama']);
+      await pumpDetail(tester, surfaceSize: size);
+      final title = find.textContaining('IL SIGNORE DEGLI ANELLI');
+      expect(tester.widget<Text>(title).style?.fontSize, fontSize);
+      expect(tester.getSize(title).height, greaterThan(fontSize * 1.5),
+          reason: 'il nome va a capo');
+      expect(tester.getRect(title).bottom,
+          lessThanOrEqualTo(tester.getRect(find.text('2024 · 2h · Dramma')).top));
+    });
+  }
 
   testWidgets('film senza regista: la riga oro dice solo Film', (tester) async {
     api.itemsById['m1'] = testItem(id: 'm1', name: 'Dune: Parte Due');

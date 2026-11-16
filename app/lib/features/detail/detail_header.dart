@@ -22,9 +22,9 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
-import '../ratings/rating_widgets.dart';
 import '../ratings/friend_ratings_row.dart';
 import '../ratings/rate_panel.dart';
+import '../ratings/rating_widgets.dart';
 import '../recommendations/recommend_panel.dart';
 import '../requests/request_seasons.dart';
 import '../social/social_providers.dart';
@@ -623,8 +623,8 @@ class HeaderTitle extends ConsumerWidget {
               child: WfImage(image: logo, fit: BoxFit.contain),
             ),
           )
-        : SizedBox(
-            height: 80,
+        : ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 80),
             child: Align(
               alignment: Alignment.bottomLeft,
               child: Text(

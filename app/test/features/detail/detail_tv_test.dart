@@ -211,6 +211,14 @@ void main() {
     });
   }
 
+  testWidgets('titolo in TV: 72, su una riga', (tester) async {
+    await pumpDetail(tester, 'm1', surfaceSize: const Size(960, 540));
+    await tester.pumpAndSettle();
+    final title = tester.widget<Text>(find.text('DUNE: PARTE DUE'));
+    expect(title.style?.fontSize, 72);
+    expect(title.maxLines, 1);
+  });
+
   testWidgets('film: Giù scende fino al cast e ai simili, Su torna su', (
     tester,
   ) async {
