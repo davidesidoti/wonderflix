@@ -21,9 +21,12 @@ void main() {
     ];
   });
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(WidgetTester tester,
+      {bool tv = false, Size size = const Size(1440, 900)}) async {
     await pumpApp(
       tester,
+      tv: tv,
+      surfaceSize: size,
       const Scaffold(
         body: Align(
           alignment: Alignment.centerRight,
@@ -153,7 +156,8 @@ void main() {
       await tester.pump();
     }
     await tester.ensureVisible(target('u30'));
-    await tester.tap(target('u30'));
+    // La riga è spenta: il tocco non la raggiunge, ed è quello che si prova.
+    await tester.tap(target('u30'), warnIfMissed: false);
     await tester.pump();
     final checkbox = tester.widget<CheckboxListTile>(target('u30'));
     expect(checkbox.value, isFalse);
@@ -161,5 +165,19 @@ void main() {
     await tester.drag(find.byType(ListView), const Offset(0, 5000));
     await tester.pump();
     expect(find.text('Al massimo 30 amici alla volta'), findsOneWidget);
+  });
+
+  testWidgets('in TV il fuoco parte dal primo amico, non dal messaggio',
+      (tester) async {
+    await pump(tester, tv: true, size: const Size(960, 540));
+    await tester.pump();
+    final focus = FocusManager.instance.primaryFocus;
+    expect(focus, isNotNull);
+    expect(
+        find.descendant(
+            of: target('u2'),
+            matching: find.byElementPredicate((e) => e == focus!.context)),
+        findsOneWidget,
+        reason: 'Luigi è il primo amico (online)');
   });
 }

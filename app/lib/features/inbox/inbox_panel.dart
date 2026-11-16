@@ -94,6 +94,7 @@ class InboxPanel extends ConsumerStatefulWidget {
 class _InboxPanelState extends ConsumerState<InboxPanel> {
   /// Fuoco della × in alto: a pannello aperto la tastiera parte da qui.
   final _closeFocus = FocusNode(debugLabel: 'inbox-close');
+  bool _focused = false;
 
   @override
   void initState() {
@@ -104,8 +105,16 @@ class _InboxPanelState extends ConsumerState<InboxPanel> {
     // lo scuro.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _closeFocus.requestFocus();
+      _focused = focusPanelStart(context, _closeFocus);
       _refreshPartiesForInvites();
+    });
+  }
+
+  /// In TV le voci arrivano dopo l'apertura: il fuoco passa alla prima.
+  void _retryFocus() {
+    if (_focused || !FormFactor.of(context).tv) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_focused) _focused = focusPanelStart(context, _closeFocus);
     });
   }
 
@@ -135,6 +144,7 @@ class _InboxPanelState extends ConsumerState<InboxPanel> {
     final l = AppLocalizations.of(context);
     final hasEntries = ref.watch(
         inboxControllerProvider.select((s) => s.snapshot.entries.isNotEmpty));
+    _retryFocus();
     return Material(
       key: const Key('inbox-panel'),
       color: WfColors.surface,

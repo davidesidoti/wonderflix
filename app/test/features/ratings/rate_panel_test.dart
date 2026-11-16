@@ -8,6 +8,7 @@ import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/ratings/friend_ratings_row.dart';
 import 'package:wonderflix/features/ratings/rate_panel.dart';
+import 'package:wonderflix/features/ratings/rating_widgets.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 
 import '../../support/library_fakes.dart';
@@ -20,9 +21,12 @@ void main() {
 
   setUp(() => api = FakeSocialApi()..install(features: const {}));
 
-  Future<ProviderContainer> pump(WidgetTester tester, {MyRating? mine}) async {
+  Future<ProviderContainer> pump(WidgetTester tester,
+      {MyRating? mine, bool tv = false, Size? size}) async {
     await pumpApp(
       tester,
+      tv: tv,
+      surfaceSize: size ?? const Size(1440, 900),
       Scaffold(
         body: Align(
           alignment: Alignment.centerRight,
@@ -131,5 +135,18 @@ void main() {
     api.ratingGate!.complete();
     await tester.pump();
     await tester.pump();
+  });
+
+  testWidgets('in TV il fuoco parte dalla riga dei voti, non dal commento',
+      (tester) async {
+    await pump(tester, tv: true, size: const Size(960, 540));
+    await tester.pump();
+    final focus = FocusManager.instance.primaryFocus;
+    expect(focus, isNotNull);
+    expect(
+        find.descendant(
+            of: find.byType(RatingScorePicker),
+            matching: find.byElementPredicate((e) => e == focus!.context)),
+        findsOneWidget);
   });
 }

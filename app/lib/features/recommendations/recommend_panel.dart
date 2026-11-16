@@ -94,13 +94,22 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
   final _closeFocus = FocusNode(debugLabel: 'recommend-close');
   final _selected = <String>{};
   bool _sending = false;
+  bool _focused = false;
 
   @override
   void initState() {
     super.initState();
     // Come negli altri pannelli: `autofocus` nella shell vera non basta.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _closeFocus.requestFocus();
+      if (mounted) _focused = focusPanelStart(context, _closeFocus);
+    });
+  }
+
+  /// In TV l'elenco arriva dopo l'apertura: il fuoco passa al primo amico.
+  void _retryFocus() {
+    if (_focused || !FormFactor.of(context).tv) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_focused) _focused = focusPanelStart(context, _closeFocus);
     });
   }
 
@@ -150,6 +159,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
     final l = AppLocalizations.of(context);
     final subject = widget.subject;
     final targets = ref.watch(recommendTargetsProvider(subject.itemId));
+    _retryFocus();
     return Material(
       key: const Key('recommend-panel'),
       color: WfColors.surface,

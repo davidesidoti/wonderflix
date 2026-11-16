@@ -79,7 +79,7 @@ class _RatePanelState extends ConsumerState<RatePanel> {
     super.initState();
     // Come negli altri pannelli: `autofocus` nella shell vera non basta.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _closeFocus.requestFocus();
+      if (mounted) focusPanelStart(context, _closeFocus);
     });
   }
 

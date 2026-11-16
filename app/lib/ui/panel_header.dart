@@ -59,17 +59,31 @@ class PanelHeader extends StatelessWidget {
   }
 }
 
-/// Riga sotto la testa di un pannello ("2 online"): `creamMuted` 13.
-class PanelSubtitle extends StatelessWidget {
-  const PanelSubtitle(this.text, {super.key});
+/// Il fuoco di partenza di un pannello aperto: sul desktop la ✕, in TV il
+/// primo controllo del pannello (mai un campo di testo: aprirebbe la
+/// tastiera), nello stretto col dito nessuno. `false` se in TV non c'è
+/// ancora nulla da raggiungere (elenco che carica): si riprova.
+bool focusPanelStart(BuildContext panel, FocusNode close) {
+  final form = FormFactor.of(panel);
+  if (form.tv) return _focusFirstControl(panel);
+  if (!form.compact) close.requestFocus();
+  return true;
+}
 
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-    style: const TextStyle(color: WfColors.creamMuted, fontSize: 13),
-  );
+bool _focusFirstControl(BuildContext panel) {
+  for (final node in FocusScope.of(panel).traversalDescendants) {
+    final context = node.context;
+    if (context == null ||
+        context.widget is EditableText ||
+        context.findAncestorWidgetOfExactType<EditableText>() != null) {
+      continue;
+    }
+    var inside = false;
+    context.visitAncestorElements((e) => !(inside = identical(e, panel)));
+    if (inside) {
+      node.requestFocus();
+      return true;
+    }
+  }
+  return false;
 }
