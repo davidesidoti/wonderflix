@@ -7,7 +7,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/error_text.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/backdrop_image.dart';
 import '../../ui/staggered_entrance.dart';
@@ -57,12 +59,14 @@ class PlayerLoadingLayer extends ConsumerStatefulWidget {
     required this.item,
     required this.visible,
     required this.onBack,
+    required this.backLabel,
   });
 
   /// `null` finché l'elemento non è arrivato: solo il nero e la linea.
   final JellyfinItem? item;
   final bool visible;
   final VoidCallback onBack;
+  final String backLabel;
 
   /// Velo sullo sfondo.
   static const dim = 0.55;
@@ -113,7 +117,6 @@ class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
   @override
   Widget build(BuildContext context) {
     if (_gone) return const SizedBox.shrink();
-    final l = AppLocalizations.of(context);
     final motion = WfMotion.of(context);
     final urls = ref.watch(imageUrlsProvider);
     final item = widget.item;
@@ -197,13 +200,19 @@ class _PlayerLoadingLayerState extends ConsumerState<PlayerLoadingLayer> {
                   ],
                 ),
               ),
-              Positioned(
-                top: 16,
-                left: 16,
-                child: PlayerIconButton(
-                  icon: const Icon(LucideIcons.arrowLeft),
-                  tooltip: l.navBack,
-                  onPressed: widget.onBack,
+              Positioned.fill(
+                child: SafeArea(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: PlayerIconButton(
+                        icon: const Icon(LucideIcons.arrowLeft),
+                        tooltip: widget.backLabel,
+                        onPressed: widget.onBack,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -277,7 +286,7 @@ class _LoadingLineState extends State<LoadingLine>
   }
 }
 
-/// Spinner oro del buffering (spec D §10.2): compare solo se l'attesa dura
+/// Linea oro del buffering (spec D §10.2): compare solo se l'attesa dura
 /// più di [bufferingSpinnerDelay] e sfuma in entrata e in uscita. Sparito,
 /// non è nell'albero.
 class BufferingSpinner extends StatefulWidget {
@@ -344,16 +353,24 @@ class _BufferingSpinnerState extends State<BufferingSpinner> {
         },
         builder: (context, t, child) =>
             Opacity(opacity: t.clamp(0.0, 1.0), child: child),
-        child: const Center(
-            child: CircularProgressIndicator(color: WfColors.gold)),
+        child: const Center(child: LoadingLine()),
       ),
     );
   }
 }
 
+/// Il dettaglio tecnico di un errore, per chi gestisce il server: `null`
+/// se non c'è.
+String? playerErrorDetail(Object error) => switch (error) {
+      ServerErrorException(:final statusCode?) => 'HTTP $statusCode',
+      EngineOpenException(:final message) => message,
+      PlaybackUnavailableException(:final code?) => code,
+      _ => null,
+    };
+
 /// Errore di riproduzione (spec D §10.3): sullo sfondo del titolo molto
-/// scurito (o sul nero) icona, titolo, testo e pulsanti entrano
-/// scaglionati.
+/// scurito (o sul nero) icona, titolo, testo, pulsanti e dettaglio tecnico,
+/// centrati ed entrano scaglionati; i testi non vanno oltre [textMaxWidth].
 class PlayerErrorLayer extends StatelessWidget {
   const PlayerErrorLayer({
     super.key,
@@ -373,11 +390,21 @@ class PlayerErrorLayer extends StatelessWidget {
   /// Velo sullo sfondo.
   static const dim = 0.75;
 
+  /// Larghezza massima dei testi: circa 46 caratteri a 14 px.
+  static const textMaxWidth = 400.0;
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final failure = error;
     final current = item;
+    final detail = failure == null ? null : playerErrorDetail(failure);
+    final bodyStyle = TextStyle(
+        fontSize: 14, height: 1.6, color: WfColors.cream.withValues(alpha: 0.82));
+    Widget text(String value, TextStyle style) => ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: textMaxWidth),
+          child: Text(value, textAlign: TextAlign.center, style: style),
+        );
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -399,34 +426,55 @@ class PlayerErrorLayer extends StatelessWidget {
                 const SizedBox(height: 16),
                 StaggerItem(
                   index: 1,
-                  child:
-                      Text(l.playerErrorTitle, style: WfText.display(34)),
+                  child: text(l.playerErrorTitle, WfText.display(34)),
                 ),
                 const SizedBox(height: 8),
                 StaggerItem(
                   index: 2,
-                  child: Text(
-                    failure == null
-                        ? l.errorGeneric
-                        : describeError(l, failure),
-                    style: const TextStyle(color: WfColors.creamMuted),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      text(
+                          failure == null
+                              ? l.errorGeneric
+                              : describeError(l, failure),
+                          bodyStyle),
+                      if (failure is! PlaybackUnavailableException) ...[
+                        const SizedBox(height: 8),
+                        text(l.playerErrorHint, bodyStyle),
+                      ],
+                    ],
                   ),
                 ),
                 const SizedBox(height: 24),
                 StaggerItem(
                   index: 3,
-                  child: Wrap(
-                    spacing: 12,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      WfButton.primary(
-                          label: l.retry,
-                          icon: LucideIcons.rotateCcw,
-                          autofocus: true,
-                          onPressed: onRetry),
-                      WfButton.secondary(
-                          label: backLabel,
-                          icon: LucideIcons.arrowLeft,
-                          onPressed: onBack),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          WfButton.primary(
+                              label: l.retry,
+                              icon: LucideIcons.rotateCcw,
+                              autofocus: true,
+                              onPressed: onRetry),
+                          WfButton.secondary(
+                              label: backLabel,
+                              icon: LucideIcons.arrowLeft,
+                              onPressed: onBack),
+                        ],
+                      ),
+                      if (detail != null) ...[
+                        const SizedBox(height: 20),
+                        text(
+                            l.playerErrorDetailLine(detail),
+                            const TextStyle(
+                                fontSize: 12, color: WfColors.creamMuted)),
+                      ],
                     ],
                   ),
                 ),
@@ -434,6 +482,58 @@ class PlayerErrorLayer extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Velo sopra il player quando il browser rifiuta l'avvio: "Riproduci" al
+/// centro, un tocco ovunque fa partire il video.
+class PlayBlockedLayer extends StatelessWidget {
+  const PlayBlockedLayer(
+      {super.key, required this.onPlay, this.onBack, this.backLabel});
+
+  final VoidCallback onPlay;
+
+  /// Con [onBack] la ← in alto a sinistra: se WebKit rifiuta anche il
+  /// tocco, resta una via d'uscita.
+  final VoidCallback? onBack;
+  final String? backLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onPlay,
+          child: ColoredBox(
+            color: WfColors.bg.withValues(alpha: 0.6),
+            child: Center(
+              child: WfButton.primary(
+                  label: l.actionPlay,
+                  icon: LucideIcons.play,
+                  autofocus: true,
+                  onPressed: onPlay),
+            ),
+          ),
+        ),
+        if (onBack != null)
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: PlayerIconButton(
+                  icon: const Icon(LucideIcons.arrowLeft),
+                  tooltip: backLabel ?? l.navBack,
+                  onPressed: onBack,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

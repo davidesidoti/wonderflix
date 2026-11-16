@@ -317,7 +317,7 @@ void main() {
   testWidgets("Indietro sull'errore esce subito", (tester) async {
     engine.failOpens = 2;
     await pumpPlayer(tester);
-    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(find.text('Il video non parte'), findsOneWidget);
     await back(tester);
     expect(router.state.uri.path, '/');
     await unmount(tester);
@@ -327,7 +327,7 @@ void main() {
       (tester) async {
     engine.failOpens = 2;
     await pumpPlayer(tester, size: const Size(960, 540));
-    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(find.text('Il video non parte'), findsOneWidget);
     expect(Focus.of(tester.element(find.text('Riprova'))).hasFocus, isTrue,
         reason: 'Riprova deve avere il focus');
     final opens = engine.opened.length;
@@ -354,7 +354,7 @@ void main() {
     );
     unawaited(container.read(playerControllerProvider(args).notifier).retry());
     await tester.pumpAndSettle();
-    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(find.text('Il video non parte'), findsOneWidget);
     expect(Focus.of(tester.element(find.text('Riprova'))).hasFocus, isTrue,
         reason: 'Riprova deve avere il focus anche se prima lo aveva il player');
     final seeks = engine.seeks.length;

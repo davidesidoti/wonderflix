@@ -13,6 +13,7 @@ import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -103,20 +104,21 @@ void main() {
   }
 
   testWidgets(
-    'avvio rifiutato: compare Tocca per riprodurre, il tocco chiama play e '
+    'avvio rifiutato: compare Riproduci, il tocco chiama play e '
     'lo strato sparisce',
     (tester) async {
       engine.blockNextPlay();
       await pumpPlayer(tester, touch: true, surfaceSize: const Size(844, 390));
       expect(engine.playing, isFalse);
-      expect(find.text(l.playerTapToPlay), findsOneWidget);
+      expect(find.widgetWithText(WfButton, l.actionPlay), findsOneWidget);
+      expect(find.text('Tocca per riprodurre'), findsNothing);
       expect('play'.allMatches(engine.calls.join(' ')).length, 1);
 
-      await tester.tap(find.text(l.playerTapToPlay));
+      await tester.tap(find.widgetWithText(WfButton, l.actionPlay));
       await tester.pumpAndSettle();
       expect(engine.playing, isTrue);
       expect('play'.allMatches(engine.calls.join(' ')).length, 2);
-      expect(find.text(l.playerTapToPlay), findsNothing);
+      expect(find.widgetWithText(WfButton, l.actionPlay), findsNothing);
       await unmount(tester);
     },
   );
@@ -125,21 +127,33 @@ void main() {
       (tester) async {
     engine.blockNextPlay();
     await pumpPlayer(tester, touch: true, surfaceSize: const Size(844, 390));
-    expect(find.text(l.playerTapToPlay), findsOneWidget);
+    expect(find.widgetWithText(WfButton, l.actionPlay), findsOneWidget);
 
     await tester.tap(find.descendant(
         of: find.byKey(const ValueKey('player-tap-to-play')),
-        matching: find.byTooltip(l.navBack)));
+        matching: find.byTooltip(l.playerBackToDetail)));
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
-    expect(find.text(l.playerTapToPlay), findsNothing);
+    expect(find.widgetWithText(WfButton, l.actionPlay), findsNothing);
     await unmount(tester);
   });
 
-  testWidgets('avvio riuscito: niente Tocca per riprodurre', (tester) async {
+  testWidgets('avvio rifiutato col mouse: il pulsante Riproduci fa partire',
+      (tester) async {
+    engine.blockNextPlay();
+    await pumpPlayer(tester, touch: false, surfaceSize: const Size(1440, 900));
+    expect(engine.playing, isFalse);
+    await tester.tap(find.widgetWithText(WfButton, l.actionPlay));
+    await tester.pumpAndSettle();
+    expect(engine.playing, isTrue);
+    expect(find.widgetWithText(WfButton, l.actionPlay), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets('avvio riuscito: niente Riproduci', (tester) async {
     await pumpPlayer(tester, touch: true, surfaceSize: const Size(844, 390));
     expect(engine.playing, isTrue);
-    expect(find.text(l.playerTapToPlay), findsNothing);
+    expect(find.widgetWithText(WfButton, l.actionPlay), findsNothing);
     await unmount(tester);
   });
 }

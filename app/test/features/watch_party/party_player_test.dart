@@ -291,10 +291,10 @@ void main() {
     int plays() => engine.calls.where((call) => call == 'play').length;
     expect(plays(), 1, reason: 'senza tocco nessun nuovo tentativo');
     expect(engine.playing, isFalse);
-    expect(find.text(l.playerTapToPlay), findsOneWidget);
+    expect(find.widgetWithText(WfButton, l.actionPlay), findsOneWidget);
 
     api.calls.clear();
-    await tester.tap(find.text(l.playerTapToPlay));
+    await tester.tap(find.widgetWithText(WfButton, l.actionPlay));
     await tester.pump();
     expect(plays(), 2);
     expect(engine.playing, isTrue);
@@ -305,7 +305,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     expect(engine.seeks.last, greaterThan(const Duration(seconds: 9)));
     await tester.pumpAndSettle();
-    expect(find.text(l.playerTapToPlay), findsNothing);
+    expect(find.widgetWithText(WfButton, l.actionPlay), findsNothing);
     await finish(tester);
   });
 

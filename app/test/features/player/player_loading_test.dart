@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
+import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/player/player_loading.dart';
 import 'package:wonderflix/ui/backdrop_image.dart';
 
@@ -24,6 +26,7 @@ void main() {
               item: value.$1,
               visible: value.$2,
               onBack: onBack ?? () {},
+              backLabel: 'Torna alla scheda',
             ),
           ),
         ),
@@ -37,8 +40,27 @@ void main() {
       await pumpLoading(tester, onBack: () => back++);
       expect(find.byType(LoadingLine), findsOneWidget);
       expect(find.byType(BackdropImage), findsNothing);
-      await tester.tap(find.byTooltip('Indietro'));
+      await tester.tap(find.byTooltip('Torna alla scheda'));
       expect(back, 1);
+    });
+
+    testWidgets('la freccia sta sotto la tacca', (tester) async {
+      await pumpApp(
+        tester,
+        MediaQuery(
+          data: const MediaQueryData(
+              size: Size(1440, 900), padding: EdgeInsets.only(top: 47)),
+          child: Scaffold(
+            body: PlayerLoadingLayer(
+                item: null,
+                visible: true,
+                onBack: () {},
+                backLabel: 'Torna alla scheda'),
+          ),
+        ),
+      );
+      expect(tester.getTopLeft(find.byTooltip('Torna alla scheda')).dy,
+          greaterThanOrEqualTo(47));
     });
 
     testWidgets('con l\'elemento: sfondo e titolo (senza logo)',
@@ -178,7 +200,10 @@ void main() {
           body: ValueListenableBuilder<bool>(
             valueListenable: visible,
             builder: (context, value, _) => PlayerLoadingLayer(
-                item: testItem(name: 'Dune'), visible: value, onBack: () {}),
+                item: testItem(name: 'Dune'),
+                visible: value,
+                onBack: () {},
+                backLabel: 'Torna alla scheda'),
           ),
         ),
       );
@@ -205,22 +230,23 @@ void main() {
       buffering.value = true;
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(LoadingLine), findsNothing);
       buffering.value = false;
       await tester.pump();
       await tester.pump(bufferingSpinnerDelay);
-      expect(find.byType(CircularProgressIndicator), findsNothing,
+      expect(find.byType(LoadingLine), findsNothing,
           reason: 'attesa breve: niente spinner');
 
       buffering.value = true;
       await tester.pump();
       await tester.pump(bufferingSpinnerDelay);
       await tester.pump();
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(LoadingLine), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
       buffering.value = false;
       await tester.pump();
       await tester.pumpAndSettle();
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(LoadingLine), findsNothing);
     });
   });
 
@@ -241,7 +267,7 @@ void main() {
         ),
       );
       expect(find.byType(BackdropImage), findsOneWidget);
-      expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+      expect(find.text('Il video non parte'), findsOneWidget);
       await tester.tap(find.text('Riprova'));
       await tester.tap(find.text('Torna indietro'));
       expect((retry, back), (1, 1));
@@ -262,6 +288,55 @@ void main() {
       );
       expect(find.byType(BackdropImage), findsNothing);
       expect(find.text('Riprova'), findsOneWidget);
+    });
+
+    Future<void> pumpError(WidgetTester tester, Object? error) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PlayerErrorLayer(
+            item: null,
+            error: error,
+            onRetry: () {},
+            onBack: () {},
+            backLabel: 'Torna alla scheda',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('centrato, largo al massimo 400, con il dettaglio',
+        (tester) async {
+      await pumpError(tester, const ServerErrorException(504));
+      expect(find.text('Il video non parte'), findsOneWidget);
+      expect(find.text('Dettaglio per chi gestisce il server: HTTP 504'),
+          findsOneWidget);
+      expect(find.text('Torna alla scheda'), findsOneWidget);
+      final body = find.textContaining('Di solito basta riprovare');
+      expect(tester.getSize(body).width, lessThanOrEqualTo(400));
+      expect(tester.widget<Text>(body).textAlign, TextAlign.center);
+      expect(tester.getCenter(body).dx, closeTo(720, 1));
+    });
+
+    testWidgets('contenuto non riproducibile: niente "riprova"',
+        (tester) async {
+      await pumpError(tester, const PlaybackUnavailableException(null));
+      expect(find.textContaining('Di solito basta riprovare'), findsNothing);
+      expect(find.textContaining('Dettaglio per chi'), findsNothing);
+    });
+
+    test('il dettaglio tecnico', () {
+      expect(playerErrorDetail(const ServerErrorException(504)), 'HTTP 504');
+      expect(playerErrorDetail(const ServerErrorException(null)), isNull);
+      expect(playerErrorDetail(const EngineOpenException('timeout')),
+          'timeout');
+      expect(
+          playerErrorDetail(const PlaybackUnavailableException('NotAllowed')),
+          'NotAllowed');
+      expect(playerErrorDetail(const PlaybackUnavailableException(null)),
+          isNull);
+      expect(playerErrorDetail(StateError('x')), isNull);
     });
   });
 }

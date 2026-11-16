@@ -220,7 +220,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: layer, matching: find.byTooltip('Indietro')),
+        find.descendant(of: layer, matching: find.byTooltip('Torna alla scheda')),
         findsOneWidget,
       );
       expect(controlsOpacity(tester), 0, reason: 'controlli nascosti');
@@ -286,15 +286,15 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(LoadingLine), findsNothing);
     await tester.pump(const Duration(milliseconds: 150));
     await tester.pump();
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(LoadingLine), findsOneWidget);
 
     engine.emitBuffering(false);
     await tester.pump();
     await tester.pumpAndSettle();
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(LoadingLine), findsNothing);
     await unmount(tester);
   });
 
@@ -915,7 +915,7 @@ void main() {
     engine.failOpens = 1;
     await tester.tap(find.text('PGS · esterno'));
     await tester.pumpAndSettle();
-    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(find.text('Il video non parte'), findsOneWidget);
     expect(
       find.textContaining('Dimensione ·'),
       findsNothing,
@@ -959,7 +959,7 @@ void main() {
   testWidgets('errore: Riprova riavvia', (tester) async {
     engine.failOpens = 2;
     await pumpPlayer(tester);
-    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(find.text('Il video non parte'), findsOneWidget);
     expect(find.text('Il video non si è avviato.'), findsOneWidget);
 
     await tester.tap(find.text('Riprova'));
@@ -1724,7 +1724,7 @@ void main() {
     await tester.pump(bufferingSpinnerDelay);
     await tester.pump(WfMotion.fast);
     // Lo spinner gira: niente `pumpAndSettle` finché si vede.
-    final spinner = find.byType(CircularProgressIndicator);
+    final spinner = find.byType(LoadingLine);
     expect(spinner, findsOneWidget);
     const film = Rect.fromLTWH(
       postPlayInset,

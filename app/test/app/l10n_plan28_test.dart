@@ -8,7 +8,8 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 /// Le chiavi del piano 28 (i Task successivi le estendono).
 const _keys = [
   'navMore',
-  'playerTapToPlay',
+  'playerErrorHint',
+  'playerErrorDetailLine',
 ];
 
 Map<String, dynamic> _arb(String name) =>
@@ -40,10 +41,12 @@ void main() {
     expect(lookupAppLocalizations(const Locale('en')).playerMore, 'More');
   });
 
-  test('avvio bloccato dal browser', () {
-    expect(lookupAppLocalizations(const Locale('it')).playerTapToPlay,
-        'Tocca per riprodurre');
-    expect(lookupAppLocalizations(const Locale('en')).playerTapToPlay,
-        'Tap to play');
+  test('errore del player', () {
+    final it = lookupAppLocalizations(const Locale('it'));
+    final en = lookupAppLocalizations(const Locale('en'));
+    expect(it.playerErrorTitle, 'Il video non parte');
+    expect(en.playerErrorTitle, "The video won't start");
+    expect(it.playerErrorDetailLine('HTTP 504'),
+        'Dettaglio per chi gestisce il server: HTTP 504');
   });
 }

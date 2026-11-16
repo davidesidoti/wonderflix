@@ -7,12 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:logging/logging.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/navigation.dart';
 import '../../app/providers.dart';
-import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/media_session/media_session.dart';
@@ -2044,6 +2042,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         item: view.item,
                         visible: loading,
                         onBack: _exit,
+                        backLabel: _backLabel,
                       ),
                     ),
                   ),
@@ -2051,8 +2050,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   Positioned.fill(
                     key: const ValueKey('player-tap-to-play'),
                     child: ExcludeFocus(
-                        child: _TapToPlayLayer(
-                            onTap: _tapToPlay, onBack: _exit)),
+                        child: PlayBlockedLayer(
+                            onPlay: _tapToPlay,
+                            onBack: _exit,
+                            backLabel: _backLabel)),
                   ),
                 if (view.status == PlayerStatus.ready) ...[
                   // Salta intro / riassunto: visibile anche a controlli
@@ -2430,49 +2431,4 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ),
     );
   }
-}
-
-/// Velo sopra il player quando il browser rifiuta l'avvio: un tocco
-/// ovunque fa partire il video.
-class _TapToPlayLayer extends StatelessWidget {
-  const _TapToPlayLayer({required this.onTap, required this.onBack});
-
-  final VoidCallback onTap;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) => Stack(
-        fit: StackFit.expand,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: ColoredBox(
-              color: WfColors.bg.withValues(alpha: 0.6),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(LucideIcons.play,
-                        size: 64, color: WfColors.cream),
-                    const SizedBox(height: 16),
-                    Text(AppLocalizations.of(context).playerTapToPlay,
-                        style: WfText.display(28)),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Se WebKit rifiuta anche il tocco, resta una via d'uscita.
-          Positioned(
-            top: 16,
-            left: 16,
-            child: PlayerIconButton(
-              icon: const Icon(LucideIcons.arrowLeft),
-              tooltip: AppLocalizations.of(context).navBack,
-              onPressed: onBack,
-            ),
-          ),
-        ],
-      );
 }
