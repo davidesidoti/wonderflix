@@ -225,6 +225,8 @@ class _MediaRowState extends State<MediaRow> {
     final animate = widget.animateEntrance;
     final form = FormFactor.of(context);
     final side = form.compact ? 16.0 : 32.0;
+    // La TV è `compact` ma ha la riga larga: il trailing resta in intestazione.
+    final wrapTrailing = form.compact && !form.tv;
     Widget list = ListView.separated(
       controller: _controller,
       scrollDirection: Axis.horizontal,
@@ -303,7 +305,7 @@ class _MediaRowState extends State<MediaRow> {
               child: Row(
                 children: [
                   heading,
-                  if (!form.compact) ?widget.trailing,
+                  if (!wrapTrailing) ?widget.trailing,
                   if (arrows) ...[
                     IconButton(
                       key: const Key('row-previous'),
@@ -322,7 +324,7 @@ class _MediaRowState extends State<MediaRow> {
               ),
             ),
           ),
-          if (form.compact && widget.trailing != null)
+          if (wrapTrailing && widget.trailing != null)
             Padding(
               padding: EdgeInsets.fromLTRB(side, 8, side, 0),
               child: widget.trailing,

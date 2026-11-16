@@ -108,6 +108,18 @@ void main() {
     );
   });
 
+  testWidgets('trailing sulla riga del titolo in TV', (tester) async {
+    await pumpApp(
+      tester,
+      row('Da vedere', trailing: const Text('X')),
+      tv: true,
+    );
+    expect(
+      tester.getTopLeft(find.text('X')).dy,
+      lessThan(tester.getBottomLeft(find.text('Da vedere')).dy),
+    );
+  });
+
   testWidgets('trailing sulla riga del titolo nel largo', (tester) async {
     await pumpApp(
       tester,

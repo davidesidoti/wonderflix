@@ -114,9 +114,9 @@ void main() {
         q.toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
     expect(p(const ItemQuery(kinds: {ItemKind.movie}))['fields'],
         isNot(contains('Overview')));
-    const query = ItemQuery(
-        kinds: {ItemKind.movie}, includeSortFields: true, includeOverview: true);
-    expect(p(query)['fields'], allOf(contains('Overview'), contains('ChildCount')));
+    const query = ItemQuery(kinds: {ItemKind.movie}, includeOverview: true);
+    expect(p(query)['fields'],
+        'PrimaryImageAspectRatio,Genres,Overview,ChildCount,DateCreated');
     expect(query.copyWith(year: 2020).includeOverview, isTrue);
   });
 

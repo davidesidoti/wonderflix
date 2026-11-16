@@ -84,8 +84,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// e allora non devono rifarla.
   final _lateEntered = <String>{};
 
-  /// Il titolo mostrato dal carosello, per l'alone; `null` = il primo (il
-  /// carosello non avvisa per il primo).
+  /// Il titolo mostrato dal carosello, per l'alone; `null` = nessuno ancora
+  /// (vale il primo).
   final _glowId = ValueNotifier<String?>(null);
 
   @override
@@ -259,7 +259,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ref.read(homeEntrancePlayedProvider.notifier).markPlayed(),
         child: Stack(
           children: [
-            if (featuredItems.isNotEmpty) _glow(featuredItems),
+            // Sempre un figlio nel posto dell'alone: la lista non cambia
+            // posizione (e non perde scorrimento e fuoco) quando il
+            // carosello arriva o sparisce.
+            featuredItems.isNotEmpty
+                ? _glow(featuredItems)
+                : const SizedBox.shrink(),
             _list(featuredItems, shown, tv: tv, hasTonight: hasTonight),
           ],
         ),
@@ -270,6 +275,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _list(List<JellyfinItem> featuredItems, List<Widget> shown,
           {required bool tv, required bool hasTonight}) =>
       ListView(
+          key: const ValueKey('home-list'),
           controller: _scroll,
           // Il carosello parte dal bordo della finestra, sotto la barra;
           // senza carosello la prima riga inizia sotto la barra.

@@ -127,7 +127,6 @@ Future<List<JellyfinItem>> _latest(Ref ref, ItemKind kind) {
           ItemQuery(
               kinds: {kind},
               sort: CatalogSort.dateAdded,
-              includeSortFields: true,
               includeOverview: true),
           userId: userId, startIndex: 0, limit: homeRowLimit)
       .then((page) => page.items);

@@ -91,8 +91,8 @@ class _TicketCardState extends ConsumerState<TicketCard> {
               transform: Matrix4.translationValues(0, _hover ? -3 : 0, 0),
               child: Stack(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                  ClipPath(
+                    clipper: _TicketClipper(size.image),
                     child: ColoredBox(
                       color: WfColors.surface,
                       child: Row(
@@ -165,7 +165,7 @@ class _TicketCardState extends ConsumerState<TicketCard> {
                       ),
                     ),
                   ),
-                  // Lo strappo sopra il bordo, come i mezzi cerchi della bozza.
+                  // La linea dello strappo; i mezzi cerchi sono ritagliati.
                   Positioned.fill(
                     child: IgnorePointer(
                       child: CustomPaint(
@@ -241,8 +241,31 @@ class _Stub extends StatelessWidget {
   }
 }
 
-/// La linea tratteggiata verticale e i due mezzi cerchi dello strappo,
-/// alla larghezza [x] (quella dell'immagine).
+/// La sagoma del biglietto: rettangolo arrotondato con i due mezzi cerchi
+/// dello strappo (in alto e in basso, alla larghezza [x]) tagliati via, così
+/// si vede il fondo qualunque sia.
+class _TicketClipper extends CustomClipper<Path> {
+  const _TicketClipper(this.x);
+
+  final double x;
+
+  @override
+  Path getClip(Size size) => Path.combine(
+        PathOperation.difference,
+        Path()
+          ..addRRect(RRect.fromRectAndRadius(
+              Offset.zero & size, const Radius.circular(8))),
+        Path()
+          ..addOval(Rect.fromCircle(center: Offset(x, 0), radius: 7))
+          ..addOval(Rect.fromCircle(center: Offset(x, size.height), radius: 7)),
+      );
+
+  @override
+  bool shouldReclip(_TicketClipper old) => old.x != x;
+}
+
+/// La linea tratteggiata verticale dello strappo, alla larghezza [x] (quella
+/// dell'immagine), tra i due mezzi cerchi.
 class _TearPainter extends CustomPainter {
   const _TearPainter(this.x);
 
@@ -253,12 +276,9 @@ class _TearPainter extends CustomPainter {
     final line = Paint()
       ..color = const Color(0xFF333333)
       ..strokeWidth = 1;
-    for (var y = 0.0; y < size.height; y += 7) {
+    for (var y = 9.0; y + 4 < size.height - 7; y += 7) {
       canvas.drawLine(Offset(x + 0.5, y), Offset(x + 0.5, y + 4), line);
     }
-    final notch = Paint()..color = WfColors.bg;
-    canvas.drawCircle(Offset(x, 0), 7, notch);
-    canvas.drawCircle(Offset(x, size.height), 7, notch);
   }
 
   @override

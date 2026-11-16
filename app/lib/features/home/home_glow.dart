@@ -21,37 +21,39 @@ class HomeGlow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final image = ref.watch(imageUrlsProvider).backdrop(item, maxWidth: 32);
-    return SizedBox(
-      height: homeGlowHeight,
-      child: AnimatedSwitcher(
-        duration: WfMotion.of(context).isReduced
-            ? Duration.zero
-            : WfMotion.crossfade,
-        layoutBuilder: (current, previous) => Stack(
-          fit: StackFit.expand,
-          children: [...previous, ?current],
-        ),
-        child: KeyedSubtree(
-          key: ValueKey(item.id),
-          child: image == null
-              ? const SizedBox.shrink()
-              : Opacity(
-                  opacity: 0.28,
-                  child: ShaderMask(
-                    blendMode: BlendMode.dstIn,
-                    shaderCallback: (rect) => LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: const [
-                        Colors.transparent,
-                        Colors.white,
-                        Colors.transparent,
-                      ],
-                      stops: [0, homeGlowFadeIn / rect.height, 1],
-                    ).createShader(rect),
-                    child: WfImage(image: image, fallbackIcon: null),
+    return RepaintBoundary(
+      child: SizedBox(
+        height: homeGlowHeight,
+        child: AnimatedSwitcher(
+          duration: WfMotion.of(context).isReduced
+              ? Duration.zero
+              : WfMotion.crossfade,
+          layoutBuilder: (current, previous) => Stack(
+            fit: StackFit.expand,
+            children: [...previous, ?current],
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(item.id),
+            child: image == null
+                ? const SizedBox.shrink()
+                : Opacity(
+                    opacity: 0.28,
+                    child: ShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (rect) => LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: const [
+                          Colors.transparent,
+                          Colors.white,
+                          Colors.transparent,
+                        ],
+                        stops: [0, homeGlowFadeIn / rect.height, 1],
+                      ).createShader(rect),
+                      child: WfImage(image: image, fallbackIcon: null),
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );

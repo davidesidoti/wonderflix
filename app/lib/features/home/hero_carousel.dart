@@ -578,7 +578,7 @@ class _HeroSlide extends ConsumerWidget {
           ),
         ),
         Positioned(
-          left: compact ? 16 : (form.tv ? 24 : 32),
+          left: compact || form.tv ? 16 : 32,
           right: compact ? 16 : null,
           bottom: compact ? 48 : (form.tv ? 24 : 56),
           width: compact ? null : (form.tv ? 470 : 600),
@@ -608,8 +608,8 @@ class _HeroSlide extends ConsumerWidget {
                       ],
                       logo != null
                       ? SizedBox(
-                          height: compact ? 80 : 110,
-                          width: compact ? 240 : 420,
+                          height: compact || form.tv ? 80 : 110,
+                          width: compact || form.tv ? 240 : 420,
                           child: Align(
                             alignment: Alignment.bottomLeft,
                             child: WfImage(image: logo, fit: BoxFit.contain),
@@ -617,7 +617,8 @@ class _HeroSlide extends ConsumerWidget {
                         )
                       : Text(
                           item.name.toUpperCase(),
-                          maxLines: 2,
+                          maxLines: form.tv ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
                           style: WfText.display(
                             form.tv ? 64 : (compact ? 62 : 104),
                           ),

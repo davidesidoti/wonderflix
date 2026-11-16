@@ -541,6 +541,39 @@ void main() {
     expect(glowWidget().item.id, firstId);
   });
 
+  testWidgets('il carosello che arriva a Home aperta non azzera lo scorrimento',
+      (tester) async {
+    final gated = _GatedLatestLibrary()
+      ..resumeItems = [
+        testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
+      ]
+      ..onItems = ((query, start, limit) =>
+          pageOf([testItem(id: 'm1', name: 'Dune')]))
+      ..latestGate = Completer<void>();
+    await pumpApp(tester, const HomeScreen(),
+        surfaceSize: const Size(1440, 300),
+        overrides: homeOverrides(
+            library: gated,
+            home: home,
+            prefs: prefs,
+            requests: requests,
+            collections: collections));
+    await settle(tester);
+    await tester.pump(homeRevealWait);
+    await settle(tester);
+    expect(find.byType(HeroCarousel), findsNothing);
+    final position = homeList(tester);
+    expect(position.maxScrollExtent, greaterThan(40));
+    position.jumpTo(40);
+    await tester.pump();
+
+    gated.latestGate!.complete();
+    await settle(tester);
+    expect(find.byType(HeroCarousel), findsOneWidget);
+    expect(homeList(tester), same(position));
+    expect(homeList(tester).pixels, 40);
+  });
+
   testWidgets('senza titoli in evidenza niente alone', (tester) async {
     library.resumeItems = [
       testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)

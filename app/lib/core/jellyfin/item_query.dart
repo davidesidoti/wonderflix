@@ -158,7 +158,8 @@ class ItemQuery {
           cardImageParams['fields'],
           if (includeSortFields)
             'SortName,DateCreated,RecursiveItemCount,DateLastMediaAdded',
-          if (includeOverview) 'Overview,ChildCount',
+          // La data serve al carosello ("nuovo"), senza i campi per ordinare.
+          if (includeOverview) 'Overview,ChildCount,DateCreated',
           if (includeProviderIds) 'ProviderIds',
         ].join(','),
       'userId': userId,

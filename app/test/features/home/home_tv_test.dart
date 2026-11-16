@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
 import 'package:wonderflix/features/home/hero_queue.dart';
@@ -411,6 +412,7 @@ void main() {
       WidgetTester tester, {
       Widget? extraAction,
       bool autofocusPlay = true,
+      List<JellyfinItem>? shown,
     }) async {
       await pumpApp(
         tester,
@@ -418,7 +420,7 @@ void main() {
           body: FormFactorScope(
             tv: true,
             child: HeroCarousel(
-              items: items,
+              items: shown ?? items,
               extraAction: extraAction,
               autofocusPlay: autofocusPlay,
             ),
@@ -447,6 +449,8 @@ void main() {
         300,
       );
       expect(tester.widget<Text>(find.text('DUNE')).style!.fontSize, 64);
+      expect(tester.getTopLeft(find.text('DUNE')).dx, 16,
+          reason: 'allineato alle righe');
       expect(find.byType(HeroQueue), findsOneWidget);
       expect(find.byType(HeroTicks), findsNothing);
       expect(
@@ -459,6 +463,26 @@ void main() {
         findsWidgets,
       );
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TV: un nome lungo senza logo e una trama lunga non sbordano', (
+      tester,
+    ) async {
+      await pumpTv(
+        tester,
+        shown: [
+          testItem(
+            id: 'long',
+            name: 'Il favoloso mondo di un titolo lunghissimo senza logo',
+            overview: List.filled(12, 'Una trama molto lunga').join(' '),
+          ),
+        ],
+      );
+      expect(tester.takeException(), isNull);
+      final title = tester.widget<Text>(
+        find.textContaining('IL FAVOLOSO MONDO'),
+      );
+      expect(title.maxLines, 1);
     });
 
     testWidgets('TV: "Stasera?" tra i pulsanti', (tester) async {
