@@ -11,6 +11,7 @@ import '../app/hero_launch.dart';
 import '../app/theme.dart';
 import '../core/jellyfin/item_models.dart';
 import '../features/detail/detail_header.dart';
+import '../features/home/hero_labels.dart';
 import '../features/library/item_labels.dart';
 import '../features/library/library_providers.dart';
 import '../features/library/user_data.dart';
@@ -366,7 +367,7 @@ class CardPreview extends ConsumerWidget {
                     child: MetaLine(item: item),
                   ),
                   if (item.genres.isNotEmpty)
-                    Text(item.genres.take(3).join(' · '),
+                    Text(displayGenres(item.genres).join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: muted),

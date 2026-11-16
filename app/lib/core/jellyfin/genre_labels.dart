@@ -18,6 +18,13 @@ const _labels = {
   'Mini-Series': 'Miniserie',
   'Music': 'Musica',
   'Supernatural': 'Soprannaturale',
+  'Crime': 'Poliziesco',
+  'Romance': 'Romantico',
+  'Psychological': 'Psicologico',
+  'Martial Arts': 'Arti marziali',
+  'Medical': 'Medico',
+  'Food': 'Cucina',
+  'televisione film': 'Film TV',
 };
 
 /// Etichetta italiana di un genere del server; quelli senza voce restano uguali.

@@ -18,6 +18,15 @@ void main() {
     expect(pauseScreenMeta(testItem(year: null, runtimeMinutes: null)), '');
   });
 
+  test('generi tradotti, senza doppioni, al massimo due', () {
+    expect(
+        pauseScreenMeta(testItem(
+            year: null,
+            runtimeMinutes: null,
+            genres: ['Drama', 'Dramma', 'Crime', 'Thriller'])),
+        'Dramma · Poliziesco');
+  });
+
   Future<ValueNotifier<bool>> pumpPause(WidgetTester tester, JellyfinItem item,
       {bool visible = false, MotionLevel motion = MotionLevel.reduced}) async {
     final shown = ValueNotifier(visible);

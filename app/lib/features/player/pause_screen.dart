@@ -8,6 +8,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
+import '../home/hero_labels.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 
@@ -18,7 +19,7 @@ String pauseScreenMeta(JellyfinItem item) {
   return [
     if (item.productionYear != null) '${item.productionYear}',
     if (runtime != null) formatRuntime(runtime),
-    ...item.genres.take(2),
+    ...displayGenres(item.genres),
   ].join(' · ');
 }
 

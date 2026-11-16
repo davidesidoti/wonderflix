@@ -57,6 +57,15 @@ void main() {
     expect(calls, ['play', 'details']);
   });
 
+  testWidgets('generi: tradotti, senza doppioni, al massimo due',
+      (tester) async {
+    await pumpPreview(
+        tester,
+        testItem(
+            id: 'm1', genres: ['Drama', 'Dramma', 'Crime', 'Thriller']));
+    expect(find.text('Dramma · Poliziesco'), findsOneWidget);
+  });
+
   testWidgets('note e Non mi interessa', (tester) async {
     var dismissed = 0;
     await pumpPreview(tester, testItem(id: 'm1'),
@@ -137,7 +146,7 @@ void main() {
         'UserData': {'PlayedPercentage': 40},
       }),
     );
-    expect(find.text('Dramma · Fantascienza · Azione'), findsOneWidget);
+    expect(find.text('Dramma · Fantascienza'), findsOneWidget);
     expect(find.byKey(const Key('preview-progress')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
