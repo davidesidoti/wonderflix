@@ -414,7 +414,7 @@ I test di oggi con "RICHIESTE (2)", "Inviata", "Nessun utente trovato", "Nessun 
 - Test: `app/test/features/recommendations/recommend_panel_test.dart`
 
 **Interfaces:**
-- Consumes: `PanelHeader(subtitle:)` con locandina e titolo (già messi dalla fase 1, cambia solo il testo del titolo), `TvTextFieldFrame` (il messaggio è già in cornice; mettici anche il nuovo campo di ricerca), `UserAvatar.lookup`, `TvFocusBorder`.
+- Consumes: `PanelHeader(subtitle:)` (della fase 1; la riga con locandina e titolo oggi è un `Padding` sotto la testa in `recommend_panel.dart`: spostala in `subtitle` e cambia il testo del titolo), `TvTextFieldFrame` (il messaggio è già in cornice; mettici anche il nuovo campo di ricerca), `UserAvatar.lookup`, `TvFocusBorder`.
 - Arb (it / en): `recommendPanelTitle` "Consiglia" / "Recommend"; `recommendSearchHint` "Cerca tra gli amici" / "Search friends"; `recommendPickOnline` "Scegli gli online" / "Pick who's online"; `recommendMessageHint` "Messaggio, se vuoi" / "Message, if you like"; `recommendSendTo` "{count, plural, =0{Invia} =1{Invia a 1 amico} other{Invia a {count} amici}}" / "{count, plural, =0{Send} =1{Send to 1 friend} other{Send to {count} friends}}"; `recommendPickOne` "Scegli almeno un amico" / "Pick at least one friend". Si toglie `recommendSend`.
 
 Regole (spec §7.3):
