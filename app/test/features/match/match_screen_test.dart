@@ -116,7 +116,7 @@ void main() {
 
     expect(find.text('MATCH DEL FILM'), findsOneWidget);
     expect(find.text('Mario'), findsOneWidget);
-    expect(find.byKey(const Key('tonight-type')), findsOneWidget);
+    expect(find.byKey(const Key('ask-type')), findsOneWidget);
     expect(find.text('Amici online'), findsOneWidget);
     expect(find.byKey(const Key('match-invite-u2')), findsOneWidget);
     expect(find.byKey(const Key('match-invite-u3')), findsOneWidget);
@@ -161,7 +161,7 @@ void main() {
 
     expect(find.text('In attesa che Luigi inizi…'), findsOneWidget);
     expect(find.byKey(const Key('match-start')), findsNothing);
-    expect(find.byKey(const Key('tonight-type')), findsNothing);
+    expect(find.byKey(const Key('ask-type')), findsNothing);
   });
 
   testWidgets('leavingThePageLeavesTheRoomOnce', (tester) async {

@@ -10,7 +10,6 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/tonight/tonight_controller.dart';
 import 'package:wonderflix/features/tonight/tonight_dialog.dart';
-import 'package:wonderflix/features/tonight/tonight_logic.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -138,16 +137,22 @@ void main() {
     expect(dice.duration, Duration.zero);
   });
 
-  testWidgets('la durata è ferma con Serie', (tester) async {
+  Future<void> pick(WidgetTester tester, String key, String item) async {
+    await tester.tap(find.byKey(Key(key)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.text(item).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  testWidgets("con Serie la durata non c'è", (tester) async {
     library.randomPages.add(pageOf([dune]));
     await openDialog(tester);
-    await tester.tap(find.text('Serie'));
-    await tester.pump();
-    await tester.pump();
-    final duration = tester.widget<SegmentedButton<TonightDuration>>(
-      find.byKey(const Key('tonight-duration')),
-    );
-    expect(duration.onSelectionChanged, isNull);
+    expect(find.byKey(const Key('ask-duration')), findsOneWidget);
+    await pick(tester, 'ask-type', 'Serie');
+    expect(find.text('una serie'), findsOneWidget);
+    expect(find.byKey(const Key('ask-duration')), findsNothing);
     expect(library.randomCalls.last.kinds, {ItemKind.series});
     expect(prefs.getString(tonightTypeKey), 'series');
   });
@@ -155,11 +160,16 @@ void main() {
   testWidgets('con Entrambi i generi dei film e delle serie', (tester) async {
     library.randomPages.add(pageOf([dune]));
     await openDialog(tester);
-    final picker = tester.widget<DropdownButton<String?>>(
-      find.byType(DropdownButton<String?>),
-    );
+    await tester.tap(find.byKey(const Key('ask-genre')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
     expect(
-      [for (final item in picker.items!) (item.child as Text).data],
+      [
+        for (final item in tester.widgetList<PopupMenuItem<Object>>(
+          find.byType(PopupMenuItem<Object>),
+        ))
+          (item.child! as Text).data,
+      ],
       ['Tutti i generi', 'Anime', 'Azione', 'Dramma'],
     );
   });

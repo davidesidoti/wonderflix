@@ -18,8 +18,9 @@ import '../friends/friends_controller.dart';
 import '../friends/friends_panel.dart';
 import '../library/library_providers.dart';
 import '../profiles/profile_preferences.dart';
+import '../tonight/ask_parts.dart';
+import '../tonight/ask_sentence.dart';
 import '../tonight/tonight_controller.dart';
-import '../tonight/tonight_filters_bar.dart';
 import '../tonight/tonight_logic.dart';
 import '../watch_party/watch_party_actions.dart';
 import 'match_actions.dart';
@@ -402,7 +403,12 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        TonightFiltersBar(filters: _filters, onChanged: _setFilters),
+        AskSentence(
+          filters: _filters,
+          voice: AskVoice.match,
+          onChanged: _setFilters,
+          fontSize: 19,
+        ),
         const SizedBox(height: 32),
         _InviteFriends(state: state, invited: _invited, onInvite: _invite),
         const SizedBox(height: 32),

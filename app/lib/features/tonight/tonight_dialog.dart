@@ -17,8 +17,9 @@ import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
 import '../library/library_providers.dart';
 import '../playback/play_launcher.dart';
+import 'ask_parts.dart';
+import 'ask_sentence.dart';
 import 'tonight_controller.dart';
-import 'tonight_filters_bar.dart';
 import 'tonight_logic.dart';
 
 /// Larghezza della finestra.
@@ -167,7 +168,12 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
           ],
         ),
         const SizedBox(height: 16),
-        TonightFiltersBar(filters: filters, onChanged: _filters),
+        AskSentence(
+          filters: filters,
+          voice: AskVoice.tonight,
+          onChanged: _filters,
+          fontSize: 19,
+        ),
         const SizedBox(height: 20),
         // Nelle finestre basse lo spazio si accorcia e il titolo scorre: i
         // filtri e i pulsanti restano sempre in vista.

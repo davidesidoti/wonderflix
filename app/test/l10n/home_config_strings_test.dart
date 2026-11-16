@@ -35,9 +35,6 @@ void main() {
   test('i testi di "Cosa guardo stasera?"', () {
     expect(it.tonightButton, 'Cosa guardo stasera?');
     expect(en.tonightButton, 'What should I watch tonight?');
-    expect(it.tonightTypeBoth, 'Entrambi');
-    expect(it.tonightDuration90, 'Meno di 90 min');
-    expect(en.tonightDuration120, 'Under 2 h');
     expect(it.tonightAnother, 'Un altro');
     expect(it.tonightEmpty, 'Nessun titolo con questi filtri');
     expect(it.tonightClearFilters, 'Togli i filtri');
