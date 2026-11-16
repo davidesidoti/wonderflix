@@ -15,6 +15,7 @@ import 'card_preview.dart';
 import 'card_preview_host.dart';
 import 'form_factor.dart';
 import 'poster_card.dart';
+import 'ticket_shape.dart';
 import 'tv_focusable.dart';
 import 'wf_image.dart';
 
@@ -92,7 +93,7 @@ class _TicketCardState extends ConsumerState<TicketCard> {
               child: Stack(
                 children: [
                   ClipPath(
-                    clipper: _TicketClipper(size.image),
+                    clipper: TicketClipper.vertical(size.image),
                     child: ColoredBox(
                       color: WfColors.surface,
                       child: Row(
@@ -170,7 +171,7 @@ class _TicketCardState extends ConsumerState<TicketCard> {
                     child: IgnorePointer(
                       child: CustomPaint(
                           key: const Key('ticket-tear'),
-                          painter: _TearPainter(size.image)),
+                          painter: TicketTearPainter.vertical(size.image)),
                     ),
                   ),
                 ],
@@ -239,48 +240,4 @@ class _Stub extends StatelessWidget {
       ),
     );
   }
-}
-
-/// La sagoma del biglietto: rettangolo arrotondato con i due mezzi cerchi
-/// dello strappo (in alto e in basso, alla larghezza [x]) tagliati via, così
-/// si vede il fondo qualunque sia.
-class _TicketClipper extends CustomClipper<Path> {
-  const _TicketClipper(this.x);
-
-  final double x;
-
-  @override
-  Path getClip(Size size) => Path.combine(
-        PathOperation.difference,
-        Path()
-          ..addRRect(RRect.fromRectAndRadius(
-              Offset.zero & size, const Radius.circular(8))),
-        Path()
-          ..addOval(Rect.fromCircle(center: Offset(x, 0), radius: 7))
-          ..addOval(Rect.fromCircle(center: Offset(x, size.height), radius: 7)),
-      );
-
-  @override
-  bool shouldReclip(_TicketClipper old) => old.x != x;
-}
-
-/// La linea tratteggiata verticale dello strappo, alla larghezza [x] (quella
-/// dell'immagine), tra i due mezzi cerchi.
-class _TearPainter extends CustomPainter {
-  const _TearPainter(this.x);
-
-  final double x;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final line = Paint()
-      ..color = const Color(0xFF333333)
-      ..strokeWidth = 1;
-    for (var y = 9.0; y + 4 < size.height - 7; y += 7) {
-      canvas.drawLine(Offset(x + 0.5, y), Offset(x + 0.5, y + 4), line);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_TearPainter old) => old.x != x;
 }

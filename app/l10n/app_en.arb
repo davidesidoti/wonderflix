@@ -1728,5 +1728,11 @@
   "ticketMinutes": "{minutes} min",
   "@ticketMinutes": {"placeholders": {"minutes": {"type": "int"}}},
   "ticketLeft": "left",
-  "ticketNext": "Up next"
+  "ticketNext": "Up next",
+  "matchSeatsCount": "In the room, {n} of {max}",
+  "@matchSeatsCount": {"placeholders": {"n": {"type": "int"}, "max": {"type": "int"}}},
+  "matchSeatFree": "free",
+  "matchVotedOf": "{n} of {total}",
+  "@matchVotedOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
+  "matchDone": "done"
 }

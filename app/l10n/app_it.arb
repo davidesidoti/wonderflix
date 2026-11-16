@@ -1926,5 +1926,11 @@
   "ticketMinutes": "{minutes} min",
   "@ticketMinutes": {"placeholders": {"minutes": {"type": "int"}}},
   "ticketLeft": "restano",
-  "ticketNext": "Prossimo"
+  "ticketNext": "Prossimo",
+  "matchSeatsCount": "In sala, {n} su {max}",
+  "@matchSeatsCount": {"placeholders": {"n": {"type": "int"}, "max": {"type": "int"}}},
+  "matchSeatFree": "libero",
+  "matchVotedOf": "{n} su {total}",
+  "@matchVotedOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
+  "matchDone": "finito"
 }
