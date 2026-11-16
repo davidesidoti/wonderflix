@@ -10,9 +10,11 @@ import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/trailers/trailers_api.dart';
 import 'package:wonderflix/core/video/video_engine.dart';
 import 'package:wonderflix/features/player/player_commands.dart';
+import 'package:wonderflix/features/player/player_loading.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/trailer/trailer_screen.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/playback_fakes.dart';
 import '../../support/pump_app.dart';
@@ -120,6 +122,100 @@ void main() {
     expect(engine.opened, isEmpty);
   });
 
+  for (final tv in [false, true]) {
+    testWidgets('non disponibile: un solo Chiudi, col focus (tv: $tv)',
+        (tester) async {
+      api.startResult = const TrailerStatus('k1', TrailerState.none);
+      await pumpTrailer(tester, tv: tv);
+      expect(find.text('Chiudi'), findsOneWidget);
+      expect(find.byType(FilledButton), findsNothing);
+      final close = find.widgetWithText(WfButton, 'Chiudi');
+      expect(close, findsOneWidget);
+      expect(Focus.of(tester.element(find.text('Chiudi'))).hasPrimaryFocus,
+          isTrue);
+    });
+  }
+
+  testWidgets('un solo Chiudi anche con il trailer, a destra del titolo',
+      (tester) async {
+    await pumpTrailer(tester);
+    expect(find.text('Chiudi'), findsOneWidget);
+    expect(find.byTooltip('Chiudi'), findsNothing);
+    expect(
+        tester.getCenter(find.text('Chiudi')).dx >
+            tester.getCenter(find.text('Dune')).dx,
+        isTrue);
+  });
+
+  testWidgets('un clic sul video mette in pausa', (tester) async {
+    await pumpTrailer(tester);
+    expect(engine.playing, isTrue);
+    await tester.tapAt(tester.getCenter(find.byType(TrailerScreen)));
+    await tester.pump();
+    expect(engine.playing, isFalse);
+  });
+
+  testWidgets('col dito un tocco sul video non mette in pausa',
+      (tester) async {
+    await pumpTrailer(tester, touch: true);
+    await tester.tapAt(tester.getCenter(find.byType(TrailerScreen)));
+    await tester.pump();
+    expect(engine.playing, isTrue);
+  });
+
+  testWidgets('volume nella pastiglia', (tester) async {
+    await pumpTrailer(tester, volume: 50);
+    expect(find.text('Volume 55%'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('player-pill')),
+            matching: find.text('Volume 55%')),
+        findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyM);
+    await tester.pump();
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('player-pill')),
+            matching: find.text('Audio disattivato')),
+        findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('i salti sommano nella pastiglia', (tester) async {
+    await pumpTrailer(tester);
+    engine.emitDuration(const Duration(minutes: 2));
+    engine.emitPosition(const Duration(seconds: 30));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('player-pill')),
+            matching: find.textContaining('+20 s')),
+        findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('tempo tabellare', (tester) async {
+    await pumpTrailer(tester);
+    engine.emitDuration(const Duration(minutes: 2, seconds: 12));
+    engine.emitPosition(const Duration(seconds: 48));
+    await tester.pump(); // consegna gli eventi degli stream
+    await tester.pump();
+    expect(find.text('00:48'), findsOneWidget);
+    expect(find.text('−01:24'), findsOneWidget);
+  });
+
+  testWidgets('mentre prepara: la linea oro', (tester) async {
+    api.startResult = const TrailerStatus('k1', TrailerState.downloading);
+    api.statuses = const [TrailerStatus('k1', TrailerState.downloading)];
+    await pumpTrailer(tester);
+    expect(find.byType(LoadingLine), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
   testWidgets('givesUpAfterThreeMinutes', (tester) async {
     api.startResult = const TrailerStatus('k1', TrailerState.downloading);
     api.statuses = const [TrailerStatus('k1', TrailerState.downloading)];
@@ -196,12 +292,13 @@ void main() {
     expect(find.text('home'), findsOneWidget);
   });
 
-  testWidgets('playBlockedShowsAPlayButton', (tester) async {
+  testWidgets('autoplay bloccato: Riproduci', (tester) async {
     engine.blockNextPlay();
     await pumpTrailer(tester);
     expect(engine.playing, isFalse);
     final button = find.byKey(const ValueKey('trailer-tap-to-play'));
     expect(button, findsOneWidget);
+    expect(find.widgetWithText(WfButton, 'Riproduci'), findsOneWidget);
 
     await tester.tap(button);
     await tester.pump();

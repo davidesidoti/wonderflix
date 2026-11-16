@@ -12,11 +12,17 @@ import '../../core/trailers/trailers_api.dart';
 import '../../core/video/video_engine.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
+import '../player/player_chrome.dart';
 import '../player/player_commands.dart';
+import '../player/player_keys.dart';
+import '../player/player_loading.dart';
 import '../player/player_overlay.dart';
+import '../player/player_pill.dart';
 import '../player/player_providers.dart';
+import '../player/player_time.dart';
 import '../player/player_volume.dart';
 import '../player/seek_bar.dart';
 import 'trailer_controller.dart';
@@ -46,6 +52,9 @@ class TrailerScreen extends ConsumerStatefulWidget {
 class _TrailerScreenState extends ConsumerState<TrailerScreen> {
   late final TrailerController _controller;
   final _focusNode = FocusNode(debugLabel: 'trailer');
+
+  /// Solo per il riscontro dei tasti (pastiglia): il resto resta qui.
+  final _chrome = PlayerChromeController();
   final _subscriptions = <StreamSubscription<Object?>>[];
   VideoEngine? _engine;
   bool _openFailed = false;
@@ -69,6 +78,7 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
   void dispose() {
     _controller.dispose();
     _hideTimer?.cancel();
+    _chrome.dispose();
     for (final s in _subscriptions) {
       unawaited(s.cancel());
     }
@@ -81,6 +91,8 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
     if (!mounted) return;
     setState(() {});
     final phase = _controller.value;
+    // Il "Chiudi" al centro ha l'autofocus: vale solo se il focus è libero.
+    if (phase is TrailerUnavailable) _focusNode.unfocus();
     if (phase is TrailerReady) unawaited(_open(phase.url));
   }
 
@@ -119,7 +131,10 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
         ),
       );
     } on EngineOpenException {
-      if (mounted) setState(() => _openFailed = true);
+      if (mounted) {
+        _focusNode.unfocus();
+        setState(() => _openFailed = true);
+      }
       return;
     }
     if (!mounted) return;
@@ -167,8 +182,12 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
     if (engine.duration > Duration.zero && target > engine.duration) {
       target = engine.duration;
     }
+    _chrome.seek(delta, from: engine.position, duration: engine.duration);
     unawaited(engine.seek(target));
   }
+
+  void _volumeFeedback() => _chrome.showFeedback(
+      VolumeFeedback(volume: ref.read(playerVolumeProvider), muted: _muted));
 
   void _close() {
     if (_leaving || !mounted) return;
@@ -209,14 +228,19 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
       final volume = ref.read(playerVolumeProvider);
       if (key == LogicalKeyboardKey.arrowUp) {
         _setVolume(volume + volumeStep);
+        _volumeFeedback();
         return KeyEventResult.handled;
       }
       if (key == LogicalKeyboardKey.arrowDown) {
         _setVolume(volume - volumeStep);
+        _volumeFeedback();
         return KeyEventResult.handled;
       }
       if (key == LogicalKeyboardKey.keyM) {
-        if (down) _toggleMute();
+        if (down) {
+          _toggleMute();
+          _volumeFeedback();
+        }
         return KeyEventResult.handled;
       }
     }
@@ -256,7 +280,9 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
         onHover: (_) => _showControls(),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: _showControls,
+          // Col mouse un clic sul video è pausa (come nel player), col dito
+          // mostra i controlli.
+          onTap: touch ? _showControls : _togglePlay,
           child: ColoredBox(
             color: Colors.black,
             child: Stack(
@@ -281,11 +307,12 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                       children: [
                         Text(l.trailerUnavailable, style: WfText.display(34)),
                         const SizedBox(height: 24),
-                        focusable(
-                          FilledButton(
-                            onPressed: _close,
-                            child: Text(l.trailerClose),
-                          ),
+                        // Anche sulla TV prende il focus: è l'unico pulsante.
+                        WfButton.secondary(
+                          label: l.trailerClose,
+                          icon: LucideIcons.x,
+                          autofocus: true,
+                          onPressed: _close,
                         ),
                       ],
                     ),
@@ -295,7 +322,7 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const CircularProgressIndicator(color: WfColors.gold),
+                        const LoadingLine(),
                         const SizedBox(height: 24),
                         Text(l.trailerPreparing, style: WfText.display(28)),
                       ],
@@ -311,96 +338,61 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                         fit: StackFit.expand,
                         children: [
                           Positioned(
-                            top: 16,
-                            left: 16,
-                            right: 16,
-                            child: Row(
-                              children: [
-                                PlayerIconButton(
-                                  icon: const Icon(LucideIcons.x),
-                                  tooltip: l.trailerClose,
-                                  onPressed: _close,
-                                ),
-                                const SizedBox(width: 12),
-                                if (title != null)
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: WfText.display(28),
-                                    ),
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            child: _gradient(
+                              top: true,
+                              child: SafeArea(
+                                bottom: false,
+                                child: Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(24, 16, 24, 48),
+                                  child: Row(
+                                    children: [
+                                      if (title != null)
+                                        Expanded(
+                                          child: Text(
+                                            title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: WfText.display(28),
+                                          ),
+                                        )
+                                      else
+                                        const Spacer(),
+                                      // Senza trailer il "Chiudi" è quello
+                                      // al centro.
+                                      if (!unavailable) ...[
+                                        const SizedBox(width: 16),
+                                        WfButton.secondary(
+                                          label: l.trailerClose,
+                                          icon: LucideIcons.x,
+                                          onPressed: _close,
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                              ],
+                                ),
+                              ),
                             ),
                           ),
                           if (playable)
                             Positioned(
-                              left: 16,
-                              right: 16,
-                              bottom: 16,
-                              child: Row(
-                                children: [
-                                  PlayerIconButton(
-                                    icon: PlayPauseIcon(playing: _playing),
-                                    tooltip: _playing
-                                        ? l.playerPause
-                                        : l.actionPlay,
-                                    onPressed: _togglePlay,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: _gradient(
+                                top: false,
+                                child: SafeArea(
+                                  top: false,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        24, 48, 24, 16),
+                                    child: _bottomRow(
+                                        context, l, engine, volume, tv, touch),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    // Sulla TV si salta con le frecce.
-                                    child: IgnorePointer(
-                                      ignoring: tv,
-                                      child: SeekBar(
-                                        engine: engine,
-                                        onSeek: (p) =>
-                                            unawaited(engine.seek(p)),
-                                      ),
-                                    ),
-                                  ),
-                                  if (!tv) ...[
-                                    PlayerIconButton(
-                                      icon: Icon(_muted || volume == 0
-                                          ? LucideIcons.volumeX
-                                          : LucideIcons.volume2),
-                                      tooltip: _muted
-                                          ? l.playerUnmute
-                                          : l.playerMute,
-                                      onPressed: _toggleMute,
-                                    ),
-                                    // Col dito il volume è quello del telefono.
-                                    if (!touch)
-                                      SizedBox(
-                                        width: 120,
-                                        // Lo Slider vuole un Material sopra di sé.
-                                        child: Material(
-                                          type: MaterialType.transparency,
-                                          child: SliderTheme(
-                                            data: SliderTheme.of(context)
-                                                .copyWith(
-                                              trackHeight: 3,
-                                              activeTrackColor: WfColors.cream,
-                                              inactiveTrackColor: WfColors.cream
-                                                  .withValues(alpha: 0.2),
-                                              thumbColor: WfColors.cream,
-                                              thumbShape:
-                                                  const RoundSliderThumbShape(
-                                                      enabledThumbRadius: 6),
-                                            ),
-                                            child: Slider(
-                                              key: const Key(
-                                                  'trailer-volume-slider'),
-                                              value: _muted ? 0 : volume,
-                                              max: 100,
-                                              onChanged: _setVolume,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ],
+                                ),
                               ),
                             ),
                         ],
@@ -408,26 +400,118 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                     ),
                   ),
                 ),
-                if (_blocked && playable)
+                if (playable)
                   Positioned.fill(
-                    child: Center(
-                      child: focusable(
-                        IconButton(
-                          key: const ValueKey('trailer-tap-to-play'),
-                          iconSize: 96,
-                          color: WfColors.cream,
-                          tooltip: l.actionPlay,
-                          icon: const Icon(LucideIcons.play),
-                          onPressed: () => unawaited(engine.play()),
+                    child: ExcludeFocus(
+                      child: IgnorePointer(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 96),
+                            child: ListenableBuilder(
+                              listenable: _chrome,
+                              builder: (context, _) =>
+                                  PlayerPill(feedback: _chrome.feedback),
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                  ),
+                if (_blocked && playable)
+                  PlayBlockedLayer(
+                    key: const ValueKey('trailer-tap-to-play'),
+                    onPlay: () => unawaited(engine.play()),
                   ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Sfumatura scura sotto i comandi, come in `PlayerOverlay`.
+  Widget _gradient({required bool top, required Widget child}) => DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: top ? Alignment.topCenter : Alignment.bottomCenter,
+            end: top ? Alignment.bottomCenter : Alignment.topCenter,
+            colors: [
+              WfColors.bg.withValues(alpha: top ? 0.8 : 0.9),
+              WfColors.bg.withValues(alpha: 0),
+            ],
+          ),
+        ),
+        child: child,
+      );
+
+  Widget _bottomRow(BuildContext context, AppLocalizations l,
+      VideoEngine engine, double volume, bool tv, bool touch) {
+    return Row(
+      children: [
+        PlayerIconButton(
+          icon: PlayPauseIcon(playing: _playing),
+          tooltip: _playing ? l.playerPause : l.actionPlay,
+          shortcut: l.playerKeySpace,
+          onPressed: _togglePlay,
+        ),
+        const SizedBox(width: 12),
+        RepaintBoundary(child: PositionLabel(engine: engine)),
+        const SizedBox(width: 12),
+        Expanded(
+          // Sulla TV si salta con le frecce.
+          child: IgnorePointer(
+            ignoring: tv,
+            child: SeekBar(
+              engine: engine,
+              onSeek: (p) => unawaited(engine.seek(p)),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        RepaintBoundary(child: RemainingLabel(engine: engine, withEnd: false)),
+        if (!tv) ...[
+          const SizedBox(width: 4),
+          PlayerIconButton(
+            icon: Icon(_muted || volume == 0
+                ? LucideIcons.volumeX
+                : LucideIcons.volume2),
+            tooltip: _muted ? l.playerUnmute : l.playerMute,
+            shortcut: 'M',
+            onPressed: _toggleMute,
+          ),
+          // Col dito il volume è quello del telefono.
+          if (!touch)
+            SizedBox(
+              width: 120,
+              // Lo Slider vuole un Material sopra di sé.
+              child: Material(
+                type: MaterialType.transparency,
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 3,
+                    activeTrackColor: WfColors.gold,
+                    inactiveTrackColor: WfColors.cream.withValues(alpha: 0.25),
+                    thumbColor: WfColors.gold,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  ),
+                  child: KeyTooltip(
+                    message: l.playerVolume,
+                    shortcut: '↑/↓',
+                    child: Slider(
+                      key: const Key('trailer-volume-slider'),
+                      value: _muted ? 0 : volume,
+                      max: 100,
+                      onChanged: _setVolume,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }
