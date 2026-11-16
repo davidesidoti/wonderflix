@@ -1940,7 +1940,7 @@
   "@matchNearOf": {"placeholders": {"yes": {"type": "int"}, "of": {"type": "int"}}},
   "matchStartPartyWith": "{n, plural, =1{Avvia il party con 1 titolo} other{Avvia il party con {n} titoli}}",
   "@matchStartPartyWith": {"placeholders": {"n": {"type": "int"}}},
-  "matchLeft": "Ne restano {n}",
+  "matchLeft": "{n, plural, =1{Ne resta 1} other{Ne restano {n}}}",
   "@matchLeft": {"placeholders": {"n": {"type": "int"}}},
   "matchNoKey": "No · ←",
   "matchYesKey": "Sì · →",

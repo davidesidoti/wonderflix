@@ -189,6 +189,22 @@ void main() {
     expect(find.text('Ne restano 3'), findsOneWidget);
   });
 
+  testWidgets('con una carta sola dice "Ne resta 1"', (tester) async {
+    await pumpApp(
+        tester,
+        Scaffold(
+            body: Center(
+                child: SizedBox(
+                    width: 500,
+                    child: MatchSwipeDeck(
+                        cards: [testItem(id: 'm1', name: 'Uno')],
+                        onVote: (_) async => true)))),
+        motion: MotionLevel.reduced,
+        surfaceSize: const Size(1280, 800));
+
+    expect(find.text('Ne resta 1'), findsOneWidget);
+  });
+
   testWidgets('durante il trascinamento compaiono i timbri SÌ e NO',
       (tester) async {
     await pumpDeck(tester);

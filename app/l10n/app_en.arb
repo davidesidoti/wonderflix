@@ -1742,7 +1742,7 @@
   "@matchNearOf": {"placeholders": {"yes": {"type": "int"}, "of": {"type": "int"}}},
   "matchStartPartyWith": "{n, plural, =1{Start the party with 1 title} other{Start the party with {n} titles}}",
   "@matchStartPartyWith": {"placeholders": {"n": {"type": "int"}}},
-  "matchLeft": "{n} left",
+  "matchLeft": "{n, plural, =1{1 left} other{{n} left}}",
   "@matchLeft": {"placeholders": {"n": {"type": "int"}}},
   "matchNoKey": "No · ←",
   "matchYesKey": "Yes · →",
