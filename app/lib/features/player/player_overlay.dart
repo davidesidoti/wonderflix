@@ -13,6 +13,7 @@ import '../../ui/tv_focusable.dart';
 import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
+import 'player_keys.dart';
 import 'seek_bar.dart';
 import 'seek_segments.dart';
 
@@ -164,6 +165,7 @@ class PlayerOverlay extends StatelessWidget {
     final rewind = PlayerIconButton(
       icon: const Icon(LucideIcons.rewind),
       tooltip: l.playerRewind,
+      shortcut: '←',
       size: compact ? centerSeekSize : null,
       onPressed: () => onSeekBy(-seekStep),
     );
@@ -171,6 +173,7 @@ class PlayerOverlay extends StatelessWidget {
       iconSize: compact ? 40 : 34,
       icon: PlayPauseIcon(playing: view.playing),
       tooltip: view.playing ? l.playerPause : l.actionPlay,
+      shortcut: l.playerKeySpace,
       size: compact ? centerPlaySize : null,
       focusNode: playFocusNode,
       onPressed: onTogglePlay,
@@ -178,12 +181,14 @@ class PlayerOverlay extends StatelessWidget {
     final forward = PlayerIconButton(
       icon: const Icon(LucideIcons.fastForward),
       tooltip: l.playerForward,
+      shortcut: '→',
       size: compact ? centerSeekSize : null,
       onPressed: () => onSeekBy(seekStep),
     );
     final mute = PlayerIconButton(
       icon: Icon(volume == 0 ? LucideIcons.volumeX : LucideIcons.volume2),
       tooltip: view.muted ? l.playerUnmute : l.playerMute,
+      shortcut: 'M',
       size: compact ? minTouchTarget : null,
       onPressed: onToggleMute,
     );
@@ -192,6 +197,7 @@ class PlayerOverlay extends StatelessWidget {
         : PlayerIconButton(
             icon: const Icon(LucideIcons.skipForward),
             tooltip: partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
+            shortcut: 'N',
             onPressed: onNextEpisode,
           );
     // Col dito il volume è quello del telefono (su iOS il video non lo
@@ -206,11 +212,15 @@ class PlayerOverlay extends StatelessWidget {
               thumbColor: WfColors.cream,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             ),
-            child: Slider(
-              key: const Key('volume-slider'),
-              value: volume,
-              max: 100,
-              onChanged: onVolume,
+            child: KeyTooltip(
+              message: l.playerVolume,
+              shortcut: '↑/↓',
+              child: Slider(
+                key: const Key('volume-slider'),
+                value: volume,
+                max: 100,
+                onChanged: onVolume,
+              ),
             ),
           );
 
@@ -379,6 +389,7 @@ class PlayerOverlay extends StatelessWidget {
                               tooltip: partyQueue
                                   ? l.playerPreviousInQueue
                                   : l.playerPreviousEpisode,
+                              shortcut: 'P',
                               onPressed: onPrevious,
                             ),
                           if (next != null && !tv) next,
@@ -399,6 +410,7 @@ class PlayerOverlay extends StatelessWidget {
                                 child: const Icon(LucideIcons.messageCircle),
                               ),
                               tooltip: l.partyChatOpen,
+                              shortcut: l.playerKeyEnter,
                               onPressed: onToggleChat,
                             ),
                           if (onToggleReactions != null)
@@ -408,6 +420,7 @@ class PlayerOverlay extends StatelessWidget {
                                 key: const Key('player-reactions-button'),
                                 icon: const Icon(LucideIcons.smilePlus),
                                 tooltip: l.partyReactionsOpen,
+                                shortcut: '1–6',
                                 onPressed: onToggleReactions,
                               ),
                             ),
@@ -433,6 +446,7 @@ class PlayerOverlay extends StatelessWidget {
                               tooltip: fullscreen
                                   ? l.playerExitFullscreen
                                   : l.playerFullscreen,
+                              shortcut: 'F',
                               onPressed: toggle,
                             ),
                         ],
@@ -465,7 +479,8 @@ class PlayerOverlay extends StatelessWidget {
       if (onNextEpisode case final next?)
         _Command(const Icon(LucideIcons.skipForward),
             partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
-            (_) => next()),
+            (_) => next(),
+            shortcut: 'N'),
       if (onToggleChat case final chat?)
         _Command(
             _WithDot(
@@ -473,17 +488,20 @@ class PlayerOverlay extends StatelessWidget {
                 child: const Icon(LucideIcons.messageCircle)),
             l.partyChatOpen,
             (_) => chat(),
+            shortcut: l.playerKeyEnter,
             key: const Key('player-chat-button'),
             dot: chatUnread),
       if (onToggleReactions case final reactions?)
         _Command(const Icon(LucideIcons.smilePlus), l.partyReactionsOpen,
             (_) => reactions(),
+            shortcut: '1–6',
             key: const Key('player-reactions-button'), reactions: true),
       if (onToggleFullscreen case final toggle?)
         _Command(
             Icon(fullscreen ? LucideIcons.minimize : LucideIcons.maximize),
             fullscreen ? l.playerExitFullscreen : l.playerFullscreen,
-            (_) => toggle()),
+            (_) => toggle(),
+            shortcut: 'F'),
       if (onToggleQueue case final queue?)
         _Command(const Icon(LucideIcons.listVideo), l.partyQueueOpen,
             (_) => queue(),
@@ -491,7 +509,8 @@ class PlayerOverlay extends StatelessWidget {
       if (onPrevious case final previous?)
         _Command(const Icon(LucideIcons.skipBack),
             partyQueue ? l.playerPreviousInQueue : l.playerPreviousEpisode,
-            (_) => previous()),
+            (_) => previous(),
+            shortcut: 'P'),
       if (onWatchTogether case final together?)
         _Command(const Icon(LucideIcons.users), l.watchPartyWatchTogether,
             together),
@@ -518,6 +537,7 @@ class PlayerOverlay extends StatelessWidget {
                   key: command.key,
                   icon: command.icon,
                   tooltip: command.tooltip,
+                  shortcut: command.shortcut,
                   size: minTouchTarget,
                   onPressed: () => command.run(buttonContext),
                 ),
@@ -563,11 +583,14 @@ class PlayerOverlay extends StatelessWidget {
 /// voce del menu ⋯. [run] riceve il contesto del pulsante che lo lancia.
 class _Command {
   const _Command(this.icon, this.tooltip, this.run,
-      {this.key, this.reactions = false, this.dot = false});
+      {this.shortcut, this.key, this.reactions = false, this.dot = false});
 
   final Widget icon;
   final String tooltip;
   final ValueChanged<BuildContext> run;
+
+  /// Tasto della tastiera che fa lo stesso (non su dito e TV).
+  final String? shortcut;
   final Key? key;
 
   /// Il pulsante delle reazioni (la barretta si aggancia a lui).
@@ -595,6 +618,7 @@ class PlayerIconButton extends StatefulWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.shortcut,
     this.iconSize = 24,
     this.size,
     this.focusNode,
@@ -604,6 +628,10 @@ class PlayerIconButton extends StatefulWidget {
   final Widget icon;
   final String tooltip;
   final VoidCallback? onPressed;
+
+  /// Tasto che fa lo stesso: si mostra nel suggerimento solo con tastiera
+  /// (né dito né TV).
+  final String? shortcut;
   final double iconSize;
 
   /// Lato fisso del pulsante (layout stretto); `null` = misura del tema.
@@ -629,6 +657,7 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
     final motion = WfMotion.of(context);
     final enabled = widget.onPressed != null;
     final hovered = enabled && _hovered;
+    final formFactor = FormFactor.of(context);
     final scale = !enabled || motion.isReduced
         ? 1.0
         : _pressed
@@ -663,21 +692,26 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
                     ]
                   : const [],
             ),
-            child: IconButton(
-              icon: widget.icon,
-              iconSize: widget.iconSize,
-              tooltip: widget.tooltip,
-              onPressed: widget.onPressed,
-              focusNode: widget.focusNode,
-              style: !FormFactor.of(context).tv
-                  ? (widget.size == null ? null : _sizedStyle(widget.size!))
-                  : (widget.size == null
-                          ? const ButtonStyle()
-                          : _sizedStyle(widget.size!))
-                      .copyWith(side: PlayerIconButton._tvFocusSide),
-              color: WfColors.cream,
-              // Spec D §7.2: fondo crema al 12% al passaggio.
-              hoverColor: WfColors.cream.withValues(alpha: 0.12),
+            child: KeyTooltip(
+              message: widget.tooltip,
+              shortcut: formFactor.tv || formFactor.touch
+                  ? null
+                  : widget.shortcut,
+              child: IconButton(
+                icon: widget.icon,
+                iconSize: widget.iconSize,
+                onPressed: widget.onPressed,
+                focusNode: widget.focusNode,
+                style: !formFactor.tv
+                    ? (widget.size == null ? null : _sizedStyle(widget.size!))
+                    : (widget.size == null
+                            ? const ButtonStyle()
+                            : _sizedStyle(widget.size!))
+                        .copyWith(side: PlayerIconButton._tvFocusSide),
+                color: WfColors.cream,
+                // Spec D §7.2: fondo crema al 12% al passaggio.
+                hoverColor: WfColors.cream.withValues(alpha: 0.12),
+              ),
             ),
           ),
         ),

@@ -303,11 +303,11 @@ void main() {
       '(spec E §9.5)', (tester) async {
     final view = PlayerViewState(status: PlayerStatus.ready);
     await pumpOverlay(tester, view);
-    expect(find.byTooltip('Chat (Invio)'), findsNothing);
+    expect(find.byTooltip('Chat'), findsNothing);
 
     final calls = await pumpOverlay(tester, view, chat: true);
     expect(find.byKey(const Key('player-chat-unread')), findsNothing);
-    await tester.tap(find.byTooltip('Chat (Invio)'));
+    await tester.tap(find.byTooltip('Chat'));
     expect(calls, ['chat']);
 
     await pumpOverlay(tester, view, chat: true, chatUnread: true);
@@ -318,19 +318,19 @@ void main() {
       (tester) async {
     final view = PlayerViewState(status: PlayerStatus.ready);
     await pumpOverlay(tester, view);
-    expect(find.byTooltip('Reazioni (1–6)'), findsNothing);
+    expect(find.byTooltip('Reazioni'), findsNothing);
     final calls = await pumpOverlay(tester, view, reactions: true);
     // Il volume (Slider) ha già un suo aggancio: si cerca quello del pulsante.
     final anchor = find.ancestor(
         of: find.byKey(const Key('player-reactions-button')),
         matching: find.byType(CompositedTransformTarget));
     expect(anchor, findsOneWidget);
-    await tester.tap(find.byTooltip('Reazioni (1–6)'));
+    await tester.tap(find.byTooltip('Reazioni'));
     expect(calls, ['reactions']);
 
     // Senza aggancio il pulsante c'è ma non è dentro un target.
     await pumpOverlay(tester, view, reactions: true, reactionsLinked: false);
-    expect(find.byTooltip('Reazioni (1–6)'), findsOneWidget);
+    expect(find.byTooltip('Reazioni'), findsOneWidget);
     expect(anchor, findsNothing);
   });
 
@@ -396,7 +396,7 @@ void main() {
     await tester.tap(find.byTooltip('Coda'));
     expect(calls, ['queue']);
     final queue = tester.getCenter(find.byTooltip('Coda')).dx;
-    expect(tester.getCenter(find.byTooltip('Reazioni (1–6)')).dx,
+    expect(tester.getCenter(find.byTooltip('Reazioni')).dx,
         lessThan(queue));
     expect(queue,
         lessThan(tester.getCenter(find.byTooltip('Audio e sottotitoli')).dx));
