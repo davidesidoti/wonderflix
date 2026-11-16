@@ -62,7 +62,7 @@ void main() {
 
     shown.value = true;
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Stai guardando'), findsOneWidget);
     expect(find.text('BREAKING BAD'), findsOneWidget);
     expect(find.text('S1:E4 · Pilot'), findsOneWidget);
     expect(find.text('2008 · 58m · Dramma'), findsOneWidget);
@@ -93,7 +93,7 @@ void main() {
     double rise() => tester
         .widget<Transform>(find
             .ancestor(
-                of: find.text('STAI GUARDANDO'),
+                of: find.text('Stai guardando'),
                 matching: find.byType(Transform))
             .first)
         .transform

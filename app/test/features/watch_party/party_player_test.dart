@@ -347,14 +347,14 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(seconds: 9));
-    expect(find.text(l.playerWatching.toUpperCase()), findsNothing);
+    expect(find.text(l.playerWatching), findsNothing);
 
     emit(const GroupStateUpdate('g1', GroupState.paused, 'Pause'));
     await tester.pump();
     await tester.pump();
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text(l.playerWatching.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerWatching), findsOneWidget);
     await finish(tester);
   });
 
@@ -499,14 +499,14 @@ void main() {
     await tester.pump();
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text(l.playerWatching.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerWatching), findsOneWidget);
     expect(find.text(l.playerWatchCredits), findsNothing,
         reason: 'e5 non è ancora il prossimo della coda');
 
     await queueSeries(tester);
     await tester.pumpAndSettle();
     expect(find.text(l.playerWatchCredits), findsOneWidget);
-    expect(find.text(l.playerWatching.toUpperCase()), findsNothing,
+    expect(find.text(l.playerWatching), findsNothing,
         reason: 'niente schermata di pausa durante il post-play');
     await finish(tester);
   });

@@ -55,11 +55,9 @@ class WatchPartyButton extends ConsumerWidget {
         PopupMenuItem<String>(
           enabled: false,
           height: 32,
-          child: Text(l.watchPartyListTitle.toUpperCase(),
+          child: Text(l.watchPartyListTitle,
               style: const TextStyle(
-                  color: WfColors.creamMuted,
-                  fontSize: 12,
-                  letterSpacing: 1)),
+                  color: WfColors.creamMuted, fontSize: 12)),
         ),
         for (final group in groups)
           PopupMenuItem<String>(

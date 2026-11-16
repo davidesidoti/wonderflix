@@ -7,7 +7,7 @@ void main() {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.friendsWatching('Dune'), 'Sta guardando Dune');
-    expect(it.friendsWatchingEpisode('The Bear', 2, 3), 'Sta guardando The Bear · S2 E3');
+    expect(it.friendsWatchingEpisode('The Bear', 'S2:E3'), 'Sta guardando The Bear · S2:E3');
     expect(it.friendsWatchTogether, 'Guarda insieme');
     expect(it.friendsNoLongerWatching, 'Non sta più guardando');
     expect(it.friendsInviteNotSent, 'Invito non inviato');
@@ -20,7 +20,7 @@ void main() {
     expect(it.homeRowUnavailableFriendsActivity,
         'Serve il plugin 1.9.0 e l\'accesso ai watch party');
     expect(en.friendsWatching('Dune'), 'Watching Dune');
-    expect(en.friendsWatchingEpisode('The Bear', 2, 3), 'Watching The Bear · S2 E3');
+    expect(en.friendsWatchingEpisode('The Bear', 'S2:E3'), 'Watching The Bear · S2:E3');
     expect(en.friendsWatchTogether, 'Watch together');
     expect(en.settingsShareActivity, 'Show friends what I watch');
     expect(en.homeRowFriendsWatched, 'Watched by friends');

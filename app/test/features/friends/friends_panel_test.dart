@@ -27,6 +27,10 @@ import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 import '../../support/watch_party_fakes.dart';
 
+/// Il titolo di sezione (12 px): "Amici" è anche il titolo del pannello.
+Finder sectionTitle(String text) => find.byWidgetPredicate(
+    (w) => w is Text && w.data == text && w.style?.fontSize == 12);
+
 void main() {
   late FakeSocialApi api;
 
@@ -61,8 +65,8 @@ void main() {
     expect(y('Luigi'), lessThan(y('daisy')));
     expect(y('daisy'), lessThan(y('Zelda')));
     expect(find.byKey(const Key('online-dot')), findsOneWidget);
-    expect(find.text('AMICI'), findsOneWidget);
-    expect(find.textContaining('RICHIESTE'), findsNothing);
+    expect(sectionTitle('Amici'), findsOneWidget);
+    expect(find.textContaining('Richieste'), findsNothing);
   });
 
   testWidgets('un amico con un\'immagine la mostra, cercato per id; il '
@@ -127,7 +131,7 @@ void main() {
       outgoing: [testPerson('u4', 'Daisy')],
     );
     await pumpPanel(tester);
-    expect(find.text('RICHIESTE (2)'), findsOneWidget);
+    expect(find.text('Richieste (2)'), findsOneWidget);
     expect(find.text('In attesa'), findsOneWidget);
 
     await tester.tap(find.text('Accetta'));
@@ -162,7 +166,7 @@ void main() {
     expect(inRow('u6', 'Annulla'), findsOneWidget);
     expect(inRow('u7', 'Accetta'), findsOneWidget);
     expect(inRow('u8', 'Amici'), findsOneWidget);
-    expect(find.text('AMICI'), findsNothing, reason: 'liste nascoste');
+    expect(sectionTitle('Amici'), findsNothing, reason: 'liste nascoste');
 
     await tester.tap(inRow('u2', 'Aggiungi'));
     await tester.pump();

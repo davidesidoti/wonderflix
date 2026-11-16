@@ -477,29 +477,29 @@ void main() {
     await tester.pump(
       PlayerChromeController.pauseScreenDelay - const Duration(seconds: 1),
     );
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Stai guardando'), findsOneWidget);
     expect(find.text('Un professore scopre di essere malato.'), findsOneWidget);
     expect(controlsOpacity(tester), 0);
 
     // Un tasto la chiude senza mostrare i controlli.
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     expect(controlsOpacity(tester), 0);
 
     // Di nuovo dopo 8 s; il mouse la chiude e riporta i controlli.
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Stai guardando'), findsOneWidget);
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await gesture.addPointer(location: const Offset(700, 400));
     addTearDown(gesture.removePointer);
     await gesture.moveTo(const Offset(720, 420));
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     expect(controlsOpacity(tester), 1);
     await unmount(tester);
   });
@@ -510,7 +510,7 @@ void main() {
     await tester.pump();
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Stai guardando'), findsOneWidget);
   }
 
   testWidgets('pausa: qualsiasi tasto la chiude, anche senza comando', (
@@ -522,11 +522,11 @@ void main() {
     // La A non è un comando: chiude lo stesso la schermata e rifà gli 8 s.
     await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
 
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Stai guardando'), findsOneWidget);
     await unmount(tester);
   });
 
@@ -538,7 +538,7 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     expect(find.text('home'), findsNothing, reason: 'si resta nel player');
     expect(playback.stopped, isEmpty);
 
@@ -557,7 +557,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 20));
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     await unmount(tester);
   });
 
@@ -614,7 +614,7 @@ void main() {
     await pauseUntilPauseScreen(tester);
     await tester.sendEventToBinding(wheel.scroll(const Offset(0, 60)));
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     expect(controlsOpacity(tester), 0);
     expect(engine.volumes.last, 90);
     await unmount(tester);
@@ -1551,7 +1551,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 9));
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     await unmount(tester);
   });
 
@@ -1697,7 +1697,7 @@ void main() {
     expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     await unmount(tester);
   });
 

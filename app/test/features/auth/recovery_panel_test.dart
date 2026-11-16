@@ -308,11 +308,11 @@ void main() {
     expect(
         find.descendant(
             of: find.byKey(const Key('recovery-submit')),
-            matching: find.text('ACCEDI')),
+            matching: find.text('Accedi')),
         findsOneWidget);
-    // Il campo che aveva il fuoco è sparito: lo prende "ACCEDI", così Invio
+    // Il campo che aveva il fuoco è sparito: lo prende "Accedi", così Invio
     // riprova l'accesso e Tab non parte da "Torna all'accesso".
-    expect(Focus.of(tester.element(find.text('ACCEDI'))).hasPrimaryFocus,
+    expect(Focus.of(tester.element(find.text('Accedi'))).hasPrimaryFocus,
         isTrue);
 
     // Il codice è già usato: il secondo tentativo non lo rimanda.
@@ -349,7 +349,7 @@ void main() {
         find.text('WonderFlix non è raggiungibile. Controlla la connessione.'),
         findsOneWidget);
     bool signInHasFocus() =>
-        Focus.of(tester.element(find.text('ACCEDI'))).hasPrimaryFocus;
+        Focus.of(tester.element(find.text('Accedi'))).hasPrimaryFocus;
     expect(signInHasFocus(), isTrue);
 
     // Un altro tentativo lento: il fuoco cade ancora con il pulsante spento

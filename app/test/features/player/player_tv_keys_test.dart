@@ -276,14 +276,14 @@ void main() {
     await press(tester, LogicalKeyboardKey.select);
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
-    expect(find.text('STAI GUARDANDO'), findsOneWidget);
+    expect(find.text('Stai guardando'), findsOneWidget);
 
     // Su Android il Back arriva prima come tasto, poi come pop di sistema.
     await tester.sendKeyEvent(LogicalKeyboardKey.goBack,
         physicalKey: PhysicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     await back(tester);
-    expect(find.text('STAI GUARDANDO'), findsNothing);
+    expect(find.text('Stai guardando'), findsNothing);
     expect(router.state.uri.path, '/play/e4');
 
     await tester.sendKeyEvent(LogicalKeyboardKey.goBack,

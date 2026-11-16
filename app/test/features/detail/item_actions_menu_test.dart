@@ -246,7 +246,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Locandina e sfondo'));
     await tester.pumpAndSettle();
-    expect(find.text('Carica dal PC…'), findsOneWidget);
+    expect(find.text('Carica un file…'), findsOneWidget);
     expect(editApi.calls, ['remoteImages m1 Primary 0 false']);
   });
 

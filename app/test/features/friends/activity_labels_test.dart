@@ -16,7 +16,7 @@ void main() {
             l,
             const FriendNowPlaying(
                 itemId: 'e1', title: 'Pilot', seriesName: 'The Bear', season: 2, episode: 3)),
-        'Sta guardando The Bear · S2 E3');
+        'Sta guardando The Bear · S2:E3');
     expect(
         friendNowPlayingText(
             l, const FriendNowPlaying(itemId: 'e1', title: 'Pilot', seriesName: 'The Bear', season: 2)),

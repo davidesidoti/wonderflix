@@ -213,7 +213,7 @@ void main() {
       await open(tester);
       expect(textOf(tester, 'Titolo'), 'Dark');
       expect(textOf(tester, 'Titolo originale'), 'Dark (originale)');
-      expect(textOf(tester, 'Tagline'), 'Cosa sai?');
+      expect(textOf(tester, 'Frase di lancio'), 'Cosa sai?');
       expect(textOf(tester, 'Trama'), 'Una storia di viaggi nel tempo.');
       expect(textOf(tester, 'Anno'), '2017');
       expect(textOf(tester, 'Data di uscita'), '2017-12-01');
@@ -225,7 +225,7 @@ void main() {
     testWidgets('la tagline non c\'è per un episodio', (tester) async {
       await open(tester, id: 'e1', kind: ItemKind.episode);
       expect(textOf(tester, 'Titolo'), 'Pilot');
-      expect(field('Tagline'), findsNothing);
+      expect(field('Frase di lancio'), findsNothing);
     });
 
     testWidgets('durante il caricamento c\'è la rotella', (tester) async {

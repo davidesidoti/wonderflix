@@ -432,11 +432,11 @@ void main() {
         touch: true,
       );
       await tester.pumpAndSettle();
-      expect(find.text(l.playerWatching.toUpperCase()), findsOneWidget);
+      expect(find.text(l.playerWatching), findsOneWidget);
       expect(tester.takeException(), isNull);
       // Testo ridimensionato: margine stretto, titolo su una riga.
       expect(
-        tester.getTopLeft(find.text(l.playerWatching.toUpperCase())).dx,
+        tester.getTopLeft(find.text(l.playerWatching)).dx,
         PauseScreen.compactTextInset,
       );
       final title = find.text(cardTitle(episode).toUpperCase());
@@ -546,7 +546,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(
-      tester.getTopLeft(find.text(l.playerWatching.toUpperCase())).dx,
+      tester.getTopLeft(find.text(l.playerWatching)).dx,
       PauseScreen.textInset,
     );
   });

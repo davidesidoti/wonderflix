@@ -146,7 +146,7 @@ class _PausedBadge extends StatelessWidget {
       );
 }
 
-/// "STAI GUARDANDO", logo (o titolo), episodio, dati e trama.
+/// "Stai guardando", logo (o titolo), episodio, dati e trama.
 class _PauseText extends ConsumerWidget {
   const _PauseText({required this.item, required this.compact});
 
@@ -175,11 +175,9 @@ class _PauseText extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            l.playerWatching.toUpperCase(),
+            l.playerWatching,
             style: const TextStyle(
-                color: WfColors.gold,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.5),
+                color: WfColors.gold, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 12),
           if (logo != null)
