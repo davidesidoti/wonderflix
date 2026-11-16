@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
@@ -16,6 +17,7 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
+import 'package:wonderflix/ui/expandable_text.dart';
 
 import '../../support/collections_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -121,19 +123,40 @@ void main() {
     });
   }
 
-  testWidgets('trama lunghissima aperta: il titolo resta nello schermo',
-      (tester) async {
-    final long = 'Una trama lunga che va su più righe. ' * 60;
-    api.itemsById['m1'] =
-        testItem(id: 'm1', name: 'Dune: Parte Due', overview: long);
-    await pumpDetail(tester, surfaceSize: const Size(1280, 800));
-    expect(tester.widget<Text>(find.text(long)).maxLines, 3);
-    await tester.tap(find.text('Altro'));
-    await tester.pump();
-    expect(tester.widget<Text>(find.text(long)).maxLines, 10);
-    expect(tester.getTopLeft(find.text('DUNE: PARTE DUE')).dy,
-        greaterThanOrEqualTo(0));
-  });
+  for (final size in [const Size(1440, 900), const Size(1280, 800)]) {
+    testWidgets('trama lunghissima aperta a ${size.width.toInt()}: titolo su '
+        'due righe sotto la barra, trama alta 6 righe e scorrevole',
+        (tester) async {
+      final long = 'Una trama lunga che va su più righe. ' * 60;
+      api.itemsById['m1'] = testItem(
+          id: 'm1',
+          name: 'Il signore degli anelli la compagnia dell anello edizione '
+              'estesa con scene mai viste prima',
+          overview: long);
+      await pumpDetail(tester, surfaceSize: size);
+      await tester.tap(find.text('Altro'));
+      await tester.pump();
+      final title = find.textContaining('IL SIGNORE DEGLI ANELLI');
+      expect(tester.getSize(title).height, greaterThan(96 * 1.5),
+          reason: 'il nome va a capo');
+      expect(tester.getTopLeft(title).dy, greaterThanOrEqualTo(shellBarHeight));
+      final box = find.descendant(
+          of: find.byType(ExpandableText),
+          matching: find.byType(SingleChildScrollView));
+      final lineHeight =
+          DefaultTextStyle.of(tester.element(find.text(long))).style.fontSize! *
+              1.45;
+      expect(tester.getSize(box).height, lessThanOrEqualTo(6 * lineHeight));
+      final position = tester
+          .state<ScrollableState>(
+              find.descendant(of: box, matching: find.byType(Scrollable)))
+          .position;
+      expect(position.maxScrollExtent, greaterThan(0));
+      await tester.drag(box, const Offset(0, -5000));
+      await tester.pump();
+      expect(position.pixels, closeTo(position.maxScrollExtent, 0.01));
+    });
+  }
 
   testWidgets('film senza regista: la riga oro dice solo Film', (tester) async {
     api.itemsById['m1'] = testItem(id: 'm1', name: 'Dune: Parte Due');

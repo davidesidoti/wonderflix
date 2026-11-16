@@ -320,7 +320,8 @@ class DetailHeader extends ConsumerWidget {
                   : ExpandableText(
                       overview,
                       maxLines: 3,
-                      expandedMaxLines: compact ? null : 10,
+                      // Sul PC alta al più 6 righe, e scorre: il titolo resta sotto la barra.
+                      expandedMaxLines: compact ? null : 6,
                       style: const TextStyle(height: 1.45),
                     ),
             ),

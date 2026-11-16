@@ -5,8 +5,8 @@ import '../l10n/gen/app_localizations.dart';
 import 'tv_focusable.dart';
 
 /// Testo lungo che chiuso sta in [maxLines] righe e, solo se non ci sta,
-/// ha sotto "Altro": un tocco lo apre ([expandedMaxLines] righe, `null` =
-/// tutte) e non si richiude. Con [tvFocusable] (solo TV) è il testo intero
+/// ha sotto "Altro": un tocco lo apre e non si richiude. Aperto è alto al
+/// più [expandedMaxLines] righe e scorre dentro (`null` = tutto il testo). Con [tvFocusable] (solo TV) è il testo intero
 /// a prendere il focus, e OK lo apre; "Altro" resta come scritta.
 class ExpandableText extends StatefulWidget {
   const ExpandableText(
@@ -46,14 +46,14 @@ class _ExpandableTextState extends State<ExpandableText> {
 
     final body = LayoutBuilder(
       builder: (context, constraints) {
-        final exceeds =
-            !_open &&
-            (TextPainter(
-              text: TextSpan(text: widget.text, style: style),
-              textDirection: direction,
-              textScaler: scaler,
-              maxLines: widget.maxLines,
-            )..layout(maxWidth: constraints.maxWidth)).didExceedMaxLines;
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          textDirection: direction,
+          textScaler: scaler,
+          maxLines: widget.maxLines,
+        )..layout(maxWidth: constraints.maxWidth);
+        final exceeds = !_open && painter.didExceedMaxLines;
+        painter.dispose();
         final more = Text(
           AppLocalizations.of(context).detailShowMore,
           style: moreStyle,
@@ -62,26 +62,41 @@ class _ExpandableTextState extends State<ExpandableText> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              widget.text,
-              style: widget.style,
-              maxLines: _open ? widget.expandedMaxLines : widget.maxLines,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (exceeds) ...[
-              const SizedBox(height: 4),
+            if (!_open)
+              Text(
+                widget.text,
+                style: widget.style,
+                maxLines: widget.maxLines,
+                overflow: TextOverflow.ellipsis,
+              )
+            else if (widget.expandedMaxLines case final lines?)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight:
+                      lines *
+                      scaler.scale(style.fontSize ?? 14) *
+                      (style.height ?? 1.2),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(widget.text, style: widget.style),
+                ),
+              )
+            else
+              Text(widget.text, style: widget.style),
+            if (exceeds)
               if (widget.tvFocusable)
-                more
+                Padding(padding: const EdgeInsets.only(top: 4), child: more)
               else
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _expand,
-                    child: Semantics(button: true, child: more),
+                // Con la tastiera: Tab porta qui, Invio apre.
+                InkWell(
+                  onTap: _expand,
+                  focusColor: WfColors.gold.withValues(alpha: 0.24),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: more,
                   ),
                 ),
-            ],
           ],
         );
       },
