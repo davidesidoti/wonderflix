@@ -54,6 +54,7 @@ void main() {
     List<SeekZone> zones = const [],
     Widget? Function(Duration)? preview,
     MotionLevel motion = MotionLevel.reduced,
+    double? height,
   }) =>
       pumpApp(
         tester,
@@ -68,6 +69,7 @@ void main() {
                 chapters: chapters,
                 zones: zones,
                 preview: preview,
+                height: height ?? SeekBar.defaultHeight,
               ),
             ),
           ),
@@ -188,17 +190,6 @@ void main() {
     expect(seeks, isEmpty);
   });
 
-  testWidgets('tempo trascorso e totale', (tester) async {
-    final engine = FakeVideoEngine();
-    await pumpApp(tester, Scaffold(body: TimeLabel(engine: engine)));
-    engine
-      ..emitDuration(const Duration(hours: 1, minutes: 45))
-      ..emitPosition(const Duration(minutes: 12, seconds: 3));
-    await tester.pump(); // consegna gli eventi degli stream
-    await tester.pump();
-    expect(find.text('12:03 / 1:45:00'), findsOneWidget);
-  });
-
   testWidgets('un tratto per capitolo, le zone passano al disegno',
       (tester) async {
     const zones = [
@@ -284,12 +275,11 @@ void main() {
     expect(find.text('Titoli di coda'), findsOneWidget);
   });
 
-  testWidgets('mouse sopra: barra più alta, tratto sotto il mouse di più, '
-      'cursore', (tester) async {
+  testWidgets('mouse sopra: barra più alta, tratto sotto il mouse di più',
+      (tester) async {
     await pumpBar(tester, FakeVideoEngine(),
         chapters: chapters, motion: MotionLevel.full);
     expect(painter(tester).hover, 0);
-    expect(painter(tester).thumb, 0);
 
     final gesture = await mouse(tester);
     await gesture.moveTo(at(tester, 0.25));
@@ -298,7 +288,6 @@ void main() {
     expect(painter(tester).hover, 1);
     expect(painter(tester).hoveredSegment, 0);
     expect(painter(tester).emphasis, 1);
-    expect(painter(tester).thumb, closeTo(1, 0.001));
 
     await gesture.moveTo(at(tester, 0.75));
     await tester.pump();
@@ -309,7 +298,6 @@ void main() {
     await tester.pump(WfMotion.fast);
     expect(painter(tester).hover, 0);
     expect(painter(tester).hoveredSegment, isNull);
-    expect(painter(tester).thumb, closeTo(0, 0.001));
     await tester.pumpAndSettle();
   });
 
@@ -329,26 +317,27 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('movimento ridotto: il cursore non cresce, sfuma soltanto',
-      (tester) async {
-    await pumpBar(tester, FakeVideoEngine(), chapters: chapters);
-    final gesture = await mouse(tester);
-    await gesture.moveTo(at(tester, 0.25));
-    await tester.pump();
-    await tester.pump(WfMotion.fast ~/ 2);
-    expect(painter(tester).thumb, 1);
-    expect(painter(tester).thumbOpacity, inExclusiveRange(0, 1));
-
-    await tester.pump(WfMotion.fast);
+  testWidgets('il pallino si vede anche senza mouse', (tester) async {
+    await pumpBar(tester, FakeVideoEngine(),
+        chapters: chapters, motion: MotionLevel.full);
     expect(painter(tester).thumb, 1);
     expect(painter(tester).thumbOpacity, 1);
 
+    final gesture = await mouse(tester);
+    await gesture.moveTo(at(tester, 0.25));
+    await tester.pump();
+    await tester.pump(WfMotion.fast);
     await gesture.moveTo(Offset.zero);
     await tester.pump();
     await tester.pump(WfMotion.fast);
-    expect(painter(tester).thumb, 0);
-    expect(painter(tester).thumbOpacity, 0);
+    expect(painter(tester).thumb, 1);
+    expect(painter(tester).thumbOpacity, 1);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets("height allarga l'area del dito", (tester) async {
+    await pumpBar(tester, FakeVideoEngine(), height: 44);
+    expect(tester.getSize(find.byType(SeekBar)).height, 44);
   });
 
   testWidgets('trascinamento: l\'anteprima segue, un solo salto alla fine',

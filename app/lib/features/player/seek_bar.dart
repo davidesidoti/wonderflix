@@ -185,6 +185,7 @@ class SeekBar extends StatefulWidget {
     this.zones = const [],
     this.preview,
     this.previewAt,
+    this.height = defaultHeight,
   });
 
   final VideoEngine engine;
@@ -206,8 +207,10 @@ class SeekBar extends StatefulWidget {
   /// barra.
   static const trackInset = 8.0;
 
-  /// Altezza dell'area che risponde a mouse e clic.
-  static const height = 28.0;
+  /// Altezza dell'area che risponde a mouse e clic; sul telefono si passa
+  /// una [height] più alta, per il dito.
+  static const defaultHeight = 28.0;
+  final double height;
 
   static const previewWidth = 240.0;
 
@@ -249,8 +252,6 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
       AnimationController(vsync: this, duration: WfMotion.fast);
   late final AnimationController _emphasis =
       AnimationController(vsync: this, duration: WfMotion.fast);
-  late final AnimationController _thumb =
-      AnimationController(vsync: this, duration: WfMotion.fast);
 
   @override
   void initState() {
@@ -274,7 +275,6 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
     _previewTimer?.cancel();
     _hover.dispose();
     _emphasis.dispose();
-    _thumb.dispose();
     super.dispose();
   }
 
@@ -313,7 +313,6 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
       }
     });
     _hover.forward();
-    _thumb.forward();
   }
 
   /// Né mouse né trascinamento: la barra torna a riposo.
@@ -328,7 +327,6 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
       if (mounted && !_previewShown) setState(() => _previewX = null);
     });
     _hover.reverse();
-    _thumb.reverse();
   }
 
   void _seekTo(double x) {
@@ -415,16 +413,15 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
               _release();
             },
             child: SizedBox(
-              height: SeekBar.height,
+              height: widget.height,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
                   Positioned.fill(
                     child: RepaintBoundary(
                       child: AnimatedBuilder(
-                        animation: Listenable.merge([_hover, _emphasis, _thumb]),
+                        animation: Listenable.merge([_hover, _emphasis]),
                         builder: (context, _) {
-                          final reveal = _thumb.value;
                           return CustomPaint(
                             key: const Key('seek-bar-paint'),
                             painter: SeekBarPainter(
@@ -438,13 +435,10 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                               hoveredSegment: _hoveredSegment,
                               emphasis: WfMotion.emphasized
                                   .transform(_emphasis.value),
-                              // Movimento pieno: il cursore cresce con un
-                              // rimbalzo. Ridotto: resta a misura intera e
-                              // sfuma soltanto (spec D §6.2).
-                              thumb: reduced
-                                  ? (reveal > 0 ? 1 : 0)
-                                  : WfMotion.bounce.transform(reveal),
-                              thumbOpacity: reduced ? reveal : 1,
+                              // Il cursore c'è sempre: anche col dito, che
+                              // non passa sopra la barra.
+                              thumb: 1,
+                              thumbOpacity: 1,
                             ),
                           );
                         },
@@ -455,7 +449,7 @@ class _SeekBarState extends State<SeekBar> with TickerProviderStateMixin {
                     Positioned(
                       left: (previewX - SeekBar.previewWidth / 2).clamp(
                           0.0, math.max(_width - SeekBar.previewWidth, 0.0)),
-                      bottom: SeekBar.height + SeekBar.previewGap,
+                      bottom: widget.height + SeekBar.previewGap,
                       width: SeekBar.previewWidth,
                       child: IgnorePointer(
                         child: TweenAnimationBuilder<double>(
@@ -577,51 +571,4 @@ class _SeekPreview extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Tempo trascorso e totale: "12:03 / 1:45:00".
-class TimeLabel extends StatefulWidget {
-  const TimeLabel({super.key, required this.engine});
-
-  final VideoEngine engine;
-
-  @override
-  State<TimeLabel> createState() => _TimeLabelState();
-}
-
-class _TimeLabelState extends State<TimeLabel> {
-  late Duration _position;
-  late Duration _duration;
-  final _subscriptions = <StreamSubscription<Duration>>[];
-
-  @override
-  void initState() {
-    super.initState();
-    _position = widget.engine.position;
-    _duration = widget.engine.duration;
-    _subscriptions.addAll([
-      widget.engine.positionStream.listen((value) {
-        // Il testo cambia solo ogni secondo.
-        if (value.inSeconds != _position.inSeconds) {
-          setState(() => _position = value);
-        }
-      }),
-      widget.engine.durationStream
-          .listen((value) => setState(() => _duration = value)),
-    ]);
-  }
-
-  @override
-  void dispose() {
-    for (final subscription in _subscriptions) {
-      unawaited(subscription.cancel());
-    }
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Text(
-        '${formatClock(_position)} / ${formatClock(_duration)}',
-        style: const TextStyle(color: WfColors.cream),
-      );
 }

@@ -14,6 +14,7 @@ import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_keys.dart';
+import 'player_time.dart';
 import 'seek_bar.dart';
 import 'seek_segments.dart';
 
@@ -365,7 +366,12 @@ class PlayerOverlay extends StatelessWidget {
                                     compactSliderMinWidth)
                               SizedBox(width: 80, child: slider),
                             const SizedBox(width: 4),
-                            RepaintBoundary(child: TimeLabel(engine: engine)),
+                            RepaintBoundary(
+                                child: Row(children: [
+                              PositionLabel(engine: engine),
+                              const SizedBox(width: 8),
+                              RemainingLabel(engine: engine, withEnd: false),
+                            ])),
                             const SizedBox(width: 8),
                             Expanded(child: _compactCommands(l)),
                           ],
@@ -381,7 +387,12 @@ class PlayerOverlay extends StatelessWidget {
                           if (slider != null)
                             SizedBox(width: 120, child: slider),
                           const SizedBox(width: 12),
-                          RepaintBoundary(child: TimeLabel(engine: engine)),
+                          RepaintBoundary(
+                                child: Row(children: [
+                              PositionLabel(engine: engine),
+                              const SizedBox(width: 8),
+                              RemainingLabel(engine: engine),
+                            ])),
                           const Spacer(),
                           if (onPrevious != null && !tv)
                             PlayerIconButton(
