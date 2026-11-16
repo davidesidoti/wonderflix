@@ -35,6 +35,7 @@ class TvFocusable extends StatefulWidget {
     this.borderRadius = const BorderRadius.all(Radius.circular(6)),
     this.onFocusChange,
     this.focusScale = tvFocusScale,
+    this.color = tvFocusColor,
   });
 
   final Widget child;
@@ -47,6 +48,10 @@ class TvFocusable extends StatefulWidget {
   final FocusNode? focusNode;
   final BorderRadius borderRadius;
   final ValueChanged<bool>? onFocusChange;
+
+  /// Colore del bordo col focus: crema ([tvFocusSideOnGold]) su ciò che ha
+  /// già un bordo oro.
+  final Color color;
 
   @override
   State<TvFocusable> createState() => _TvFocusableState();
@@ -117,7 +122,7 @@ class _TvFocusableState extends State<TvFocusable> {
           decoration: BoxDecoration(
             borderRadius: widget.borderRadius,
             border: Border.all(
-              color: _focused ? tvFocusColor : Colors.transparent,
+              color: _focused ? widget.color : Colors.transparent,
               width: 2,
             ),
           ),

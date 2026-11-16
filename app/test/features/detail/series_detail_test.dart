@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_actions_menu.dart';
@@ -12,6 +13,8 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/requests/request_seasons.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
+import 'package:wonderflix/ui/ticket_shape.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/home_fakes.dart';
@@ -173,8 +176,12 @@ void main() {
         find.descendant(
             of: ticket, matching: find.text('Riprendi · rimangono 22 min')),
         findsOneWidget);
-    expect(find.descendant(of: ticket, matching: find.byType(ClipPath)),
-        findsWidgets);
+    expect(
+        find.descendant(
+            of: ticket,
+            matching: find.byWidgetPredicate(
+                (w) => w is ClipPath && w.clipper is TicketClipper)),
+        findsOneWidget);
     expect(find.descendant(of: ticket, matching: find.text('Episodio 4')),
         findsOneWidget);
     // Stesse azioni delle altre righe.
@@ -221,6 +228,15 @@ void main() {
     await pumpSeries(tester, surfaceSize: const Size(390, 780));
     await scrollToTicket(tester);
     expect(tester.takeException(), isNull);
+    final chip = find.descendant(
+        of: find.byKey(const Key('next-episode-ticket')),
+        matching: find.widgetWithText(FilterChip, 'Visto'));
+    // Lascia finire le animazioni dello scorrimento prima di toccare.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(chip);
+    await tester.pump();
+    await tester.pump();
+    expect(api.playedCalls, contains(('e4', true)));
   });
 
   testWidgets('TV: episodio visto col distintivo, biglietto senza azioni',
@@ -235,6 +251,37 @@ void main() {
     expect(ticket, findsOneWidget);
     expect(find.descendant(of: ticket, matching: find.byType(FilterChip)),
         findsNothing);
+  });
+
+  testWidgets('TV: col focus il biglietto ha un anello crema aderente',
+      (tester) async {
+    await pumpSeries(tester, surfaceSize: const Size(960, 540), tv: true);
+    await scrollToTicket(tester);
+    final focusable = find.descendant(
+        of: find.byKey(const Key('next-episode-ticket')),
+        matching: find.byType(TvFocusable));
+    final shape = find
+        .descendant(of: focusable, matching: find.byType(Stack))
+        .first;
+    Focus.of(tester.element(shape)).requestFocus();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final ring = find
+        .descendant(
+            of: focusable,
+            matching: find.byWidgetPredicate((w) =>
+                w is DecoratedBox &&
+                w.position == DecorationPosition.foreground))
+        .first;
+    final border = (tester.widget<DecoratedBox>(ring).decoration
+            as BoxDecoration)
+        .border! as Border;
+    expect(border.top.color, WfColors.cream);
+    final a = tester.getRect(ring), b = tester.getRect(shape);
+    expect((a.left - b.left).abs(), lessThan(1));
+    expect((a.top - b.top).abs(), lessThan(1));
+    expect((a.width - b.width).abs(), lessThan(1));
+    expect((a.height - b.height).abs(), lessThan(1));
   });
 
   testWidgets('serie: il primario dice Riprendi S1:E4 e Richiedi stagioni è '

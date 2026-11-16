@@ -529,7 +529,12 @@ class EpisodeTile extends ConsumerWidget {
     ];
 
     final stillWidth = compact ? 120.0 : 200.0;
-    final gap = compact ? 12.0 : 16.0;
+    // Lo strappo del biglietto come nella bozza; il testo parte 8 dopo.
+    const inset = 12.0;
+    final tear = compact ? 148.0 : 224.0;
+    final gap = highlighted
+        ? tear - inset - stillWidth + 8
+        : (compact ? 12.0 : 16.0);
     // Nel biglietto il testo finisce con quanto manca, o con Riproduci.
     final position = userData.playbackPosition;
     final remaining = position > Duration.zero && runtime != null
@@ -672,50 +677,53 @@ class EpisodeTile extends ConsumerWidget {
         ),
       );
     } else {
-      // Il biglietto: la still resta allineata a quelle delle altre righe, lo
-      // strappo cade a metà dello spazio dopo la still.
-      const inset = 12.0;
-      final tear = inset + stillWidth + gap / 2;
-      tile = Padding(
+      // Il biglietto: la still resta allineata a quelle delle altre righe.
+      tile = Stack(
+        children: [
+          ClipPath(
+            clipper: TicketClipper.vertical(tear),
+            child: Material(
+              color: WfColors.surface,
+              child: InkWell(
+                canRequestFocus: !tv,
+                onTap: play,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: inset,
+                    vertical: compact ? 10 : 14,
+                  ),
+                  child: content,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: WfColors.gold, width: 1.5),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(painter: TicketTearPainter.vertical(tear)),
+            ),
+          ),
+        ],
+      );
+      // Sulla TV l'anello del focus aderisce al biglietto, crema perché l'oro
+      // del bordo non sembri già il focus.
+      return Padding(
         key: const Key('next-episode-ticket'),
         padding: EdgeInsets.symmetric(horizontal: side - inset, vertical: 6),
-        child: Stack(
-          children: [
-            ClipPath(
-              clipper: TicketClipper.vertical(tear),
-              child: Material(
-                color: WfColors.surface,
-                child: InkWell(
-                  canRequestFocus: !tv,
-                  onTap: play,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: inset,
-                      vertical: compact ? 10 : 14,
-                    ),
-                    child: content,
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: WfColors.gold, width: 1.5),
-                  ),
-                ),
-              ),
-            ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: TicketTearPainter.vertical(tear),
-                ),
-              ),
-            ),
-          ],
+        child: TvFocusable(
+          onActivate: play,
+          borderRadius: BorderRadius.circular(8),
+          color: tvFocusSideOnGold.color,
+          child: tile,
         ),
       );
     }
