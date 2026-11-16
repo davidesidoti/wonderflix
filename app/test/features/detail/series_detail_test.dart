@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -7,6 +8,7 @@ import 'package:wonderflix/features/detail/item_actions_menu.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/requests/request_seasons.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -54,10 +56,15 @@ void main() {
   });
 
   Future<void> pumpSeries(WidgetTester tester,
-      {String? seasonId, MotionLevel motion = MotionLevel.reduced}) async {
+      {String? seasonId,
+      MotionLevel motion = MotionLevel.reduced,
+      List<Override> extra = const [],
+      Size surfaceSize = const Size(1440, 900)}) async {
     await pumpApp(
         tester, Scaffold(body: ItemDetailScreen(itemId: 's1', seasonId: seasonId)),
+        surfaceSize: surfaceSize,
         overrides: [
+          ...extra,
           libraryApiProvider.overrideWithValue(api),
           displayPreferencesApiProvider.overrideWithValue(prefs),
           sessionControllerProvider.overrideWith(
@@ -90,12 +97,31 @@ void main() {
     await pumpSeries(tester);
     expect(find.text('THE LAST OF US'), findsOneWidget);
     expect(find.text('2024 · 2 stagioni'), findsOneWidget);
-    expect(find.text('Riprendi S1:E4 · 23:14'), findsOneWidget);
+    expect(find.text('Riprendi S1:E4'), findsOneWidget);
     expect(find.text('Stagione 1'), findsOneWidget);
     expect(find.text('Stagione 2'), findsOneWidget);
     expect(find.text('3. Episodio 3'), findsOneWidget);
     expect(find.text('4. Episodio 4'), findsOneWidget);
     expect(api.nextUpCalls, contains('s1'));
+  });
+
+  testWidgets('serie: il primario dice Riprendi S1:E4 e Richiedi stagioni è '
+      'nel ⋯', (tester) async {
+    api.itemsById['s1'] = testItem(
+        id: 's1',
+        name: 'The Last of Us',
+        kind: ItemKind.series,
+        childCount: 2,
+        tmdbId: 100088);
+    await pumpSeries(tester,
+        extra: [seasonsToRequestProvider.overrideWith((ref, key) => true)]);
+    expect(find.text('Riprendi S1:E4'), findsOneWidget);
+    // 45 min − 23:14 = 21m46s → 22 min.
+    expect(find.text('rimangono 22 min'), findsOneWidget);
+    expect(find.text('Richiedi stagioni'), findsNothing);
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Richiedi stagioni'), findsOneWidget);
   });
 
   testWidgets('cambio stagione', (tester) async {

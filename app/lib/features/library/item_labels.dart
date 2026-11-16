@@ -1,4 +1,5 @@
 import '../../core/jellyfin/item_models.dart';
+import '../../l10n/gen/app_localizations.dart';
 
 /// "2h 46m", "45m", "2h".
 String formatRuntime(Duration duration) {
@@ -8,6 +9,12 @@ String formatRuntime(Duration duration) {
   if (minutes == 0) return '${hours}h';
   return '${hours}h ${minutes}m';
 }
+
+/// "18 min" sotto l'ora (minuti per eccesso), da un'ora in su "1h 15m".
+String shortDuration(AppLocalizations l, Duration d) =>
+    d < const Duration(hours: 1)
+    ? l.ticketMinutes((d.inSeconds / 60).ceil())
+    : formatRuntime(d);
 
 /// "23:14" oppure "1:02:03".
 String formatClock(Duration duration) {

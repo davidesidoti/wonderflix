@@ -37,12 +37,12 @@ void main() {
       (tester) async {
     await pumpDetail(
         tester, const SocialFeatures(friends: true, recommendations: true));
-    expect(find.text('Consiglia a…'), findsOneWidget);
+    expect(find.byTooltip('Consiglia a…'), findsOneWidget);
   });
 
   testWidgets('niente pulsante senza la funzione o senza amici', (tester) async {
     await pumpDetail(tester, const SocialFeatures(friends: true));
-    expect(find.text('Consiglia a…'), findsNothing);
+    expect(find.byTooltip('Consiglia a…'), findsNothing);
   });
 
   testWidgets('niente pulsante su un episodio', (tester) async {
@@ -50,6 +50,6 @@ void main() {
         testItem(id: 'm1', kind: ItemKind.episode, seriesId: 's1');
     await pumpDetail(
         tester, const SocialFeatures(friends: true, recommendations: true));
-    expect(find.text('Consiglia a…'), findsNothing);
+    expect(find.byTooltip('Consiglia a…'), findsNothing);
   });
 }

@@ -40,6 +40,6 @@ void main() {
         positionTicks: 13940000000,
         playedPercentage: 50);
     expect(primaryActionLabel(l, primaryActionFor(started, started.userData)),
-        'Riprendi S1:E4 · 23:14');
+        'Riprendi S1:E4');
   });
 }

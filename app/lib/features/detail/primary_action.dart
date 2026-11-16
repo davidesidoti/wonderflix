@@ -28,8 +28,7 @@ PrimaryAction primaryActionFor(JellyfinItem target, UserItemData userData) =>
 String primaryActionLabel(AppLocalizations l, PrimaryAction action) {
   final code = episodeCode(action.target);
   return switch (action) {
-    ResumeAction(:final position) when code != null =>
-      '${l.actionResumeEpisode(code)} · ${formatClock(position)}',
+    ResumeAction() when code != null => l.actionResumeEpisode(code),
     ResumeAction(:final position) => l.actionResumeAt(formatClock(position)),
     PlayAction() when code != null => l.actionPlayEpisode(code),
     PlayAction() => l.actionPlay,

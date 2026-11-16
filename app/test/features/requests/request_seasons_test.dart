@@ -79,10 +79,20 @@ void main() {
     }
   }
 
+  // "Richiedi stagioni" sta nel ⋯ della testata (il primo); senza voci il ⋯
+  // non c'è.
+  Future<void> openMenu(WidgetTester tester) async {
+    final more = find.byTooltip('Altre azioni');
+    if (more.evaluate().isEmpty) return;
+    await tester.tap(more.first);
+    await tester.pumpAndSettle();
+  }
+
   testWidgets(
     'stagioni mancanti: "Richiedi stagioni" apre la scelta e chiede',
     (tester) async {
       await pumpSeries(tester);
+      await openMenu(tester);
       expect(find.text('Richiedi stagioni'), findsOneWidget);
 
       await tester.tap(find.text('Richiedi stagioni'));
@@ -119,6 +129,7 @@ void main() {
       ],
     );
     await pumpSeries(tester);
+    await openMenu(tester);
 
     expect(find.text('Richiedi stagioni'), findsNothing);
   });
@@ -127,6 +138,7 @@ void main() {
     tester,
   ) async {
     await pumpSeries(tester, available: false);
+    await openMenu(tester);
 
     expect(find.text('Richiedi stagioni'), findsNothing);
     expect(requests.calls, isEmpty);
@@ -139,6 +151,7 @@ void main() {
       hasAccount: true,
     );
     await pumpSeries(tester);
+    await openMenu(tester);
 
     expect(find.text('Richiedi stagioni'), findsNothing);
     expect(requests.calls.where((c) => c.startsWith('title:')), isEmpty);
@@ -148,6 +161,7 @@ void main() {
     tester,
   ) async {
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
@@ -171,6 +185,7 @@ void main() {
       tmdbId: 100088,
     );
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
@@ -186,6 +201,7 @@ void main() {
   ) async {
     final gate = requests.createGate = Completer<void>();
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
@@ -213,6 +229,7 @@ void main() {
 
   testWidgets('Annulla: nessuna richiesta e nessun avviso', (tester) async {
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
@@ -228,6 +245,7 @@ void main() {
     tester,
   ) async {
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Stagione 3 · 8 episodi'));
@@ -238,6 +256,7 @@ void main() {
 
     // La scelta sta nel controller della scheda, che la testata tiene vivo:
     // senza un ritorno alla scelta di partenza Invio chiederebbe solo la 2.
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
     expect(find.text('Richiedi 1 stagione'), findsNothing);
@@ -256,6 +275,7 @@ void main() {
 
     expect(requests.calls, contains('title:tv:100088'));
     expect(find.byType(DetailHeader), findsOneWidget);
+    await openMenu(tester);
     expect(find.text('Richiedi stagioni'), findsNothing);
     expect(find.byType(SnackBar), findsNothing);
   });
@@ -264,6 +284,7 @@ void main() {
     tester,
   ) async {
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 
@@ -296,6 +317,7 @@ void main() {
 
     expect(requests.created.single.seasons, [2, 3]);
     expect(find.text('Richiesta inviata'), findsOneWidget);
+    await openMenu(tester);
     expect(find.text('Richiedi stagioni'), findsNothing);
   });
 
@@ -306,11 +328,12 @@ void main() {
     await pumpSeries(tester, itemId: 'm1');
 
     expect(find.byType(DetailHeader), findsOneWidget);
+    await openMenu(tester);
     expect(find.text('Richiedi stagioni'), findsNothing);
     expect(requests.calls.where((c) => c.startsWith('title:')), isEmpty);
   });
 
-  testWidgets('"Richiedi stagioni" arriva dopo i toggle e non li sposta', (
+  testWidgets('"Richiedi stagioni" arriva tardi nel ⋯ e non sposta i toggle', (
     tester,
   ) async {
     // La scheda di Seerr arriva tardi: il pulsante compare dopo gli altri.
@@ -329,13 +352,10 @@ void main() {
       await tester.pump();
     }
 
-    expect(find.text('Richiedi stagioni'), findsOneWidget);
     expect(tester.getCenter(inHeader(LucideIcons.heart)), heart);
     expect(tester.getCenter(inHeader(LucideIcons.check)), check);
-    expect(
-      tester.getCenter(find.text('Richiedi stagioni')).dx,
-      greaterThan(check.dx),
-    );
+    await openMenu(tester);
+    expect(find.text('Richiedi stagioni'), findsOneWidget);
   });
 
   testWidgets('la finestra ha il suo titolo come nome per lo screen reader', (
@@ -343,6 +363,7 @@ void main() {
   ) async {
     final semantics = tester.ensureSemantics();
     await pumpSeries(tester);
+    await openMenu(tester);
     await tester.tap(find.text('Richiedi stagioni'));
     await tester.pumpAndSettle();
 

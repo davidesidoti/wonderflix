@@ -13,6 +13,7 @@ import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/expandable_text.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/poster_card.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
@@ -77,6 +78,21 @@ const detailHeaderTextBottom = 28.0;
 /// dati, generi, trama, pulsanti) e le righe sotto.
 const detailEntranceCount = 9;
 
+/// Esegue [action] (La mia lista, Visto, ...); se fallisce, l'errore in un
+/// avviso.
+Future<void> runUserDataAction(
+  BuildContext context,
+  Future<void> Function() action,
+) async {
+  final l = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await action();
+  } on Object catch (error) {
+    messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
+  }
+}
+
 /// Parte alta di una scheda: logo o titolo, dati, trama, azioni. Lo sfondo
 /// è un livello a parte dietro alla pagina (`DetailBackdrop`). I testi sono
 /// elementi 0–4 dello `StaggerGroup` della scheda.
@@ -101,19 +117,6 @@ class DetailHeader extends ConsumerWidget {
 
   /// Scroll della pagina: il testo sfuma salendo (spec C §9.1).
   final ScrollController? controller;
-
-  Future<void> _toggle(
-    BuildContext context,
-    Future<void> Function() action,
-  ) async {
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await action();
-    } on Object catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
-    }
-  }
 
   /// Per una serie nella riga "Prossimi episodi": "Togli da Prossimi
   /// episodi", o "Rimetti" se è tolta con l'episodio di adesso. Nessuna voce
@@ -196,17 +199,18 @@ class DetailHeader extends ConsumerWidget {
         );
 
     final tv = FormFactor.of(context).tv;
-    // Sulla TV la riga ha anche Vota e Consiglia (icone), senza Insieme e
-    // stagioni da richiedere; il voto attuale è quello che legge
-    // anche `FriendRatingsRow`.
+    final compact = detailCompact(context);
+    // Vota sulla TV, e sul PC per i film (le serie fuori dalla TV votano
+    // dalla riga della stagione); il voto attuale è quello che legge anche
+    // `FriendRatingsRow`.
     final target = switch (item.kind) {
       ItemKind.movie => (item: item, title: item.name),
       ItemKind.series => rated,
       _ => null,
     };
     final ratingsOn =
-        tv &&
         target != null &&
+        (tv || (!compact && item.kind == ItemKind.movie)) &&
         ref.watch(socialAvailabilityProvider.select((f) => f.ratings));
     final ratingsState = ratingsOn
         ? ref.watch(itemRatingsProvider(target.item.id))
@@ -217,7 +221,6 @@ class DetailHeader extends ConsumerWidget {
         ratingsOn &&
         !ratingsState!.hasError &&
         (ratings == null || ratings.canRate || ratings.mine != null);
-    final compact = detailCompact(context);
     // Le azioni, `null` quando non ci sono: sul PC pulsanti con il testo,
     // nello stretto icone e menu "⋯".
     final play = action == null
@@ -271,16 +274,63 @@ class DetailHeader extends ConsumerWidget {
       icon: LucideIcons.heart,
       selected: userData.isFavorite,
       tooltip: userData.isFavorite ? l.actionRemoveFromList : l.actionAddToList,
-      onPressed: () =>
-          unawaited(_toggle(context, () => overrides.toggleFavorite(item))),
+      onPressed: () => unawaited(
+        runUserDataAction(context, () => overrides.toggleFavorite(item)),
+      ),
     );
     final played = WfIconToggle(
       icon: LucideIcons.check,
       selected: userData.played,
       tooltip: userData.played ? l.actionMarkUnwatched : l.actionMarkWatched,
-      onPressed: () =>
-          unawaited(_toggle(context, () => overrides.togglePlayed(item))),
+      onPressed: () => unawaited(
+        runUserDataAction(context, () => overrides.togglePlayed(item)),
+      ),
     );
+    // Quanto manca, sotto il primario (non sulla TV).
+    final resumeAt = action is ResumeAction && !tv ? action.position : null;
+    final runtime = action?.target.runtime;
+    final remaining = resumeAt != null && runtime != null
+        ? runtime - resumeAt
+        : null;
+    final progress = remaining != null && remaining > Duration.zero
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 120,
+                height: 3,
+                child: ProgressStrip(
+                  progress: (resumeAt!.inMilliseconds / runtime!.inMilliseconds)
+                      .clamp(0.0, 1.0),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                l.detailRemaining(shortDuration(l, remaining)),
+                style: const TextStyle(
+                  color: WfColors.creamMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          )
+        : null;
+    final vote = canVote
+        ? _ActionIcon(
+            icon: LucideIcons.star,
+            label: l.ratingVote,
+            selected: ratings?.mine != null,
+            onPressed: () => openRatePanel(
+              context,
+              ref,
+              RateSubject(
+                item: target.item,
+                title: target.title,
+                mine: ratings?.mine,
+              ),
+            ),
+          )
+        : null;
     final nextUp = _nextUpAction(context, ref, l);
     final resume = _resumeAction(context, ref, l);
     final kicker = detailKicker(item, l);
@@ -353,13 +403,147 @@ class DetailHeader extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       ?play,
-                      if (play != null) const SizedBox(height: 12),
-                      // Le azioni secondarie come icone; quelle che non ci
-                      // stanno finiscono nel menu "⋯".
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                      if (progress != null) ...[
+                        const SizedBox(height: 10),
+                        Center(child: progress),
+                      ],
+                      const SizedBox(height: 14),
+                      // Sei azioni con il nome sotto; Ricomincia e Richiedi
+                      // stagioni nel "⋯".
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          for (final labeled in [
+                            _LabeledAction(
+                              button: favorite,
+                              label: l.navMyList,
+                              selected: userData.isFavorite,
+                            ),
+                            _LabeledAction(
+                              button: played,
+                              label: l.detailActionWatched,
+                              selected: userData.played,
+                            ),
+                            if (trailer != null)
+                              _LabeledAction(
+                                button: _ActionIcon(
+                                  icon: LucideIcons.clapperboard,
+                                  label: l.actionTrailer,
+                                  onPressed: trailer,
+                                ),
+                                label: l.actionTrailer,
+                              ),
+                            if (together != null)
+                              _LabeledAction(
+                                button: Builder(
+                                  builder: (buttonContext) => _ActionIcon(
+                                    icon: LucideIcons.users,
+                                    label: l.watchPartyWatchTogether,
+                                    onPressed: () => together(buttonContext),
+                                  ),
+                                ),
+                                label: l.detailActionTogether,
+                              ),
+                            if (recommend != null)
+                              _LabeledAction(
+                                button: _ActionIcon(
+                                  icon: LucideIcons.send,
+                                  label: l.recommendButton,
+                                  onPressed: recommend,
+                                ),
+                                label: l.detailActionRecommend,
+                              ),
+                            _LabeledAction(
+                              button: ItemActionsButton(
+                                item: item,
+                                extra: [
+                                  ?resume,
+                                  ?nextUp,
+                                  if (restart != null)
+                                    (
+                                      label: l.actionRestart,
+                                      onSelected: restart,
+                                    ),
+                                  if (requestSeasons != null)
+                                    (
+                                      label: l.requestsMoreSeasons,
+                                      onSelected: requestSeasons,
+                                    ),
+                                ],
+                              ),
+                              label: l.detailActionMore,
+                            ),
+                          ])
+                            Expanded(child: labeled),
+                        ],
+                      ),
+                    ],
+                  )
+                : tv
+                ? Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      ?play,
+                      if (trailer != null)
+                        WfButton.secondary(
+                          label: l.actionTrailer,
+                          icon: LucideIcons.clapperboard,
+                          onPressed: trailer,
+                        ),
+                      if (restart != null)
+                        _LabeledAction(
+                          button: _ActionIcon(
+                            icon: LucideIcons.rotateCcw,
+                            label: l.actionRestart,
+                            onPressed: restart,
+                          ),
+                          label: l.actionRestart,
+                        ),
+                      _LabeledAction(
+                        button: favorite,
+                        label: l.navMyList,
+                        selected: userData.isFavorite,
+                      ),
+                      _LabeledAction(
+                        button: played,
+                        label: l.detailActionWatched,
+                        selected: userData.played,
+                      ),
+                      if (vote != null)
+                        _LabeledAction(
+                          button: vote,
+                          label: l.ratingVote,
+                          selected: ratings?.mine != null,
+                        ),
+                      if (recommend != null)
+                        _LabeledAction(
+                          button: _ActionIcon(
+                            icon: LucideIcons.send,
+                            label: l.recommendButton,
+                            onPressed: recommend,
+                          ),
+                          label: l.recommendButton,
+                        ),
+                      _LabeledAction(
+                        button: ItemActionsButton(
+                          item: item,
+                          tvOnly: true,
+                          extra: [?resume, ?nextUp],
+                        ),
+                        label: l.detailActionMore,
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          ?play,
                           if (restart != null)
                             _ActionIcon(
                               icon: LucideIcons.rotateCcw,
@@ -368,30 +552,34 @@ class DetailHeader extends ConsumerWidget {
                             ),
                           if (together != null)
                             Builder(
-                              builder: (buttonContext) => _ActionIcon(
-                                icon: LucideIcons.users,
+                              // Il menu delle modalità si apre sotto il
+                              // pulsante (spec F §9.1).
+                              builder: (buttonContext) => WfButton.secondary(
                                 label: l.watchPartyWatchTogether,
+                                icon: LucideIcons.users,
                                 onPressed: () => together(buttonContext),
                               ),
                             ),
                           if (trailer != null)
-                            _ActionIcon(
-                              icon: LucideIcons.clapperboard,
+                            WfButton.secondary(
                               label: l.actionTrailer,
+                              icon: LucideIcons.clapperboard,
                               onPressed: trailer,
                             ),
                           favorite,
                           played,
+                          ?vote,
+                          if (recommend != null)
+                            _ActionIcon(
+                              icon: LucideIcons.send,
+                              label: l.recommendButton,
+                              onPressed: recommend,
+                            ),
                           ItemActionsButton(
                             item: item,
                             extra: [
                               ?resume,
                               ?nextUp,
-                              if (recommend != null)
-                                (
-                                  label: l.recommendButton,
-                                  onSelected: recommend,
-                                ),
                               if (requestSeasons != null)
                                 (
                                   label: l.requestsMoreSeasons,
@@ -401,78 +589,10 @@ class DetailHeader extends ConsumerWidget {
                           ),
                         ],
                       ),
-                    ],
-                  )
-                : Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      ?play,
-                      if (restart != null)
-                        WfButton.secondary(
-                          label: l.actionRestart,
-                          icon: LucideIcons.rotateCcw,
-                          onPressed: restart,
-                        ),
-                      if (together != null && !tv)
-                        Builder(
-                          // Il menu delle modalità si apre sotto il
-                          // pulsante (spec F §9.1).
-                          builder: (buttonContext) => WfButton.secondary(
-                            label: l.watchPartyWatchTogether,
-                            icon: LucideIcons.users,
-                            onPressed: () => together(buttonContext),
-                          ),
-                        ),
-                      if (trailer != null)
-                        WfButton.secondary(
-                          label: l.actionTrailer,
-                          icon: LucideIcons.clapperboard,
-                          onPressed: trailer,
-                        ),
-                      favorite,
-                      if (canVote)
-                        _ActionIcon(
-                          icon: LucideIcons.star,
-                          label: l.ratingVote,
-                          selected: ratings?.mine != null,
-                          onPressed: () => openRatePanel(
-                            context,
-                            ref,
-                            RateSubject(
-                              item: target.item,
-                              title: target.title,
-                              mine: ratings?.mine,
-                            ),
-                          ),
-                        ),
-                      if (tv && recommend != null)
-                        _ActionIcon(
-                          icon: LucideIcons.send,
-                          label: l.recommendButton,
-                          onPressed: recommend,
-                        ),
-                      played,
-                      ItemActionsButton(
-                        item: item,
-                        tvOnly: tv,
-                        extra: [?resume, ?nextUp],
-                      ),
-                      if (!tv && recommend != null)
-                        WfButton.secondary(
-                          label: l.recommendButton,
-                          icon: LucideIcons.send,
-                          onPressed: recommend,
-                        ),
-                      // Dopo i toggle: la scheda di Seerr arriva dopo due
-                      // richieste, e prima dei toggle li farebbe saltare.
-                      if (requestSeasons != null && !tv)
-                        WfButton.secondary(
-                          label: l.requestsMoreSeasons,
-                          icon: LucideIcons.plus,
-                          onPressed: requestSeasons,
-                        ),
+                      if (progress != null) ...[
+                        const SizedBox(height: 10),
+                        progress,
+                      ],
                     ],
                   ),
           ),
@@ -648,8 +768,8 @@ class HeaderTitle extends ConsumerWidget {
   }
 }
 
-/// Azione secondaria della testata nello stretto: icona tonda con il nome
-/// nel tooltip, come i toggle accanto.
+/// Azione secondaria della testata: icona tonda con il nome nel tooltip,
+/// come i toggle accanto.
 class _ActionIcon extends StatelessWidget {
   const _ActionIcon({
     required this.icon,
@@ -669,6 +789,38 @@ class _ActionIcon extends StatelessWidget {
     selected: selected,
     tooltip: label,
     onPressed: onPressed,
+  );
+}
+
+/// Pulsante con il nome sotto (telefono e TV), oro se [selected].
+class _LabeledAction extends StatelessWidget {
+  const _LabeledAction({
+    required this.button,
+    required this.label,
+    this.selected = false,
+  });
+
+  final Widget button;
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      button,
+      const SizedBox(height: 4),
+      Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: FormFactor.of(context).tv ? 10.5 : 11,
+          color: selected ? WfColors.gold : WfColors.creamMuted,
+        ),
+      ),
+    ],
   );
 }
 

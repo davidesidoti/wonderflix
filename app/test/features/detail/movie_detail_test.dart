@@ -8,6 +8,8 @@ import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/rating_models.dart';
+import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/core/trailers/trailers_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -73,7 +75,7 @@ void main() {
     expect(find.text('DUNE: PARTE DUE'), findsOneWidget);
     expect(find.text('Paul Atreides si unisce ai Fremen.'), findsOneWidget);
     expect(find.text('Riprendi da 23:14'), findsOneWidget);
-    expect(find.text('Ricomincia'), findsOneWidget);
+    expect(find.byTooltip('Ricomincia'), findsOneWidget);
     expect(find.text('Trailer'), findsOneWidget);
     expect(find.text('Zendaya'), findsOneWidget);
     expect(find.text('Chani'), findsOneWidget);
@@ -81,6 +83,61 @@ void main() {
         reason: 'il regista non è nel cast');
     expect(find.text('Simili'), findsOneWidget);
     expect(find.text('Arrival'), findsOneWidget);
+  });
+
+  /// Gruppo che si può creare, Vota e Consiglia a… con un amico.
+  List<Override> allActions() {
+    final social = FakeSocialApi()..install(features: const {});
+    social.snapshot = FriendsSnapshot(friends: [testFriend('u2', 'Luigi')]);
+    social.itemRatingsById['m1'] =
+        const ItemRatings(canRate: true, count: 0, friends: []);
+    return socialTestOverrides(social,
+        features: const SocialFeatures(
+            friends: true, ratings: true, recommendations: true),
+        session: false);
+  }
+
+  testWidgets('azioni in ordine fisso e ⋯ per ultimo', (tester) async {
+    await pumpDetail(tester, extra: allActions());
+    final xs = [
+      find.text('Riprendi da 23:14'),
+      find.byTooltip('Ricomincia'),
+      find.text('Guarda insieme'),
+      find.text('Trailer'),
+      find.byTooltip('Aggiungi a La mia lista'),
+      find.byTooltip('Segna come visto'),
+      find.byTooltip('Vota'),
+      find.byTooltip('Consiglia a…'),
+      find.byTooltip('Altre azioni'),
+    ].map((f) => tester.getCenter(f).dx).toList();
+    for (var i = 1; i < xs.length; i++) {
+      expect(xs[i], greaterThan(xs[i - 1]), reason: 'azione $i');
+    }
+    expect(find.text('Ricomincia'), findsNothing, reason: "è un'icona");
+    // 120 min − 23:14.
+    expect(find.text('rimangono 1h 36m'), findsOneWidget);
+  });
+
+  testWidgets('stretto: sei azioni con la parola, Ricomincia nel ⋯',
+      (tester) async {
+    await pumpDetail(tester,
+        extra: allActions(), surfaceSize: const Size(390, 780));
+    for (final label in [
+      'La mia lista',
+      'Visto',
+      'Trailer',
+      'Insieme',
+      'Consiglia',
+      'Altro',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('rimangono 1h 36m'), findsOneWidget);
+    expect(find.byTooltip('Ricomincia'), findsNothing);
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ricomincia'), findsOneWidget);
+    expect(find.text('Consiglia a…'), findsNothing);
   });
 
   testWidgets('riga oro col regista e una sola riga di dati', (tester) async {

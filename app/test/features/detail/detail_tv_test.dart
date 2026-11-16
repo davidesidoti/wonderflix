@@ -196,7 +196,7 @@ void main() {
             r.right <= screen.right;
       }
 
-      final play = id == 'm1' ? 'Riprendi da 23:14' : 'Riprendi S1:E4 · 23:14';
+      final play = id == 'm1' ? 'Riprendi da 23:14' : 'Riprendi S1:E4';
       expect(inside(find.text(play)), isTrue, reason: play);
       // Fuori dal bordo che una TV può tagliare (48 dp in basso).
       expect(tester.getRect(find.text(play)).bottom, lessThan(540 - 48));
@@ -210,6 +210,17 @@ void main() {
       expect(list.controller?.offset ?? 0, 0);
     });
   }
+
+  testWidgets('TV: le icone hanno il nome sotto', (tester) async {
+    await pumpDetail(tester, 'm1', surfaceSize: const Size(960, 540));
+    for (final label in ['Ricomincia', 'La mia lista', 'Visto', 'Altro']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(
+      tester.getTopLeft(find.text('Visto')).dy,
+      greaterThan(tester.getBottomLeft(find.byTooltip('Segna come visto')).dy),
+    );
+  });
 
   testWidgets('titolo in TV: 72, su una riga', (tester) async {
     await pumpDetail(tester, 'm1', surfaceSize: const Size(960, 540));
@@ -283,17 +294,20 @@ void main() {
     (tester) async {
       await pumpDetail(tester, 'm1');
       final xs = [
+        tester.getCenter(find.text('Riprendi da 23:14')).dx,
+        tester.getCenter(find.text('Trailer')).dx,
         for (final tooltip in [
+          'Ricomincia',
           'Aggiungi a La mia lista',
+          'Segna come visto',
           'Vota',
           'Consiglia a…',
-          'Segna come visto',
           'Altre azioni',
         ])
           tester.getCenter(find.byTooltip(tooltip).first).dx,
       ];
       expect(xs, orderedEquals([...xs]..sort()));
-      expect(xs.toSet(), hasLength(5));
+      expect(xs.toSet(), hasLength(8));
       expect(find.text('Ricomincia'), findsOneWidget);
       expect(find.text('Guarda insieme'), findsNothing);
     },
@@ -303,11 +317,9 @@ void main() {
     await pumpDetail(tester, 'm1');
     await tester.pumpAndSettle();
     expect(hasFocus(tester, find.text('Riprendi da 23:14')), isTrue);
-    // Riprendi → Ricomincia → Trailer.
-    for (var i = 0; i < 2; i++) {
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pumpAndSettle();
-    }
+    // Riprendi → Trailer.
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
     expect(hasFocus(tester, find.text('Trailer')), isTrue);
   });
 
@@ -386,7 +398,7 @@ void main() {
   testWidgets('serie: focus sul principale, Giù alle stagioni, OK le sceglie, '
       'OK su un episodio lo riproduce', (tester) async {
     await pumpDetail(tester, 's1');
-    expect(hasFocus(tester, find.text('Riprendi S1:E4 · 23:14')), isTrue);
+    expect(hasFocus(tester, find.text('Riprendi S1:E4')), isTrue);
     // Niente "⋯" né sulla stagione né sugli episodi: resta quello della testata.
     expect(find.byTooltip('Altre azioni'), findsOneWidget);
 
@@ -480,7 +492,7 @@ void main() {
     // Il titolo sta sotto il bordo alto che la TV può tagliare (5%).
     expect(tester.getRect(find.byType(HeaderTitle)).top,
         greaterThanOrEqualTo(540 * 0.05));
-    final play = tester.getRect(find.text('Riprendi S1:E4 · 23:14'));
+    final play = tester.getRect(find.text('Riprendi S1:E4'));
     expect(play.bottom, lessThan(header.bottom));
   });
 
