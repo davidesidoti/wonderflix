@@ -85,6 +85,16 @@ ThemeData buildWonderflixTheme({bool tv = false}) {
   // Velo dell'elemento col focus (InkWell, voci di elenco, menu) sulla TV.
   final focusColor = tv ? WfColors.gold.withValues(alpha: 0.24) : null;
 
+  final inputTheme = InputDecorationTheme(
+    filled: true,
+    fillColor: WfColors.surfaceHigh,
+    hintStyle: const TextStyle(color: WfColors.creamMuted),
+    border: border(WfColors.border),
+    enabledBorder: border(WfColors.border),
+    focusedBorder: border(WfColors.gold),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  );
+
   return base.copyWith(
     focusColor: focusColor,
     // Avvisi flottanti nei colori dell'app (spec C §11.4).
@@ -102,15 +112,7 @@ ThemeData buildWonderflixTheme({bool tv = false}) {
       bodyColor: WfColors.cream,
       displayColor: WfColors.cream,
     ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: WfColors.surfaceHigh,
-      hintStyle: const TextStyle(color: WfColors.creamMuted),
-      border: border(WfColors.border),
-      enabledBorder: border(WfColors.border),
-      focusedBorder: border(WfColors.gold),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-    ),
+    inputDecorationTheme: inputTheme,
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: WfColors.gold,
@@ -168,6 +170,58 @@ ThemeData buildWonderflixTheme({bool tv = false}) {
     popupMenuTheme: const PopupMenuThemeData(
       color: WfColors.surface,
       textStyle: TextStyle(color: WfColors.cream),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: WfColors.surfaceHigh,
+      selectedColor: WfColors.gold.withValues(alpha: 0.14),
+      checkmarkColor: WfColors.gold,
+      side: WidgetStateBorderSide.resolveWith((states) => BorderSide(
+          color: states.contains(WidgetState.selected)
+              ? WfColors.gold
+              : WfColors.border)),
+      labelStyle: WidgetStateTextStyle.resolveWith((states) => TextStyle(
+          color: states.contains(WidgetState.selected)
+              ? WfColors.gold
+              : WfColors.cream,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w500)),
+      shape: const StadiumBorder(),
+    ),
+    checkboxTheme: CheckboxThemeData(
+      fillColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected) ? WfColors.gold : null),
+      checkColor: const WidgetStatePropertyAll(WfColors.bg),
+      side: WidgetStateBorderSide.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? const BorderSide(color: WfColors.gold, width: 1.5)
+              : const BorderSide(color: WfColors.creamMuted, width: 1.5)),
+    ),
+    radioTheme: RadioThemeData(
+      fillColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? WfColors.gold
+              : WfColors.creamMuted),
+    ),
+    switchTheme: SwitchThemeData(
+      trackColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? WfColors.gold
+              : WfColors.surfaceHigh),
+      thumbColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? WfColors.bg
+              : WfColors.creamMuted),
+      trackOutlineColor: WidgetStateProperty.resolveWith((states) =>
+          states.contains(WidgetState.selected)
+              ? Colors.transparent
+              : WfColors.border),
+    ),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      inputDecorationTheme: inputTheme,
+      menuStyle: const MenuStyle(
+        backgroundColor: WidgetStatePropertyAll(WfColors.surface),
+        side: WidgetStatePropertyAll(BorderSide(color: WfColors.border)),
+      ),
     ),
     progressIndicatorTheme:
         const ProgressIndicatorThemeData(color: WfColors.gold),
