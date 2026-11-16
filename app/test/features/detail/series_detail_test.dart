@@ -69,6 +69,23 @@ void main() {
     }
   }
 
+  testWidgets("serie: riga oro con l'anno", (tester) async {
+    await pumpSeries(tester);
+    expect(find.text('Serie · 2024'), findsOneWidget);
+  });
+
+  testWidgets('serie senza anno: la riga oro dice solo Serie', (tester) async {
+    api.itemsById['s1'] = testItem(
+        id: 's1',
+        name: 'The Last of Us',
+        kind: ItemKind.series,
+        year: null,
+        childCount: 2);
+    await pumpSeries(tester);
+    expect(find.text('Serie'), findsOneWidget);
+    expect(find.textContaining('Serie ·'), findsNothing);
+  });
+
   testWidgets('prossimo episodio, stagioni ed episodi', (tester) async {
     await pumpSeries(tester);
     expect(find.text('THE LAST OF US'), findsOneWidget);

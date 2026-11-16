@@ -79,6 +79,32 @@ void main() {
     expect(find.text('Arrival'), findsOneWidget);
   });
 
+  testWidgets('riga oro col regista e una sola riga di dati', (tester) async {
+    api.itemsById['m1'] = testItem(
+      id: 'm1',
+      name: 'Dune: Parte Due',
+      rating: 7.5,
+      genres: const ['Drama', 'Romance', 'Crime'],
+      people: [
+        {'Id': 'p8', 'Name': 'Denis Villeneuve', 'Type': 'Director'},
+      ],
+    );
+    await pumpDetail(tester);
+    expect(find.text('Film di Denis Villeneuve'), findsOneWidget);
+    expect(find.text('2024 · 2h · Dramma · Romantico'), findsOneWidget);
+    expect(find.text('7,5'), findsOneWidget);
+    expect(find.text('Drama · Romance · Crime'), findsNothing);
+    final title = tester.widget<Text>(find.text('DUNE: PARTE DUE'));
+    expect(title.style?.fontSize, 96);
+  });
+
+  testWidgets('film senza regista: la riga oro dice solo Film', (tester) async {
+    api.itemsById['m1'] = testItem(id: 'm1', name: 'Dune: Parte Due');
+    await pumpDetail(tester);
+    expect(find.text('Film'), findsOneWidget);
+    expect(find.textContaining('Film di'), findsNothing);
+  });
+
   testWidgets('trailer con schema non web: nessun pulsante', (tester) async {
     api.itemsById['m1'] = testItem(id: 'm1', trailers: [
       {'Url': 'javascript:alert(1)'},

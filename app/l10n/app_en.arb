@@ -63,6 +63,8 @@
   "detailCast": "Cast",
   "detailSimilar": "More like this",
   "detailSeasons": "{count, plural, =1{1 season} other{{count} seasons}}",
+  "detailKickerMovie": "Directed by {director}",
+  "detailKickerSeries": "Series · {year}",
   "detailRemaining": "{time} left",
   "detailNoEpisodes": "No episodes available.",
   "catalogSortTitle": "Title",

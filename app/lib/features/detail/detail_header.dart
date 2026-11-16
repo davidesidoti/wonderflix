@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/error_text.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/requests/requests_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -21,6 +22,7 @@ import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../ratings/rating_widgets.dart';
 import '../ratings/friend_ratings_row.dart';
 import '../ratings/rate_panel.dart';
 import '../recommendations/recommend_panel.dart';
@@ -280,23 +282,26 @@ class DetailHeader extends ConsumerWidget {
     );
     final nextUp = _nextUpAction(context, ref, l);
     final resume = _resumeAction(context, ref, l);
+    final kicker = detailKicker(item, l);
 
     return DetailHeaderFrame(
       controller: controller,
       children: [
-        StaggerItem(index: 0, child: HeaderTitle(item: item)),
-        const SizedBox(height: 12),
-        StaggerItem(index: 1, child: MetaLine(item: item)),
-        if (item.genres.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          StaggerItem(
-            index: 2,
-            child: Text(
-              item.genres.join(' · '),
-              style: const TextStyle(color: WfColors.creamMuted),
-            ),
+        StaggerItem(
+          index: 0,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (kicker != null) ...[
+                DetailKicker(kicker),
+                const SizedBox(height: 6),
+              ],
+              HeaderTitle(item: item),
+            ],
           ),
-        ],
+        ),
+        const SizedBox(height: 12),
+        StaggerItem(index: 1, child: MetaLine(item: item, genres: true)),
         if (overview != null) ...[
           const SizedBox(height: 12),
           StaggerItem(
@@ -554,6 +559,50 @@ class DetailHeaderFrame extends StatelessWidget {
   }
 }
 
+/// Riga oro sopra il titolo: "Film di {regista}" / "Serie · {anno}"; senza
+/// regista o anno solo "Film" / "Serie". `null` per gli altri tipi.
+String? detailKicker(JellyfinItem item, AppLocalizations l) {
+  switch (item.kind) {
+    case ItemKind.movie:
+      final director = item.people
+          .where((p) => p.type == 'Director' && p.name.isNotEmpty)
+          .firstOrNull;
+      return director == null
+          ? l.requestsKindMovie
+          : l.detailKickerMovie(director.name);
+    case ItemKind.series:
+      final year = item.productionYear;
+      return year == null
+          ? l.requestsKindSeries
+          : l.detailKickerSeries('$year');
+    default:
+      return null;
+  }
+}
+
+/// La riga oro, come quella del carosello della Home.
+class DetailKicker extends StatelessWidget {
+  const DetailKicker(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: const TextStyle(
+      color: WfColors.gold,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w600,
+    ),
+  );
+}
+
+/// Stile del nome sopra la scheda: 96 sul desktop, 48 nello stretto, 72 in TV.
+TextStyle headerTitleStyle(BuildContext context) {
+  final tv = FormFactor.of(context).tv;
+  return WfText.display(tv ? 72 : (detailCompact(context) ? 48 : 96));
+}
+
 /// Primo elemento di una testata: il logo di [item] o, senza, il nome in
 /// maiuscolo.
 class HeaderTitle extends ConsumerWidget {
@@ -564,19 +613,27 @@ class HeaderTitle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final logo = ref.watch(imageUrlsProvider).logo(item);
+    final tv = FormFactor.of(context).tv;
     return logo != null
         ? SizedBox(
-            height: 120,
+            height: tv ? 80 : (detailCompact(context) ? 72 : 96),
             width: 460,
             child: Align(
               alignment: Alignment.bottomLeft,
               child: WfImage(image: logo, fit: BoxFit.contain),
             ),
           )
-        : Text(
-            item.name.toUpperCase(),
-            maxLines: 2,
-            style: WfText.display(detailCompact(context) ? 36 : 56),
+        : SizedBox(
+            height: 80,
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Text(
+                item.name.toUpperCase(),
+                maxLines: tv ? 1 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: headerTitleStyle(context),
+              ),
+            ),
           );
   }
 }
@@ -642,11 +699,13 @@ class _ScrollFade extends StatelessWidget {
   }
 }
 
-/// "2024 · 2h 46m · ★ 8.4 · [PG-13]".
+/// "2024 · 2h 46m · Dramma · Romantico · ★ 8,4 · [PG-13]"; i generi
+/// solo con [genres].
 class MetaLine extends StatelessWidget {
-  const MetaLine({super.key, required this.item});
+  const MetaLine({super.key, required this.item, this.genres = false});
 
   final JellyfinItem item;
+  final bool genres;
 
   @override
   Widget build(BuildContext context) {
@@ -662,6 +721,7 @@ class MetaLine extends StatelessWidget {
         formatRuntime(runtime),
       if (item.kind == ItemKind.series && seasons != null)
         l.detailSeasons(seasons),
+      if (genres) ...displayGenres(item.genres),
     ];
     return Wrap(
       spacing: 10,
@@ -675,7 +735,7 @@ class MetaLine extends StatelessWidget {
               const Icon(LucideIcons.star, size: 14, color: WfColors.gold),
               const SizedBox(width: 4),
               Text(
-                rating.toStringAsFixed(1),
+                formatRatingAverage(rating, l.localeName),
                 style: const TextStyle(
                   color: WfColors.gold,
                   fontWeight: FontWeight.w600,
