@@ -81,11 +81,26 @@ void main() {
     for (var i = 0; i < 4; i++) {
       await tester.pump();
     }
-    // Il blocco delle stagioni passa da caricamento a dati con una dissolvenza.
-    if (motion == MotionLevel.reduced) {
-      await tester.pump(const Duration(milliseconds: 500));
-    }
   }
+
+  testWidgets('gli episodi non si spostano quando le stagioni arrivano',
+      (tester) async {
+    await pumpApp(tester, Scaffold(body: ItemDetailScreen(itemId: 's1')),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          displayPreferencesApiProvider.overrideWithValue(prefs),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+        ],
+        motion: MotionLevel.full);
+    for (var i = 0; i < 6 && find.text('Episodio 3').evaluate().isEmpty; i++) {
+      await tester.pump();
+    }
+    final first = tester.getTopLeft(find.text('Episodio 3'));
+    // A dissolvenza finita il primo episodio sta dov'era quando è comparso.
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.getTopLeft(find.text('Episodio 3')), first);
+  });
 
   Future<void> scrollToTicket(WidgetTester tester) => tester.scrollUntilVisible(
       find.byKey(const Key('next-episode-ticket')), 200,

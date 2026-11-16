@@ -301,7 +301,7 @@ void main() {
         (tester) async {
       await pumpSeries(
           tester, ratings: const ItemRatings(canRate: false, count: 0, friends: []));
-      expect(find.byType(SeasonRatingsStrip), findsOneWidget);
+      expect(find.text('Voti degli amici · Stagione 1'), findsNothing);
       expect(find.text('Vota la stagione'), findsNothing);
       await tester.tap(find.byTooltip('Altre azioni').first);
       await tester.pumpAndSettle();

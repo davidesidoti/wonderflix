@@ -126,10 +126,9 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
               index: 6,
               child: WfSwitcher(
                 child: seasons.when(
-                  loading: () => const EpisodeListSkeleton(
-                    key: ValueKey('loading'),
-                    count: 2,
-                  ),
+                  // Piccolo: la lista finta degli episodi sta sotto, al
+                  // posto di quella vera (sennò la dissolvenza la abbassa).
+                  loading: () => const SizedBox.shrink(key: ValueKey('loading')),
                   error: (error, _) => ErrorView(
                     key: const ValueKey('error'),
                     error: error,
@@ -165,66 +164,72 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                     return Column(
                       key: const ValueKey('data'),
                       children: [
-                        Row(children: [
-                        Expanded(
-                          child: _SeasonTabs(
-                            seasons: list,
-                            selectedId: seasonId,
-                            onSelect: (id) =>
-                                setState(() => _selectedSeasonId = id),
-                          ),
-                        ),
-                        // Il menu della stagione scelta (visto, segnalazioni).
-                        // Sulla TV non c'è: la serie ha il suo "Altro".
-                        if (current case final season? when !tv)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 24),
-                            child: ItemActionsButton(
-                              item: season,
-                              extra: [
-                                if (ratings != null &&
-                                    (ratings.canRate || ratings.mine != null))
-                                  (
-                                    label: l.ratingRateSeason,
-                                    onSelected: () => rate(ratings),
-                                  ),
-                                (
-                                  label: watchUserData(ref, season).played
-                                      ? l.detailSeasonMarkUnwatched
-                                      : l.detailSeasonMarkWatched,
-                                  onSelected: () => unawaited(
-                                    runUserDataAction(context, () async {
-                                      final key = (
-                                        seriesId: series.id,
-                                        seasonId: season.id,
-                                      );
-                                      final overrides = ref.read(
-                                        userDataOverridesProvider.notifier,
-                                      );
-                                      final episodes = ref
-                                          .read(episodesProvider(key))
-                                          .value;
-                                      await overrides.togglePlayed(season);
-                                      // Il server ha cambiato gli episodi:
-                                      // si rileggono, senza le modifiche
-                                      // locali di prima, e con loro "Riprendi"
-                                      // e il Visto della serie.
-                                      overrides.forget([
-                                        for (final e in episodes ?? const []) e.id,
-                                      ]);
-                                      ref.invalidate(episodesProvider(key));
-                                      ref
-                                          .read(
-                                            userDataRevisionProvider.notifier,
-                                          )
-                                          .bump();
-                                    }),
-                                  ),
-                                ),
-                              ],
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SeasonTabs(
+                                seasons: list,
+                                selectedId: seasonId,
+                                onSelect: (id) =>
+                                    setState(() => _selectedSeasonId = id),
+                              ),
                             ),
-                          ),
-                        ]),
+                            // Il menu della stagione scelta (visto, segnalazioni).
+                            // Sulla TV non c'è: la serie ha il suo "Altro".
+                            if (current case final season? when !tv)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 24),
+                                child: ItemActionsButton(
+                                  item: season,
+                                  extra: [
+                                    if (ratings != null &&
+                                        (ratings.canRate ||
+                                            ratings.mine != null))
+                                      (
+                                        label: l.ratingRateSeason,
+                                        onSelected: () => rate(ratings),
+                                      ),
+                                    (
+                                      label: watchUserData(ref, season).played
+                                          ? l.detailSeasonMarkUnwatched
+                                          : l.detailSeasonMarkWatched,
+                                      onSelected: () => unawaited(
+                                        runUserDataAction(context, () async {
+                                          final key = (
+                                            seriesId: series.id,
+                                            seasonId: season.id,
+                                          );
+                                          final overrides = ref.read(
+                                            userDataOverridesProvider.notifier,
+                                          );
+                                          final episodes = ref
+                                              .read(episodesProvider(key))
+                                              .value;
+                                          await overrides.togglePlayed(season);
+                                          // Il server ha cambiato gli episodi:
+                                          // si rileggono, senza le modifiche
+                                          // locali di prima, e con loro "Riprendi"
+                                          // e il Visto della serie.
+                                          overrides.forget([
+                                            for (final e
+                                                in episodes ?? const [])
+                                              e.id,
+                                          ]);
+                                          ref.invalidate(episodesProvider(key));
+                                          ref
+                                              .read(
+                                                userDataRevisionProvider
+                                                    .notifier,
+                                              )
+                                              .bump();
+                                        }),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
                         if (current != null)
                           SeasonRatingsStrip(
                             key: ValueKey(current.id),
@@ -239,6 +244,8 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
               ),
             ),
           ),
+          if (seasonList == null && !seasons.hasError)
+            const SliverToBoxAdapter(child: EpisodeListSkeleton(count: 2)),
           // Alla prima apertura gli episodi entrano con la scheda (elemento
           // 6): scaglionati solo cambiando stagione (spec C §9.3).
           if (shownSeasonId != null && !seasons.hasError)

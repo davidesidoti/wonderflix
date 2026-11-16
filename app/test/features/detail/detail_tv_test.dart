@@ -399,7 +399,6 @@ void main() {
 
   testWidgets('TV: gli episodi non hanno Visto', (tester) async {
     await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
-    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Episodio 3'), findsOneWidget);
     expect(find.byType(FilterChip), findsNothing);
   });
@@ -513,7 +512,6 @@ void main() {
       ],
     );
     await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
-    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Voti degli amici · Stagione 1'), findsOneWidget);
     // Sulla TV si vota con "Vota" della testata: la riga non ha pulsante.
     expect(find.text('Vota la stagione'), findsNothing);
