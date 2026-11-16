@@ -84,7 +84,11 @@ Future<void> _openParty(Ref ref, String playlistItemId) async {
   String route(bool fullscreen) => playerRoute(entry.itemId,
       start: ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
       fullscreen: fullscreen,
-      party: playlistItemId);
+      party: playlistItemId,
+      // Il player che si sostituisce dice da dove si era partiti.
+      origin: location.path.startsWith('/play/')
+          ? playerOriginFrom(location)
+          : PlayerOrigin.other);
   if (!location.path.startsWith('/play/')) {
     navigator.open(route(false));
     return;

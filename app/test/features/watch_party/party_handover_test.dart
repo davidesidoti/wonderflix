@@ -100,6 +100,7 @@ void main() {
             party: state.uri.queryParameters['party'],
           ),
           fullscreen: state.uri.queryParameters['fs'] == '1',
+          origin: playerOriginFrom(state.uri),
         ),
       ),
     ]);
@@ -222,7 +223,7 @@ void main() {
       episode('e5', 5),
       episode('e6', 6),
     ];
-    unawaited(router.push('/play/e4'));
+    unawaited(router.push(playerRoute('e4', origin: PlayerOrigin.detail)));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Schermo intero'));
     await tester.pump();
@@ -244,7 +245,9 @@ void main() {
     expect(api.calls.take(2), ['create Mario · Breaking Bad', 'queue e4,e5,e6']);
     expect(api.queues.last.start, const Duration(minutes: 12),
         reason: 'il gruppo parte dal minuto del player da solo');
-    expect(router.state.uri.toString(), '/play/e4?fs=1&party=p1');
+    expect(router.state.uri.toString(),
+        '/play/e4?fs=1&party=p1&from=detail',
+        reason: 'il player del gruppo ricorda da dove si era partiti');
     expect(find.byType(PlayerScreen, skipOffstage: false), findsOneWidget);
     expect(window.fullScreenCalls, [true],
         reason: 'il player sostituito non esce dallo schermo intero');

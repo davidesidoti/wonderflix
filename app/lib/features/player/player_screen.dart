@@ -342,8 +342,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_inParty) return l.watchPartyLeave;
     return switch (widget.origin) {
       PlayerOrigin.home => l.playerBackHome,
-      PlayerOrigin.detail => l.playerBackToDetail,
       // Senza pagina sotto (link diretto, ricarica sul web) `_exit` va alla Home.
+      PlayerOrigin.detail =>
+        context.canPop() ? l.playerBackToDetail : l.playerBackHome,
       PlayerOrigin.other =>
         context.canPop() ? l.playerBackGeneric : l.playerBackHome,
     };

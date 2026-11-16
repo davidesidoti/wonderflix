@@ -996,10 +996,14 @@ void main() {
   });
 
   testWidgets('la freccia senza pagina sotto porta alla Home', (tester) async {
-    await pumpPlayer(tester, route: playerRoute('e4'), pushed: false);
-    expect(find.byTooltip('Torna alla Home'), findsOneWidget);
-    expect(find.byTooltip('Torna indietro'), findsNothing);
-    await unmount(tester);
+    for (final origin in [PlayerOrigin.other, PlayerOrigin.detail]) {
+      await pumpPlayer(tester,
+          route: playerRoute('e4', origin: origin), pushed: false);
+      expect(find.byTooltip('Torna alla Home'), findsOneWidget);
+      expect(find.byTooltip('Torna indietro'), findsNothing);
+      expect(find.byTooltip('Torna alla scheda'), findsNothing);
+      await unmount(tester);
+    }
   });
 
   testWidgets('Velocità cambia la velocità del film', (tester) async {
