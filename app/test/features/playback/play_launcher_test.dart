@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,11 +24,8 @@ void main() {
   /// Pulsante "play" che chiama [playItem]; la route del player mostra id e
   /// posizione di partenza ricevuti.
   Future<GoRouter> pumpLauncher(WidgetTester tester, JellyfinItem item,
-      {bool fromStart = false}) async {
-    final router = GoRouter(routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => Scaffold(
+      {bool fromStart = false, String at = '/'}) async {
+    Widget page(BuildContext context, GoRouterState state) => Scaffold(
           body: Consumer(
             builder: (context, ref, _) => TextButton(
               onPressed: () =>
@@ -34,12 +33,15 @@ void main() {
               child: const Text('play'),
             ),
           ),
-        ),
-      ),
+        );
+    final router = GoRouter(initialLocation: at, routes: [
+      GoRoute(path: at, builder: page),
+      GoRoute(path: '/item/:id', builder: page),
       GoRoute(
         path: '/play/:id',
         builder: (context, state) => Text(
-            'player ${state.pathParameters['id']} ${state.uri.queryParameters['start'] ?? '-'}'),
+            'player ${state.pathParameters['id']} ${state.uri.queryParameters['start'] ?? '-'}'
+            '${state.uri.queryParameters['from'] == null ? '' : ' from ${state.uri.queryParameters['from']}'}'),
       ),
     ]);
     addTearDown(router.dispose);
@@ -95,6 +97,26 @@ void main() {
         .apply('m1', const UserItemData(playbackPositionTicks: minutes23));
     await tapPlay(tester);
     expect(find.text('player m1 1380000'), findsOneWidget);
+  });
+
+  testWidgets('dalla Home il player lo sa', (tester) async {
+    for (final (at, shown) in [
+      ('/home', 'player m1 - from home'),
+      ('/', 'player m1 -'),
+    ]) {
+      await pumpLauncher(tester, testItem(id: 'm1'), at: at);
+      await tapPlay(tester);
+      expect(find.text(shown), findsOneWidget);
+    }
+  });
+
+  testWidgets('da una scheda aperta sopra la Home: non è la Home',
+      (tester) async {
+    final router = await pumpLauncher(tester, testItem(id: 'm1'), at: '/home');
+    unawaited(router.push('/item/m1'));
+    await tester.pumpAndSettle();
+    await tapPlay(tester);
+    expect(find.text('player m1 -'), findsOneWidget);
   });
 
   testWidgets('serie: riproduce il prossimo episodio', (tester) async {

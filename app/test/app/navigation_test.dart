@@ -49,4 +49,8 @@ void main() {
             start: const Duration(seconds: 1), fullscreen: true, party: 'p1'),
         '/play/m1?start=1000&fs=1&party=p1');
   });
+
+  test('playerRoute porta con sé da dove si parte', () {
+    expect(playerRoute('e4', fromHome: true), '/play/e4?from=home');
+  });
 }

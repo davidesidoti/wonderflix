@@ -20,12 +20,21 @@ String? formatRemaining(
   bool withEnd = true,
 }) {
   if (duration <= Duration.zero) return null;
-  final left = duration > position ? duration - position : Duration.zero;
-  final clock = formatClock(left);
+  final clock = formatClock(_left(position, duration));
   if (!withEnd) return l.playerTimeLeftShort(clock);
-  final end = now.add(left * (1 / rate));
+  final end = _endAt(now, position: position, duration: duration, rate: rate);
   return l.playerTimeLeft(clock, DateFormat.Hm(l.localeName).format(end));
 }
+
+Duration _left(Duration position, Duration duration) =>
+    duration > position ? duration - position : Duration.zero;
+
+/// Ora di fine a velocità [rate] (zero o meno vale 1×).
+DateTime _endAt(DateTime now,
+        {required Duration position,
+        required Duration duration,
+        required double rate}) =>
+    now.add(_left(position, duration) * (1 / (rate > 0 ? rate : 1)));
 
 const _tabular = [FontFeature.tabularFigures()];
 
@@ -88,6 +97,10 @@ class _RemainingLabelState extends State<RemainingLabel> {
   late Duration _duration = widget.engine.duration;
   final _subscriptions = <StreamSubscription<Duration>>[];
 
+  /// Rifà il testo quando l'ora di fine cambia minuto (anche in pausa, dove
+  /// la posizione non si muove).
+  Timer? _minute;
+
   @override
   void initState() {
     super.initState();
@@ -107,15 +120,26 @@ class _RemainingLabelState extends State<RemainingLabel> {
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
+    _minute?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final now = clock.now();
+    _minute?.cancel();
+    if (widget.withEnd && _duration > Duration.zero) {
+      final end = _endAt(now,
+          position: _position, duration: _duration, rate: widget.rate);
+      const minute = Duration.millisecondsPerMinute;
+      _minute = Timer(
+          Duration(milliseconds: minute - end.millisecondsSinceEpoch % minute),
+          () => setState(() {}));
+    }
     final text = formatRemaining(AppLocalizations.of(context),
         position: _position,
         duration: _duration,
-        now: clock.now(),
+        now: now,
         rate: widget.rate,
         withEnd: widget.withEnd);
     if (text == null) return const SizedBox.shrink();

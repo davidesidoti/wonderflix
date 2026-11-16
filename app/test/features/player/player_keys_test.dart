@@ -25,6 +25,7 @@ void main() {
           engine: FakeVideoEngine(),
           fullscreen: false,
           onBack: () {},
+          backLabel: 'Torna alla scheda',
           onTogglePlay: () {},
           onSeekBy: (_) {},
           onSeekTo: (_) {},

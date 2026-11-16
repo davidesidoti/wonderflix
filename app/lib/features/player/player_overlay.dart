@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ import '../library/item_labels.dart';
 import 'player_commands.dart';
 import 'player_controller.dart';
 import 'player_keys.dart';
+import 'playback_rate.dart';
 import 'player_time.dart';
 import 'seek_bar.dart';
 import 'seek_segments.dart';
@@ -28,6 +30,7 @@ class PlayerOverlay extends StatelessWidget {
     required this.engine,
     required this.fullscreen,
     required this.onBack,
+    required this.backLabel,
     required this.onTogglePlay,
     required this.onSeekBy,
     required this.onSeekTo,
@@ -50,12 +53,17 @@ class PlayerOverlay extends StatelessWidget {
     this.reactionsLink,
     this.onToggleQueue,
     this.playFocusNode,
+    this.rate = 1,
+    this.onRate,
   });
 
   final PlayerViewState view;
   final VideoEngine engine;
   final bool fullscreen;
   final VoidCallback onBack;
+
+  /// Suggerimento della ←: dice dove si torna.
+  final String backLabel;
   final VoidCallback onTogglePlay;
   final ValueChanged<Duration> onSeekBy;
   final ValueChanged<Duration> onSeekTo;
@@ -114,6 +122,13 @@ class PlayerOverlay extends StatelessWidget {
 
   /// Nodo del pulsante play/pausa: sulla TV Giù ci porta il focus.
   final FocusNode? playFocusNode;
+
+  /// Velocità di riproduzione attuale.
+  final double rate;
+
+  /// Velocità scelta dal menu; `null` = niente Velocità (nel watch party
+  /// resta 1×).
+  final ValueChanged<double>? onRate;
 
   /// Di quanto la parte alta sale e la bassa scende a controlli nascosti.
   static const hiddenShift = 24.0;
@@ -208,9 +223,9 @@ class PlayerOverlay extends StatelessWidget {
         : SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 3,
-              activeTrackColor: WfColors.cream,
-              inactiveTrackColor: WfColors.cream.withValues(alpha: 0.2),
-              thumbColor: WfColors.cream,
+              activeTrackColor: WfColors.gold,
+              inactiveTrackColor: WfColors.cream.withValues(alpha: 0.25),
+              thumbColor: WfColors.gold,
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             ),
             child: KeyTooltip(
@@ -224,6 +239,52 @@ class PlayerOverlay extends StatelessWidget {
               ),
             ),
           );
+
+    final seekBar = SeekBar(
+      engine: engine,
+      onSeek: onSeekTo,
+      chapters: chapters,
+      zones: seekZones(view.segments),
+      preview: preview,
+      previewAt: previewAt,
+    );
+    final chat = onToggleChat == null
+        ? null
+        : PlayerIconButton(
+            key: const Key('player-chat-button'),
+            icon: _WithDot(
+              show: chatUnread,
+              child: const Icon(LucideIcons.messageCircle),
+            ),
+            tooltip: l.partyChatOpen,
+            shortcut: l.playerKeyEnter,
+            onPressed: onToggleChat,
+          );
+    final reactions = onToggleReactions == null
+        ? null
+        : _anchored(
+            reactionsLink,
+            PlayerIconButton(
+              key: const Key('player-reactions-button'),
+              icon: const Icon(LucideIcons.smilePlus),
+              tooltip: l.partyReactionsOpen,
+              shortcut: '1–6',
+              onPressed: onToggleReactions,
+            ),
+          );
+    final queue = onToggleQueue == null
+        ? null
+        : PlayerIconButton(
+            key: const Key('player-queue-button'),
+            icon: const Icon(LucideIcons.listVideo),
+            tooltip: l.partyQueueOpen,
+            onPressed: onToggleQueue,
+          );
+    final tracks = PlayerIconButton(
+      icon: const Icon(LucideIcons.captions),
+      tooltip: l.playerAudioAndSubtitles,
+      onPressed: onToggleTracks,
+    );
 
     return IconButtonTheme(
       data: IconButtonThemeData(
@@ -260,7 +321,7 @@ class PlayerOverlay extends StatelessWidget {
                       if (!tv)
                         PlayerIconButton(
                           icon: const Icon(LucideIcons.arrowLeft),
-                          tooltip: l.navBack,
+                          tooltip: backLabel,
                           size: compact ? minTouchTarget : null,
                           onPressed: onBack,
                         ),
@@ -346,15 +407,8 @@ class PlayerOverlay extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SeekBar(
-                        engine: engine,
-                        onSeek: onSeekTo,
-                        chapters: chapters,
-                        zones: seekZones(view.segments),
-                        preview: preview,
-                        previewAt: previewAt,
-                      ),
-                      if (compact)
+                      if (compact) ...[
+                        seekBar,
                         Row(
                           children: [
                             mute,
@@ -370,98 +424,109 @@ class PlayerOverlay extends StatelessWidget {
                                 child: Row(children: [
                               PositionLabel(engine: engine),
                               const SizedBox(width: 8),
-                              RemainingLabel(engine: engine, withEnd: false),
+                              RemainingLabel(
+                                  engine: engine, rate: rate, withEnd: false),
                             ])),
                             const SizedBox(width: 8),
                             Expanded(child: _compactCommands(l)),
                           ],
-                        )
-                      else
-                      Row(
-                        children: [
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            RepaintBoundary(
+                                child: PositionLabel(engine: engine)),
+                            const SizedBox(width: _timeGap),
+                            Expanded(child: seekBar),
+                            const SizedBox(width: _timeGap),
+                            RepaintBoundary(
+                                child:
+                                    RemainingLabel(engine: engine, rate: rate)),
+                          ],
+                        ),
+                        if (tv)
                           // Sulla TV come nella bozza: pausa, −10 s, +10 s.
-                          if (tv) ...[playPause, rewind, forward]
-                          else ...[rewind, playPause, forward],
-                          const SizedBox(width: 8),
-                          if (!tv) mute,
-                          if (slider != null)
-                            SizedBox(width: 120, child: slider),
-                          const SizedBox(width: 12),
-                          RepaintBoundary(
-                                child: Row(children: [
-                              PositionLabel(engine: engine),
-                              const SizedBox(width: 8),
-                              RemainingLabel(engine: engine),
-                            ])),
-                          const Spacer(),
-                          if (onPrevious != null && !tv)
-                            PlayerIconButton(
-                              icon: const Icon(LucideIcons.skipBack),
-                              tooltip: partyQueue
-                                  ? l.playerPreviousInQueue
-                                  : l.playerPreviousEpisode,
-                              shortcut: 'P',
-                              onPressed: onPrevious,
-                            ),
-                          if (next != null && !tv) next,
-                          if (onWatchTogether != null && !tv)
-                            Builder(
-                              builder: (buttonContext) => PlayerIconButton(
-                                icon: const Icon(LucideIcons.users),
-                                tooltip: l.watchPartyWatchTogether,
-                                onPressed: () =>
-                                    onWatchTogether!(buttonContext),
-                              ),
-                            ),
-                          if (onToggleChat != null)
-                            PlayerIconButton(
-                              key: const Key('player-chat-button'),
-                              icon: _WithDot(
-                                show: chatUnread,
-                                child: const Icon(LucideIcons.messageCircle),
-                              ),
-                              tooltip: l.partyChatOpen,
-                              shortcut: l.playerKeyEnter,
-                              onPressed: onToggleChat,
-                            ),
-                          if (onToggleReactions != null)
-                            _anchored(
-                              reactionsLink,
-                              PlayerIconButton(
-                                key: const Key('player-reactions-button'),
-                                icon: const Icon(LucideIcons.smilePlus),
-                                tooltip: l.partyReactionsOpen,
-                                shortcut: '1–6',
-                                onPressed: onToggleReactions,
-                              ),
-                            ),
-                          if (onToggleQueue != null)
-                            PlayerIconButton(
-                              key: const Key('player-queue-button'),
-                              icon: const Icon(LucideIcons.listVideo),
-                              tooltip: l.partyQueueOpen,
-                              onPressed: onToggleQueue,
-                            ),
-                          PlayerIconButton(
-                            icon: const Icon(LucideIcons.captions),
-                            tooltip: l.playerAudioAndSubtitles,
-                            onPressed: onToggleTracks,
+                          Row(
+                            children: [
+                              playPause,
+                              rewind,
+                              forward,
+                              const Spacer(),
+                              ?chat,
+                              ?reactions,
+                              ?queue,
+                              tracks,
+                              // Sulla TV come nella bozza: dopo le tracce.
+                              ?next,
+                            ],
+                          )
+                        else
+                          Row(
+                            children: _grouped([
+                              [
+                                rewind,
+                                playPause,
+                                forward,
+                                mute,
+                                if (slider != null)
+                                  SizedBox(width: 120, child: slider),
+                              ],
+                              [
+                                if (onPrevious != null)
+                                  PlayerIconButton(
+                                    icon: const Icon(LucideIcons.skipBack),
+                                    tooltip: partyQueue
+                                        ? l.playerPreviousInQueue
+                                        : l.playerPreviousEpisode,
+                                    shortcut: 'P',
+                                    onPressed: onPrevious,
+                                  ),
+                                ?next,
+                              ],
+                              [
+                                if (onWatchTogether != null)
+                                  Builder(
+                                    builder: (buttonContext) =>
+                                        PlayerIconButton(
+                                      icon: const Icon(LucideIcons.users),
+                                      tooltip: l.watchPartyWatchTogether,
+                                      onPressed: () =>
+                                          onWatchTogether!(buttonContext),
+                                    ),
+                                  ),
+                                ?chat,
+                                ?reactions,
+                              ],
+                              [
+                                ?queue,
+                                tracks,
+                                if (onRate case final onRate?)
+                                  Builder(
+                                    builder: (buttonContext) =>
+                                        PlayerIconButton(
+                                      icon: const Icon(LucideIcons.gauge),
+                                      tooltip: l.playerSpeed,
+                                      onPressed: () => unawaited(showSpeedMenu(
+                                          buttonContext,
+                                          rate: rate,
+                                          onSelected: onRate)),
+                                    ),
+                                  ),
+                                if (onToggleFullscreen case final toggle?)
+                                  PlayerIconButton(
+                                    icon: Icon(fullscreen
+                                        ? LucideIcons.minimize
+                                        : LucideIcons.maximize),
+                                    tooltip: fullscreen
+                                        ? l.playerExitFullscreen
+                                        : l.playerFullscreen,
+                                    shortcut: 'F',
+                                    onPressed: toggle,
+                                  ),
+                              ],
+                            ]),
                           ),
-                          // Sulla TV come nella bozza: dopo le tracce.
-                          if (next != null && tv) next,
-                          if (onToggleFullscreen case final toggle? when !tv)
-                            PlayerIconButton(
-                              icon: Icon(fullscreen
-                                  ? LucideIcons.minimize
-                                  : LucideIcons.maximize),
-                              tooltip: fullscreen
-                                  ? l.playerExitFullscreen
-                                  : l.playerFullscreen,
-                              shortcut: 'F',
-                              onPressed: toggle,
-                            ),
-                        ],
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -473,6 +538,36 @@ class PlayerOverlay extends StatelessWidget {
       ),
     );
   }
+
+  /// Spazio tra i tempi e la barra di avanzamento.
+  static const _timeGap = 14.0;
+
+  /// I gruppi di comandi della riga larga, separati da un filo (un gruppo
+  /// vuoto non ne lascia due di fila); l'ultimo sta a destra.
+  static List<Widget> _grouped(List<List<Widget>> groups) {
+    final full = [
+      for (final group in groups)
+        if (group.isNotEmpty) group,
+    ];
+    return [
+      for (final (i, group) in full.indexed) ...[
+        if (i > 0 && i == full.length - 1) const Spacer(),
+        if (i > 0) _groupDivider,
+        ...group,
+      ],
+    ];
+  }
+
+  static const _groupDivider = Padding(
+    padding: EdgeInsets.symmetric(horizontal: 10),
+    // La chiave sta dentro: fra fratelli due chiavi uguali non si può.
+    child: SizedBox(
+      key: Key('player-group-divider'),
+      width: 1,
+      height: 20,
+      child: ColoredBox(color: WfColors.border),
+    ),
+  );
 
   /// Lati dei pulsanti al centro nel layout stretto.
   static const centerPlaySize = 64.0;

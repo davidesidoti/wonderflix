@@ -110,7 +110,7 @@ void main() {
       expect(window.fullScreenCalls, [true]);
       expect(window.orientationCalls, ['lock']);
 
-      await tester.tap(find.byTooltip(l.navBack));
+      await tester.tap(find.byTooltip(l.playerBackToDetail));
       await tester.pumpAndSettle();
       expect(find.text('home'), findsOneWidget);
       expect(window.fullScreenCalls, [true, false]);
@@ -138,7 +138,7 @@ void main() {
       window.supportsFullScreen = false;
       await pumpPlayer(tester, touch: false, surfaceSize: const Size(1440, 900));
       expect(find.byTooltip(l.playerFullscreen), findsNothing);
-      expect(find.byTooltip(l.navBack), findsOneWidget,
+      expect(find.byTooltip(l.playerBackToDetail), findsOneWidget,
           reason: 'i controlli ci sono');
       await tester.tapAt(const Offset(700, 450));
       await tester.pump(const Duration(milliseconds: 50));

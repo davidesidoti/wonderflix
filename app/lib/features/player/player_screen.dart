@@ -82,12 +82,19 @@ const ratingPillBottom = 210.0;
 /// episodio e chiusura sicura della finestra (prima si segnala la fine a
 /// Jellyfin).
 class PlayerScreen extends ConsumerStatefulWidget {
-  const PlayerScreen({super.key, required this.args, this.fullscreen = false});
+  const PlayerScreen(
+      {super.key,
+      required this.args,
+      this.fullscreen = false,
+      this.fromHome = false});
 
   final PlayerArgs args;
 
   /// La finestra è già a schermo intero (arrivo dall'episodio precedente).
   final bool fullscreen;
+
+  /// Aperto dalla Home: la ← dice "Torna alla Home".
+  final bool fromHome;
 
   /// Attesa massima del report di fine alla chiusura della finestra.
   static const closeTimeout = Duration(seconds: 2);
@@ -329,6 +336,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _partyDetached = false;
 
   bool get _inParty => widget.args.party != null && !_partyDetached;
+
+  /// Dove porta la ←: nel gruppo uscire dal player è uscire dal gruppo.
+  String get _backLabel {
+    final l = AppLocalizations.of(context);
+    return _inParty
+        ? l.watchPartyLeave
+        : widget.fromHome
+            ? l.playerBackHome
+            : l.playerBackToDetail;
+  }
 
   PlayerController get _controller =>
       ref.read(playerControllerProvider(widget.args).notifier);
@@ -847,7 +864,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final action = primaryActionFor(next, userData);
     final start = action is ResumeAction ? action.position : Duration.zero;
     context.pushReplacement(
-        playerRoute(next.id, start: start, fullscreen: _fullscreen),
+        playerRoute(next.id,
+            start: start, fullscreen: _fullscreen, fromHome: widget.fromHome),
         extra: playerReplacement);
   }
 
@@ -889,7 +907,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final action = primaryActionFor(previous, userData);
     final start = action is ResumeAction ? action.position : Duration.zero;
     context.pushReplacement(
-        playerRoute(previous.id, start: start, fullscreen: _fullscreen),
+        playerRoute(previous.id,
+            start: start, fullscreen: _fullscreen, fromHome: widget.fromHome),
         extra: playerReplacement);
   }
 
@@ -1013,6 +1032,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ref.read(watchPartySessionProvider.notifier).estimatedPosition(),
           fullscreen: _fullscreen,
           party: entry.playlistItemId,
+          fromHome: widget.fromHome,
         ),
         extra: playerReplacement);
   }
@@ -1890,8 +1910,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       error: view.error,
                       onRetry: () => unawaited(controller.retry()),
                       onBack: _exit,
-                      // Nel gruppo uscire dal player è uscire dal gruppo.
-                      backLabel: _inParty ? l.watchPartyLeave : l.playerBack,
+                      backLabel: _backLabel,
                     ),
                   )
                 else
@@ -1913,6 +1932,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         playFocusNode: _playFocusNode,
                         fullscreen: _fullscreen,
                         onBack: _exit,
+                        backLabel: _backLabel,
+                        rate: view.rate,
+                        // Nel gruppo la velocità resta 1× (il driver la usa
+                        // per recuperare gli scarti).
+                        onRate: _inParty
+                            ? null
+                            : (rate) => unawaited(controller.setRate(rate)),
                         onTogglePlay: () => unawaited(controller.togglePlay()),
                         onSeekBy: (offset) =>
                             unawaited(controller.seekBy(offset)),

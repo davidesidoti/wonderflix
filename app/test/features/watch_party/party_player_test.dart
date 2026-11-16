@@ -251,6 +251,14 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('nel gruppo niente Velocità e la freccia esce dal gruppo',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    expect(find.byTooltip(l.playerSpeed), findsNothing);
+    expect(find.byTooltip(l.watchPartyLeave), findsOneWidget);
+    await finish(tester);
+  });
+
   testWidgets('il pulsante play chiede la ripresa al gruppo', (tester) async {
     await pumpPartyPlayer(tester);
     await tester.tap(find.byTooltip(l.actionPlay));
@@ -934,7 +942,7 @@ void main() {
     expect(find.text(l.playerErrorTitle), findsOneWidget);
     expect(api.calls, contains('ignore-wait true'));
     expect(find.text(l.watchPartyLeave), findsOneWidget);
-    expect(find.text(l.playerBack), findsNothing);
+    expect(find.text(l.playerBackToDetail), findsNothing);
 
     await tester.tap(find.text(l.retry));
     await tester.pumpAndSettle();

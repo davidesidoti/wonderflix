@@ -191,6 +191,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               party: state.uri.queryParameters['party'],
             ),
             fullscreen: state.uri.queryParameters['fs'] == '1',
+            fromHome: state.uri.queryParameters['from'] == 'home',
           ),
         ),
       ),

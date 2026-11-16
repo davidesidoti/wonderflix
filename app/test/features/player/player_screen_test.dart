@@ -91,6 +91,7 @@ void main() {
     WidgetTester tester, {
     bool settle = true,
     List<Override> overrides = const [],
+    String route = '/play/e4',
   }) async {
     router = GoRouter(
       routes: [
@@ -108,6 +109,7 @@ void main() {
               party: state.uri.queryParameters['party'],
             ),
             fullscreen: state.uri.queryParameters['fs'] == '1',
+            fromHome: state.uri.queryParameters['from'] == 'home',
           ),
         ),
       ],
@@ -169,7 +171,7 @@ void main() {
         ),
       ),
     );
-    unawaited(router.push('/play/e4'));
+    unawaited(router.push(route));
     if (settle) {
       await tester.pumpAndSettle();
     } else {
@@ -885,10 +887,31 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('errore: Torna indietro esce dal player', (tester) async {
+  testWidgets('la freccia dice dove torna', (tester) async {
+    await pumpPlayer(tester, route: playerRoute('e4'));
+    expect(find.byTooltip('Torna alla scheda'), findsOneWidget);
+    expect(find.byTooltip('Indietro'), findsNothing,
+        reason: "resta solo 'Indietro di 10 secondi'");
+    await unmount(tester);
+    await pumpPlayer(tester, route: playerRoute('e4', fromHome: true));
+    expect(find.byTooltip('Torna alla Home'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('Velocità cambia la velocità del film', (tester) async {
+    await pumpPlayer(tester);
+    await tester.tap(find.byTooltip('Velocità'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1,5×'));
+    await tester.pumpAndSettle();
+    expect(engine.rates, [1.5]);
+    await unmount(tester);
+  });
+
+  testWidgets('errore: Torna alla scheda esce dal player', (tester) async {
     engine.failOpens = 2;
     await pumpPlayer(tester);
-    await tester.tap(find.text('Torna indietro'));
+    await tester.tap(find.text('Torna alla scheda'));
     await tester.pumpAndSettle();
     expect(find.text('home'), findsOneWidget);
     await unmount(tester);

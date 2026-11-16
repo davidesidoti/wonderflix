@@ -91,13 +91,18 @@ const playerReplacement = PlayerReplacement();
 
 /// Percorso del player; [start] è la posizione di partenza, [fullscreen]
 /// dice che la finestra è già a schermo intero (passaggio all'episodio
-/// successivo), [party] è l'id dell'elemento nella coda del watch party.
+/// successivo), [party] è l'id dell'elemento nella coda del watch party,
+/// [fromHome] dice che si è partiti dalla Home (la ← dice "Torna alla Home").
 String playerRoute(String itemId,
-    {Duration start = Duration.zero, bool fullscreen = false, String? party}) {
+    {Duration start = Duration.zero,
+    bool fullscreen = false,
+    String? party,
+    bool fromHome = false}) {
   final query = {
     if (start > Duration.zero) 'start': '${start.inMilliseconds}',
     if (fullscreen) 'fs': '1',
     'party': ?party,
+    if (fromHome) 'from': 'home',
   };
   return Uri(
     path: '/play/$itemId',

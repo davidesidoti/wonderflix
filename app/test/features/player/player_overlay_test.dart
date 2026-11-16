@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
+import 'package:wonderflix/features/player/player_time.dart';
 import 'package:wonderflix/features/player/seek_bar.dart';
 
 import '../../support/library_fakes.dart';
@@ -21,6 +23,10 @@ void main() {
     bool chatUnread = false,
     bool reactions = false,
     bool reactionsLinked = true,
+    bool episodes = false,
+    bool together = false,
+    bool queue = false,
+    bool speed = false,
   }) async {
     final calls = <String>[];
     await pumpApp(
@@ -31,6 +37,7 @@ void main() {
           engine: FakeVideoEngine(),
           fullscreen: fullscreen,
           onBack: () => calls.add('back'),
+          backLabel: 'Torna alla scheda',
           onTogglePlay: () => calls.add('play'),
           onSeekBy: (offset) => calls.add('seek ${offset.inSeconds}'),
           onSeekTo: (_) => calls.add('seekTo'),
@@ -42,6 +49,12 @@ void main() {
           chatUnread: chatUnread,
           onToggleReactions: reactions ? () => calls.add('reactions') : null,
           reactionsLink: reactions && reactionsLinked ? LayerLink() : null,
+          onPrevious: episodes ? () => calls.add('previous') : null,
+          onNextEpisode: episodes ? () => calls.add('next') : null,
+          onWatchTogether: together ? (_) => calls.add('together') : null,
+          onToggleQueue: queue ? () => calls.add('queue') : null,
+          onRate: speed ? (rate) => calls.add('rate $rate') : null,
+          rate: view.rate,
         ),
       ),
     );
@@ -68,7 +81,7 @@ void main() {
     expect(find.text('S1:E4 · Pilot'), findsOneWidget);
     expect(find.byTooltip('Coda'), findsNothing);
 
-    await tester.tap(find.byTooltip('Indietro'));
+    await tester.tap(find.byTooltip('Torna alla scheda'));
     await tester.tap(find.byTooltip('Pausa'));
     await tester.tap(find.byTooltip('Indietro di 10 secondi'));
     await tester.tap(find.byTooltip('Avanti di 10 secondi'));
@@ -104,6 +117,7 @@ void main() {
           engine: FakeVideoEngine(),
           fullscreen: false,
           onBack: () {},
+          backLabel: 'Torna alla scheda',
           onTogglePlay: () {},
           onSeekBy: (_) {},
           onSeekTo: (_) {},
@@ -138,6 +152,7 @@ void main() {
         engine: FakeVideoEngine(),
         fullscreen: false,
         onBack: () {},
+        backLabel: 'Torna alla scheda',
         onTogglePlay: () {},
         onSeekBy: (_) {},
         onSeekTo: (_) {},
@@ -345,6 +360,7 @@ void main() {
               engine: FakeVideoEngine(),
               fullscreen: false,
               onBack: () {},
+              backLabel: 'Torna alla scheda',
               onTogglePlay: () {},
               onSeekBy: (_) {},
               onSeekTo: (_) {},
@@ -381,6 +397,7 @@ void main() {
           engine: FakeVideoEngine(),
           fullscreen: false,
           onBack: () {},
+          backLabel: 'Torna alla scheda',
           onTogglePlay: () {},
           onSeekBy: (_) {},
           onSeekTo: (_) {},
@@ -400,5 +417,73 @@ void main() {
         lessThan(queue));
     expect(queue,
         lessThan(tester.getCenter(find.byTooltip('Audio e sottotitoli')).dx));
+  });
+
+  const ready = PlayerViewState(status: PlayerStatus.ready, playing: true);
+
+  testWidgets("quattro gruppi nell'ordine della spec", (tester) async {
+    await pumpOverlay(tester, ready,
+        episodes: true,
+        together: true,
+        chat: true,
+        reactions: true,
+        queue: true,
+        speed: true);
+    final xs = [
+      'Indietro di 10 secondi', 'Pausa', 'Avanti di 10 secondi',
+      'Disattiva audio', 'Episodio precedente', 'Episodio successivo',
+      'Guarda insieme', 'Chat', 'Reazioni', 'Coda', 'Audio e sottotitoli',
+      'Velocità', 'Schermo intero',
+    ].map((m) => tester.getCenter(find.byTooltip(m)).dx).toList();
+    expect(xs, orderedEquals([...xs]..sort()));
+    expect(find.byKey(const Key('player-group-divider')), findsNWidgets(3));
+  });
+
+  testWidgets('senza ⏮ ⏭ nessun filo doppio', (tester) async {
+    await pumpOverlay(tester, ready,
+        together: true, chat: true, reactions: true, queue: true, speed: true);
+    expect(find.byKey(const Key('player-group-divider')), findsNWidgets(2));
+  });
+
+  testWidgets('il tempo sta sulla riga della seek bar', (tester) async {
+    await pumpOverlay(tester,
+        const PlayerViewState(
+            status: PlayerStatus.ready, playing: true, rate: 1.25));
+    final bar = tester.getCenter(find.byType(SeekBar)).dy;
+    expect(tester.getCenter(find.byType(PositionLabel)).dy, bar);
+    expect(tester.getCenter(find.byType(RemainingLabel)).dy, bar);
+    expect(tester.widget<RemainingLabel>(find.byType(RemainingLabel)).rate,
+        1.25);
+    expect(tester.getCenter(find.byTooltip('Pausa')).dy, greaterThan(bar));
+  });
+
+  testWidgets('il volume è oro', (tester) async {
+    await pumpOverlay(tester, ready);
+    final slider = tester.widget<SliderTheme>(find
+        .ancestor(
+            of: find.byKey(const Key('volume-slider')),
+            matching: find.byType(SliderTheme))
+        .first);
+    expect(slider.data.activeTrackColor, WfColors.gold);
+    expect(slider.data.thumbColor, WfColors.gold);
+    expect(slider.data.inactiveTrackColor,
+        WfColors.cream.withValues(alpha: 0.25));
+  });
+
+  testWidgets('Velocità apre le cinque scelte e cambia', (tester) async {
+    final calls = await pumpOverlay(tester, ready, speed: true);
+    await tester.tap(find.byTooltip('Velocità'));
+    await tester.pumpAndSettle();
+    for (final rate in ['0,75×', '1×', '1,25×', '1,5×', '2×']) {
+      expect(find.text(rate), findsOneWidget);
+    }
+    await tester.tap(find.text('1,5×'));
+    await tester.pumpAndSettle();
+    expect(calls, ['rate 1.5']);
+  });
+
+  testWidgets('nel party niente Velocità', (tester) async {
+    await pumpOverlay(tester, ready, chat: true, queue: true);
+    expect(find.byTooltip('Velocità'), findsNothing);
   });
 }

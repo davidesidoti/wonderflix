@@ -87,6 +87,7 @@ void main() {
           engine: FakeVideoEngine(),
           fullscreen: false,
           onBack: () {},
+          backLabel: 'Torna alla scheda',
           onTogglePlay: () {},
           onSeekBy: (_) {},
           onSeekTo: (_) {},
@@ -99,7 +100,7 @@ void main() {
       surfaceSize: _phone,
       touch: true,
     );
-    expect(tester.getRect(find.byTooltip('Indietro')).top,
+    expect(tester.getRect(find.byTooltip('Torna alla scheda')).top,
         greaterThanOrEqualTo(_top));
     // Lo sfondo sfumato arriva al bordo: i pulsanti in basso no.
     final lowest = tester

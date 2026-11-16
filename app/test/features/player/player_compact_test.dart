@@ -59,6 +59,7 @@ void main() {
           engine: FakeVideoEngine(),
           fullscreen: false,
           onBack: () => calls.add('back'),
+          backLabel: 'Torna alla scheda',
           onTogglePlay: () => calls.add('play'),
           onSeekBy: (offset) => calls.add('seek ${offset.inSeconds}'),
           onSeekTo: (_) {},
@@ -133,7 +134,7 @@ void main() {
         l.playerNextInQueue: 'next',
         l.playerFullscreen: 'fullscreen',
         l.playerMute: 'mute',
-        l.navBack: 'back',
+        l.playerBackToDetail: 'back',
       };
       var inMenu = 0;
       for (final MapEntry(key: tooltip, value: call) in commands.entries) {

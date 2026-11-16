@@ -85,7 +85,16 @@ Future<void> playItem(
     final action = primaryActionFor(target, userData);
     final start =
         !fromStart && action is ResumeAction ? action.position : Duration.zero;
-    await _open(context, launch, playerRoute(target.id, start: start));
+    // `last`, non `uri`: l'uri ignora le pagine aperte con push (una scheda
+    // sopra la Home).
+    final fromHome = GoRouter.of(context)
+            .routerDelegate
+            .currentConfiguration
+            .last
+            .matchedLocation ==
+        '/home';
+    await _open(context, launch,
+        playerRoute(target.id, start: start, fromHome: fromHome));
   } finally {
     if (identical(_launch, launch)) _launch = null;
   }
