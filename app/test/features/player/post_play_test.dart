@@ -89,16 +89,16 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+      expect(find.text('Prossimo episodio'), findsOneWidget);
       expect(find.text('BREAKING BAD'), findsOneWidget);
       expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
       expect(find.text('Walter e Jesse devono liberarsi di un corpo.'),
           findsOneWidget);
-      expect(find.text('Riproduci ora · 10'), findsOneWidget);
+      expect(find.text('Riproduci tra 10 s'), findsOneWidget);
       expect(find.byType(PlayNowButton), findsOneWidget);
 
       // Le informazioni stanno sotto il film piccolo, l'immagine a destra.
-      final eyebrow = tester.getTopLeft(find.text('PROSSIMO EPISODIO'));
+      final eyebrow = tester.getTopLeft(find.text('Prossimo episodio'));
       expect(eyebrow.dx, closeTo(postPlayInset, 0.5));
       expect(eyebrow.dy,
           greaterThan(postPlayInset + 900 * postPlayScale));
@@ -110,6 +110,50 @@ void main() {
       expect(credits, 1);
       await tester.pump(const Duration(seconds: 10));
       expect(played, 1, reason: 'conto alla rovescia finito');
+    });
+
+    testWidgets('occhiello in frase normale', (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PostPlayLayer(
+            episode: episode,
+            countdown: false,
+            paused: false,
+            onPlay: () {},
+            onWatchCredits: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+      final style = tester.widget<Text>(find.text('Prossimo episodio')).style!;
+      expect(style.fontFamily, isNot(contains('Bebas')));
+      expect(style.fontSize, 14);
+    });
+
+    testWidgets('TV: il focus parte su Riproduci tra N s', (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: PostPlayLayer(
+            episode: episode,
+            countdown: true,
+            paused: false,
+            onPlay: () {},
+            onWatchCredits: () {},
+          ),
+        ),
+        surfaceSize: const Size(960, 540),
+        tv: true,
+      );
+      await tester.pumpAndSettle();
+      final focused = FocusManager.instance.primaryFocus!.context!;
+      expect(
+          find.descendant(
+              of: find.byType(PlayNowButton),
+              matching: find.byElementPredicate((e) => e == focused)),
+          findsOneWidget);
     });
 
     testWidgets('occhiello scelto da chi lo mostra (spec H §9.1)',
@@ -128,8 +172,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('PROSSIMO NELLA CODA'), findsOneWidget);
-      expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+      expect(find.text('Prossimo nella coda'), findsOneWidget);
+      expect(find.text('Prossimo episodio'), findsNothing);
     });
 
     Widget layer({double textScale = 1}) => Builder(

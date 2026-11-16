@@ -1204,8 +1204,8 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 10));
     await tester.pumpAndSettle();
@@ -1281,15 +1281,15 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expectSameLayers();
 
     // ...che poi sparisce.
-    await tester.tap(find.text('Annulla'));
+    await tester.tap(find.text('Guarda i titoli'));
     await tester.pump();
     await tester.pump(WfMotion.fast); // la scheda sfuma via
     await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsNothing);
     expectSameLayers();
     await unmount(tester);
   });
@@ -1303,7 +1303,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
     await tester.pump(const Duration(seconds: 15));
-    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
     expect(
       find.text('S1:E5 · Cat in the Bag'),
       findsOneWidget,
@@ -1314,7 +1314,7 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pump();
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
     await unmount(tester);
   });
 
@@ -1367,15 +1367,15 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('Annulla: a fine episodio si esce', (tester) async {
+  testWidgets('Guarda i titoli: a fine episodio si esce', (tester) async {
     withNextEpisode();
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    await tester.tap(find.text('Annulla'));
+    await tester.tap(find.text('Guarda i titoli'));
     await tester.pumpAndSettle();
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsNothing);
 
     engine.emitCompleted();
     await tester.pump();
@@ -1403,8 +1403,8 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
+    expect(find.textContaining('Riproduci tra'), findsNothing);
 
     engine.emitCompleted();
     await tester.pump();
@@ -1452,9 +1452,9 @@ void main() {
     await pumpPlayer(tester);
     await toCredits(tester);
     expect(shrunk(tester), isTrue);
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expect(find.text('Guarda i titoli'), findsOneWidget);
-    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
     expect(controlsOpacity(tester), 0, reason: 'i controlli si nascondono');
 
     await tester.pump(const Duration(seconds: 10));
@@ -1476,7 +1476,7 @@ void main() {
       const Duration(milliseconds: 9900) -
           tester.binding.clock.now().difference(start),
     );
-    expect(find.text('Riproduci ora · 1'), findsOneWidget);
+    expect(find.text('Riproduci tra 1 s'), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump();
     // Il pulsante che sfuma via (in `fast`) resta montato un attimo e il suo
@@ -1512,7 +1512,7 @@ void main() {
     await tester.tap(find.text('Guarda i titoli'));
     await tester.pumpAndSettle();
     expect(shrunk(tester), isFalse);
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsNothing);
     expect(controlsOpacity(tester), 1);
 
     engine.emitCompleted();
@@ -1560,12 +1560,12 @@ void main() {
     withCredits();
     await pumpPlayer(tester);
     await toCredits(tester);
-    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    expect(find.textContaining('Riproduci tra'), findsNothing);
     engine.emitCompleted();
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text('home'), findsNothing);
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
@@ -1582,7 +1582,7 @@ void main() {
     engine.emitCompleted();
     await tester.pump();
     await tester.pumpAndSettle();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
   }
 
   testWidgets('post-play a video finito: "Guarda i titoli" esce', (
@@ -1628,7 +1628,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(window.fullScreenCalls, [true, false]);
     expect(shrunk(tester), isTrue, reason: 'il post-play resta');
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expect(router.state.uri.path, '/play/e4');
     expect(find.text('home'), findsNothing);
 
@@ -1659,18 +1659,18 @@ void main() {
     await unmount(tester);
   });
 
-  testWidgets('scheda piccola: Esc vale "Annulla"', (tester) async {
+  testWidgets('scheda piccola: Esc vale "Guarda i titoli"', (tester) async {
     withNextEpisode();
     await pumpPlayer(tester);
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
     await tester.pumpAndSettle();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expect(shrunk(tester), isFalse, reason: 'senza titoli noti il film resta');
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsNothing);
     expect(find.text('home'), findsNothing);
     await unmount(tester);
   });
@@ -1706,7 +1706,7 @@ void main() {
     await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
     expect(shrunk(tester), isTrue);
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expect(engine.playing, isTrue, reason: 'nemmeno la pausa');
     await unmount(tester);
   });
@@ -1761,7 +1761,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     // Il caricamento c'è ancora: la linea gira, niente `pumpAndSettle`.
     expect(find.byKey(const Key('player-loading')), findsOneWidget);
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsNothing);
     expect(
       find.byType(PlayNowButton),
       findsNothing,
@@ -1776,8 +1776,8 @@ void main() {
     expect(find.byKey(const Key('player-loading')), findsNothing);
     await tester.pumpAndSettle();
     expect(shrunk(tester), isTrue);
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
-    expect(find.textContaining('Riproduci ora ·'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
+    expect(find.textContaining('Riproduci tra'), findsOneWidget);
     await unmount(tester);
   });
 
@@ -1798,7 +1798,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(shrunk(tester), isTrue);
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     await tester.pump(PlayerChromeController.pauseScreenDelay);
     await tester.pumpAndSettle();
     expect(find.text('Stai guardando'), findsNothing);
@@ -1822,7 +1822,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-    expect(slotOpacity(tester, find.text('PROSSIMO EPISODIO')), 1);
+    expect(slotOpacity(tester, find.text('Prossimo episodio')), 1);
     await unmount(tester);
   });
 
@@ -1835,7 +1835,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
-      expect(slotOpacity(tester, find.text('PROSSIMO EPISODIO')), 1);
+      expect(slotOpacity(tester, find.text('Prossimo episodio')), 1);
       await unmount(tester);
     },
   );
@@ -1849,14 +1849,14 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pump();
       await tester.pump();
-      expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+      expect(find.text('Prossimo episodio'), findsNothing);
 
       // La durata vera è un'ora: si è già negli ultimi 30 s.
       engine.emitDuration(const Duration(hours: 1));
       await tester.pump();
       await tester.pump();
       await tester.pumpAndSettle();
-      expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+      expect(find.text('Prossimo episodio'), findsOneWidget);
       await unmount(tester);
     },
   );

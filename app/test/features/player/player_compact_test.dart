@@ -470,11 +470,11 @@ void main() {
             touch: true,
           );
           await tester.pumpAndSettle();
-          expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+          expect(find.text('Prossimo episodio'), findsOneWidget);
           expect(tester.takeException(), isNull);
 
           final film = tester.getRect(find.byKey(const Key('film')));
-          final eyebrow = tester.getRect(find.text('PROSSIMO EPISODIO'));
+          final eyebrow = tester.getRect(find.text('Prossimo episodio'));
           final play = tester.getRect(find.byType(PlayNowButton));
           expect(eyebrow.top, greaterThan(film.bottom));
           expect(Offset.zero & size, _contains(play));
@@ -526,11 +526,11 @@ void main() {
               bottom: 150,
               child: NextEpisodeCard(
                 episode: episode,
-                label: 'PROSSIMO EPISODIO',
+                label: 'Prossimo episodio',
                 countdown: false,
                 paused: false,
                 onPlay: () {},
-                onCancel: () {},
+                onWatchCredits: () {},
               ),
             ),
           ],

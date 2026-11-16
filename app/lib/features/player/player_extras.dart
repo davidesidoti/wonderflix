@@ -136,7 +136,7 @@ class _PlayNowButtonState extends State<PlayNowButton> {
     super.dispose();
   }
 
-  /// Larghezza dell'etichetta più lunga (i secondi di partenza, "· 10"),
+  /// Larghezza dell'etichetta più lunga (i secondi di partenza, "tra 10 s"),
   /// riservata durante il conto: il pulsante non si stringe quando resta una
   /// cifra sola.
   double _widestLabel(BuildContext context) {
@@ -293,7 +293,7 @@ class NextEpisodeCard extends ConsumerWidget {
     required this.episode,
     required this.countdown,
     required this.onPlay,
-    required this.onCancel,
+    required this.onWatchCredits,
     this.paused = false,
     this.label,
     this.showSeries = false,
@@ -315,7 +315,7 @@ class NextEpisodeCard extends ConsumerWidget {
   /// Video in pausa o in caricamento: il conto alla rovescia è fermo.
   final bool paused;
   final VoidCallback onPlay;
-  final VoidCallback onCancel;
+  final VoidCallback onWatchCredits;
 
   /// Di quanto arriva da destra entrando.
   static const enterShift = 40.0;
@@ -338,10 +338,12 @@ class NextEpisodeCard extends ConsumerWidget {
           child: child,
         ),
       ),
-      child: Material(
-        color: WfColors.surface,
-        elevation: 8,
-        borderRadius: BorderRadius.circular(10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: WfColors.surface.withValues(alpha: 0.94),
+          border: Border.all(color: WfColors.border),
+          borderRadius: BorderRadius.circular(10),
+        ),
         child: SizedBox(
           // Nel layout stretto entra nello schermo, 16 per lato (spec §4.5).
           width: math.min(width, MediaQuery.sizeOf(context).width - 32),
@@ -351,8 +353,11 @@ class NextEpisodeCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text((label ?? l.playerNextEpisodeTitle).toUpperCase(),
-                    style: WfText.display(20, color: WfColors.gold)),
+                Text(label ?? l.playerNextEpisodeTitle,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: WfColors.gold)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -408,9 +413,9 @@ class NextEpisodeCard extends ConsumerWidget {
                     PlayNowButton(
                         countdown: countdown, paused: paused, onPressed: onPlay),
                     WfButton.secondary(
-                        label: l.playerCancel,
-                        icon: LucideIcons.x,
-                        onPressed: onCancel),
+                        label: l.playerWatchCredits,
+                        icon: LucideIcons.film,
+                        onPressed: onWatchCredits),
                   ],
                 ),
               ],

@@ -2100,7 +2100,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 countdown: !_inParty && settings.autoplayNext,
                                 paused: !view.playing || view.buffering,
                                 onPlay: _playOffered,
-                                onCancel: _dismissNext,
+                                onWatchCredits: _dismissNext,
                               )
                             : const SizedBox.shrink(),
                       ),

@@ -60,9 +60,9 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Riproduci ora · 9'), findsOneWidget);
+    expect(find.text('Riproduci tra 9 s'), findsOneWidget);
     expect(fillOf(tester), closeTo(0.1, 0.001));
     await tester.pump(const Duration(seconds: 9));
     expect(played, 1);
@@ -84,7 +84,7 @@ void main() {
     expect(fillOf(tester), closeTo(0.05, 0.005),
         reason: 'il primo passo parte subito');
     await frames(tester, const Duration(milliseconds: 500));
-    expect(find.text('Riproduci ora · 9'), findsOneWidget);
+    expect(find.text('Riproduci tra 9 s'), findsOneWidget);
     expect(fillOf(tester), closeTo(0.1, 0.005));
     await frames(tester, const Duration(milliseconds: 8500));
     expect(fillOf(tester), closeTo(0.95, 0.005),
@@ -113,14 +113,14 @@ void main() {
       motion: MotionLevel.full,
     );
     await frames(tester, const Duration(milliseconds: 3500));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
     paused.value = true;
     await frames(tester, const Duration(seconds: 2));
     expect(fillOf(tester), closeTo(0.3, 0.001),
         reason: "sull'ultimo secondo compiuto");
     expect(tester.binding.hasScheduledFrame, isFalse,
         reason: 'fermo non chiede fotogrammi');
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
   });
 
   testWidgets(
@@ -142,7 +142,7 @@ void main() {
       motion: MotionLevel.full,
     );
     await frames(tester, const Duration(milliseconds: 3500));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
     paused.value = true;
     await tester.pump();
     await tester.pump(WfMotion.fast);
@@ -154,10 +154,10 @@ void main() {
     paused.value = false;
     await tester.pump();
     await frames(tester, const Duration(milliseconds: 900));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget,
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget,
         reason: 'il secondo lasciato a metà dalla pausa non conta');
     await frames(tester, const Duration(milliseconds: 100));
-    expect(find.text('Riproduci ora · 6'), findsOneWidget);
+    expect(find.text('Riproduci tra 6 s'), findsOneWidget);
     expect(fillOf(tester), closeTo(0.4, 0.005),
         reason: 'il passo del fondo finisce con lo scatto');
   });
@@ -182,7 +182,7 @@ void main() {
       motion: MotionLevel.full,
     );
     await frames(tester, const Duration(milliseconds: 9500));
-    expect(find.text('Riproduci ora · 1'), findsOneWidget);
+    expect(find.text('Riproduci tra 1 s'), findsOneWidget);
     paused.value = true;
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 1300));
@@ -214,14 +214,14 @@ void main() {
     expect(
         tester.getSemantics(find.byType(PlayNowButton)),
         isSemantics(
-            label: 'Riproduci ora · 10',
+            label: 'Riproduci tra 10 s',
             isButton: true,
             hasEnabledState: true,
             isEnabled: true,
             hasTapAction: true));
   });
 
-  testWidgets('pulsante: la larghezza non cambia da "· 10" a "· 9"',
+  testWidgets('pulsante: la larghezza non cambia da "tra 10 s" a "tra 9 s"',
       (tester) async {
     await pumpApp(
       tester,
@@ -233,7 +233,7 @@ void main() {
     );
     final before = tester.getSize(find.byType(PlayNowButton));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Riproduci ora · 9'), findsOneWidget);
+    expect(find.text('Riproduci tra 9 s'), findsOneWidget);
     expect(tester.getSize(find.byType(PlayNowButton)), before);
   });
 
@@ -275,7 +275,7 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 3));
     final split = tester.getRect(find.byKey(fillKey)).right;
-    final text = tester.getRect(find.text('Riproduci ora · 7'));
+    final text = tester.getRect(find.text('Riproduci tra 7 s'));
     expect(split, inExclusiveRange(text.left, text.right));
     final pixel = await snapshot(tester, find.byKey(shot));
     final filled = <double>[];
@@ -355,9 +355,9 @@ void main() {
     expect(find.text('Riproduci ora'), findsOneWidget);
     countdown.value = true;
     await tester.pump();
-    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
     await tester.pump(const Duration(seconds: 9));
-    expect(find.text('Riproduci ora · 1'), findsOneWidget);
+    expect(find.text('Riproduci tra 1 s'), findsOneWidget);
     expect(played, 0);
     await tester.pump(const Duration(seconds: 1));
     expect(played, 1);
@@ -381,7 +381,7 @@ void main() {
       ),
     );
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
     countdown.value = false;
     await tester.pump();
     expect(find.text('Riproduci ora'), findsOneWidget);
@@ -391,7 +391,7 @@ void main() {
 
     countdown.value = true;
     await tester.pump();
-    expect(find.text('Riproduci ora · 10'), findsOneWidget,
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget,
         reason: 'riparte da capo');
     await tester.pump(const Duration(seconds: 10));
     expect(played, 1);
@@ -414,16 +414,16 @@ void main() {
       ),
     );
     await tester.pump(const Duration(seconds: 3));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
     paused.value = true;
     await tester.pump();
     await tester.pump(const Duration(seconds: 20));
-    expect(find.text('Riproduci ora · 7'), findsOneWidget);
+    expect(find.text('Riproduci tra 7 s'), findsOneWidget);
     expect(played, 0);
     paused.value = false;
     await tester.pump();
     await tester.pump(const Duration(seconds: 6));
-    expect(find.text('Riproduci ora · 1'), findsOneWidget);
+    expect(find.text('Riproduci tra 1 s'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
     expect(played, 1);
   });
@@ -439,9 +439,9 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Riproduci ora · 15'), findsOneWidget);
+    expect(find.text('Riproduci tra 15 s'), findsOneWidget);
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Riproduci ora · 14'), findsOneWidget);
+    expect(find.text('Riproduci tra 14 s'), findsOneWidget);
     expect(fillOf(tester), closeTo(1 / 15, 0.001));
     await tester.pump(const Duration(seconds: 13));
     expect(played, 0);
@@ -473,7 +473,7 @@ void main() {
     seconds.value = 10;
     await tester.pump();
     expect(fillOf(tester), closeTo(5 / 15, 0.001));
-    expect(find.text('Riproduci ora · 10'), findsOneWidget);
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
     await tester.pump(const Duration(seconds: 10));
   });
 
@@ -507,7 +507,7 @@ void main() {
             episode: episode,
             countdown: false,
             onPlay: () => played++,
-            onCancel: () => cancelled++,
+            onWatchCredits: () => cancelled++,
           ),
         ),
       ),
@@ -516,7 +516,7 @@ void main() {
     double shift() => tester
         .widget<Transform>(find
             .ancestor(
-                of: find.text('PROSSIMO EPISODIO'),
+                of: find.text('Prossimo episodio'),
                 matching: find.byType(Transform))
             .first)
         .transform
@@ -528,7 +528,7 @@ void main() {
     expect(shift(), 0);
     expect(find.text('S1:E5 · Cat in the Bag'), findsOneWidget);
     await tester.tap(find.byType(PlayNowButton));
-    await tester.tap(find.text('Annulla'));
+    await tester.tap(find.text('Guarda i titoli'));
     expect((played, cancelled), (1, 1));
   });
 
@@ -543,13 +543,13 @@ void main() {
             label: 'Prossimo nella coda',
             countdown: false,
             onPlay: () {},
-            onCancel: () {},
+            onWatchCredits: () {},
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('PROSSIMO NELLA CODA'), findsOneWidget);
+    expect(find.text('Prossimo nella coda'), findsOneWidget);
   });
 
   testWidgets('scheda: la serie solo se richiesta, sopra la riga '
@@ -564,7 +564,7 @@ void main() {
                 showSeries: showSeries,
                 countdown: false,
                 onPlay: () {},
-                onCancel: () {},
+                onWatchCredits: () {},
               ),
             ),
           ),
@@ -600,12 +600,43 @@ void main() {
             label: 'Prossimo nella coda',
             countdown: false,
             onPlay: () {},
-            onCancel: () {},
+            onWatchCredits: () {},
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
     expect(find.text('Alien'), findsOneWidget);
+  });
+
+  testWidgets('carta: Riproduci tra N s, Guarda i titoli e nessuna elevazione',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Center(
+          child: NextEpisodeCard(
+            episode: episode,
+            countdown: true,
+            onPlay: () {},
+            onWatchCredits: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Riproduci tra 10 s'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Riproduci tra 8 s'), findsOneWidget);
+    expect(find.text('Guarda i titoli'), findsOneWidget);
+    expect(find.text('Annulla'), findsNothing);
+    final card = find.byType(NextEpisodeCard);
+    for (final m in tester.widgetList<Material>(
+        find.descendant(of: card, matching: find.byType(Material)))) {
+      expect(m.elevation, 0);
+    }
+    final eyebrow = tester.widget<Text>(find.text('Prossimo episodio'));
+    expect(eyebrow.style!.fontSize, 14);
+    expect(eyebrow.style!.fontWeight, FontWeight.w600);
   });
 }

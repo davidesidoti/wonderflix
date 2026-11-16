@@ -440,8 +440,8 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
-    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    expect(find.text(l.playerNextEpisodeTitle), findsOneWidget);
+    expect(find.textContaining('Riproduci tra'), findsNothing);
     expect(find.text(l.playerPlayNow), findsOneWidget);
     // Sul pulsante, non sull'etichetta: sopra c'è lo strato dell'onda.
     await tester.tap(find.byType(PlayNowButton));
@@ -464,7 +464,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text(l.playerWatchCredits), findsOneWidget);
-    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    expect(find.textContaining('Riproduci tra'), findsNothing);
     expect(find.text(l.playerPlayNow), findsOneWidget);
     await tester.tap(find.byType(PlayNowButton));
     await tester.pump();
@@ -492,7 +492,7 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.byType(PostPlayLayer), findsOneWidget);
-    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerNextInQueueTitle), findsOneWidget);
     expect(find.text('ALIEN'), findsOneWidget);
     expect(find.text(l.playerWatchCredits), findsOneWidget);
     await finish(tester);
@@ -529,14 +529,14 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(find.text(l.playerWatchCredits), findsOneWidget);
-    expect(find.textContaining('Riproduci ora ·'), findsNothing);
+    expect(find.textContaining('Riproduci tra'), findsNothing);
 
     emit(const GroupLeft('g1'));
     await tester.pump();
     await tester.pump();
     expect(find.text(l.playerWatchCredits), findsOneWidget,
         reason: 'il post-play resta');
-    expect(find.textContaining('Riproduci ora ·'), findsOneWidget);
+    expect(find.textContaining('Riproduci tra'), findsOneWidget);
     await finish(tester);
   });
 
@@ -719,7 +719,7 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerNextInQueueTitle), findsOneWidget);
     expect(find.text('Better Call Saul'), findsOneWidget);
     expect(find.text('S1:E1 · Uno'), findsOneWidget);
     await finish(tester);
@@ -754,8 +754,8 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
-    expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsNothing);
+    expect(find.text(l.playerNextInQueueTitle), findsOneWidget);
+    expect(find.text(l.playerNextEpisodeTitle), findsNothing);
     expect(find.text('Alien'), findsOneWidget);
     await tester.tap(find.byType(PlayNowButton));
     await tester.pump();
@@ -782,7 +782,7 @@ void main() {
     gate.complete();
     await tester.pump();
     await tester.pump();
-    expect(find.text(l.playerNextInQueueTitle.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerNextInQueueTitle), findsOneWidget);
     expect(find.text('Alien'), findsOneWidget);
     await finish(tester);
   });
@@ -794,7 +794,7 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
+    expect(find.text(l.playerNextEpisodeTitle), findsOneWidget);
     await finish(tester);
   });
 
@@ -843,7 +843,7 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.textContaining('Riproduci ora ·'), findsOneWidget);
+    expect(find.textContaining('Riproduci tra'), findsOneWidget);
 
     engine.emitCompleted();
     await tester.pumpAndSettle();
@@ -2841,7 +2841,7 @@ void main() {
       expect(social.calls, contains('round-open g1 e4'));
       expect(find.text('Il tuo voto · Breaking Bad · Stagione 1'),
           findsOneWidget);
-      expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget);
+      expect(find.text(l.playerNextEpisodeTitle), findsOneWidget);
       expect(find.text('BREAKING BAD'), findsOneWidget,
           reason: 'il prossimo titolo resta sotto il film');
       expect(find.byKey(const Key('post-play-image')), findsNothing);
@@ -2861,7 +2861,7 @@ void main() {
       engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
       await tester.pump();
       await tester.pump();
-      expect(find.text(l.playerNextEpisodeTitle.toUpperCase()), findsOneWidget,
+      expect(find.text(l.playerNextEpisodeTitle), findsOneWidget,
           reason: 'la scheda piccola come oggi');
       expect(social.calls.where((call) => call.startsWith('round-open')),
           isEmpty);
@@ -2894,7 +2894,7 @@ void main() {
       await finishVideo(tester);
       expect(nextCalls('p1'), 0);
       await receive(tester, revealed());
-      expect(find.text('Riproduci ora · 15'), findsOneWidget);
+      expect(find.text('Riproduci tra 15 s'), findsOneWidget);
       await tester.pump(const Duration(seconds: 14));
       expect(nextCalls('p1'), 0);
       await tester.pump(const Duration(seconds: 1));
@@ -2928,7 +2928,7 @@ void main() {
       await receive(tester, revealed());
       await tester.pumpAndSettle();
       expect(find.byType(PlayNowButton), findsOneWidget);
-      expect(find.textContaining('Riproduci ora ·'), findsNothing);
+      expect(find.textContaining('Riproduci tra'), findsNothing);
       await tester.tap(find.byType(PlayNowButton));
       await tester.pump();
       expect(nextCalls('p1'), 1);

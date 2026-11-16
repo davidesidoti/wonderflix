@@ -218,10 +218,13 @@ class PostPlayLayer extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text((label ?? l.playerNextEpisodeTitle).toUpperCase(),
+                    Text(label ?? l.playerNextEpisodeTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: WfText.display(20, color: WfColors.gold)),
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: WfColors.gold)),
                     const SizedBox(height: 8),
                     // Lo spazio tra l'occhiello e i pulsanti: prima la serie
                     // e l'episodio, poi la trama con quello che resta.

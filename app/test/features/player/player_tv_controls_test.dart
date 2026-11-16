@@ -484,11 +484,11 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsNothing);
+    expect(find.text('Prossimo episodio'), findsNothing);
     expect(focusOnPlayNow(), isFalse);
 
     await back(tester);
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expect(focusOnPlayNow(), isTrue);
     await unmount(tester);
   });
@@ -564,7 +564,7 @@ void main() {
     engine.emitPosition(const Duration(hours: 1, minutes: 59, seconds: 40));
     await tester.pump();
     await tester.pump();
-    expect(find.text('PROSSIMO EPISODIO'), findsOneWidget);
+    expect(find.text('Prossimo episodio'), findsOneWidget);
     expect(focusOnPlayNow(), isTrue);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
