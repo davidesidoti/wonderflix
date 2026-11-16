@@ -165,7 +165,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
   | Chat | Invio |
   | Reazioni | 1–6 |
 
-- La freccia in alto si chiama "Torna alla scheda", o "Torna alla Home" se il video è partito da lì. "Indietro" resta solo per i 10 secondi.
+- La freccia in alto dice dove porta: "Torna alla scheda" se il video è partito da una scheda (`/item/…`), "Torna alla Home" se è partito dalla Home o se non c'è una pagina a cui tornare (link diretto, ricarica sul web), "Torna indietro" da ogni altra pagina (catalogo, Cerca, La mia lista, Stasera…). Scelta dell'utente, 16 novembre. "Indietro" resta solo per i 10 secondi.
 - **Avvisi:** "Il server sta convertendo questo video." e "Il sottotitolo sarà disponibile dalla prossima riproduzione" vanno nella pastiglia del player (`player_pill.dart`), non in una SnackBar (`player_screen.dart:1327,1558`).
 
 ### 4.2 Pausa e scheda dei tasti
