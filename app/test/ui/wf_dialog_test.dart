@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/account/change_password_dialog.dart';
 import 'package:wonderflix/ui/wf_confirm_dialog.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 import 'package:wonderflix/ui/wf_dialog.dart';
+import 'package:wonderflix/ui/wf_dialog_parts.dart';
 
 import '../support/fake_session_controller.dart';
 import '../support/pump_app.dart';
@@ -151,7 +154,7 @@ void main() {
   }
 
   testWidgets(
-    'stretto: la finestra è una pagina con la freccia indietro e restituisce il valore',
+    'stretto: la finestra è una pagina con la ✕ e restituisce il valore',
     (tester) async {
       String? result = 'niente';
       await pumpApp(
@@ -169,14 +172,15 @@ void main() {
       );
       await openAndSettle(tester);
       expect(find.byType(Dialog), findsNothing);
-      expect(find.byTooltip('Indietro'), findsOneWidget);
+      expect(find.byTooltip('Chiudi'), findsOneWidget);
+      expect(find.byTooltip('Indietro'), findsNothing);
 
       await tester.tap(find.text('conferma'));
       await tester.pumpAndSettle();
       expect(result, 'ok');
 
       await openAndSettle(tester);
-      await tester.tap(find.byTooltip('Indietro'));
+      await tester.tap(find.byTooltip('Chiudi'));
       await tester.pumpAndSettle();
       expect(find.text('conferma'), findsNothing);
       expect(result, isNull);
@@ -245,5 +249,106 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getRect(last).bottom, lessThanOrEqualTo(390 - inset));
     expect(tester.takeException(), isNull);
+  });
+
+  Widget footer(BuildContext c) => WfDialogFooter(
+    note: '2 modifiche',
+    cancelLabel: 'Annulla',
+    onCancel: () => Navigator.maybePop(c),
+    primary: WfButton.primary(
+      label: 'Salva',
+      icon: LucideIcons.check,
+      onPressed: () {},
+    ),
+  );
+
+  testWidgets('nello stretto il piede resta in fondo anche col testo grande', (
+    tester,
+  ) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pumpApp(
+      tester,
+      opener(
+        (context) => showWfDialog<void>(
+          context,
+          compactTitle: 'Modifica metadati',
+          builder: (_) => const SizedBox(height: 2000, child: Text('corpo')),
+          footer: footer,
+        ),
+      ),
+      surfaceSize: const Size(390, 780),
+    );
+    await openAndSettle(tester);
+    expect(tester.takeException(), isNull);
+    expect(find.text('Modifica metadati'), findsOneWidget);
+    expect(find.byTooltip('Chiudi'), findsOneWidget);
+    expect(tester.getBottomLeft(find.text('Salva')).dy, lessThanOrEqualTo(780));
+    expect(
+      tester.getBottomLeft(find.byType(WfDialogFooter)).dy,
+      lessThanOrEqualTo(780),
+    );
+    // Il piede sta sotto il corpo, non sopra.
+    expect(
+      tester.getTopLeft(find.byType(WfDialogFooter)).dy,
+      greaterThan(tester.getTopLeft(find.text('corpo')).dy),
+    );
+  });
+
+  testWidgets('largo: il piede sta sotto il corpo a tutta larghezza', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      opener(
+        (context) => showWfDialog<void>(
+          context,
+          builder: (_) => const SizedBox(height: 2000, child: Text('corpo')),
+          footer: footer,
+        ),
+      ),
+    );
+    await openAndSettle(tester);
+    expect(tester.takeException(), isNull);
+    // La finestra è larga 480 (maxWidth), il piede anche: fuori dal padding.
+    expect(tester.getSize(find.byType(WfDialogFooter)).width, 480);
+    expect(tester.getBottomLeft(find.text('Salva')).dy, lessThanOrEqualTo(900));
+  });
+
+  testWidgets('la conferma usa testa e piede comuni', (tester) async {
+    bool? result;
+    await pumpApp(
+      tester,
+      opener(
+        (context) async => result = await showWfConfirmDialog(
+          context,
+          title: 'Sicuro?',
+          message: 'm',
+          confirmLabel: 'Sì',
+          cancelLabel: 'No',
+        ),
+      ),
+    );
+    await openAndSettle(tester);
+    final title = tester.widget<Text>(find.text('Sicuro?'));
+    expect(title.style?.fontFamily, WfText.displayFamily);
+    expect(title.style?.fontSize, 32);
+    expect(find.byType(WfDialogHeader), findsOneWidget);
+    expect(find.byType(WfDialogFooter), findsOneWidget);
+    expect(
+      find.ancestor(of: find.text('Sì'), matching: find.byType(WfButton)),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<WfButton>(
+            find.ancestor(of: find.text('Sì'), matching: find.byType(WfButton)),
+          )
+          .primary,
+      isTrue,
+    );
+    await tester.tap(find.text('Sì'));
+    await tester.pumpAndSettle();
+    expect(result, isTrue);
   });
 }

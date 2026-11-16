@@ -75,7 +75,7 @@ void main() {
       final confirm =
           find.widgetWithText(FilledButton, 'Ripristina la Home predefinita');
       expect(tester.getBottomRight(confirm).dx, lessThanOrEqualTo(contentRight));
-      expect(tester.getTopLeft(find.widgetWithText(TextButton, 'Annulla')).dx,
+      expect(tester.getTopLeft(find.widgetWithText(OutlinedButton, 'Annulla')).dx,
           greaterThanOrEqualTo(contentLeft));
     });
 
@@ -85,9 +85,9 @@ void main() {
       expect(tester.takeException(), isNull);
       final confirm = find.widgetWithText(FilledButton, 'Invia');
       final text = find.descendant(of: confirm, matching: find.text('Invia'));
-      // Il testo più il margine interno del pulsante, non lo spazio libero.
+      // Il testo, l'icona (18 + 8) e il margine interno, non lo spazio libero.
       expect(tester.getSize(confirm).width,
-          lessThan(tester.getSize(text).width + 64));
+          lessThan(tester.getSize(text).width + 64 + 26));
       expect(tester.getBottomRight(confirm).dx, closeTo(contentRight, 0.5));
     });
   });

@@ -1752,5 +1752,10 @@
   "matchFriendDone": "{name} is done",
   "@matchFriendDone": {"placeholders": {"name": {"type": "String"}}},
   "matchFriendVoted": "{name} {n} of {total}",
-  "@matchFriendVoted": {"placeholders": {"name": {"type": "String"}, "n": {"type": "int"}, "total": {"type": "int"}}}
+  "@matchFriendVoted": {"placeholders": {"name": {"type": "String"}, "n": {"type": "int"}, "total": {"type": "int"}}},
+  "discardChangesTitle": "{count, plural, =1{Discard the change?} other{Discard the {count} changes?}}",
+  "@discardChangesTitle": {"placeholders": {"count": {"type": "int"}}},
+  "discardChangesBody": "What you changed isn't saved yet.",
+  "discardChangesConfirm": "Discard",
+  "discardChangesKeep": "Keep editing"
 }

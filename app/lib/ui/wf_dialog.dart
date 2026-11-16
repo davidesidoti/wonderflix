@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/theme.dart';
-import '../l10n/gen/app_localizations.dart';
 import 'form_factor.dart';
 
 /// Il velo dietro le finestre: il nero dell'app, quasi opaco.
@@ -14,9 +14,13 @@ const _barrier = Color(0xB30A0A0A);
 /// con il nome predefinito di Material, come `AlertDialog`.
 ///
 /// Nel layout stretto, con [fullPageWhenCompact], la finestra è una pagina
-/// intera sul navigatore radice, con la freccia indietro (che chiude con
-/// `null`); il contenuto deve poter scorrere o stare nello spazio sopra la
-/// tastiera.
+/// intera sul navigatore radice, con una barra alta 56: [compactTitle] e la
+/// ✕ (che chiude con `maybePop`, quindi passa da `WfDiscardGuard`).
+///
+/// Con [footer] (di solito un `WfDialogFooter`) il corpo scorre e il piede
+/// resta fisso sotto, a tutta larghezza (nello stretto sopra la tastiera).
+/// Senza, il corpo deve poter scorrere o stare nello spazio sopra la
+/// tastiera da sé, come prima.
 Future<T?> showWfDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
@@ -24,6 +28,8 @@ Future<T?> showWfDialog<T>(
   String? semanticLabel,
   bool fullPageWhenCompact = true,
   EdgeInsets padding = const EdgeInsets.all(24),
+  String? compactTitle,
+  WidgetBuilder? footer,
 }) {
   if (fullPageWhenCompact && FormFactor.of(context).compact) {
     return Navigator.of(context, rootNavigator: true).push(
@@ -42,17 +48,41 @@ Future<T?> showWfDialog<T>(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  IconButton(
-                    tooltip: AppLocalizations.of(context).navBack,
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Builder(builder: builder),
+                  SizedBox(
+                    height: 56,
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Text(
+                            compactTitle ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WfText.display(26),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: MaterialLocalizations.of(
+                            context,
+                          ).closeButtonTooltip,
+                          icon: const Icon(LucideIcons.x),
+                          onPressed: () => Navigator.of(context).maybePop(),
+                        ),
+                      ],
                     ),
                   ),
+                  Expanded(
+                    child: footer == null
+                        ? Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Builder(builder: builder),
+                          )
+                        : SingleChildScrollView(
+                            padding: const EdgeInsets.all(16),
+                            child: Builder(builder: builder),
+                          ),
+                  ),
+                  if (footer != null) Builder(builder: footer),
                 ],
               ),
             ),
@@ -81,10 +111,21 @@ Future<T?> showWfDialog<T>(
         label: semanticLabel ?? MaterialLocalizations.of(context).dialogLabel,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
-          child: Padding(
-            padding: padding,
-            child: Builder(builder: builder),
-          ),
+          child: footer == null
+              ? Padding(padding: padding, child: Builder(builder: builder))
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: padding,
+                        child: Builder(builder: builder),
+                      ),
+                    ),
+                    Builder(builder: footer),
+                  ],
+                ),
         ),
       ),
     ),
