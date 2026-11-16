@@ -10,6 +10,7 @@ import 'package:wonderflix/features/detail/series_detail_view.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/requests/request_seasons.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -78,6 +79,15 @@ void main() {
       await tester.pump();
     }
   }
+
+  Future<void> scrollToTicket(WidgetTester tester) => tester.scrollUntilVisible(
+      find.byKey(const Key('next-episode-ticket')), 200,
+      scrollable: find
+          .byWidgetPredicate((w) =>
+              w is Scrollable &&
+              w.axisDirection == AxisDirection.down &&
+              w.physics is! NeverScrollableScrollPhysics)
+          .first);
 
   testWidgets("serie: riga oro con l'anno", (tester) async {
     await pumpSeries(tester);
@@ -150,6 +160,81 @@ void main() {
     expect(find.text('Episodio 3'), findsOneWidget);
     expect(find.text('Episodio 4'), findsOneWidget);
     expect(api.nextUpCalls, contains('s1'));
+  });
+
+  testWidgets('il prossimo episodio è un biglietto con Prossimo e quanto manca',
+      (tester) async {
+    await pumpSeries(tester); // e4 iniziato a 23:14 di 45 min, è il nextUp
+    final ticket = find.byKey(const Key('next-episode-ticket'));
+    expect(ticket, findsOneWidget);
+    expect(find.descendant(of: ticket, matching: find.text('Prossimo')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: ticket, matching: find.text('Riprendi · rimangono 22 min')),
+        findsOneWidget);
+    expect(find.descendant(of: ticket, matching: find.byType(ClipPath)),
+        findsWidgets);
+    expect(find.descendant(of: ticket, matching: find.text('Episodio 4')),
+        findsOneWidget);
+    // Stesse azioni delle altre righe.
+    expect(
+        find.descendant(
+            of: ticket, matching: find.widgetWithText(FilterChip, 'Visto')),
+        findsOneWidget);
+  });
+
+  testWidgets('prossimo non iniziato: Riproduci', (tester) async {
+    api.nextUpItems = [ep('e21', 'se2', 2, 1)];
+    await pumpSeries(tester, seasonId: 'se2');
+    final ticket = find.byKey(const Key('next-episode-ticket'));
+    expect(find.descendant(of: ticket, matching: find.text('Riproduci')),
+        findsOneWidget);
+    expect(find.descendant(of: ticket, matching: find.textContaining('rimangono')),
+        findsNothing);
+  });
+
+  testWidgets("stretto: il biglietto c'è anche lì", (tester) async {
+    await pumpSeries(tester, surfaceSize: const Size(390, 780));
+    expect(find.byKey(const Key('next-episode-ticket')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('stretto: Visto prima del ⋯ e si tocca', (tester) async {
+    await pumpSeries(tester, surfaceSize: const Size(390, 780));
+    final tile = find.byWidgetPredicate(
+        (w) => w is EpisodeTile && w.episode.id == 'e3');
+    final chip =
+        find.descendant(of: tile, matching: find.widgetWithText(FilterChip, 'Visto'));
+    final more =
+        find.descendant(of: tile, matching: find.byTooltip('Altre azioni'));
+    expect(tester.getCenter(chip).dx, lessThan(tester.getCenter(more).dx));
+    await tester.tap(chip);
+    await tester.pump();
+    await tester.pump();
+    expect(api.playedCalls, contains(('e3', false)));
+  });
+
+  testWidgets('stretto con testo a 1,5: niente overflow', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pumpSeries(tester, surfaceSize: const Size(390, 780));
+    await scrollToTicket(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('TV: episodio visto col distintivo, biglietto senza azioni',
+      (tester) async {
+    await pumpSeries(tester, surfaceSize: const Size(960, 540), tv: true);
+    await scrollToTicket(tester);
+    final watched = find.byWidgetPredicate(
+        (w) => w is EpisodeTile && w.episode.id == 'e3');
+    expect(find.descendant(of: watched, matching: find.byType(WatchedBadge)),
+        findsOneWidget);
+    final ticket = find.byKey(const Key('next-episode-ticket'));
+    expect(ticket, findsOneWidget);
+    expect(find.descendant(of: ticket, matching: find.byType(FilterChip)),
+        findsNothing);
   });
 
   testWidgets('serie: il primario dice Riprendi S1:E4 e Richiedi stagioni è '

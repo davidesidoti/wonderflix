@@ -17,6 +17,7 @@ import '../../ui/skeletons.dart';
 import '../../ui/sliding_underline.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
+import '../../ui/ticket_shape.dart';
 import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
@@ -527,83 +528,203 @@ class EpisodeTile extends ConsumerWidget {
       ),
     ];
 
-    final tile = InkWell(
-      // Sulla TV il focus è del TvFocusable, non dell'InkWell.
-      canRequestFocus: !tv,
-      onTap: play,
-      child: Container(
-        color: highlighted ? WfColors.surface : null,
-        padding: EdgeInsets.symmetric(
-          horizontal: compact ? 16 : 32,
-          vertical: 10,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: compact ? 120 : 200,
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      WfImage(
-                        image: ref.watch(imageUrlsProvider).landscape(episode),
+    final stillWidth = compact ? 120.0 : 200.0;
+    final gap = compact ? 12.0 : 16.0;
+    // Nel biglietto il testo finisce con quanto manca, o con Riproduci.
+    final position = userData.playbackPosition;
+    final remaining = position > Duration.zero && runtime != null
+        ? runtime - position
+        : null;
+    final resume = !highlighted
+        ? null
+        : remaining != null && remaining > Duration.zero
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l.detailNextResume(shortDuration(l, remaining)),
+                style: _resumeStyle,
+              ),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: compact ? double.infinity : 160,
+                height: 3,
+                child: ProgressStrip(
+                  progress: (position.inMilliseconds / runtime!.inMilliseconds)
+                      .clamp(0.0, 1.0),
+                ),
+              ),
+            ],
+          )
+        : Text(l.actionPlay, style: _resumeStyle);
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: stillWidth,
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  WfImage(
+                    image: ref.watch(imageUrlsProvider).landscape(episode),
+                  ),
+                  if (highlighted)
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: WfColors.bg.withValues(alpha: 0.6),
+                          border: Border.all(
+                            color: WfColors.cream.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: const Icon(
+                          LucideIcons.play,
+                          size: 16,
+                          color: WfColors.cream,
+                        ),
                       ),
-                      if (progress != null) ProgressStrip(progress: progress),
-                    ],
+                    ),
+                  if (progress != null) ProgressStrip(progress: progress),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: gap),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (highlighted) ...[
+                Text(
+                  l.ticketNext,
+                  style: const TextStyle(
+                    color: WfColors.gold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+              ],
+              Text(
+                episode.name,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              if (details.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  details,
+                  style: const TextStyle(
+                    color: WfColors.creamMuted,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+              if (overview != null && !compact) ...[
+                const SizedBox(height: 6),
+                Text(
+                  overview,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: WfColors.creamMuted,
+                    fontSize: 12.5,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+              if (resume != null) ...[const SizedBox(height: 8), resume],
+              if (compact) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: actions,
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (!tv && !compact) ...actions,
+        if (tv && userData.played)
+          const Padding(
+            padding: EdgeInsets.only(left: 12),
+            child: WatchedBadge(),
+          ),
+      ],
+    );
+    final side = compact ? 16.0 : 32.0;
+    final Widget tile;
+    if (!highlighted) {
+      tile = InkWell(
+        // Sulla TV il focus è del TvFocusable, non dell'InkWell.
+        canRequestFocus: !tv,
+        onTap: play,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: side, vertical: 10),
+          child: content,
+        ),
+      );
+    } else {
+      // Il biglietto: la still resta allineata a quelle delle altre righe, lo
+      // strappo cade a metà dello spazio dopo la still.
+      const inset = 12.0;
+      final tear = inset + stillWidth + gap / 2;
+      tile = Padding(
+        key: const Key('next-episode-ticket'),
+        padding: EdgeInsets.symmetric(horizontal: side - inset, vertical: 6),
+        child: Stack(
+          children: [
+            ClipPath(
+              clipper: TicketClipper.vertical(tear),
+              child: Material(
+                color: WfColors.surface,
+                child: InkWell(
+                  canRequestFocus: !tv,
+                  onTap: play,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: inset,
+                      vertical: compact ? 10 : 14,
+                    ),
+                    child: content,
                   ),
                 ),
               ),
             ),
-            SizedBox(width: compact ? 12 : 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    episode.name,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: WfColors.gold, width: 1.5),
                   ),
-                  if (details.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      details,
-                      style: const TextStyle(
-                        color: WfColors.creamMuted,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
-                  if (overview != null && !compact) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      overview,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: WfColors.creamMuted,
-                        fontSize: 12.5,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                  if (compact) Row(children: actions),
-                ],
+                ),
               ),
             ),
-            if (!tv && !compact) ...actions,
-            if (tv && userData.played)
-              const Padding(
-                padding: EdgeInsets.only(left: 12),
-                child: WatchedBadge(),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: TicketTearPainter.vertical(tear),
+                ),
               ),
+            ),
           ],
         ),
-      ),
-    );
+      );
+    }
     return TvFocusable(onActivate: play, child: tile);
   }
 }
+
+const _resumeStyle = TextStyle(
+  color: WfColors.cream,
+  fontSize: 12.5,
+  fontWeight: FontWeight.w600,
+);

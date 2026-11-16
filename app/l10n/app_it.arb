@@ -85,6 +85,8 @@
   "detailShowMore": "Altro",
   "detailRemaining": "rimangono {time}",
   "@detailRemaining": {"placeholders": {"time": {"type": "String"}}},
+  "detailNextResume": "Riprendi · rimangono {time}",
+  "@detailNextResume": {"placeholders": {"time": {"type": "String"}}},
   "detailActionWatched": "Visto",
   "detailActionTogether": "Insieme",
   "detailActionRecommend": "Consiglia",

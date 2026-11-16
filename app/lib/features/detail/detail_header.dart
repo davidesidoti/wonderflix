@@ -307,11 +307,14 @@ class DetailHeader extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                l.detailRemaining(shortDuration(l, remaining)),
-                style: const TextStyle(
-                  color: WfColors.creamMuted,
-                  fontSize: 12,
+              Flexible(
+                child: Text(
+                  l.detailRemaining(shortDuration(l, remaining)),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: WfColors.creamMuted,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

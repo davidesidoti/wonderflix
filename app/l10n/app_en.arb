@@ -70,6 +70,7 @@
   "detailKickerSeries": "Series · {year}",
   "detailShowMore": "More",
   "detailRemaining": "{time} left",
+  "detailNextResume": "Resume · {time} left",
   "detailActionWatched": "Watched",
   "detailActionTogether": "Together",
   "detailActionRecommend": "Recommend",
