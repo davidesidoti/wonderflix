@@ -136,6 +136,31 @@ void main() {
     });
   }
 
+  testWidgets('autoplay bloccato: Chiudi resta cliccabile', (tester) async {
+    engine.blockNextPlay();
+    await pumpTrailer(tester);
+    expect(find.byKey(const ValueKey('trailer-tap-to-play')), findsOneWidget);
+    await tester.tap(find.text('Chiudi'));
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('non disponibile: Esc chiude', (tester) async {
+    api.startResult = const TrailerStatus('k1', TrailerState.none);
+    await pumpTrailer(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('non disponibile in TV: OK chiude', (tester) async {
+    api.startResult = const TrailerStatus('k1', TrailerState.none);
+    await pumpTrailer(tester, tv: true);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pumpAndSettle();
+    expect(find.text('home'), findsOneWidget);
+  });
+
   testWidgets('un solo Chiudi anche con il trailer, a destra del titolo',
       (tester) async {
     await pumpTrailer(tester);

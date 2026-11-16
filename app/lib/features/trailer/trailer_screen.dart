@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/providers.dart';
+import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/trailers/trailers_api.dart';
 import '../../core/video/video_engine.dart';
@@ -218,7 +219,7 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.space) {
-      // Sulla TV "Chiudi" non prende il focus: OK lo preme.
+      // Senza trailer il "Chiudi" ha il focus, ma OK lo preme anche da qui.
       if (down) _unavailable ? _close() : _togglePlay();
       return KeyEventResult.handled;
     }
@@ -328,11 +329,20 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                       ],
                     ),
                   ),
+                // Sotto i comandi: il "Chiudi" resta cliccabile.
+                if (_blocked && playable)
+                  PlayBlockedLayer(
+                    key: const ValueKey('trailer-tap-to-play'),
+                    onPlay: () => unawaited(engine.play()),
+                  ),
                 IgnorePointer(
                   ignoring: !controls,
                   child: AnimatedOpacity(
                     opacity: controls ? 1 : 0,
-                    duration: const Duration(milliseconds: 200),
+                    duration: controls
+                        ? WfMotion.of(context).duration(WfMotion.medium)
+                        : WfMotion.fast,
+                    curve: controls ? WfMotion.emphasized : WfMotion.accelerate,
                     child: focusable(
                       Stack(
                         fit: StackFit.expand,
@@ -417,11 +427,6 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
                         ),
                       ),
                     ),
-                  ),
-                if (_blocked && playable)
-                  PlayBlockedLayer(
-                    key: const ValueKey('trailer-tap-to-play'),
-                    onPlay: () => unawaited(engine.play()),
                   ),
               ],
             ),
