@@ -11,6 +11,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/tonight/tonight_controller.dart';
 import 'package:wonderflix/features/tonight/tonight_dialog.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -380,7 +381,7 @@ void main() {
     tester,
   ) async {
     library.randomPages.add(pageOf([dune, alien]));
-    await openDialog(tester, tv: true);
+    await openDialog(tester, tv: true, surfaceSize: const Size(960, 540));
     FocusNode node(Finder of) => Focus.of(
       tester.element(
         find.descendant(of: of, matching: find.byType(Text)).first,
@@ -392,6 +393,38 @@ void main() {
     const words = ['ask-type', 'ask-duration', 'ask-genre', 'ask-rating'];
     expect(words.any((key) => node(find.byKey(Key(key))).hasFocus), isTrue);
     expect(tester.getSize(find.byType(TonightDialog)).width, 680);
+    // Una finestra, non una pagina: la locandina da TV e niente overflow.
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(tester.getSize(find.byKey(const Key('tonight-poster'))).width, 140);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('TV: un titolo di Già proposti mostra il bordo col focus', (
+    tester,
+  ) async {
+    library.randomPages.add(pageOf([dune, alien]));
+    await openDialog(tester, tv: true, surfaceSize: const Size(960, 540));
+    await another(tester);
+    final poster = find.byKey(const Key('tonight-history-m1'));
+    final frame = find.ancestor(
+      of: poster,
+      matching: find.byType(TvFocusBorder),
+    );
+    Color? border() {
+      final box = tester.widget<DecoratedBox>(
+        find.descendant(of: frame, matching: find.byType(DecoratedBox)).first,
+      );
+      return ((box.decoration as BoxDecoration).border! as Border).top.color;
+    }
+
+    expect(border(), Colors.transparent);
+    Focus.of(
+      tester.element(
+        find.descendant(of: poster, matching: find.byType(ClipRRect)),
+      ),
+    ).requestFocus();
+    await tester.pump();
+    expect(border(), isNot(Colors.transparent));
   });
 
   testWidgets("con Serie la durata non c'è", (tester) async {

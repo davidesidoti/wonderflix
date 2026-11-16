@@ -239,7 +239,10 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
           Expanded(
             child: Align(
               alignment: Alignment.topRight,
-              child: MatchSeats(state: state, me: me),
+              child: MatchSeats(
+                  state: state,
+                  votedOf: (m) =>
+                      m.userId == me ? view.position(me) : m.voted),
             ),
           ),
         ],
@@ -291,7 +294,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         const SizedBox(height: 4),
         Text(status,
             style: TextStyle(
-                color: WfColors.cream.withValues(alpha: 0.32), fontSize: 12)),
+                color: WfColors.creamMuted, fontSize: 12)),
       ],
     );
   }

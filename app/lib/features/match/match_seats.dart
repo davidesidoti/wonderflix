@@ -22,12 +22,14 @@ final _chairRadius = BorderRadius.vertical(
 /// tratteggiati, con "In sala, n su 8" sopra. In votazione: solo gli occupati,
 /// con una barra e "12 su 30" (o "finito") sotto.
 ///
-/// [me] è l'id di chi guarda.
+/// [votedOf] dà i voti di un membro: chi guarda passa il proprio conteggio
+/// ottimistico, che precede quello del server.
 class MatchSeats extends StatelessWidget {
-  const MatchSeats({super.key, required this.state, this.me});
+  const MatchSeats(
+      {super.key, required this.state, this.votedOf = _serverVoted});
 
   final MatchState state;
-  final String? me;
+  final int Function(MatchMember) votedOf;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +56,7 @@ class MatchSeats extends StatelessWidget {
               _Seat(
                   key: ValueKey('match-seat-${member.userId}'),
                   member: member,
+                  voted: votedOf(member),
                   total: voting ? state.stack.length : null),
             for (var i = 0; i < free; i++)
               _Seat(key: ValueKey('match-seat-free-$i')),
@@ -64,11 +67,15 @@ class MatchSeats extends StatelessWidget {
   }
 }
 
+int _serverVoted(MatchMember m) => m.voted;
+
 class _Seat extends StatelessWidget {
-  const _Seat({super.key, this.member, this.total});
+  const _Seat({super.key, this.member, this.voted = 0, this.total});
 
   /// `null`: posto libero.
   final MatchMember? member;
+
+  final int voted;
 
   /// Pila intera, solo in votazione.
   final int? total;
@@ -80,7 +87,7 @@ class _Seat extends StatelessWidget {
     final total = this.total;
     final taken = member != null;
     final color = taken ? WfColors.gold : WfColors.border;
-    final done = taken && total != null && total > 0 && member.voted >= total;
+    final done = taken && total != null && total > 0 && voted >= total;
     return SizedBox(
       width: _seatWidth,
       child: Column(
@@ -144,12 +151,12 @@ class _Seat extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: FractionallySizedBox(
                 key: ValueKey('match-seat-fill-${member.userId}'),
-                widthFactor: total == 0 ? 0 : (member.voted / total).clamp(0, 1),
+                widthFactor: total == 0 ? 0 : (voted / total).clamp(0, 1),
                 child: const ColoredBox(color: WfColors.gold),
               ),
             ),
             const SizedBox(height: 2),
-            Text(done ? l.matchDone : l.matchVotedOf(member.voted, total),
+            Text(done ? l.matchDone : l.matchVotedOf(voted, total),
                 maxLines: 1,
                 style: TextStyle(
                     color: done ? WfColors.gold : WfColors.creamMuted,

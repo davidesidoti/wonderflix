@@ -13,6 +13,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/backdrop_image.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
 import '../../ui/wf_image.dart';
@@ -68,6 +69,8 @@ Future<TonightChoice?> showTonightDialog(BuildContext context) =>
           : tonightDialogWidth,
       // Il fondale arriva ai bordi: i margini li mette la finestra.
       padding: EdgeInsets.zero,
+      // Sulla TV (960 px logici, "stretto") la finestra resta una finestra.
+      fullPageWhenCompact: !FormFactor.of(context).tv,
       semanticLabel: AppLocalizations.of(context).tonightButton,
       builder: (_) => const TonightDialog(),
     );
@@ -187,7 +190,7 @@ class _TonightDialogState extends ConsumerState<TonightDialog> {
     final form = FormFactor.of(context);
     final tv = form.tv;
     // Nello stretto la finestra è una pagina: scorre tutta.
-    final compact = form.compact;
+    final compact = form.compact && !tv;
     final state = ref.watch(tonightControllerProvider);
     final filters = state.filters;
     final pick = state.pick.value;
@@ -581,16 +584,20 @@ class _TonightHistory extends ConsumerWidget {
         for (final item in items)
           Tooltip(
             message: item.name,
-            child: InkWell(
-              key: Key('tonight-history-${item.id}'),
+            // Il bordo sta fuori dall'InkWell: segue il focus dei discendenti.
+            child: TvFocusBorder(
               borderRadius: BorderRadius.circular(3),
-              onTap: () => onTap(item),
-              child: ClipRRect(
+              child: InkWell(
+                key: Key('tonight-history-${item.id}'),
                 borderRadius: BorderRadius.circular(3),
-                child: SizedBox(
-                  width: 26,
-                  height: 39,
-                  child: WfImage(image: urls.poster(item, maxWidth: 80)),
+                onTap: () => onTap(item),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: SizedBox(
+                    width: 26,
+                    height: 39,
+                    child: WfImage(image: urls.poster(item, maxWidth: 80)),
+                  ),
                 ),
               ),
             ),

@@ -14,7 +14,9 @@ void main() {
           Scaffold(
               body: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: MatchSeats(state: state, me: 'u1'))),
+                  child: MatchSeats(
+                      state: state,
+                      votedOf: (m) => m.userId == 'u1' ? 5 : m.voted))),
           surfaceSize: size);
 
   testWidgets('waitingShowsAllEightSeats', (tester) async {
@@ -38,14 +40,15 @@ void main() {
 
     expect(find.text('libero'), findsNothing);
     expect(find.textContaining('In sala'), findsNothing);
-    expect(find.text('12 su 30'), findsOneWidget);
+    // Il mio posto mostra il conteggio ottimistico, non quello del server.
+    expect(find.text('5 su 30'), findsOneWidget);
     expect(find.text('finito'), findsOneWidget);
     expect(
         tester
             .widget<FractionallySizedBox>(
                 find.byKey(const ValueKey('match-seat-fill-u1')))
             .widthFactor,
-        closeTo(0.4, 1e-9));
+        closeTo(5 / 30, 1e-9));
     expect(
         tester
             .widget<FractionallySizedBox>(

@@ -342,6 +342,17 @@ void main() {
       expect(find.text('Dune'), findsNothing);
     });
 
+    testWidgets('onDesktopMySeatFollowsMyVotesBeforeTheServer', (tester) async {
+      await pumpRoom(tester, state: votingState);
+      expect(find.text('0 su 2'), findsNWidgets(2));
+
+      await tester.tap(find.byKey(const Key('match-yes')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 su 2'), findsOneWidget);
+      expect(find.text('0 su 2'), findsOneWidget);
+    });
+
     testWidgets('aFailedVoteBringsTheCardBack', (tester) async {
       match.failures['vote r1 m1 yes'] =
           const MatchException(MatchFailure.network);
