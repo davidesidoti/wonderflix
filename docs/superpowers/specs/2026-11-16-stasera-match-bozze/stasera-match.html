@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stasera e Match, bozza</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+    --mu:rgba(242,234,211,.6); --dim:rgba(242,234,211,.32); --yes:#5BBF6A; --no:#C8463C;
+    --page:#1c1c1c; --note:#b9b4a6;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+  .doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+  .doc > h1 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+  .doc p, .doc ul { max-width:80ch; }
+  .doc li { margin:3px 0; }
+  .doc b { color:var(--cr); font-weight:600; }
+  section.s { margin:48px 0; }
+  section.s > h2 { font:400 28px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+  .pair { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .tag { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:4px; margin-bottom:6px; }
+  .tag.old { background:rgba(200,70,60,.18); color:#e58a80; }
+  .tag.new { background:rgba(212,166,74,.18); color:var(--gold); }
+  .cap { font-size:13px; margin:8px 0 0; max-width:60ch; }
+  .scroll { overflow-x:auto; padding-bottom:6px; }
+  button { font:inherit; color:inherit; }
+  :focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+
+  .app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; position:relative; flex:none; }
+  .app.desk { width:1280px; height:780px; }
+  .app.phone { width:390px; height:780px; }
+  .app.tv { width:960px; height:540px; }
+  .scrim { position:absolute; inset:0; background:center/cover; filter:brightness(.25) saturate(.6); }
+  .nav { position:absolute; left:0; right:0; top:0; height:56px; display:flex; align-items:center; gap:22px; padding:0 32px; background:var(--bg); z-index:3; }
+  .nav .logo { font:400 15px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+  .nav a { color:var(--cr); }
+  .nav .back { font-size:18px; color:var(--cr); }
+  .nav .me { margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .av { width:24px; height:24px; border-radius:50%; flex:none; display:grid; place-items:center; font:600 11px/1 Inter; color:var(--cr); }
+  .av.d { background:linear-gradient(135deg,#6b4a8a,#2a1d38); }
+  .av.s { background:linear-gradient(135deg,#8f5a3f,#46261e); }
+  .av.g { background:linear-gradient(135deg,#3f6f8f,#1e3446); }
+
+  .b { height:38px; display:inline-flex; align-items:center; gap:8px; padding:0 16px; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; border:1px solid transparent; white-space:nowrap; background:none; }
+  .b.p { background:var(--gold); color:var(--bg); }
+  .b.s { color:var(--cr); border-color:rgba(242,234,211,.3); font-weight:600; }
+  .b.q { height:32px; padding:0 12px; background:var(--sh); border-color:var(--bd); color:var(--cr); font-weight:500; }
+  .b[disabled] { opacity:.4; cursor:default; }
+  .b svg { width:15px; height:15px; flex:none; }
+  .b.f { box-shadow:0 0 0 2px var(--cr); }
+
+  /* la frase-filtro */
+  .ask { font:400 21px/1.7 Inter; color:var(--mu); }
+  .ask .tok { position:relative; display:inline-flex; align-items:baseline; gap:4px; color:var(--cr); font-weight:600; border:0; background:none; padding:0 2px; cursor:pointer; border-bottom:2px solid var(--gold); line-height:1.25; }
+  .ask .tok::after { content:''; width:7px; height:7px; border-right:2px solid var(--gold); border-bottom:2px solid var(--gold); transform:translateY(-3px) rotate(45deg); margin-left:4px; }
+  .ask .tok:hover, .ask .tok.f { background:rgba(212,166,74,.12); }
+  .ask .tok.f { outline:2px solid var(--gold); outline-offset:2px; border-radius:2px; }
+  .menu { position:absolute; left:0; top:calc(100% + 6px); z-index:5; min-width:180px; background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:6px; font:500 14px/1 Inter; text-align:left; box-shadow:0 12px 30px rgba(0,0,0,.5); }
+  .menu div { padding:9px 10px; border-radius:5px; color:var(--mu); white-space:nowrap; }
+  .menu div.on { color:var(--gold); background:rgba(212,166,74,.1); }
+  .menu div:hover { color:var(--cr); background:var(--sh); }
+
+  /* Stasera: finestra */
+  .dlg { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:760px; background:var(--sf); border:1px solid var(--bd); border-radius:12px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6); }
+  .dlg .wash { position:absolute; left:0; right:0; top:0; height:300px; background:center 25%/cover; opacity:.35; -webkit-mask-image:linear-gradient(180deg,#000,transparent); mask-image:linear-gradient(180deg,#000,transparent); transition:background-image .4s; }
+  .dlg .in { position:relative; padding:22px 26px 22px; }
+  .dlg .hd { display:flex; align-items:center; gap:10px; font:600 15px/1 Inter; color:var(--mu); }
+  .dlg .hd svg { width:20px; height:20px; color:var(--gold); }
+  .dlg .hd .x { margin-left:auto; color:var(--mu); font-size:18px; }
+  .dlg .ask { margin:14px 0 22px; }
+  .pick { display:flex; gap:22px; min-height:258px; }
+  .pick .pst { width:172px; flex:none; aspect-ratio:2/3; border-radius:8px; background:var(--sh) center/cover; box-shadow:0 14px 34px rgba(0,0,0,.55); }
+  .pick .t { font:400 46px/.9 'Bebas Neue'; letter-spacing:1px; margin:6px 0 0; }
+  .pick .m { color:var(--mu); margin-top:10px; }
+  .pick .m .r { color:var(--gold); font-weight:600; }
+  .pick .o { margin-top:10px; line-height:1.55; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; max-width:56ch; }
+  .pick .why { color:var(--gold); font-size:12.5px; font-weight:600; }
+  .foot { display:flex; align-items:center; gap:12px; margin-top:22px; padding-top:16px; border-top:1px solid var(--bd); }
+  .seen { display:flex; align-items:center; gap:8px; color:var(--dim); font-size:12px; margin-right:auto; }
+  .seen i { width:26px; aspect-ratio:2/3; border-radius:3px; background:var(--sh) center/cover; cursor:pointer; opacity:.7; }
+  .seen i:hover { opacity:1; box-shadow:0 0 0 2px var(--gold); }
+  .roll { animation:roll .45s cubic-bezier(.2,.8,.2,1); }
+  @keyframes roll { from { opacity:0; transform:translateY(14px) rotate(-1.5deg); } to { opacity:1; transform:none; } }
+  .spin svg { animation:spin .5s cubic-bezier(.2,.8,.2,1); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* oggi (ricostruzione) */
+  .old { width:620px; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:18px 20px; color:var(--cr); }
+  .old h4 { margin:0 0 12px; font:600 18px/1 Inter; }
+  .seg { display:inline-flex; border:1px solid var(--bd); border-radius:16px; overflow:hidden; margin:0 8px 8px 0; font-size:12px; }
+  .seg span { padding:5px 10px; border-left:1px solid var(--bd); color:var(--cr); }
+  .seg span:first-child { border-left:0; }
+  .seg span.on { background:var(--gold); color:var(--bg); }
+  .seg.off span { color:var(--dim); }
+  .old .bd { height:150px; border-radius:8px; background:center/cover; margin-top:6px; display:flex; align-items:flex-end; padding:10px 14px; font:400 26px/1 'Bebas Neue'; letter-spacing:1px; }
+
+  /* Match */
+  .room { position:absolute; inset:56px 0 0; overflow-y:auto; padding:22px 32px 40px; }
+  .room h3 { margin:0; font:400 56px/.9 'Bebas Neue'; letter-spacing:1px; }
+  .room .lead { color:var(--mu); margin:10px 0 0; max-width:62ch; font-size:14px; }
+  .cols { display:grid; grid-template-columns:1.25fr 1fr; gap:48px; margin-top:28px; }
+  .lbl { font:600 13px/1 Inter; color:var(--mu); margin:0 0 12px; }
+  .seats { display:flex; gap:8px; flex-wrap:wrap; }
+  .seat { width:68px; text-align:center; font-size:11.5px; color:var(--mu); }
+  .seat .c { width:56px; height:62px; margin:0 auto 6px; border-radius:14px 14px 6px 6px; border:2px dashed var(--bd); position:relative; display:grid; place-items:center; }
+  .seat .c::after { content:''; position:absolute; left:6px; right:6px; bottom:-6px; height:6px; border-radius:0 0 4px 4px; background:var(--bd); }
+  .seat.on .c { border:2px solid var(--gold); background:rgba(212,166,74,.08); }
+  .seat.on .c::after { background:var(--gold); }
+  .seat.on { color:var(--cr); }
+  .seat .av { width:36px; height:36px; font-size:14px; }
+  .seat .pr { height:3px; background:var(--bd); border-radius:2px; margin:6px 6px 0; overflow:hidden; }
+  .seat .pr i { display:block; height:100%; background:var(--gold); }
+  .seat .n { font-variant-numeric:tabular-nums; color:var(--mu); }
+  .seat.done .n { color:var(--gold); }
+  .friends { margin-top:26px; }
+  .fr { display:flex; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--sf); }
+  .fr .av { width:32px; height:32px; }
+  .fr > span:not(.av) { min-width:160px; }
+  .start { display:flex; align-items:center; gap:14px; margin-top:26px; }
+  .start .why { color:var(--mu); }
+  .panel { background:var(--sf); border:1px solid var(--bd); border-radius:10px; padding:20px 22px; }
+  .panel .ask { font-size:19px; }
+
+  /* votazione */
+  .vote { display:grid; grid-template-columns:1fr 360px; gap:40px; margin-top:24px; }
+  .deck { position:relative; width:520px; margin:0 auto; }
+  .card { aspect-ratio:2/3; width:270px; margin:0 auto; border-radius:14px; background:var(--sh) center/cover; position:relative; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,.6); }
+  .card::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,.6) 34%,transparent 60%); }
+  .card .tx { position:absolute; left:16px; right:16px; bottom:14px; z-index:1; }
+  .card .t { font:400 34px/.9 'Bebas Neue'; letter-spacing:1px; }
+  .card .m { color:var(--mu); margin-top:6px; font-size:12px; }
+  .card .o { margin-top:6px; font-size:12px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .under { position:absolute; top:10px; left:50%; width:270px; aspect-ratio:2/3; border-radius:14px; background:var(--sh) center/cover; filter:brightness(.4); }
+  .under.a { transform:translateX(-50%) translateX(26px) rotate(4deg) scale(.95); }
+  .under.b { transform:translateX(-50%) translateX(-26px) rotate(-4deg) scale(.95); }
+  .card.top { position:relative; z-index:2; }
+  .stamp { position:absolute; top:18px; z-index:3; font:400 34px/1 'Bebas Neue'; letter-spacing:2px; padding:4px 12px 2px; border:3px solid; border-radius:6px; }
+  .stamp.y { left:16px; color:var(--yes); border-color:var(--yes); transform:rotate(-12deg); }
+  .vbtns { display:flex; justify-content:center; gap:44px; margin-top:22px; }
+  .vb { width:64px; height:64px; border-radius:50%; border:2px solid; background:var(--sf); display:grid; place-items:center; cursor:pointer; position:relative; }
+  .vb svg { width:28px; height:28px; }
+  .vb.no { color:var(--no); border-color:rgba(200,70,60,.6); }
+  .vb.yes { color:var(--yes); border-color:rgba(91,191,106,.6); }
+  .vb:hover { transform:scale(1.06); }
+  .vb small { position:absolute; top:72px; font-size:11px; color:var(--dim); white-space:nowrap; }
+  .left { text-align:center; color:var(--dim); font-size:12px; margin-top:38px; font-variant-numeric:tabular-nums; }
+  .mh { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .mh h4 { margin:0; font:400 26px/1 'Bebas Neue'; letter-spacing:1px; }
+  .mh span { color:var(--dim); font-size:12px; }
+  .tk { display:flex; height:84px; background:var(--sf); border-radius:8px; position:relative; margin-bottom:10px; cursor:pointer; border:2px solid transparent; }
+  .tk .pic { width:150px; flex:none; border-radius:6px 0 0 6px; background:var(--sh) center/cover; }
+  .tk .st { flex:1; min-width:0; padding:10px 12px 10px 14px; border-left:1px dashed #333; display:flex; flex-direction:column; justify-content:center; }
+  .tk::before, .tk::after { content:''; position:absolute; left:143px; width:14px; height:14px; border-radius:50%; background:var(--bg); }
+  .tk::before { top:-8px; } .tk::after { bottom:-8px; }
+  .tk b { font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--cr); }
+  .tk .l2 { color:var(--mu); font-size:11.5px; }
+  .tk.first { border-color:var(--gold); }
+  .tk.first .l2 { color:var(--gold); font-weight:600; }
+  .tk.near { opacity:.75; }
+  .near-h { color:var(--mu); font-size:12.5px; font-weight:600; margin:16px 0 10px; }
+  .party { margin-top:16px; width:100%; justify-content:center; height:44px; font-size:14px; }
+
+  /* è un match */
+  .boom { position:absolute; inset:0; z-index:6; display:grid; place-items:center; background:rgba(10,10,10,.82); backdrop-filter:blur(3px); }
+  .boom .in { text-align:center; }
+  .boom .tkb { width:260px; margin:0 auto; background:var(--sf); border-radius:12px; overflow:hidden; position:relative; box-shadow:0 0 0 2px var(--gold), 0 30px 80px rgba(0,0,0,.7); animation:pop .5s cubic-bezier(.2,1.4,.4,1); }
+  .boom .tkb .pic { aspect-ratio:2/3; background:center/cover; }
+  .boom .tkb .st { border-top:2px dashed #333; padding:12px; position:relative; }
+  .boom .tkb .st::before, .boom .tkb .st::after { content:''; position:absolute; top:-9px; width:16px; height:16px; border-radius:50%; background:rgba(10,10,10,1); }
+  .boom .tkb .st::before { left:-8px; } .boom .tkb .st::after { right:-8px; }
+  .boom h5 { font:400 64px/1 'Bebas Neue'; letter-spacing:2px; color:var(--gold); margin:22px 0 4px; }
+  .boom p { color:var(--mu); margin:0; }
+  @keyframes pop { from { transform:scale(.8) rotate(-4deg); opacity:0; } to { transform:none; opacity:1; } }
+
+  /* telefono */
+  .phone .room { inset:0 0 56px; padding:18px 16px 30px; }
+  .phone .room h3 { font-size:40px; }
+  .phone .cols, .phone .vote { display:block; }
+  .phone .deck { width:auto; }
+  .phone .card, .phone .under { width:250px; }
+  .phonenav { position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; justify-content:space-around; align-items:center; border-top:1px solid var(--sf); color:var(--mu); font-size:11px; background:var(--bg); z-index:4; }
+  .phonenav .on { color:var(--gold); }
+  .strip { display:flex; gap:10px; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:0 16px; }
+  .strip .tk { flex:none; width:250px; }
+  .phone .tk .pic { width:104px; } .phone .tk::before, .phone .tk::after { left:97px; }
+  .sheet { position:absolute; inset:0; overflow-y:auto; padding:18px 16px 24px; }
+  .sheet .ask { font-size:18px; margin:12px 0 18px; }
+  .sheet .pst { width:100%; aspect-ratio:2/3; max-height:330px; border-radius:10px; background:center 20%/cover; }
+  .sheet .t { font:400 38px/.9 'Bebas Neue'; letter-spacing:1px; margin:14px 0 0; }
+  .sheet .btns { display:flex; gap:10px; margin-top:16px; }
+  .sheet .btns .b { flex:1; justify-content:center; }
+
+  /* tv */
+  .tv .dlg { width:680px; }
+  .tv .pick .pst { width:140px; }
+  .tv .pick { min-height:210px; }
+  .tv .pick .t { font-size:38px; }
+  .tv .pick .o { -webkit-line-clamp:3; }
+  @media (prefers-reduced-motion: reduce) { .roll, .spin svg, .boom .tkb { animation:none; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Stasera e Match, bozza</h1>
+  <p>Dati veri della serata del 16 novembre: i filtri salvati di davide.sidoti (Film, Brutti), i titoli che "Cosa guardo stasera?" ha proposto davvero (Shrooms, Dr. Brain), l'amica online (sara.lippolis). La pila del match è inventata, con titoli del server.</p>
+  <p>Cosa non va oggi:</p>
+  <ul>
+    <li><b>I filtri pesano più del titolo.</b> Quattro controlli (tre gruppi a segmenti Material e un menu), undici scelte in vista prima di vedere cosa si guarda. Con "Serie" la durata resta lì, spenta.</li>
+    <li><b>Generi in inglese.</b> <code>tonightMeta</code> non passa da <code>genreLabel</code>: Dr. Brain mostra "Science Fiction · Drama · Thriller". Vale anche per le carte del match.</li>
+    <li><b>Un altro cancella il precedente.</b> Se il titolo di prima era meglio, non si torna indietro.</li>
+    <li><b>Il dado gira, il titolo no.</b> L'unico movimento è l'icona piccola in alto; il titolo nuovo sostituisce il vecchio senza un momento di "pesca".</li>
+    <li><b>Match: una pagina che non spiega.</b> "Match del film" anche con le serie; nessuna riga dice come funziona; tanto vuoto; "Invita" lontano dal nome, sul bordo della pagina; chi è invitato vede solo "In attesa che…".</li>
+    <li><b>Match: i comandi del voto sono piccoli</b> (icone da 28) per l'azione principale della pagina; i progressi sono "12/30" in testo; la colonna dei match è un elenco in Inter, fuori dal linguaggio della Home.</li>
+  </ul>
+  <p>La proposta tiene Noir &amp; Oro, Bebas e Inter. Una sola idea nuova, che vale per entrambi: <b>i filtri diventano la domanda</b>. "Un <u>film</u> sotto le <u>2 ore</u>, di <u>ogni genere</u>, <u>brutto</u>." Ogni parola sottolineata si apre e si cambia. Si legge in un colpo, occupa una riga, e in TV ogni parola è una tappa del telecomando (OK apre, su/giù scelgono). Il resto riprende la Home: biglietti per i match, posti in sala per chi c'è.</p>
+
+  <section class="s">
+    <h2>Cosa guardo stasera?, desktop</h2>
+    <p>Clicca le parole oro per cambiarle (con "serie" la durata sparisce dalla frase). "Un altro" pesca e il titolo entra con un piccolo lancio; i titoli già proposti restano in basso a sinistra e si riprendono con un clic.</p>
+    <div class="pair">
+      <div>
+        <span class="tag old">Oggi</span>
+        <div class="old">
+          <h4>🎲 Cosa guardo stasera?</h4>
+          <span class="seg"><span class="on">Film</span><span>Serie</span><span>Entrambi</span></span><span class="seg"><span class="on">Qualsiasi</span><span>Meno di 90 min</span><span>Meno di 2 h</span></span><br>
+          <span class="seg"><span>Tutti i generi ▾</span></span><span class="seg"><span>Qualsiasi voto</span><span>Belli (7+)</span><span class="on">Brutti (5-)</span></span>
+          <div class="bd" style="background-image:linear-gradient(0deg,#121212,transparent 60%),url(https://image.tmdb.org/t/p/w780/qDlPT4EStkbQxczswCQsq23OGQ7.jpg)">Shrooms - Trip senza ritorno</div>
+          <div style="color:var(--mu);margin-top:8px;font-size:12px">2007 · 1h 20m · Horror · Mistero ★ 4.9</div>
+        </div>
+        <p class="cap">Ricostruzione della finestra di oggi (vista dal vivo il 16 novembre).</p>
+      </div>
+    </div>
+    <div class="scroll" style="margin-top:24px"><div class="app desk" id="tonightDesk"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Telefono e TV</h2>
+    <p>Sul telefono è una pagina: la frase va a capo, la locandina è grande, i tre pulsanti in fondo. In TV la finestra resta, la frase è la prima fila del telecomando (qui il focus è su "brutto"), poi i pulsanti; "Un altro" ha il focus all'apertura.</p>
+    <div class="pair">
+      <div class="app phone" id="tonightPhone"></div>
+      <div class="app tv" id="tonightTv"></div>
+    </div>
+  </section>
+
+  <section class="s">
+    <h2>Match, l'attesa</h2>
+    <p>Titolo "Match" con una riga che spiega le regole. A sinistra i posti della sala (otto, il massimo): chi è entrato siede, gli altri posti sono vuoti; sotto gli amici online con "Invita" accanto al nome. A destra la stessa frase di Stasera ("Si vota tra…") e "Inizia". Chi è invitato vede la frase senza poterla cambiare.</p>
+    <div class="scroll"><div class="app desk" id="matchWait"></div></div>
+  </section>
+
+  <section class="s">
+    <h2>Match, il voto</h2>
+    <p>Carta verticale (la locandina si legge meglio e il mazzo sembra un mazzo), "SÌ"/"NO" come timbri, pulsanti tondi da 64 con ← e → scritti sotto. I posti mostrano quanto ha votato ciascuno. A destra i match sono biglietti, come Stasera nella Home: il biglietto col bordo oro parte per primo. Clicca "SÌ" per vedere "È un match!".</p>
+    <div class="scroll"><div class="app desk" id="matchVote"></div></div>
+    <div class="pair" style="margin-top:24px">
+      <div><span class="tag new">Telefono</span><div class="app phone" id="matchPhone"></div></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const P = p => `https://image.tmdb.org/t/p/w342${p}`;
+const B = p => `https://image.tmdb.org/t/p/w780${p}`;
+const ico = {
+  dice:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="13" height="13" rx="2"/><path d="M8 21h11a2 2 0 0 0 2-2V8"/><circle cx="7" cy="7" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>',
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 12l5 5 9-10"/></svg>',
+};
+const titles = {
+  shrooms:{ t:'Shrooms - Trip senza ritorno', p:'/yfT2GLj3vSnPkr8SxHrs7disyBJ.jpg', b:'/qDlPT4EStkbQxczswCQsq23OGQ7.jpg', m:'2007 · 1h 20m · Horror · Mistero', r:'4,9', o:"Otto amici decidono di partire per un'avventura alla ricerca dei migliori funghi allucinogeni del mondo. Si recano così in un bosco dell'Irlanda, conosciuto per alcune leggende che girano riguardo al posto, non del tutto rassicuranti." },
+  brain:{ t:'Dr. Brain', p:'/nxfyXDghW2SbQbwRen6uh12OzXV.jpg', b:'/87IhSzFxzvZIFmLOzfl4HJPe4p2.jpg', m:'2021 · 1 stagione · Fantascienza · Dramma · Thriller', r:'4,6', o:'Il brillante neurologo Sewon viene colpito da un\'atroce tragedia personale. Disposto a tutto pur di scoprire cos\'è successo alla sua famiglia, effettua delle "sincronizzazioni cerebrali" con i morti, per accedere ai loro ricordi.' },
+  osiris:{ t:'Osiris', p:'/szCUaJsdWO7dTR14MTTHXuxge8b.jpg', b:'/ySHUoK4utUOiSfCinw81H1TsV0E.jpg', m:'2025 · 1h 47m · Fantascienza · Azione', r:'5,9', o:'Il commando delle Forze Speciali, nel corso di una missione militare, viene rapito da una misteriosa astronave.' },
+  colony:{ t:'Colony', p:'/hDPGsJxo8xX0OyqcMB8xI3RdaF3.jpg', b:'/iGViga8sDCET1S6GfwOlAbuhSGQ.jpg', m:'2026 · Horror · Fantascienza', r:'6,3', o:'' },
+  wrestler:{ t:'The Wrestler', p:'/A0Uq6fZG9UVbaFZmwF593ESz8LE.jpg', b:'/wcJmFsz8RqIhozMwvU81hreTX4i.jpg', m:'2008 · 1h 49m · Dramma', r:'7,4', o:'' },
+  hope:{ t:'Hope', p:'/fbFxZSSw2kQoAkyXosVoOyBX0Z4.jpg', b:'/j96rurZqmBjyY37Fncl3IB0qJNe.jpg', m:'2026 · 2h 37m · Fantascienza · Mistero', r:'7,1', o:"Nel remoto villaggio sudcoreano di Hope Harbor, il capo della polizia Bum-seok e l'agente Sung-ae indagano su una creatura misteriosa." },
+  beautiful:{ t:'Beautiful Boy', p:'/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg', b:'/sOhtC4cmaYPOlcjXCWxxrx2NKKn.jpg', m:'2018 · 2h · Dramma', r:'7,2', o:'' },
+};
+
+/* La frase: opzioni per parola. */
+const opts = {
+  type:[['film','un film'],['serie','una serie'],['both','un film o una serie']],
+  dur:[['any','di qualsiasi durata'],['90','sotto i 90 minuti'],['120','sotto le 2 ore']],
+  genre:[['all','di ogni genere'],['horror','horror'],['fant','di fantascienza'],['dram','drammatico'],['com','comico']],
+  rate:[['any','con qualsiasi voto'],['good','bello'],['bad','brutto']],
+};
+const bad = { film:'brutto', serie:'brutta', both:'brutto' }, good = { film:'bello', serie:'bella', both:'bello' };
+function sentence(st, el, { lead = '', readonly = false, focus = null } = {}) {
+  const word = (k) => {
+    if (k === 'rate') return st.rate === 'bad' ? bad[st.type] : st.rate === 'good' ? good[st.type] : 'con qualsiasi voto';
+    return opts[k].find(o => o[0] === st[k])[1];
+  };
+  const tok = (k) => readonly ? `<b style="color:var(--cr);font-weight:600">${word(k)}</b>` :
+    `<button class="tok${focus === k ? ' f' : ''}" data-k="${k}">${word(k)}</button>`;
+  const dur = st.type === 'serie' ? '' : ` ${tok('dur')},`;
+  el.innerHTML = `${lead}${tok('type')}${dur} ${tok('genre')}, ${tok('rate')}.`;
+  if (readonly) return;
+  el.querySelectorAll('.tok').forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.menu').forEach(m => m.remove());
+    const k = b.dataset.k, m = document.createElement('div');
+    m.className = 'menu';
+    m.innerHTML = opts[k].map(o => `<div class="${o[0] === st[k] ? 'on' : ''}" data-v="${o[0]}">${k === 'rate' ? (o[0] === 'bad' ? 'brutto (5 o meno)' : o[0] === 'good' ? 'bello (7 o più)' : o[1]) : o[1]}</div>`).join('');
+    m.onclick = (ev) => { const v = ev.target.dataset.v; if (!v) return; st[k] = v; m.remove(); sentence(st, el, { lead }); st.onchange?.(); };
+    b.appendChild(m);
+  });
+}
+document.addEventListener('click', () => document.querySelectorAll('.menu').forEach(m => m.remove()));
+
+/* Stasera, desktop */
+function tonight(host, { tv = false } = {}) {
+  const st = { type:'film', dur:'any', genre:'all', rate:'bad' };
+  const pool = ['shrooms', 'osiris', 'colony'], poolS = ['brain'];
+  let cur = 'shrooms'; const seen = [];
+  host.innerHTML = `<div class="scrim" style="background-image:url(${B('/j96rurZqmBjyY37Fncl3IB0qJNe.jpg')})"></div>
+    <div class="dlg"><div class="wash"></div><div class="in">
+      <div class="hd">${ico.dice} Cosa guardo stasera?<span class="x">✕</span></div>
+      <div class="ask"></div>
+      <div class="pick"></div>
+      <div class="foot"><div class="seen"></div>
+        <button class="b s another">${ico.dice} Un altro</button>
+        <button class="b s">${ico.info} Dettagli</button>
+        <button class="b p">${ico.play} Riproduci</button></div>
+    </div></div>`;
+  const ask = host.querySelector('.ask'), pick = host.querySelector('.pick'), wash = host.querySelector('.wash'), seenEl = host.querySelector('.seen');
+  const draw = (anim) => {
+    const t = titles[cur];
+    wash.style.backgroundImage = `url(${B(t.b)})`;
+    pick.innerHTML = `<div class="pst" style="background-image:url(${P(t.p)})"></div>
+      <div><div class="why">${st.type === 'serie' ? 'Una serie che non hai mai iniziato' : 'Un film che non hai mai visto'}</div>
+      <div class="t">${t.t}</div><div class="m">${t.m} · <span class="r">★ ${t.r}</span></div>
+      ${t.o ? `<div class="o">${t.o}</div>` : ''}</div>`;
+    if (anim) { pick.classList.remove('roll'); void pick.offsetWidth; pick.classList.add('roll'); }
+    seenEl.innerHTML = seen.length ? `Già proposti ${seen.slice(-3).map(id => `<i title="${titles[id].t}" data-id="${id}" style="background-image:url(${P(titles[id].p)})"></i>`).join('')}` : '';
+    seenEl.querySelectorAll('i').forEach(i => i.onclick = () => { const id = i.dataset.id; seen.splice(seen.indexOf(id), 1); seen.push(cur); cur = id; draw(true); });
+  };
+  const another = () => {
+    const list = st.type === 'serie' ? poolS : pool;
+    const next = list.find(id => id !== cur && !seen.includes(id)) || list.find(id => id !== cur) || cur;
+    if (next !== cur) { seen.push(cur); cur = next; }
+    const b = host.querySelector('.another'); b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
+    draw(true);
+  };
+  st.onchange = () => { if (st.type === 'serie') { if (cur !== 'brain') { seen.push(cur); cur = 'brain'; } } else if (cur === 'brain') { seen.push(cur); cur = 'shrooms'; } draw(true); };
+  sentence(st, ask, { lead: 'Stasera ', focus: tv ? 'rate' : null });
+  host.querySelector('.another').onclick = another;
+  if (tv) host.querySelector('.another').classList.add('f');
+  draw(false);
+}
+tonight(document.getElementById('tonightDesk'));
+tonight(document.getElementById('tonightTv'), { tv: true });
+
+/* Stasera, telefono */
+(() => {
+  const host = document.getElementById('tonightPhone'), t = titles.brain;
+  host.innerHTML = `<div class="sheet">
+    <div class="hd" style="display:flex;align-items:center;gap:10px;color:var(--mu);font-weight:600">← &nbsp;Cosa guardo stasera?</div>
+    <div class="ask"></div>
+    <div class="pst" style="background-image:url(${P(t.p)})"></div>
+    <div style="color:var(--gold);font-size:12px;font-weight:600;margin-top:14px">Una serie che non hai mai iniziato</div>
+    <div class="t" style="margin-top:4px">${t.t}</div>
+    <div style="color:var(--mu);margin-top:8px;font-size:12.5px">${t.m} · <span style="color:var(--gold);font-weight:600">★ ${t.r}</span></div>
+    <div style="margin-top:8px;font-size:12.5px;line-height:1.5">${t.o}</div>
+    <div class="btns"><button class="b s">${ico.dice} Un altro</button><button class="b p">${ico.play} Riproduci</button></div>
+    <button class="b s" style="width:100%;justify-content:center;margin-top:10px">${ico.info} Dettagli</button>
+  </div>`;
+  sentence({ type:'serie', dur:'any', genre:'all', rate:'bad' }, host.querySelector('.ask'), { lead:'Stasera ' });
+})();
+
+/* Match */
+const nav = `<div class="nav"><span class="back">←</span><span class="logo">WonderFlix</span><a>Home</a><a>Film</a><a>Serie</a><a>La mia lista</a><a>Richieste</a><a>Calendario</a><span class="me"><span class="av d">D</span>davide.sidoti</span></div>`;
+const lead = 'Votate gli stessi titoli, ognuno per conto suo: quelli che piacciono a tutti diventano un match. Chi ha aperto la sala sceglie da quale cominciare.';
+const seat = (m) => m ? `<div class="seat on${m.done ? ' done' : ''}"><div class="c"><span class="av ${m.c}">${m.i}</span></div>${m.n}${m.v != null ? `<div class="pr"><i style="width:${m.v / 30 * 100}%"></i></div><div class="n">${m.done ? 'finito' : `${m.v} su 30`}</div>` : ''}</div>` : `<div class="seat"><div class="c"></div>libero</div>`;
+
+(() => {
+  const host = document.getElementById('matchWait');
+  host.innerHTML = nav + `<div class="room"><h3>Match</h3><p class="lead">${lead}</p>
+    <div class="cols"><div>
+      <div class="lbl">In sala, 1 su 8</div>
+      <div class="seats">${seat({ c:'d', i:'D', n:'davide.sidoti' })}${'<!---->'.repeat(0)}${[1,2,3,4,5,6,7].map(() => seat()).join('')}</div>
+      <div class="friends"><div class="lbl">Amici online</div>
+        <div class="fr"><span class="av s">S</span><span>sara.lippolis</span><button class="b q inv">Invita</button></div>
+      </div>
+    </div>
+    <div class="panel"><div class="lbl">Si vota tra</div><div class="ask"></div>
+      <div class="start"><button class="b p go" disabled>${ico.play} Inizia</button><span class="why">Serve almeno un amico in sala</span></div>
+    </div></div></div>`;
+  sentence({ type:'serie', dur:'any', genre:'all', rate:'bad' }, host.querySelector('.ask'));
+  const inv = host.querySelector('.inv');
+  inv.onclick = () => {
+    inv.textContent = 'Invitata'; inv.disabled = true;
+    setTimeout(() => {
+      host.querySelector('.seats').innerHTML = seat({ c:'d', i:'D', n:'davide.sidoti' }) + seat({ c:'s', i:'S', n:'sara.lippolis' }) + [1,2,3,4,5,6].map(() => seat()).join('');
+      host.querySelector('.lbl').textContent = 'In sala, 2 su 8';
+      host.querySelector('.fr').remove();
+      host.querySelector('.friends').insertAdjacentHTML('beforeend', '<div style="color:var(--mu)">Nessun altro amico online</div>');
+      host.querySelector('.go').disabled = false; host.querySelector('.why').textContent = 'Dopo l\'inizio non entra più nessuno';
+    }, 900);
+  };
+})();
+
+(() => {
+  const host = document.getElementById('matchVote');
+  const draw = (top) => {
+    const t = titles[top];
+    host.innerHTML = nav + `<div class="room"><div style="display:flex;align-items:flex-end;gap:28px">
+      <h3>Match</h3><div class="seats" style="margin-left:auto">${seat({ c:'d', i:'D', n:'davide.sidoti', v:12 })}${seat({ c:'s', i:'S', n:'sara.lippolis', v:30, done:true })}</div></div>
+      <div class="vote"><div>
+        <div class="deck"><div class="under a" style="background-image:url(${P(titles.beautiful.p)})"></div><div class="under b" style="background-image:url(${P(titles.colony.p)})"></div>
+          <div class="card top" style="background-image:url(${P(t.p)})"><div class="tx"><div class="t">${t.t}</div><div class="m">${t.m}</div>${t.o ? `<div class="o">${t.o}</div>` : ''}</div></div></div>
+        <div class="vbtns"><button class="vb no" title="No">${ico.x}<small>No · ←</small></button><button class="vb yes" title="Sì">${ico.ok}<small>Sì · →</small></button></div>
+        <div class="left">Ne restano 18</div>
+      </div>
+      <div><div class="mh"><h4>Piaciuti a tutti</h4><span>2 match</span></div>
+        <div class="tk first"><span class="pic" style="background-image:url(${B(titles.osiris.b)})"></span><span class="st"><b>Osiris</b><span class="l2">Parte per primo</span></span></div>
+        <div class="tk"><span class="pic" style="background-image:url(${B(titles.wrestler.b)})"></span><span class="st"><b>The Wrestler</b><span class="l2">Film · 1h 49m</span></span></div>
+        <div class="near-h">Piaciuti a quasi tutti</div>
+        <div class="tk near"><span class="pic" style="background-image:url(${B(titles.colony.b)})"></span><span class="st"><b>Colony</b><span class="l2">1 sì su 2</span></span></div>
+        <button class="b p party">${ico.play} Avvia il party con 2 titoli</button>
+      </div></div></div>`;
+    host.querySelector('.vb.yes').onclick = () => {
+      host.insertAdjacentHTML('beforeend', `<div class="boom"><div class="in"><div class="tkb"><div class="pic" style="background-image:url(${P(t.p)})"></div><div class="st"><b>${t.t}</b></div></div><h5>È un match!</h5><p>Piace a tutti e due. Clic per continuare</p></div></div>`);
+      host.querySelector('.boom').onclick = () => draw('hope');
+    };
+    host.querySelector('.vb.no').onclick = () => draw(top === 'hope' ? 'beautiful' : 'hope');
+  };
+  draw('hope');
+})();
+
+(() => {
+  const host = document.getElementById('matchPhone');
+  const t = titles.hope;
+  host.innerHTML = `<div class="room">
+    <div style="display:flex;align-items:center;gap:12px"><h3>Match</h3><div style="margin-left:auto;display:flex;gap:6px"><span class="av d" style="width:30px;height:30px">D</span><span class="av s" style="width:30px;height:30px;box-shadow:0 0 0 2px var(--gold)">S</span></div></div>
+    <div style="color:var(--dim);font-size:12px;margin:4px 0 12px">Tu 12 su 30 · sara.lippolis ha finito</div>
+    <div class="deck"><div class="under a" style="background-image:url(${P(titles.beautiful.p)})"></div>
+      <div class="card top" style="background-image:url(${P(t.p)})"><div class="tx"><div class="t">${t.t}</div><div class="m">${t.m}</div></div></div></div>
+    <div class="vbtns" style="gap:56px"><button class="vb no">${ico.x}</button><button class="vb yes">${ico.ok}</button></div>
+    <div class="mh" style="margin-top:34px"><h4>Piaciuti a tutti</h4><span>2 match</span></div>
+    <div class="strip"><div class="tk first"><span class="pic" style="background-image:url(${B(titles.osiris.b)})"></span><span class="st"><b>Osiris</b><span class="l2">Parte per primo</span></span></div>
+      <div class="tk"><span class="pic" style="background-image:url(${B(titles.wrestler.b)})"></span><span class="st"><b>The Wrestler</b><span class="l2">Film · 1h 49m</span></span></div></div>
+    <button class="b p party">${ico.play} Avvia il party</button>
+  </div><div class="phonenav"><span>Home</span><span>Cerca</span><span>La mia lista</span><span>Richieste</span><span>Altro</span></div>`;
+})();
+</script>
+</body>
+</html>
