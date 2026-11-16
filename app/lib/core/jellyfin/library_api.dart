@@ -104,8 +104,12 @@ class LibraryApi {
           ItemMediaInfo.fromItemJson);
 
   Future<List<JellyfinItem>> seasons(String userId, String seriesId) async =>
-      _list(await _http.get('/Shows/$seriesId/Seasons',
-          query: {...cardImageParams, 'userId': userId}));
+      _list(await _http.get('/Shows/$seriesId/Seasons', query: {
+        ...cardImageParams,
+        'userId': userId,
+        // Gli episodi di ogni stagione, per le schede.
+        'fields': '${cardImageParams['fields']},ChildCount',
+      }));
 
   Future<List<JellyfinItem>> episodes(
           String userId, String seriesId, String seasonId) async =>

@@ -60,6 +60,7 @@ void main() {
     adapter.handler = (_) => FakeResponse(200, itemsResult(['x']));
     await api.seasons('u1', 's1');
     expect(last().path, '/Shows/s1/Seasons');
+    expect(last().query['fields'], contains('ChildCount'));
     await api.episodes('u1', 's1', 'se1');
     expect(last().path, '/Shows/s1/Episodes');
     expect(last().query['seasonId'], 'se1');

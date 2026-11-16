@@ -166,14 +166,38 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                                 setState(() => _selectedSeasonId = id),
                           ),
                         ),
-                        // Il menu della stagione scelta (segnalazioni).
+                        // Il menu della stagione scelta (visto, segnalazioni).
                         // Sulla TV non c'è: la serie ha il suo "Altro".
                         if (list.where((s) => s.id == seasonId).firstOrNull
                             case final season?
                             when !FormFactor.of(context).tv)
                           Padding(
                             padding: const EdgeInsets.only(right: 24),
-                            child: ItemActionsButton(item: season),
+                            child: ItemActionsButton(
+                              item: season,
+                              extra: [
+                                (
+                                  label: watchUserData(ref, season).played
+                                      ? l.detailSeasonMarkUnwatched
+                                      : l.detailSeasonMarkWatched,
+                                  onSelected: () => unawaited(
+                                    runUserDataAction(context, () async {
+                                      await ref
+                                          .read(
+                                            userDataOverridesProvider.notifier,
+                                          )
+                                          .togglePlayed(season);
+                                      ref.invalidate(
+                                        episodesProvider((
+                                          seriesId: series.id,
+                                          seasonId: season.id,
+                                        )),
+                                      );
+                                    }),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                       ],
                     );
@@ -257,40 +281,57 @@ class _SeasonTabsState extends State<_SeasonTabs> {
   Widget build(BuildContext context) {
     final selectedId = widget.selectedId;
     final tv = FormFactor.of(context).tv;
+    final l = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       child: SlidingUnderline(
         selected: selectedId,
         itemKeys: _keys,
         indicatorKey: const Key('season-indicator'),
-        child: Wrap(
-          children: [
-            for (final season in widget.seasons)
-              // Sulla TV il focus è del TvFocusable, non dell'InkWell.
-              TvFocusable(
-                onActivate: () => widget.onSelect(season.id),
-                child: InkWell(
-                  canRequestFocus: !tv,
-                  onTap: () => widget.onSelect(season.id),
-                  child: Container(
-                    key: _keys.putIfAbsent(season.id, GlobalKey.new),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                    child: Text(
-                      season.name,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: season.id == selectedId
-                            ? WfColors.gold
-                            : WfColors.cream,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final season in widget.seasons)
+                // Sulla TV il focus è del TvFocusable, non dell'InkWell.
+                TvFocusable(
+                  onActivate: () => widget.onSelect(season.id),
+                  child: InkWell(
+                    canRequestFocus: !tv,
+                    onTap: () => widget.onSelect(season.id),
+                    child: Container(
+                      key: _keys.putIfAbsent(season.id, GlobalKey.new),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Text.rich(
+                        TextSpan(
+                          text: season.name,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: season.id == selectedId
+                                ? WfColors.gold
+                                : WfColors.cream,
+                          ),
+                          children: [
+                            if (season.childCount case final count?)
+                              TextSpan(
+                                text: ' · ${l.detailEpisodes(count)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w400,
+                                  fontSize: 12.5,
+                                  color: WfColors.creamMuted,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

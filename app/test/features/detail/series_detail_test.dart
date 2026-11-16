@@ -259,6 +259,67 @@ void main() {
     });
   }
 
+  testWidgets('stagioni con il numero di episodi, in una riga che scorre',
+      (tester) async {
+    api.seasonsBySeries['s1'] = [
+      testItem(
+          id: 'se1',
+          name: 'Stagione 1',
+          kind: ItemKind.season,
+          index: 1,
+          childCount: 8),
+      testItem(
+          id: 'se2',
+          name: 'Stagione 2',
+          kind: ItemKind.season,
+          index: 2,
+          childCount: 1),
+    ];
+    await pumpSeries(tester);
+    expect(find.textContaining('8 episodi'), findsOneWidget);
+    expect(find.textContaining('1 episodio'), findsOneWidget);
+    expect(find.ancestor(of: find.textContaining('Stagione 1'), matching: find.byType(Wrap)),
+        findsNothing);
+    expect(
+        find.ancestor(
+            of: find.textContaining('Stagione 1'),
+            matching: find.byWidgetPredicate((w) =>
+                w is SingleChildScrollView &&
+                w.scrollDirection == Axis.horizontal)),
+        findsOneWidget);
+  });
+
+  testWidgets('menu "⋯" della stagione: Segna la stagione come vista',
+      (tester) async {
+    await pumpSeries(tester);
+    await tester.tap(find.byTooltip('Altre azioni').at(1)); // testata, poi stagione
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Segna la stagione come vista'));
+    await tester.pump();
+    await tester.pump();
+    expect(api.playedCalls, contains(('se1', true)));
+    await tester.tap(find.byTooltip('Altre azioni').at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Segna la stagione come da vedere'), findsOneWidget);
+  });
+
+  testWidgets('stagione che non si segna: torna com\'era e lo dice',
+      (tester) async {
+    await pumpSeries(tester);
+    api.error = Exception('boom');
+    await tester.tap(find.byTooltip('Altre azioni').at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Segna la stagione come vista'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(SnackBar), findsOneWidget);
+    api.error = null;
+    await tester.tap(find.byTooltip('Altre azioni').at(1));
+    await tester.pumpAndSettle();
+    expect(find.text('Segna la stagione come vista'), findsOneWidget);
+    expect(find.text('Segna la stagione come da vedere'), findsNothing);
+  });
+
   testWidgets('menu "⋯": senza episodio in Prossimi episodi nessuna voce',
       (tester) async {
     api.nextUpItems = [];

@@ -179,9 +179,9 @@ void main() {
 
   testWidgets('il bottone non c\'è senza voci', (tester) async {
     await pumpDetail(tester, 's1', reports: false);
-    // Né la serie né la stagione hanno voci; restano gli episodi (Info
-    // tecniche).
-    expect(find.byTooltip('Altre azioni'), findsOneWidget);
+    // La serie non ha voci; restano la stagione (Segna come vista) e gli
+    // episodi (Info tecniche).
+    expect(find.byTooltip('Altre azioni'), findsNWidgets(2));
     expect(
         find.descendant(
             of: find.byType(DetailHeader),
