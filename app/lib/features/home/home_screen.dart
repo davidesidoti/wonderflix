@@ -28,6 +28,7 @@ import 'home_row_content.dart';
 import 'home_row_view.dart';
 import 'home_sections.dart';
 import 'tonight_row.dart';
+import 'upcoming_week.dart';
 
 /// L'entrata delle righe della Home si vede una volta per sessione
 /// (decisione 6b): tornando alla Home dalla barra non si ripete.
@@ -347,14 +348,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           animateEntrance: animate,
           autofocusFirst: tv,
         ),
-      // shortcut: fino alla settimana di In arrivo, le due righe di oggi una
-      // sotto l'altra.
-      UpcomingSection(rows: final kinds) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final kind in kinds)
-              if (_filled(rows[kind])) row(kind),
-          ],
+      UpcomingSection() => UpcomingWeek(
+          episodes: switch (rows[HomeRowKind.upcomingSeries]?.value) {
+            UpcomingSeriesRowContent(:final episodes) => episodes,
+            _ => const [],
+          },
+          movies: switch (rows[HomeRowKind.upcomingMovies]?.value) {
+            UpcomingMoviesRowContent(:final movies) => movies,
+            _ => const [],
+          },
+          animateEntrance: animate,
         ),
     };
     final id = section.id;

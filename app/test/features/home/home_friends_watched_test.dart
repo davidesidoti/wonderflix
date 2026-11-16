@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_layout.dart';
@@ -8,6 +9,8 @@ import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/home/home_row_content.dart';
 import 'package:wonderflix/features/home/home_row_view.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/home_fakes.dart';
@@ -85,28 +88,58 @@ void main() {
     await expectLater(row(container()), throwsA(anything));
   });
 
-  testWidgets('la card dice chi l\'ha visto', (tester) async {
-    await pumpApp(
-      tester,
-      Scaffold(
-        body: HomeRowView(
-          kind: HomeRowKind.friendsWatched,
-          content: FriendsWatchedRowContent([
-            FriendsWatchedItem(
-                item: testItem(id: 'm1', name: 'Dune'),
-                by: testFriendsWatched('m1', ['Luca', 'Marta', 'Sara']).by),
-          ]),
-          animateEntrance: false,
+  for (final size in [const Size(1280, 800), const Size(390, 780)]) {
+    testWidgets('facce e nomi sopra la locandina, sotto solo il titolo '
+        '(${size.width.toInt()})', (tester) async {
+      await pumpApp(
+        tester,
+        Scaffold(
+          body: HomeRowView(
+            kind: HomeRowKind.friendsWatched,
+            content: FriendsWatchedRowContent([
+              FriendsWatchedItem(
+                  item: testItem(id: 'm1', name: 'Dune'),
+                  by: testFriendsWatched('m1', ['Garg', 'CaptainC']).by),
+              FriendsWatchedItem(
+                  item: testItem(id: 's1', name: 'Andor', kind: ItemKind.series),
+                  by: testFriendsWatched('s1', ['Luca', 'Marta', 'Sara', 'Pia'])
+                      .by),
+            ]),
+            animateEntrance: false,
+          ),
         ),
-      ),
-      overrides: [
-        sessionControllerProvider.overrideWith(
-            () => FakeSessionController(const SessionSignedIn(testUser))),
-        socialApiProvider.overrideWithValue(social),
-      ],
-    );
-    await tester.pump();
-    expect(find.text('Visti dagli amici'), findsOneWidget);
-    expect(find.text('Visto da Luca e altri 2'), findsOneWidget);
-  });
+        surfaceSize: size,
+        overrides: [
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+          socialApiProvider.overrideWithValue(social),
+        ],
+      );
+      await tester.pump();
+      expect(find.text('Visti dagli amici'), findsOneWidget);
+      expect(find.text('Garg e CaptainC'), findsOneWidget);
+      expect(find.text('Luca e altri 3'), findsOneWidget);
+      expect(find.textContaining('Visto da'), findsNothing);
+      final dune = find.byKey(const ValueKey('friends-watched-m1'));
+      final andor = find.byKey(const ValueKey('friends-watched-s1'));
+      Finder avatars(Finder card) =>
+          find.descendant(of: card, matching: find.byType(UserAvatar));
+      expect(avatars(dune), findsNWidgets(2));
+      expect(avatars(andor), findsNWidgets(3));
+      expect(tester.widget<UserAvatar>(avatars(dune).first).size, 22);
+      // I nomi stanno sopra la locandina.
+      expect(tester.getBottomLeft(find.text('Garg e CaptainC')).dy,
+          lessThan(tester.getTopLeft(find.byType(PosterCard).first).dy));
+      // Sotto la locandina solo il titolo: niente anno, voto o episodi.
+      List<String?> texts(Finder card) => tester
+          .widgetList<Text>(find.descendant(
+              of: find.descendant(of: card, matching: find.byType(PosterCard)),
+              matching: find.byType(Text)))
+          .map((t) => t.data)
+          .toList();
+      expect(texts(dune), ['Dune']);
+      expect(texts(andor), ['Andor']);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

@@ -15,14 +15,13 @@ String friendNowPlayingText(AppLocalizations l, FriendNowPlaying playing) {
       : l.friendsWatching(series);
 }
 
-/// "Visto da Luca", "Visto da Luca e Marta", "Visto da Luca e altri 2": chi
-/// l'ha visto è già dal più recente (spec O §7.4, piano 21b decisione 6).
-String friendsWatchedBy(AppLocalizations l, List<FriendWatcher> by) =>
+/// "Luca", "Garg e CaptainC", "Garg e altri 2": chi l'ha visto è già dal più
+/// recente (spec O §7.4, piano 21b decisione 6; Home spec §7).
+String friendsWatchedNames(AppLocalizations l, List<FriendWatcher> by) =>
     switch (by) {
       [] => '',
-      [final one] => l.friendsWatchedByOne(one.name),
-      [final first, final second] =>
-        l.friendsWatchedByTwo(first.name, second.name),
+      [final one] => one.name,
+      [final first, final second] => l.friendsNamesTwo(first.name, second.name),
       [final first, ...final others] =>
-        l.friendsWatchedByMany(first.name, others.length),
+        l.friendsNamesMany(first.name, others.length),
     };

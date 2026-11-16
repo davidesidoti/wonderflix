@@ -48,6 +48,7 @@ class PosterCard extends ConsumerStatefulWidget {
     this.previewExtra,
     this.autofocus = false,
     this.catalogStyle = false,
+    this.titleOnly = false,
   });
 
   final JellyfinItem item;
@@ -72,6 +73,10 @@ class PosterCard extends ConsumerStatefulWidget {
   /// anno e voto, stato e episodi delle serie, locandina vista un po' spenta,
   /// niente numero oro.
   final bool catalogStyle;
+
+  /// Sotto la locandina solo il titolo (Visti dagli amici: chi l'ha visto
+  /// sta sopra).
+  final bool titleOnly;
 
   /// Etichetta fissa sulla locandina, con il bordo oro sempre acceso: il
   /// titolo aperto nella riga della sua saga ("Questo film", spec K §8.3).
@@ -98,7 +103,9 @@ class _PosterCardState extends ConsumerState<PosterCard> {
     final unplayed = userData.unplayedItemCount ?? 0;
     final catalog = widget.catalogStyle;
     final series = item.kind == ItemKind.series;
-    final line = widget.subtitle ??
+    final line = widget.titleOnly
+        ? null
+        : widget.subtitle ??
         (catalog ? _catalogLine(AppLocalizations.of(context), item) : item.productionYear?.toString());
     // Spenta finché il mouse o il focus non la riaccendono.
     final dimmed = catalog && userData.played && !_hover && !_focused;
@@ -192,7 +199,8 @@ class _PosterCardState extends ConsumerState<PosterCard> {
                             ? WfColors.gold
                             : WfColors.creamMuted,
                         fontSize: 12)),
-              if (catalog && series) _episodesLine(context, userData.played, unplayed),
+              if (catalog && series && !widget.titleOnly)
+                _episodesLine(context, userData.played, unplayed),
             ],
           ),
         ),

@@ -17,9 +17,6 @@ void main() {
     expect(it.settingsShareActivityLoadError, 'Impossibile caricare l\'impostazione');
     expect(it.settingsShareActivitySaveError, 'Impostazione non salvata');
     expect(it.homeRowFriendsWatched, 'Visti dagli amici');
-    expect(it.friendsWatchedByOne('Luca'), 'Visto da Luca');
-    expect(it.friendsWatchedByTwo('Luca', 'Marta'), 'Visto da Luca e Marta');
-    expect(it.friendsWatchedByMany('Luca', 2), 'Visto da Luca e altri 2');
     expect(it.homeRowUnavailableFriendsActivity,
         'Serve il plugin 1.9.0 e l\'accesso ai watch party');
     expect(en.friendsWatching('Dune'), 'Watching Dune');
@@ -27,7 +24,6 @@ void main() {
     expect(en.friendsWatchTogether, 'Watch together');
     expect(en.settingsShareActivity, 'Show friends what I watch');
     expect(en.homeRowFriendsWatched, 'Watched by friends');
-    expect(en.friendsWatchedByMany('Luca', 2), 'Watched by Luca and 2 others');
     expect(en.homeRowUnavailableFriendsActivity, 'Needs plugin 1.9.0 and watch party access');
   });
 }

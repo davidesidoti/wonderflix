@@ -1,34 +1,33 @@
 import 'dart:async';
+import 'dart:math' as math;
 
-import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/navigation.dart';
+import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
-import '../../core/requests/remote_images.dart';
-import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
-import '../../core/social/home_models.dart';
+import '../../core/social/activity_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/card_preview.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/landscape_card.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/remote_image_card.dart';
+import '../../ui/user_avatar.dart';
+import '../catalog/catalog_navigation.dart';
 import '../friends/activity_labels.dart';
-import '../library/library_providers.dart';
 import '../recommendations/recommendation_dismissals.dart';
 import '../recommendations/recommendation_labels.dart';
 import '../requests/request_labels.dart';
 import '../requests/requestable_poster_card.dart';
 import '../requests/requests_navigation.dart';
-import '../requests/requests_providers.dart';
 import 'home_layout.dart';
 import 'home_row_content.dart';
-import 'home_rows_logic.dart';
 
 /// Una riga della Home (spec M §6.1, §8.3): il titolo e le card del suo
 /// tipo.
@@ -55,7 +54,7 @@ class HomeRowView extends ConsumerWidget {
       BecauseYouWatchedContent(:final sourceName, :final items) =>
         _posters(l.homeBecauseYouWatched(sourceName), items),
       RequestsRowContent(:final requests) => _row(
-          l.homeMyRequests, true, requests.length, (context, i) {
+          l.homeMyRequests, _posterHeight, requests.length, (context, i) {
           final request = requests[i];
           final year = request.year;
           return RemoteImageCard(
@@ -70,7 +69,7 @@ class HomeRowView extends ConsumerWidget {
           );
         }),
       SagasRowContent(:final sagas) => _row(
-          l.homeContinueSaga, false, sagas.length, (context, i) {
+          l.homeContinueSaga, _landscapeHeight, sagas.length, (context, i) {
           final saga = sagas[i];
           return LandscapeCard(
             item: saga.next,
@@ -80,10 +79,9 @@ class HomeRowView extends ConsumerWidget {
             onTap: () => openCollection(context, saga.saga.id),
           );
         }),
-      UpcomingSeriesRowContent(:final episodes) =>
-        _upcomingSeries(context, ref, l, episodes),
-      UpcomingMoviesRowContent(:final movies) =>
-        _upcomingMovies(ref, l, movies),
+      // Serie e Film in arrivo stanno in `UpcomingWeek`.
+      UpcomingSeriesRowContent() ||
+      UpcomingMoviesRowContent() => const SizedBox.shrink(),
       RecommendedRowContent(:final titles) =>
         _recommended(context, ref, l, titles),
       FriendsWatchedRowContent(:final titles) => _friendsWatched(l, titles),
@@ -106,17 +104,42 @@ class HomeRowView extends ConsumerWidget {
         HomeRowKind.myList => l.navMyList,
       };
 
-  /// "Visti dagli amici": chi l'ha visto sotto la locandina (spec O §7.4).
+  /// "Visti dagli amici": le facce e i nomi di chi l'ha visto sopra la
+  /// locandina, sotto solo il titolo (spec §7).
   Widget _friendsWatched(AppLocalizations l, List<FriendsWatchedItem> titles) =>
-      _row(l.homeRowFriendsWatched, true, titles.length,
+      _row(l.homeRowFriendsWatched, _friendsHeight, titles.length,
           (context, i) {
         final title = titles[i];
-        return PosterCard(
+        final width = _friendsWidth(context);
+        return SizedBox(
           key: ValueKey('friends-watched-${title.item.id}'),
-          item: title.item,
-          width: rowPosterSize(context).width,
-          heroSource: 'home.${kind.id}.$i',
-          subtitle: friendsWatchedBy(l, title.by),
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _Faces(title.by.take(3).toList()),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(friendsWatchedNames(l, title.by),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: WfColors.cream, fontSize: 12)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              PosterCard(
+                item: title.item,
+                width: width,
+                heroSource: 'home.${kind.id}.$i',
+                catalogStyle: true,
+                titleOnly: true,
+              ),
+            ],
+          ),
         );
       });
 
@@ -131,13 +154,15 @@ class HomeRowView extends ConsumerWidget {
         if (!dismissed.contains(jellyfinIdKey(title.item.id))) title,
     ];
     if (shown.isEmpty) return const SizedBox.shrink();
-    return _row(l.homeRowRecommended, true, shown.length, (context, i) {
+    return _row(l.homeRowRecommended, _catalogHeight, shown.length,
+        (context, i) {
       final title = shown[i];
       return PosterCard(
         key: ValueKey('recommended-${title.item.id}'),
         item: title.item,
         width: rowPosterSize(context).width,
         heroSource: 'home.${kind.id}.$i',
+        catalogStyle: true,
         subtitle: recommendedFrom(l, title.from),
         previewExtra: CardPreviewExtra(
           notes: recommendationNotes(l, title.from),
@@ -158,80 +183,102 @@ class HomeRowView extends ConsumerWidget {
     }
   }
 
-  /// Riga di locandine ([poster]) o di card orizzontali.
-  Widget _row(String title, bool poster, int count,
+  /// Il link del titolo, per le righe che hanno una pagina (spec §9.1).
+  VoidCallback? _link(BuildContext context) => switch (kind) {
+        HomeRowKind.requests => () => context.go('/requests'),
+        HomeRowKind.latestMovies => () => openCatalog(context, ItemKind.movie),
+        HomeRowKind.latestSeries => () =>
+            openCatalog(context, ItemKind.series),
+        HomeRowKind.continueSaga => () =>
+            openCatalog(context, ItemKind.movie, view: CatalogView.sagas),
+        HomeRowKind.myList => () => context.go('/mylist'),
+        _ => null,
+      };
+
+  /// Riga alta [height], con il conteggio delle card e il link se c'è.
+  Widget _row(String title, double Function(BuildContext) height, int count,
           IndexedWidgetBuilder itemBuilder) =>
       Builder(
         builder: (context) => MediaRow(
           title: title,
-          height: (poster
-                  ? rowPosterSize(context)
-                  : rowLandscapeSize(context))
-              .rowHeight,
+          count: '$count',
+          titleSize: 26,
+          topSpacing: 28,
+          onTitleTap: _link(context),
+          height: height(context),
           itemCount: count,
           animateEntrance: animateEntrance,
           itemBuilder: itemBuilder,
         ),
       );
 
+  static double _posterHeight(BuildContext context) =>
+      rowPosterSize(context).rowHeight;
+
+  static double _landscapeHeight(BuildContext context) =>
+      rowLandscapeSize(context).rowHeight;
+
+  /// Locandina del catalogo: 2:3 più le righe di testo sotto.
+  static double _catalogHeight(BuildContext context) =>
+      rowPosterSize(context).width * 1.5 +
+      catalogCardTextHeight(MediaQuery.textScalerOf(context));
+
+  static double _friendsWidth(BuildContext context) =>
+      FormFactor.of(context).compact ? 124 : 176;
+
+  /// Facce (o nomi) sopra, locandina, titolo su due righe.
+  static double _friendsHeight(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    return math.max(_faceSize, scaler.scale(16)) +
+        8 +
+        _friendsWidth(context) * 1.5 +
+        8 +
+        scaler.scale(36);
+  }
+
   Widget _posters(String title, List<JellyfinItem> items) =>
-      _row(title, true, items.length, (context, i) => PosterCard(
+      _row(title, _catalogHeight, items.length, (context, i) => PosterCard(
             item: items[i],
             width: rowPosterSize(context).width,
             heroSource: 'home.${kind.id}.$i',
+            catalogStyle: true,
           ));
+}
 
-  /// Sfondo: quello di Jellyfin se la serie c'è, poi quello di Sonarr, poi la
-  /// locandina; clic: la scheda, poi Seerr, poi niente (spec M §8.3).
-  Widget _upcomingSeries(BuildContext context, WidgetRef ref,
-      AppLocalizations l, List<UpcomingEpisode> episodes) {
-    final urls = ref.watch(imageUrlsProvider);
-    final canRequest = ref.watch(requestsAvailableProvider);
-    final now = clock.now();
-    return _row(l.homeUpcomingSeries, false, episodes.length,
-        (context, i) {
-      final episode = episodes[i];
-      final seriesId = episode.jellyfinSeriesId;
-      final tmdbId = episode.tmdbId;
-      final remote = episode.backdropUrl ?? episode.posterUrl;
-      return RemoteImageCard(
-        shape: RemoteCardShape.landscape,
-        width: rowLandscapeSize(context).width,
-        image: seriesId != null
-            ? urls.backdropOf(seriesId)
-            : remote == null
-                ? null
-                : RemoteImages.backdrop(remote),
-        title: episode.seriesName,
-        subtitle: upcomingEpisodeLabel(episode, now, l),
-        onTap: seriesId != null
-            ? () => openItemById(context, seriesId)
-            : tmdbId != null && canRequest
-                ? () => unawaited(
-                    context.push(tmdbRoute(RequestMediaType.tv, tmdbId)))
-                : null,
-      );
-    });
-  }
+const _faceSize = 22.0;
 
-  Widget _upcomingMovies(
-      WidgetRef ref, AppLocalizations l, List<UpcomingMovie> movies) {
-    final canRequest = ref.watch(requestsAvailableProvider);
-    return _row(l.homeUpcomingMovies, true, movies.length,
-        (context, i) {
-      final movie = movies[i];
-      final poster = movie.posterUrl;
-      return RemoteImageCard(
-        shape: RemoteCardShape.poster,
-        width: rowPosterSize(context).width,
-        image: poster == null ? null : RemoteImages.poster(poster),
-        title: movie.title,
-        subtitle: upcomingMovieLabel(movie, l),
-        onTap: canRequest
-            ? () => unawaited(context
-                .push(tmdbRoute(RequestMediaType.movie, movie.tmdbId)))
-            : null,
-      );
-    });
+/// Le facce di chi l'ha visto, sovrapposte di 7 (la più recente sotto).
+class _Faces extends StatelessWidget {
+  const _Faces(this.by);
+
+  final List<FriendWatcher> by;
+
+  @override
+  Widget build(BuildContext context) {
+    const step = _faceSize - 7;
+    return SizedBox(
+      width: _faceSize + step * (by.length - 1),
+      height: _faceSize,
+      child: Stack(
+        children: [
+          for (final (i, friend) in by.indexed)
+            Positioned(
+              left: i * step,
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: WfColors.bg, width: 2),
+                ),
+                child: UserAvatar.lookup(
+                    userId: friend.userId,
+                    name: friend.name,
+                    size: _faceSize,
+                    muted: true),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

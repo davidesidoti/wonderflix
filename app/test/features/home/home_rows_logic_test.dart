@@ -1,23 +1,14 @@
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
-import 'package:wonderflix/core/social/home_models.dart';
 import 'package:wonderflix/features/home/home_row_content.dart';
 import 'package:wonderflix/features/home/home_rows_logic.dart';
-import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
 import '../../support/collections_fakes.dart';
 import '../../support/library_fakes.dart';
 import '../../support/requests_fakes.dart';
 
 void main() {
-  setUpAll(() => initializeDateFormatting());
-
-  final it = lookupAppLocalizations(const Locale('it'));
-  final en = lookupAppLocalizations(const Locale('en'));
-
   JellyfinItem episode(String id, String seriesId, String seriesName) =>
       testItem(
           id: id,
@@ -171,43 +162,6 @@ void main() {
       final none = FakeLibraryApi();
       expect(await loadContinueSaga(none, 'u1', const []), isEmpty);
       expect(none.playedMoviesCalls, isEmpty);
-    });
-  });
-
-  group('etichette delle date', () {
-    final now = DateTime(2026, 10, 10, 20, 30);
-
-    UpcomingEpisode upcoming(DateTime at, {int? last}) => UpcomingEpisode(
-        seriesName: 'The Bear',
-        seasonNumber: 2,
-        episodeNumber: 5,
-        lastEpisodeNumber: last,
-        airDate: at);
-
-    test('oggi (anche se passata), domani, poi il giorno', () {
-      expect(upcomingDayLabel(DateTime(2026, 10, 10, 2), now, it), 'Oggi');
-      expect(upcomingDayLabel(DateTime(2026, 10, 9, 23), now, it), 'Oggi');
-      expect(upcomingDayLabel(DateTime(2026, 10, 11, 1), now, it), 'Domani');
-      expect(upcomingDayLabel(DateTime(2026, 10, 16, 4), now, it), 'ven 16 ott');
-      expect(upcomingDayLabel(DateTime(2026, 10, 16, 4), now, en), 'Fri, Oct 16');
-    });
-
-    test('episodi e blocchi di episodi', () {
-      expect(upcomingEpisodeLabel(upcoming(DateTime(2026, 10, 11, 9)), now, it),
-          'S02E05 · Domani');
-      expect(
-          upcomingEpisodeLabel(
-              upcoming(DateTime(2026, 10, 10, 22), last: 6), now, it),
-          'S02E05–E06 · Oggi');
-      expect(upcomingEpisodeLabel(upcoming(DateTime(2026, 10, 11, 9)), now, en),
-          'S02E05 · Tomorrow');
-    });
-
-    test('film: la data digitale come data di calendario', () {
-      final hope = UpcomingMovie(
-          title: 'Hope', tmdbId: 1, digitalRelease: DateTime.utc(2026, 10, 13));
-      expect(upcomingMovieLabel(hope, it), 'Digitale · 13 ott');
-      expect(upcomingMovieLabel(hope, en), 'Digital · Oct 13');
     });
   });
 

@@ -228,12 +228,12 @@ void main() {
     await tester.pump(homeRevealWait);
     await tester.pump();
     expect(find.text('Stasera'), findsOneWidget);
-    expect(find.text('Serie in arrivo'), findsNothing);
+    expect(find.text('In arrivo'), findsNothing);
 
     home.seriesGate!.complete();
     await settle(tester);
-    expect(find.text('Serie in arrivo'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('Serie in arrivo')).dy,
+    expect(find.text('In arrivo'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('In arrivo')).dy,
         greaterThan(tester.getTopLeft(find.text('Serie aggiunte di recente')).dy));
   });
 
@@ -375,10 +375,11 @@ void main() {
     expect(find.text('Continua la saga'), findsOneWidget);
     expect(find.text('Matrix Reloaded'), findsOneWidget);
     expect(find.text('Matrix - Collezione · 1 di 2 visti'), findsOneWidget);
-    expect(find.text('Serie in arrivo'), findsOneWidget);
-    expect(find.text('S02E05 · Domani'), findsOneWidget);
-    expect(find.text('Film in arrivo'), findsOneWidget);
-    expect(find.text('Digitale · 13 ott'), findsOneWidget);
+    // Serie e film in arrivo stanno insieme nella settimana (spec §8).
+    expect(find.text('In arrivo'), findsOneWidget);
+    expect(find.text('2 uscite'), findsOneWidget);
+    expect(find.text('S2:E5'), findsOneWidget);
+    expect(find.text('Film, in digitale'), findsOneWidget);
   });
 
   testWidgets('"Personalizza la Home" in fondo apre le impostazioni sulla '

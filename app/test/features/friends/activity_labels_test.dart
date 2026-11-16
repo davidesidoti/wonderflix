@@ -25,12 +25,15 @@ void main() {
         'Sta guardando Speciale');
   });
 
-  test('Visto da: uno, due, tre o più', () {
+  test('chi l\'ha visto:uno, due, tre o più', () {
     FriendWatcher w(String name) =>
         FriendWatcher(userId: name, name: name, watchedAt: DateTime.utc(2026));
-    expect(friendsWatchedBy(l, [w('Luca')]), 'Visto da Luca');
-    expect(friendsWatchedBy(l, [w('Luca'), w('Marta')]), 'Visto da Luca e Marta');
-    expect(friendsWatchedBy(l, [w('Luca'), w('Marta'), w('Sara')]), 'Visto da Luca e altri 2');
-    expect(friendsWatchedBy(l, const []), '');
+    final en = lookupAppLocalizations(const Locale('en'));
+    expect(friendsWatchedNames(l, [w('Luca')]), 'Luca');
+    expect(friendsWatchedNames(l, [w('Garg'), w('CaptainC')]), 'Garg e CaptainC');
+    expect(friendsWatchedNames(l, [w('Garg'), w('Luca'), w('Sara')]), 'Garg e altri 2');
+    expect(friendsWatchedNames(en, [w('Garg'), w('CaptainC')]), 'Garg and CaptainC');
+    expect(friendsWatchedNames(en, [w('Garg'), w('Luca'), w('Sara')]), 'Garg and 2 others');
+    expect(friendsWatchedNames(l, const []), '');
   });
 }

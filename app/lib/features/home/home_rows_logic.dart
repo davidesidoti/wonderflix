@@ -1,16 +1,12 @@
 import 'dart:math';
 
-import 'package:intl/intl.dart';
-
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/jellyfin/library_api.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/social/activity_models.dart';
 import '../../core/social/collections_models.dart';
-import '../../core/social/home_models.dart';
 import '../../core/social/recommendation_models.dart';
-import '../../l10n/gen/app_localizations.dart';
 import 'home_row_content.dart';
 
 /// Titoli al massimo in una riga della Home (spec M §8.3).
@@ -242,38 +238,6 @@ Future<List<FriendsWatchedItem>> loadFriendsWatched(
         FriendsWatchedItem(item: item, by: w.by),
   ];
 }
-
-/// Il giorno di un'uscita, nel fuso del PC (spec M §8.3): "Oggi" anche se è
-/// passata, "Domani", poi giorno della settimana e data.
-String upcomingDayLabel(DateTime when, DateTime now, AppLocalizations l) {
-  final local = when.toLocal();
-  final days = calendarDays(now.toLocal(), local);
-  if (days <= 0) return l.upcomingToday;
-  if (days == 1) return l.upcomingTomorrow;
-  return DateFormat.MMMEd(l.localeName).format(local);
-}
-
-/// "S02E05 · Domani", "S01E05–E06 · Oggi".
-String upcomingEpisodeLabel(
-    UpcomingEpisode episode, DateTime now, AppLocalizations l) {
-  final day = upcomingDayLabel(episode.airDate, now, l);
-  final season = _twoDigits(episode.seasonNumber);
-  final first = _twoDigits(episode.episodeNumber);
-  final last = episode.lastEpisodeNumber;
-  return last == null
-      ? l.upcomingEpisode(season, first, day)
-      : l.upcomingEpisodes(season, first, _twoDigits(last), day);
-}
-
-/// "Digitale · 13 ott": una data di calendario, quindi il giorno UTC e non
-/// quello del fuso del PC (decisione 5 del piano 19b).
-String upcomingMovieLabel(UpcomingMovie movie, AppLocalizations l) {
-  final release = movie.digitalRelease.toUtc();
-  return l.upcomingDigital(DateFormat.MMMd(l.localeName)
-      .format(DateTime(release.year, release.month, release.day)));
-}
-
-String _twoDigits(int number) => number.toString().padLeft(2, '0');
 
 /// Giorni di calendario tra le due date (locali), senza l'effetto dell'ora
 /// legale.
