@@ -6,6 +6,7 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/media_info_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/states.dart';
 import '../../ui/wf_dialog.dart';
 import '../admin/admin_providers.dart';
@@ -17,6 +18,7 @@ Future<void> showMediaInfoDialog(BuildContext context, JellyfinItem item) =>
     showWfDialog<void>(
       context,
       maxWidth: 560,
+      fullPageWhenCompact: !FormFactor.of(context).tv,
       semanticLabel: AppLocalizations.of(context).mediaInfoTitle,
       builder: (_) => _MediaInfoContent(item: item),
     );

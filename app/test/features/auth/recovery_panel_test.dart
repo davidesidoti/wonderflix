@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/config/app_config.dart';
@@ -16,6 +17,7 @@ import '../../support/fake_session_controller.dart';
 import '../../support/field_focus.dart';
 import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/tv_field_frame.dart';
 
 void main() {
   late FakeAccountApi api;
@@ -38,8 +40,9 @@ void main() {
     WidgetTester tester, {
     bool quickConnect = false,
     bool supportUrl = true,
+    bool tv = false,
   }) async {
-    await pumpApp(tester, const LoginScreen(), overrides: [
+    await pumpApp(tester, const LoginScreen(), tv: tv, overrides: [
       sessionControllerProvider.overrideWith(() => session),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
       profilesProvider
@@ -81,6 +84,57 @@ void main() {
 
     expect(fieldText(tester, 'login-username'), 'garg2');
     expect(find.text('Recupera la password'), findsNothing);
+  });
+
+  testWidgets('TV: i campi del recupero non prendono il fuoco da soli',
+      (tester) async {
+    await pumpLogin(tester, tv: true);
+    // Il campo è in cornice: senza OK non prende il testo da `enterText`.
+    tester
+        .widget<TextField>(find.byKey(const Key('login-username')))
+        .controller!
+        .text = 'garg';
+    await tapKey(tester, 'login-forgot');
+    await tester.pump();
+    final username = find.byKey(const Key('recovery-username'));
+    bool anyFieldFocused() => tester
+        .widgetList<EditableText>(find.byType(EditableText))
+        .any((e) => e.focusNode.hasFocus);
+    expect(anyFieldFocused(), isFalse);
+
+    // Primo passo: Giù dal nome passa su "Invia il codice" senza tastiera.
+    tvFrameNode(tester, username).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(anyFieldFocused(), isFalse);
+    expect(
+        FocusManager.instance.primaryFocus!.context!
+            .findAncestorWidgetOfExactType<FilledButton>(),
+        tester.widget(find.byKey(const Key('recovery-send'))));
+
+    // Secondo passo: codice, password nuova e conferma, poi il pulsante.
+    await tapKey(tester, 'recovery-send');
+    await tester.pump();
+    await tester.pump();
+    expect(anyFieldFocused(), isFalse);
+    final code = find.byKey(const Key('recovery-code'));
+    tvFrameNode(tester, code).requestFocus();
+    await tester.pump();
+    for (final key in ['recovery-new', 'recovery-confirm']) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(tvFrameNode(tester, find.byKey(Key(key))).hasPrimaryFocus, isTrue,
+          reason: key);
+      expect(anyFieldFocused(), isFalse);
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(
+        FocusManager.instance.primaryFocus!.context!
+            .findAncestorWidgetOfExactType<FilledButton>(),
+        tester.widget(find.byKey(const Key('recovery-submit'))));
+    expect(anyFieldFocused(), isFalse);
   });
 
   testWidgets('con Quick Connect il recupero prende tutto il pannello',

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/shell_panels.dart';
@@ -14,6 +15,7 @@ import 'package:wonderflix/features/social/social_providers.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
+import '../../support/tv_field_frame.dart';
 
 void main() {
   late FakeSocialApi api;
@@ -148,5 +150,27 @@ void main() {
             of: find.byType(RatingScorePicker),
             matching: find.byElementPredicate((e) => e == focus!.context)),
         findsOneWidget);
+  });
+
+  testWidgets('TV: Giù passa sopra il commento senza aprire la tastiera',
+      (tester) async {
+    await pump(tester, tv: true, size: const Size(960, 540));
+    await tester.pump();
+    final comment = find.byType(TextField);
+    expect(tvFieldFocused(tester, comment), isFalse);
+    // Con un voto scelto "Salva" è acceso.
+    await tester.tap(find.byKey(const Key('rating-score-10')));
+    await tester.pump();
+    Focus.of(tester.element(find.byKey(const Key('rating-score-10'))))
+        .requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(tvFrameNode(tester, comment).hasPrimaryFocus, isTrue);
+    expect(tvFieldFocused(tester, comment), isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(focusOnButton(), isTrue);
+    expect(tvFieldFocused(tester, comment), isFalse);
   });
 }

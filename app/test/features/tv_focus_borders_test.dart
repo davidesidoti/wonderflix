@@ -114,6 +114,9 @@ void main() {
     ) async {
       await pump(tester, tv: true);
       final row = find.byType(Checkbox);
+      // All'apertura il fuoco parte già dalla prima riga: lo si toglie.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
       expect(_ring(tester, row)?.top.color, Colors.transparent);
       await _focus(tester, find.text('Peach'));
       expect(_ring(tester, row)?.top.color, WfColors.gold);

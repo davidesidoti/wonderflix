@@ -24,10 +24,12 @@ void main() {
     WidgetTester tester, {
     JellyfinUser user = testUser,
     Size surfaceSize = const Size(1440, 900),
+    bool tv = false,
   }) async {
     final item = testItem(id: 'e1', name: 'Pilot', kind: ItemKind.episode);
     await pumpApp(
       tester,
+      tv: tv,
       surfaceSize: surfaceSize,
       Scaffold(
         body: Consumer(
@@ -88,6 +90,11 @@ void main() {
     expect(find.textContaining('esterno'), findsOneWidget);
     expect(find.textContaining('nel file'), findsOneWidget);
     expect(find.textContaining('Forzati'), findsOneWidget);
+  });
+
+  testWidgets('TV: Info tecniche è una finestra, non una pagina', (tester) async {
+    await openDialog(tester, surfaceSize: const Size(960, 540), tv: true);
+    expect(find.byType(Dialog), findsOneWidget);
   });
 
   testWidgets('una sola versione: niente titolo di versione', (tester) async {

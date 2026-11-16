@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/reports/report_models.dart';
@@ -15,6 +16,7 @@ import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/report_fakes.dart';
 import '../../support/test_data.dart';
+import '../../support/tv_field_frame.dart';
 
 void main() {
   final AppLocalizations l = AppLocalizationsIt();
@@ -92,9 +94,11 @@ void main() {
       WidgetTester tester,
       JellyfinItem item, {
       Size surfaceSize = const Size(1440, 900),
+      bool tv = false,
     }) async {
       await pumpApp(
         tester,
+        tv: tv,
         surfaceSize: surfaceSize,
         Scaffold(
           body: Builder(
@@ -317,6 +321,46 @@ void main() {
 
       expect(find.text('Non hai il permesso per farlo'), findsOneWidget);
       expect(session.refreshUserCalls, 1);
+    });
+
+    testWidgets('TV: Giù passa sopra la nota senza aprire la tastiera', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        testItem(id: 'm1'),
+        surfaceSize: const Size(960, 540),
+        tv: true,
+      );
+      final note = find.byType(TextField);
+      expect(tvFieldFocused(tester, note), isFalse);
+      Focus.of(
+        tester.element(
+          find.descendant(
+            of: find.byType(ChoiceChip).last,
+            matching: find.byType(Text),
+          ),
+        ),
+      ).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(tvFrameNode(tester, note).hasPrimaryFocus, isTrue);
+      expect(tvFieldFocused(tester, note), isFalse);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(focusOnButton(), isTrue);
+      expect(tvFieldFocused(tester, note), isFalse);
+    });
+
+    testWidgets('TV: Segnala è una finestra, non una pagina', (tester) async {
+      await open(
+        tester,
+        testItem(id: 'm1'),
+        surfaceSize: const Size(960, 540),
+        tv: true,
+      );
+      expect(find.byType(Dialog), findsOneWidget);
     });
 
     testWidgets('doppio clic su Invia: una sola chiamata', (tester) async {

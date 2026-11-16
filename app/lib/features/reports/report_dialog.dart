@@ -10,7 +10,9 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/reports/report_models.dart';
 import '../../core/reports/reports_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/rune_limit.dart';
+import '../../ui/tv_text_field_frame.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
 import '../auth/password_login_form.dart';
@@ -96,6 +98,8 @@ Future<void> showReportDialog(BuildContext context, JellyfinItem item) async {
   final sent = await showWfDialog<bool>(
     context,
     semanticLabel: l.reportDialogTitle,
+    // In TV la finestra resta una finestra: una pagina intera non serve.
+    fullPageWhenCompact: !FormFactor.of(context).tv,
     builder: (_) => _ReportDialog(item: item),
   );
   if (sent == true) {
@@ -114,6 +118,7 @@ class _ReportDialog extends ConsumerStatefulWidget {
 
 class _ReportDialogState extends ConsumerState<_ReportDialog> {
   final _note = TextEditingController();
+  final _noteFocus = FocusNode(debugLabel: 'report-note');
   List<ReportTarget>? _targets;
   int _target = 0;
   ReportType? _type;
@@ -147,6 +152,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   @override
   void dispose() {
     _note.dispose();
+    _noteFocus.dispose();
     super.dispose();
   }
 
@@ -283,17 +289,21 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                 style: const TextStyle(color: WfColors.creamMuted)),
           ],
           const SizedBox(height: 16),
-          TextField(
-            controller: _note,
-            enabled: !_busy,
-            minLines: 3,
-            maxLines: 6,
-            inputFormatters: [capRunes(reportNoteMaxLength)],
-            decoration: InputDecoration(
-              hintText: l.reportNoteHint,
-              counterText: noteLength >= _counterFrom
-                  ? '$noteLength/$reportNoteMaxLength'
-                  : '',
+          TvTextFieldFrame(
+            focusNode: _noteFocus,
+            child: TextField(
+              controller: _note,
+              focusNode: _noteFocus,
+              enabled: !_busy,
+              minLines: 3,
+              maxLines: 6,
+              inputFormatters: [capRunes(reportNoteMaxLength)],
+              decoration: InputDecoration(
+                hintText: l.reportNoteHint,
+                counterText: noteLength >= _counterFrom
+                    ? '$noteLength/$reportNoteMaxLength'
+                    : '',
+              ),
             ),
           ),
           if (_error != null) ...[

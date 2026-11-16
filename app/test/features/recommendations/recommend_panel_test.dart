@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/recommendations/recommend_panel.dart';
@@ -8,6 +9,7 @@ import 'package:wonderflix/features/social/social_providers.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
+import '../../support/tv_field_frame.dart';
 
 void main() {
   late FakeSocialApi api;
@@ -179,5 +181,27 @@ void main() {
             matching: find.byElementPredicate((e) => e == focus!.context)),
         findsOneWidget,
         reason: 'Luigi è il primo amico (online)');
+  });
+
+  testWidgets('TV: Giù passa sopra il messaggio senza aprire la tastiera',
+      (tester) async {
+    await pump(tester, tv: true, size: const Size(960, 540));
+    await tester.pump();
+    final message = find.byType(TextField);
+    expect(tvFieldFocused(tester, message), isFalse);
+    // Peach è l'ultimo amico raggiungibile (Toad non può vederlo); con
+    // qualcuno scelto "Invia" è acceso.
+    await tester.tap(target('u3'));
+    await tester.pump();
+    Focus.of(tester.element(find.text('Peach'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(tvFrameNode(tester, message).hasPrimaryFocus, isTrue);
+    expect(tvFieldFocused(tester, message), isFalse);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(focusOnButton(), isTrue);
+    expect(tvFieldFocused(tester, message), isFalse);
   });
 }

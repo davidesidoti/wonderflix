@@ -6,6 +6,7 @@ import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/rune_limit.dart';
 import '../../ui/tv_focusable.dart';
+import '../../ui/tv_text_field_frame.dart';
 
 /// Lunghezza massima del commento, in punti di codice (spec Q §3).
 const ratingCommentMax = 200;
@@ -70,7 +71,7 @@ class RatingScorePicker extends StatelessWidget {
 }
 
 /// Il commento facoltativo: 200 punti di codice, Invio non va a capo.
-class RatingCommentField extends StatelessWidget {
+class RatingCommentField extends StatefulWidget {
   const RatingCommentField({
     super.key,
     required this.controller,
@@ -83,20 +84,39 @@ class RatingCommentField extends StatelessWidget {
   final VoidCallback? onSubmitted;
 
   @override
+  State<RatingCommentField> createState() => _RatingCommentFieldState();
+}
+
+class _RatingCommentFieldState extends State<RatingCommentField> {
+  /// Il nodo di riserva: la cornice TV ne vuole sempre uno.
+  final _own = FocusNode(debugLabel: 'rating-comment');
+
+  FocusNode get _node => widget.focusNode ?? _own;
+
+  @override
+  void dispose() {
+    _own.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      maxLength: ratingCommentMax,
-      inputFormatters: [capRunes(ratingCommentMax)],
-      minLines: 1,
-      maxLines: 3,
-      keyboardType: TextInputType.text,
-      textInputAction: TextInputAction.done,
-      onSubmitted: (_) => onSubmitted?.call(),
-      decoration: InputDecoration(
-        hintText: AppLocalizations.of(context).ratingCommentHint,
-        isDense: true,
+    return TvTextFieldFrame(
+      focusNode: _node,
+      child: TextField(
+        controller: widget.controller,
+        focusNode: _node,
+        maxLength: ratingCommentMax,
+        inputFormatters: [capRunes(ratingCommentMax)],
+        minLines: 1,
+        maxLines: 3,
+        keyboardType: TextInputType.text,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => widget.onSubmitted?.call(),
+        decoration: InputDecoration(
+          hintText: AppLocalizations.of(context).ratingCommentHint,
+          isDense: true,
+        ),
       ),
     );
   }

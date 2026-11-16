@@ -16,6 +16,7 @@ import '../../ui/panel_header.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/tv_focusable.dart';
+import '../../ui/tv_text_field_frame.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
@@ -92,6 +93,7 @@ class RecommendPanel extends ConsumerStatefulWidget {
 class _RecommendPanelState extends ConsumerState<RecommendPanel> {
   final _message = TextEditingController();
   final _closeFocus = FocusNode(debugLabel: 'recommend-close');
+  final _messageFocus = FocusNode(debugLabel: 'recommend-message');
   final _selected = <String>{};
   bool _sending = false;
   bool _focused = false;
@@ -117,6 +119,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
   void dispose() {
     _message.dispose();
     _closeFocus.dispose();
+    _messageFocus.dispose();
     super.dispose();
   }
 
@@ -224,17 +227,21 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _message,
-                  maxLength: recommendMessageMax,
-                  inputFormatters: [capRunes(recommendMessageMax)],
-                  minLines: 1,
-                  maxLines: 3,
-                  // Invio non va a capo: il plugin toglie comunque gli a capo.
-                  keyboardType: TextInputType.text,
-                  textInputAction: TextInputAction.done,
-                  decoration: InputDecoration(
-                      hintText: l.recommendMessageHint, isDense: true),
+                TvTextFieldFrame(
+                  focusNode: _messageFocus,
+                  child: TextField(
+                    controller: _message,
+                    focusNode: _messageFocus,
+                    maxLength: recommendMessageMax,
+                    inputFormatters: [capRunes(recommendMessageMax)],
+                    minLines: 1,
+                    maxLines: 3,
+                    // Invio non va a capo: il plugin toglie comunque gli a capo.
+                    keyboardType: TextInputType.text,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                        hintText: l.recommendMessageHint, isDense: true),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Align(

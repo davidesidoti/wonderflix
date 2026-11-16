@@ -11,6 +11,8 @@ import '../../app/theme.dart';
 import '../../core/social/account_api.dart';
 import '../../core/social/account_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
+import '../../ui/tv_text_field_frame.dart';
 import '../account/account_providers.dart';
 import '../account/account_texts.dart';
 import '../account/field_focus.dart';
@@ -40,7 +42,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
   final _code = TextEditingController();
   final _new = TextEditingController();
   final _confirm = TextEditingController();
+  final _usernameFocus = FocusNode();
   final _codeFocus = FocusNode();
+  final _newFocus = FocusNode();
+  final _confirmFocus = FocusNode();
 
   /// Il fuoco di "ACCEDI" nella vista "password cambiata" ([_changedTo]).
   final _signInFocus = FocusNode();
@@ -73,7 +78,10 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     _code.dispose();
     _new.dispose();
     _confirm.dispose();
+    _usernameFocus.dispose();
     _codeFocus.dispose();
+    _newFocus.dispose();
+    _confirmFocus.dispose();
     _signInFocus.dispose();
     super.dispose();
   }
@@ -272,6 +280,8 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
     final l = AppLocalizations.of(context);
     final supportUrl = ref.watch(appConfigProvider).supportUrl;
     final sentFor = _sentFor;
+    // In TV un campo con `autofocus` aprirebbe subito la tastiera.
+    final tv = FormFactor.of(context).tv;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -298,15 +308,19 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
         if (_unavailable)
           Text(l.recoveryUnavailable)
         else if (sentFor == null) ...[
-          TextField(
-            key: const Key('recovery-username'),
-            controller: _username,
-            autofocus: true,
-            onSubmitted: (_) => unawaited(_start()),
-            decoration: InputDecoration(
-                hintText: l.loginUsername,
-                errorText: _usernameError,
-                errorMaxLines: accountErrorMaxLines),
+          TvTextFieldFrame(
+            focusNode: _usernameFocus,
+            child: TextField(
+              key: const Key('recovery-username'),
+              controller: _username,
+              focusNode: _usernameFocus,
+              autofocus: !tv,
+              onSubmitted: (_) => unawaited(_start()),
+              decoration: InputDecoration(
+                  hintText: l.loginUsername,
+                  errorText: _usernameError,
+                  errorMaxLines: accountErrorMaxLines),
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton(
@@ -341,39 +355,50 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
           const SizedBox(height: 4),
           Text(l.recoveryForUser(sentFor), style: _mutedStyle),
           const SizedBox(height: 12),
-          TextField(
-            key: const Key('recovery-code'),
-            controller: _code,
+          TvTextFieldFrame(
             focusNode: _codeFocus,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-                hintText: l.accountCode,
-                errorText: _codeError,
-                errorMaxLines: accountErrorMaxLines),
+            child: TextField(
+              key: const Key('recovery-code'),
+              controller: _code,
+              focusNode: _codeFocus,
+              autofocus: !tv,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                  hintText: l.accountCode,
+                  errorText: _codeError,
+                  errorMaxLines: accountErrorMaxLines),
+            ),
           ),
           const SizedBox(height: 10),
-          TextField(
-            key: const Key('recovery-new'),
-            controller: _new,
-            obscureText: true,
-            textInputAction: TextInputAction.next,
-            decoration: InputDecoration(
-                hintText: l.accountNewPassword,
-                errorText: _newError,
-                errorMaxLines: accountErrorMaxLines),
+          TvTextFieldFrame(
+            focusNode: _newFocus,
+            child: TextField(
+              key: const Key('recovery-new'),
+              controller: _new,
+              focusNode: _newFocus,
+              obscureText: true,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                  hintText: l.accountNewPassword,
+                  errorText: _newError,
+                  errorMaxLines: accountErrorMaxLines),
+            ),
           ),
           const SizedBox(height: 10),
-          TextField(
-            key: const Key('recovery-confirm'),
-            controller: _confirm,
-            obscureText: true,
-            onSubmitted: (_) => unawaited(_complete()),
-            decoration: InputDecoration(
-                hintText: l.accountConfirmPassword,
-                errorText: _confirmError,
-                errorMaxLines: accountErrorMaxLines),
+          TvTextFieldFrame(
+            focusNode: _confirmFocus,
+            child: TextField(
+              key: const Key('recovery-confirm'),
+              controller: _confirm,
+              focusNode: _confirmFocus,
+              obscureText: true,
+              onSubmitted: (_) => unawaited(_complete()),
+              decoration: InputDecoration(
+                  hintText: l.accountConfirmPassword,
+                  errorText: _confirmError,
+                  errorMaxLines: accountErrorMaxLines),
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton(

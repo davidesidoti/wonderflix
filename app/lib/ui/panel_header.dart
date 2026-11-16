@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/theme.dart';
 import 'form_factor.dart';
+import 'tv_text_field_frame.dart';
 
 /// La testa dei pannelli della shell (Amici, Notifiche, Consiglia, Voto):
 /// titolo in Bebas, sotto [subtitle] (una riga o un widget come locandina e
@@ -75,7 +76,9 @@ bool _focusFirstControl(BuildContext panel) {
     final context = node.context;
     if (context == null ||
         context.widget is EditableText ||
-        context.findAncestorWidgetOfExactType<EditableText>() != null) {
+        context.findAncestorWidgetOfExactType<EditableText>() != null ||
+        // La cornice di un campo (`TvTextFieldFrame`) non è un controllo.
+        context.findAncestorWidgetOfExactType<TvTextFieldFrame>() != null) {
       continue;
     }
     var inside = false;
