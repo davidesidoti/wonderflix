@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Amici, consigli e notifiche, bozza</title>
+<link rel="stylesheet" href="kit.css">
+<script src="data.js"></script>
+<style>
+  [data-i] svg { width:16px; height:16px; display:block; }
+  /* sfondi: la Home o la scheda, scurite dal velo */
+  .bgimg { position:absolute; left:0; right:0; top:0; height:560px; background:center 20%/cover; -webkit-mask-image:linear-gradient(180deg,#000 40%,transparent); mask-image:linear-gradient(180deg,#000 40%,transparent); opacity:.85; }
+  .herotx { position:absolute; left:48px; top:200px; width:520px; }
+  .herotx .t { font:400 76px/.9 'Bebas Neue'; letter-spacing:1px; }
+  .herotx .m { color:var(--mu); margin:10px 0 18px; }
+  .herotx .o { color:var(--mu); margin:0 0 18px; line-height:1.5; }
+  .rowp { position:absolute; left:48px; right:0; top:560px; }
+  .rowp .l { font:400 24px/1 'Bebas Neue'; letter-spacing:1px; margin-bottom:10px; }
+  .rowp .ps { display:flex; gap:12px; }
+  .rowp .pst { width:132px; }
+  .chipwp { white-space:nowrap; height:30px; display:inline-flex; align-items:center; gap:7px; padding:0 12px; border-radius:15px; border:1px solid var(--gold); color:var(--gold); font-weight:600; font-size:12.5px; }
+  .nav .tools .ico { display:grid; place-items:center; width:30px; height:30px; }
+  .nav .av { width:28px; height:28px; }
+
+  /* pannello: larghezza del kit (380), corpo con margini 12 */
+  .side .hd { padding:18px 14px 10px 20px; }
+  .side .hd .sub { color:var(--mu); font-size:12.5px; display:flex; align-items:center; gap:6px; margin-top:6px; }
+  .side .body { padding:0 12px 16px; }
+  .xb { width:34px; height:34px; display:grid; place-items:center; border-radius:50%; color:var(--cr); flex:none; }
+  .xb svg { width:18px; height:18px; }
+  .gdot { width:7px; height:7px; border-radius:50%; background:var(--yes); display:inline-block; }
+
+  /* gruppi e righe delle notifiche (una forma sola) */
+  .gl { font:600 12px/1 Inter; color:var(--mu); margin:16px 8px 6px; }
+  .nr { display:flex; gap:12px; padding:11px 8px 11px 16px; border-radius:8px; position:relative; align-items:flex-start; }
+  .nr + .nr { margin-top:2px; }
+  .nr.un { background:rgba(242,234,211,.04); }
+  .nr.un::before { content:''; position:absolute; left:5px; top:27px; width:6px; height:6px; border-radius:50%; background:var(--gold); }
+  .who { position:relative; width:44px; height:44px; flex:none; }
+  .who .av { width:40px; height:40px; font-size:15px; }
+  .who .mini { position:absolute; right:-3px; bottom:-6px; width:20px; height:30px; border-radius:3px; background:var(--sh) center/cover; box-shadow:0 0 0 2px var(--sf); }
+  .nr.un .who .mini, .nr.un .who .badge { box-shadow:0 0 0 2px #1a1a19; }
+  .who .badge { position:absolute; right:-3px; bottom:-3px; width:21px; height:21px; border-radius:50%; background:var(--sh); color:var(--gold); display:grid; place-items:center; box-shadow:0 0 0 2px var(--sf); }
+  .who .badge svg { width:12px; height:12px; }
+  .who .sys { width:40px; height:40px; border-radius:50%; background:var(--sh); border:1px solid var(--bd); color:var(--gold); display:grid; place-items:center; }
+  .who .sys svg { width:18px; height:18px; }
+  .who .sys.red { color:#e58a80; }
+  .nr .tx { flex:1; min-width:0; line-height:1.42; color:var(--cr); }
+  .nr .tx b { color:var(--cr); font-weight:700; }
+  .nr .q { color:var(--mu); font-style:italic; margin-top:5px; padding-left:8px; border-left:2px solid var(--bd); font-size:12.5px; }
+  .nr .ln { display:flex; align-items:center; gap:8px; margin-top:6px; min-height:30px; }
+  .nr .ln .m { color:var(--mu); font-size:12px; }
+  .nr .ln .b { margin-left:auto; }
+  .more { width:28px; height:28px; display:grid; place-items:center; border-radius:6px; color:var(--cr); opacity:.55; flex:none; margin-top:6px; }
+  .more svg { width:16px; height:16px; }
+  .more.on { opacity:1; background:var(--sh); }
+  .nlist { margin-top:8px; display:flex; flex-direction:column; gap:2px; }
+  .nlist a { display:flex; align-items:center; gap:10px; padding:4px 6px; margin-left:-6px; border-radius:5px; color:var(--cr); text-decoration:none; font-size:12.5px; }
+  .nlist a i { width:20px; height:30px; border-radius:3px; background:var(--sh) center/cover; flex:none; }
+  .nlist a span { color:var(--mu); margin-left:auto; font-size:12px; }
+  .seg { display:flex; gap:8px; margin:2px 8px 0; }
+  .seg .chip .n { color:inherit; opacity:.75; }
+  .exp { color:var(--dim); font-size:12px; margin:8px 8px 0; }
+  .confirm { display:flex; align-items:center; gap:6px; margin-left:auto; font-size:12.5px; color:var(--cr); }
+
+  /* amici */
+  .fr { display:flex; align-items:center; gap:10px; padding:9px 4px 9px 8px; border-radius:8px; position:relative; }
+  .fr .av { width:32px; height:32px; font-size:13px; }
+  .fr .tx { flex:1; min-width:0; line-height:1.35; }
+  .fr .tx .n { color:var(--cr); font-weight:600; }
+  .fr .tx .a { color:var(--mu); font-size:12px; }
+  .fr.off .tx .n { color:var(--mu); }
+  .fr.off .av { opacity:.6; }
+  .fr .more { margin-top:0; }
+  .fold { display:flex; align-items:center; gap:8px; margin:14px 4px 0; padding:10px 8px; border-top:1px solid var(--bd); color:var(--mu); font:600 12px/1 Inter; }
+  .fold svg { width:15px; height:15px; margin-left:auto; }
+  .srch { position:relative; }
+  .srch .in { padding-left:36px; }
+  .srch > span[data-i] { position:absolute; left:12px; top:12px; color:var(--mu); }
+  .srch > .spin { left:auto; right:12px; color:var(--gold); animation:rot .9s linear infinite; }
+  @keyframes rot { to { transform:rotate(360deg); } }
+  .side .ft.two { display:flex; gap:8px; }
+  .side .ft.two .b { flex:1; }
+  .caret { display:inline-block; width:1.5px; height:16px; background:var(--gold); vertical-align:middle; margin-left:1px; }
+
+  /* consiglia: griglia di avatar */
+  .rhd { display:flex; gap:12px; align-items:center; }
+  .rhd .pst { width:40px; }
+  .rhd h4 { font:400 30px/1 'Bebas Neue' !important; letter-spacing:1px; margin:0; }
+  .rhd .s2 { color:var(--mu); font-size:12.5px; margin-top:4px; }
+  .rgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px; }
+  .rc { text-align:center; padding:10px 2px 8px; border-radius:8px; position:relative; }
+  .rc .ring { width:54px; height:54px; margin:0 auto 7px; border-radius:50%; position:relative; }
+  .rc .av { width:54px; height:54px; font-size:19px; }
+  .rc .av .on { width:12px; height:12px; min-width:0; min-height:0; right:1px; bottom:1px; }
+  .rc.sel .ring { box-shadow:0 0 0 2px var(--gold), 0 0 0 5px rgba(212,166,74,.18); }
+  .rc .ck { position:absolute; right:-3px; top:-3px; width:20px; height:20px; border-radius:50%; background:var(--gold); color:var(--bg); display:none; place-items:center; box-shadow:0 0 0 2px var(--sf); }
+  .rc .ck svg { width:12px; height:12px; stroke-width:3; }
+  .rc.sel .ck { display:grid; }
+  .rc .n { font-size:12px; color:var(--cr); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rc .st { font-size:11px; color:var(--mu); }
+  .rc.sel .n { color:var(--gold); font-weight:600; }
+  .rc.no { opacity:.42; }
+  .ghd { display:flex; align-items:center; margin:16px 4px 0; }
+  .ghd .gl { margin:0; }
+  .ghd .b { margin-left:auto; }
+  .cnt { text-align:right; font-size:12px; color:var(--gold); margin-top:5px; }
+  .tip { text-align:center; color:var(--mu); font-size:12px; margin-top:8px; }
+
+  /* telefono */
+  .app.phone .b.sm { height:44px; }
+  .app.phone .more { width:40px; height:40px; margin:0 -6px 0 0; }
+  .app.phone .chip { height:40px; }
+  .pbar { position:absolute; left:0; right:0; top:0; height:56px; display:flex; align-items:center; gap:6px; padding:0 10px 0 4px; background:var(--bg); border-bottom:1px solid var(--bd); z-index:3; }
+  .pbar .bk { width:44px; height:44px; display:grid; place-items:center; color:var(--cr); }
+  .pbar .bk svg { width:21px; height:21px; }
+  .pbar h4 { margin:0; font:400 30px/1 'Bebas Neue'; letter-spacing:1px; }
+  .pbar .b { margin-left:auto; }
+  .pbody { position:absolute; left:0; right:0; top:56px; bottom:64px; overflow:hidden; padding:6px 8px 16px; }
+  .pbody.nob { bottom:0; }
+  .bbar { position:absolute; left:0; right:0; bottom:0; height:64px; display:flex; background:var(--sf); border-top:1px solid var(--bd); z-index:3; }
+  .bbar a { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:var(--mu); font-size:10.5px; text-decoration:none; }
+  .bbar a svg { width:20px; height:20px; }
+  .bbar a.on { color:var(--gold); }
+  .pft { position:absolute; left:0; right:0; bottom:0; padding:12px 16px 18px; background:var(--sf); border-top:1px solid var(--bd); z-index:3; }
+  .pft .b { width:100%; }
+  .empty { text-align:center; padding:90px 24px 0; }
+  .empty .ic { width:64px; height:64px; margin:0 auto 16px; border-radius:50%; background:var(--sh); border:1px solid var(--bd); display:grid; place-items:center; color:var(--gold); }
+  .empty .ic svg { width:26px; height:26px; }
+  .empty h5 { margin:0 0 6px; font:400 26px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .empty p { margin:0 auto 18px; color:var(--mu); max-width:30ch; }
+  .skel { display:flex; gap:12px; padding:11px 8px 11px 16px; }
+  .skel i { display:block; background:var(--sh); border-radius:6px; }
+  /* telefono: Home dietro le carte */
+  .phhome .pbar { border-bottom:0; background:linear-gradient(180deg,rgba(10,10,10,.95),rgba(10,10,10,.4)); }
+  .phhome .logo { font:400 20px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); padding-left:12px; }
+  .phhome .tools { margin-left:auto; display:flex; gap:4px; }
+  .phhome .tools > span[data-i] { width:40px; height:40px; display:grid; place-items:center; }
+  .phhome .tools svg { width:20px; height:20px; }
+  .phhero { position:absolute; left:0; right:0; top:0; height:470px; background:center/cover; -webkit-mask-image:linear-gradient(180deg,#000 55%,transparent); mask-image:linear-gradient(180deg,#000 55%,transparent); }
+  .phhero + .t { position:absolute; left:16px; top:350px; font:400 52px/.9 'Bebas Neue'; letter-spacing:1px; }
+
+  /* carte di invito in alto a destra */
+  .cards { position:absolute; top:72px; right:24px; width:340px; display:flex; flex-direction:column; gap:8px; z-index:6; }
+  .cards.ph { left:8px; right:8px; width:auto; top:64px; }
+  .card { position:relative; display:flex; gap:12px; padding:14px 12px 14px 14px; background:var(--sf); border:1px solid var(--bd); border-radius:10px; box-shadow:0 16px 40px rgba(0,0,0,.55); overflow:hidden; }
+  .card .tx { flex:1; min-width:0; line-height:1.42; color:var(--cr); }
+  .card .tx b { font-weight:700; color:var(--cr); }
+  .card .m { color:var(--mu); font-size:12px; margin-top:3px; }
+  .card .acts { display:flex; gap:6px; margin-top:10px; }
+  .card .timer { position:absolute; left:0; right:0; bottom:0; height:2px; background:rgba(242,234,211,.08); }
+  .card .timer i { display:block; height:100%; background:var(--gold); transform-origin:left; animation:tick 10s linear infinite; }
+  .card:nth-child(2) .timer i { animation-delay:-3s; }
+  .card:nth-child(3) .timer i { animation-delay:-6s; }
+  @keyframes tick { from { transform:scaleX(1); } to { transform:scaleX(0); } }
+  .toast { width:364px; background:#202020; border:1px solid #333; border-radius:8px; padding:12px 14px; color:#eee; font:13px/1.4 'Segoe UI', Inter, sans-serif; }
+  .toast .ap { font-size:11.5px; color:#aaa; margin-bottom:6px; }
+  .toast .tt { font-weight:600; }
+
+  /* TV */
+  .tvbg { position:absolute; inset:0; background:center/cover; }
+  .msgf { margin-top:14px; border-radius:6px; background:var(--sh); border:1px solid var(--bd); padding:10px 12px; display:flex; align-items:center; gap:10px; color:var(--mu); }
+  .msgf svg { width:16px; height:16px; color:var(--mu); }
+  .msgf .k { margin-left:auto; font-size:11.5px; color:var(--dim); display:flex; gap:6px; align-items:center; }
+
+  .oldbox { display:inline-block; vertical-align:top; }
+  .notes { font-size:13px; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Amici, consigli e notifiche, bozza</h1>
+  <p>I tre pannelli che si aprono da destra (Amici, Consiglia a…, Notifiche) e le carte di invito che compaiono in alto a destra. Locandine e fondali da TMDB via Seerr (<code>data.js</code>), persone del server da <code>PEOPLE</code>: tu sei <b>davide.sidoti</b> (admin), sara.lippolis e Garg sono online, CaptainC, marta.r e luca88 no. Codice di partenza: <code>app/lib/features/friends/</code>, <code>features/recommendations/</code>, <code>features/inbox/</code>, <code>features/watch_party/</code> (inviti, carte), <code>ui/shell_side_panel.dart</code>, <code>app/shell_panels.dart</code>, <code>app/app_shell.dart</code>. I percorsi qui sotto partono da <code>app/lib/</code>.</p>
+  <p>L'elemento memorabile è il pannello <b>Notifiche</b>: chi ti scrive ha una faccia (avatar con la locandina sovrapposta) e le righe hanno tutte la stessa forma. Il resto resta quieto. L'unico movimento automatico della pagina è la barretta che si consuma nelle carte di invito.</p>
+
+  <!-- ===================================================== -->
+  <section class="s" id="guscio">
+    <h2>Il guscio dei pannelli</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il pannello entra da destra, largo 360, con un velo scuro allo 0.54 (<code>ui/shell_side_panel.dart:23</code>, <code>:28</code>). Si chiude con Esc o con un clic fuori, e se ne apre uno alla volta. Funziona: resta così.</li>
+      <li>Nello stretto (telefono, tablet, finestra sotto 1024) i pannelli diventano le pagine <code>/friends</code>, <code>/inbox</code> e <code>/recommend</code>. Però tengono il titolo e la ✕ del pannello: ci sono due modi di chiudere la stessa pagina, la ← della barra e la ✕ (<code>app/shell_panels.dart</code>).</li>
+      <li>L'ordine dei pulsanti in alto cambia con la larghezza. Sul desktop è Watch party, Amici, Notifiche; nello stretto è Watch party, Notifiche, Amici (<code>app/app_shell.dart:164</code> contro <code>:226</code>).</li>
+      <li>I titoli dei pannelli sono in Inter 20 grassetto (<code>features/friends/friends_panel.dart:112</code>, <code>features/inbox/inbox_panel.dart:148</code>, <code>features/recommendations/recommend_panel.dart:163</code>), mentre Home, Match e le altre pagine rifatte usano il Bebas.</li>
+      <li>Mentre carica il pannello resta vuoto e non dice niente. Se qualcosa non va compaiono una riga di errore e "Riprova".</li>
+      <li>In TV Amici e Notifiche non ci sono. Va bene così, e la bozza non li aggiunge.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <ul class="notes">
+      <li>Il pannello è largo 380 e si apre come oggi: velo, Esc, clic fuori, uno alla volta.</li>
+      <li>Il titolo è in <b>Bebas 30</b>. Sotto ci va una riga che dice di cosa si parla: "2 online" per Amici, la locandina e il titolo per Consiglia.</li>
+      <li>I pulsanti in alto hanno lo stesso ordine ovunque: <b>Watch party · Amici · Notifiche</b>.</li>
+      <li>Nello stretto la pagina si chiude solo con la ← della barra. Il titolo sta nella barra e la ✕ del pannello sparisce.</li>
+      <li>Mentre carica mostra tre righe grigie con la forma delle righe vere. Se qualcosa non va, dice cosa è successo e offre "Riprova" (nella bozza del telefono, più sotto).</li>
+    </ul>
+  </section>
+
+  <!-- ===================================================== -->
+  <section class="s" id="notifiche">
+    <h2>Notifiche, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>È un unico elenco piatto, dal più nuovo: non ci sono gruppi per giorno né per tipo. Gli avvisi per gli admin (download, spazio, riavvio) finiscono in mezzo agli inviti degli amici.</li>
+      <li>A sinistra ogni riga ha una locandina 40×60 <b>oppure</b> un cerchio 40×40 con un'icona, quindi le righe hanno altezze diverse. Non c'è mai l'avatar di chi ti scrive, che invece c'è negli Amici e nelle carte.</li>
+      <li>Il testo cambia gerarchia a ogni tipo e l'ora cambia posto: "{nome} ti invita a guardare" (<code>features/inbox/inbox_panel.dart:719</code>), "{nome} ti invita a un match" (<code>:785</code>), "Annuncio", "Novità: 2 film, 5 episodi", "Ora disponibile: {titolo}", "Proteggi il tuo account"…</li>
+      <li>La ✕ da 16 per togliere una riga non si vede finché non ci passi sopra col mouse (<code>inbox_panel.dart:429</code>), ma occupa comunque una quarantina di pixel. Sul touch invece si vede sempre.</li>
+      <li>Appena apri il pannello tutto risulta letto (<code>features/inbox/inbox_controller.dart:197</code>) e i pallini spariscono alla chiusura, anche quelli delle righe che non hai visto.</li>
+      <li>"Svuota" diventa "Conferma" in rosso per 4 secondi (<code>inbox_panel.dart:74</code>, <code>:216</code>), ma non dice cosa toglierà.</li>
+      <li>Nella riga dell'invito al watch party si può toccare solo "Unisciti". Lo stato dal vivo invece è buono ("Ci sei già", "Party finito").</li>
+      <li>Da tenere: le 5 righe delle novità con "Mostra tutto (N)", il nome in grassetto nelle frasi, il tempo breve ("adesso", "12 min fa", "ieri", "3 giorni fa", poi la data) e la ✕ leggibile dagli screen reader.</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" data-bg="home" id="nPerTe">
+      <div class="scrim"></div>
+      <aside class="side">
+        <div class="hd">
+          <h4>Notifiche</h4>
+          <button class="b t sm" style="margin-left:auto">Svuota tutto</button>
+          <span class="xb" aria-label="Chiudi" data-i="x"></span>
+        </div>
+        <div class="seg">
+          <span class="chip on">Per te <span class="n num">3</span></span>
+          <span class="chip">Server <span class="n num">2</span></span>
+        </div>
+        <div class="body">
+          <div class="gl">Oggi</div>
+          <div class="nr un">
+            <div class="who"><span class="av s">S</span><i class="mini" data-p="L'Istituto"></i></div>
+            <div class="tx"><b>sara.lippolis</b> ti invita a guardare <b>L'Istituto</b> · S1:E4
+              <div class="ln"><span class="m num">adesso · 2 nel party</span><button class="b s sm">Unisciti</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr un">
+            <div class="who"><span class="av g">G</span><i class="mini" data-p="Chernobyl"></i></div>
+            <div class="tx"><b>Garg</b> ti consiglia <b>Chernobyl</b>
+              <div class="q">«Guardala con le cuffie: il primo episodio è da brividi.»</div>
+              <div class="ln"><span class="m num">12 min fa · Serie, 5 episodi</span><button class="b s sm">Apri</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr un">
+            <div class="who"><span class="av g">G</span><span class="badge" data-i="heartHandshake"></span></div>
+            <div class="tx"><b>Garg</b> ti invita a un <b>Match</b>
+              <div class="ln"><span class="m num">1 h fa · sala aperta</span><button class="b s sm">Unisciti</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="circleCheck"></span><i class="mini" data-p="Hope"></i></div>
+            <div class="tx"><b>Hope</b> è disponibile: l'avevi chiesto tu
+              <div class="ln"><span class="m num">3 h fa · Film, 2026</span><button class="b s sm">Riproduci</button></div></div>
+            <span class="more on" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="gl">Ieri</div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="sparkles"></span></div>
+            <div class="tx">Novità: <b class="num">2 film</b>, <b class="num">5 episodi</b>
+              <div class="nlist">
+                <a><i data-p="Hope"></i>Hope<span>Film</span></a>
+                <a><i data-p="Colony"></i>Colony<span>Film</span></a>
+                <a><i data-p="L'Istituto"></i>L'Istituto<span class="num">S2:E1, S2:E2</span></a>
+                <a><i data-p="Black Clover"></i>Black Clover<span class="num">S2:E13, S2:E14</span></a>
+                <a><i data-p="Sakamoto Days"></i>Sakamoto Days<span class="num">S1:E12</span></a>
+              </div>
+              <div class="ln"><span class="m num">ieri, 21:40</span><button class="b t sm">Mostra tutto (7)</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="flag"></span><i class="mini" data-p="The Wrestler"></i></div>
+            <div class="tx">La tua segnalazione su <b>The Wrestler</b> è risolta
+              <div class="q">«I sottotitoli partono in ritardo»</div>
+              <div class="ln"><span class="m num">ieri, 18:05</span></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+        </div>
+        <div class="menu" style="right:16px; top:500px; min-width:210px">
+          <div class="mi"><span data-i="circleDot"></span>Segna da leggere</div>
+          <div class="mi"><span data-i="x"></span>Togli dalla lista</div>
+        </div>
+      </aside>
+    </div></div>
+    <p class="cap"><b>Per te.</b> Ogni riga ha la stessa forma. A sinistra c'è chi te la manda: l'avatar con la locandina piccola sovrapposta, oppure un cerchio con l'icona se è il server. Poi una frase con il nome e il titolo in grassetto, sotto l'ora e lo stato dal vivo, e a destra l'azione ("Unisciti", "Apri", "Riproduci"). I gruppi per giorno ("Oggi", "Ieri", "Questa settimana") sostituiscono l'elenco piatto. Una riga non letta ha il pallino oro e un fondo appena più chiaro, e diventa letta quando la vedi o la tocchi, non tutte insieme all'apertura. Il ⋯ si vede sempre, attenuato, e raccoglie "Segna da leggere" e "Togli dalla lista": niente più ✕ che compare solo al passaggio del mouse.</p>
+
+    <div class="scroll" style="margin-top:28px"><div class="app desk" data-bg="home" id="nServer">
+      <div class="scrim"></div>
+      <aside class="side">
+        <div class="hd">
+          <h4>Notifiche</h4>
+          <span class="confirm">Svuota tutto? <button class="b danger sm">Sì, svuota</button></span>
+          <span class="xb" aria-label="Chiudi" data-i="x"></span>
+        </div>
+        <div class="seg">
+          <span class="chip">Per te <span class="n num">3</span></span>
+          <span class="chip on">Server <span class="n num">2</span></span>
+        </div>
+        <div class="exp">Avvisi per gli admin: spazio, download, richieste e riavvii. "Sì, svuota" toglie questi 4, non quelli per te.</div>
+        <div class="body">
+          <div class="gl">Oggi</div>
+          <div class="nr un">
+            <div class="who"><span class="sys red" data-i="hardDrive"></span></div>
+            <div class="tx"><b>Spazio quasi pieno</b>: liberi <span class="num">38&nbsp;GB</span> su <span class="num">2&nbsp;TB</span>
+              <div class="ln"><span class="m num">20 min fa</span><button class="b s sm">Apri Spazio</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr un">
+            <div class="who"><span class="av l">L</span><i class="mini" data-p="Odissea"></i></div>
+            <div class="tx"><b>luca88</b> ha chiesto <b>Odissea</b>
+              <div class="ln"><span class="m num">1 h fa · Film, 2026</span><button class="b s sm">Apri Richieste</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="download"></span><i class="mini" data-p="Black Clover"></i></div>
+            <div class="tx">Download fermo: <b>Black Clover</b> · S2:E15
+              <div class="ln"><span class="m num">2 h fa · nessuna fonte da 3 giorni</span></div>
+              <div class="ln" style="margin-top:0"><button class="b s sm" style="margin-left:0">Apri Download</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="gl">Ieri</div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="rotateCw"></span></div>
+            <div class="tx">Il server si è riavviato
+              <div class="ln"><span class="m num">ieri, 04:12 · fermo per 21 min</span></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+        </div>
+      </aside>
+    </div></div>
+    <p class="cap"><b>Server</b>, visibile solo agli admin. Il selettore "Per te · Server" tiene gli avvisi del server lontani dagli inviti degli amici, e la riga sotto spiega in parole semplici cosa c'è dentro. "Svuota tutto" diventa sul posto "Svuota tutto? Sì, svuota" e dice quante righe toglie e da quale vista, sempre con il limite di 4 secondi di oggi. La richiesta di luca88 ha la sua faccia come gli inviti; gli avvisi del sistema hanno il cerchio con l'icona, e il rosso solo per lo spazio quasi pieno. Il selettore usa i tipi di avviso che il plugin manda già: non serve toccare il plugin.</p>
+  </section>
+
+  <!-- ===================================================== -->
+  <section class="s" id="amici">
+    <h2>Amici, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il titolo "Amici" è in Inter 20 (<code>features/friends/friends_panel.dart:112</code>). Più in basso c'è la sezione "AMICI" in maiuscolo, che ripete il titolo (<code>:461</code>).</li>
+      <li>Sotto la ricerca c'è un link oro "Match del film" (<code>:152</code>). Con gli amici non c'entra, e resta lì anche mentre cerchi qualcuno.</li>
+      <li>"Ho un codice" (<code>:274</code>) apre "Codice del party" + "Entra" in mezzo all'elenco.</li>
+      <li>"RICHIESTE (N)" (<code>:422</code>) mescola le richieste da accettare ("Accetta"/"Rifiuta") con quelle che hai inviato tu ("In attesa"/"Annulla"). Il numero non è quello del badge, che conta solo le ricevute, e il nome è lo stesso della pagina Richieste di Seerr.</li>
+      <li>Avatar da 26. Il pallino verde c'è solo per chi è online; chi è offline ha il nome spento ma nessuna scritta "Offline".</li>
+      <li>"Sta guardando The Bear · S2 E3": il formato è sbagliato, deve essere S2:E3 (<code>features/friends/activity_labels.dart:5</code>, <code>l10n/app_it.arb:1041</code>).</li>
+      <li>Il ⋯ ha una sola voce, "Rimuovi dagli amici" (<code>:559</code>), con la conferma rossa nella riga per 4 secondi (<code>:65</code>). Invitare a guardare o a un Match da qui non si può.</li>
+      <li>Nella ricerca le parole cambiano: "Inviata" + "Annulla" (<code>:370</code>) dove altrove c'è "In attesa", e "Accetta" senza "Rifiuta". Mentre cerca non compare nessun indicatore.</li>
+      <li>Da tenere: online prima (<code>:36</code>), "Unisciti" / "Guarda insieme", la conferma in riga invece di una finestra, il codice del party scritto "K7P-Q2X".</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" data-bg="home">
+      <div class="scrim"></div>
+      <aside class="side">
+        <div class="hd" style="align-items:flex-end">
+          <div>
+            <h4>Amici</h4>
+            <div class="sub"><span class="gdot"></span><span class="num">2 online</span></div>
+          </div>
+          <span class="xb x" aria-label="Chiudi" data-i="x" style="align-self:flex-start"></span>
+        </div>
+        <div class="body">
+          <div class="srch"><span data-i="search"></span><div class="in"><span class="dim">Cerca per nome</span></div></div>
+
+          <div class="gl">Da rispondere (1)</div>
+          <div class="fr">
+            <span class="av l">L</span>
+            <div class="tx"><div class="n">luca88</div><div class="a">Vuole essere tuo amico</div></div>
+            <button class="b p sm">Accetta</button><button class="b t sm">Rifiuta</button>
+          </div>
+
+          <div class="gl">Online</div>
+          <div class="fr">
+            <span class="av s">S<i class="on"></i></span>
+            <div class="tx"><div class="n">sara.lippolis</div><div class="a">Sta guardando L'Istituto · S1:E4</div></div>
+            <button class="b s sm">Guarda insieme</button>
+            <span class="more on" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="fr">
+            <span class="av g">G<i class="on"></i></span>
+            <div class="tx"><div class="n">Garg</div><div class="a">Nel watch party: Chernobyl · S1:E2</div></div>
+            <button class="b s sm">Unisciti</button>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+
+          <div class="gl">Offline</div>
+          <div class="fr off">
+            <span class="av c">C</span>
+            <div class="tx"><div class="n">CaptainC</div><div class="a">Offline</div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="fr off">
+            <span class="av m">M</span>
+            <div class="tx"><div class="n">marta.r</div><div class="a">Offline</div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+
+          <div class="fold">Richieste inviate (2)<span data-i="chevronDown"></span></div>
+        </div>
+        <div class="ft two">
+          <button class="b q sm"><span data-i="ticket"></span>Ho un codice</button>
+          <button class="b q sm"><span data-i="heartHandshake"></span>Apri un Match</button>
+        </div>
+        <div class="menu" style="right:16px; top:312px; min-width:220px">
+          <div class="mi"><span data-i="play"></span>Invita a guardare</div>
+          <div class="mi"><span data-i="heartHandshake"></span>Invita a un Match</div>
+          <hr>
+          <div class="mi" style="color:#e58a80"><span data-i="userMinus" style="color:#e58a80"></span>Rimuovi dagli amici</div>
+        </div>
+      </aside>
+    </div></div>
+    <p class="cap">Il titolo dice dove sei e quanti amici sono online. Le sezioni dicono cosa fare: "Da rispondere (1)", con lo stesso numero del badge, poi "Online", poi "Offline" con la scritta, infine "Richieste inviate (2)" chiusa in fondo. Così "Richieste" non si confonde più con la pagina di Seerr. Avatar da 32 e l'attività col formato giusto (S1:E4). Il ⋯ di ogni riga ha più voci, con la voce che rimuove separata e in rosso, e la conferma resta nella riga. "Ho un codice" e "Apri un Match" scendono nel piede del pannello: sono strade per entrare a guardare, non amici. Invitare a guardare dal ⋯ usa l'invito che l'app manda già da Watch party, quindi non serve il plugin.</p>
+
+    <h3>Ricerca in corso, e la pagina nel telefono</h3>
+    <div class="pair">
+      <div class="app phone">
+        <div class="pbar"><span class="bk" aria-label="Indietro" data-i="arrowLeft"></span><h4>Amici</h4></div>
+        <div class="pbody">
+          <div style="padding:8px 8px 0">
+            <div class="srch"><span data-i="search"></span><div class="in f">ca<span class="caret"></span></div><span class="spin" data-i="loaderCircle"></span></div>
+          </div>
+          <div class="gl">Persone del server</div>
+          <div class="fr">
+            <span class="av c">C</span>
+            <div class="tx"><div class="n">CaptainC</div><div class="a">Offline</div></div>
+            <span class="muted" style="display:flex;align-items:center;gap:5px;font-size:12.5px;padding-right:8px"><span data-i="check" style="width:14px;height:14px;display:inline-grid;color:var(--yes)"></span>Amici</span>
+          </div>
+          <div class="fr">
+            <span class="av l">L</span>
+            <div class="tx"><div class="n">luca88</div><div class="a">Vuole essere tuo amico</div></div>
+            <button class="b p sm">Accetta</button><button class="b t sm">Rifiuta</button>
+          </div>
+          <div class="skel"><i style="width:32px;height:32px;border-radius:50%"></i><div style="flex:1"><i style="width:110px;height:11px;margin-top:3px"></i><i style="width:70px;height:9px;margin-top:7px"></i></div></div>
+          <p class="hint" style="margin:6px 8px">Cerco "ca" tra le persone del server…</p>
+        </div>
+        <div class="bbar">
+          <a><span data-i="house"></span>Home</a><a><span data-i="search"></span>Cerca</a><a><span data-i="heart"></span>La mia lista</a><a><span data-i="messageSquarePlus"></span>Richieste</a><a><span data-i="ellipsis"></span>Altro</a>
+        </div>
+      </div>
+      <div style="max-width:520px">
+        <p class="cap" style="margin-top:0">La stessa sezione nello stretto diventa la pagina <code>/friends</code>, con il titolo nella barra e una sola chiusura, la ←. Mentre cerca, il campo ha la rotellina e sotto c'è una riga grigia in attesa, quindi si vede che il risultato non è finito. Le parole sono le stesse del pannello: "Accetta"/"Rifiuta" per chi ti ha scritto, "In attesa"/"Annulla" per chi hai invitato tu, "✓ Amici" per chi lo è già. Durante la ricerca restano solo i risultati: niente link al Match né sezioni degli amici.</p>
+        <p class="cap">Vuoto, senza amici: "Non hai ancora amici. Cerca qualcuno per nome qui sopra." Ricerca senza risultati: "Nessuno si chiama così. Controlla il nome o chiedi il suo codice."</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== -->
+  <section class="s" id="consiglia">
+    <h2>Consiglia a…, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il titolo è in Inter 20 (<code>features/recommendations/recommend_panel.dart:163</code>), con una locandina 40×60 col nome del titolo.</li>
+      <li>I destinatari sono un elenco di <code>CheckboxListTile</code> Material (<code>:279</code>): la casella sta in fondo alla riga, l'avatar è da 26 con il pallino.</li>
+      <li>Chi non può vederlo è spento, con la scritta "Non può vederlo" (<code>:315</code>). Questo va bene.</li>
+      <li>"Al massimo 30 amici alla volta" (<code>:27</code>) si vede sempre. Mancano una ricerca e un modo rapido per scegliere più amici.</li>
+      <li>"Aggiungi un messaggio (facoltativo)" ha il contatore dei 200 caratteri sempre acceso (<code>:230</code>).</li>
+      <li>"Invia" resta spento senza dire perché. Quando parte, l'esito arriva in una snackbar: "Consiglio inviato a N amici".</li>
+      <li>In TV il campo del messaggio è nudo: appena il D-pad ci arriva sopra, si apre la tastiera.</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" data-bg="scheda">
+      <div class="scrim"></div>
+      <aside class="side">
+        <div class="hd">
+          <div class="rhd">
+            <i class="pst" data-p="L'Istituto"></i>
+            <div><h4>Consiglia L'Istituto</h4><div class="s2">Serie · 2025 · 2 stagioni</div></div>
+          </div>
+          <span class="xb x" aria-label="Chiudi" data-i="x" style="align-self:flex-start"></span>
+        </div>
+        <div class="body">
+          <div class="srch" style="margin-top:4px"><span data-i="search"></span><div class="in"><span class="dim">Cerca tra gli amici</span></div></div>
+          <div class="ghd"><div class="gl">A chi? <span class="num">2 scelti</span></div><button class="b t sm">Scegli gli online</button></div>
+          <div class="rgrid">
+            <div class="rc sel"><div class="ring"><span class="av s">S<i class="on"></i></span><span class="ck" data-i="check"></span></div><div class="n">sara.lippolis</div><div class="st">Online</div></div>
+            <div class="rc sel"><div class="ring"><span class="av g">G<i class="on"></i></span><span class="ck" data-i="check"></span></div><div class="n">Garg</div><div class="st">Online</div></div>
+            <div class="rc"><div class="ring"><span class="av c">C</span><span class="ck" data-i="check"></span></div><div class="n">CaptainC</div><div class="st">Offline</div></div>
+            <div class="rc no"><div class="ring"><span class="av m">M</span></div><div class="n">marta.r</div><div class="st">Non può vederlo</div></div>
+          </div>
+          <label class="fl" style="margin-left:4px">Messaggio, se vuoi</label>
+          <div class="in ta">Il primo episodio ti prende subito, poi non smetti più.</div>
+        </div>
+        <div class="ft">
+          <button class="b p lg" style="width:100%"><span data-i="send"></span>Invia a 2 amici</button>
+        </div>
+      </aside>
+    </div></div>
+    <p class="cap">In cima c'è il titolo che stai consigliando, con la sua locandina. I destinatari sono una griglia di avatar grandi: toccarne uno lo accende con l'anello oro e la spunta. Chi non può vederlo resta spento e lo dice sotto il nome. "Scegli gli online" accende in un colpo chi è collegato, e la ricerca serve quando gli amici sono tanti. Il contatore dei caratteri compare solo vicino al limite, e "Al massimo 30 amici alla volta" solo quando ci arrivi. Il pulsante conta i destinatari ("Invia a 2 amici"); dopo l'invio resta la snackbar di oggi. Il plugin non serve.</p>
+
+    <h3>Nessuno scelto, sul telefono</h3>
+    <div class="pair">
+      <div class="app phone">
+        <div class="pbar"><span class="bk" aria-label="Indietro" data-i="arrowLeft"></span><h4>Consiglia</h4></div>
+        <div class="pbody nob" style="padding:14px 16px">
+          <div class="rhd"><i class="pst" data-p="L'Istituto"></i><div><div style="font:400 26px/1 'Bebas Neue';letter-spacing:1px">L'Istituto</div><div class="s2">Serie · 2025 · 2 stagioni</div></div></div>
+          <div class="srch" style="margin-top:14px"><span data-i="search"></span><div class="in"><span class="dim">Cerca tra gli amici</span></div></div>
+          <div class="ghd" style="margin-left:0"><div class="gl" style="margin-left:0">A chi?</div><button class="b t sm" style="height:44px">Scegli gli online</button></div>
+          <div class="rgrid">
+            <div class="rc"><div class="ring"><span class="av s">S<i class="on"></i></span></div><div class="n">sara.lippolis</div><div class="st">Online</div></div>
+            <div class="rc"><div class="ring"><span class="av g">G<i class="on"></i></span></div><div class="n">Garg</div><div class="st">Online</div></div>
+            <div class="rc"><div class="ring"><span class="av c">C</span></div><div class="n">CaptainC</div><div class="st">Offline</div></div>
+            <div class="rc no"><div class="ring"><span class="av m">M</span></div><div class="n">marta.r</div><div class="st">Non può vederlo</div></div>
+          </div>
+          <label class="fl">Messaggio, se vuoi</label>
+          <div class="in ta" style="min-height:104px">Te la consiglio perché ne parlavamo sabato: è tratta da Stephen King, otto episodi, la prima stagione si chiude bene e la seconda è appena uscita. Il primo episodio è lento ma poi non ti molla più.</div>
+          <div class="cnt num">188/200</div>
+        </div>
+        <div class="pft">
+          <button class="b p lg" disabled><span data-i="send"></span>Invia</button>
+          <div class="tip">Scegli almeno un amico</div>
+        </div>
+      </div>
+      <div style="max-width:520px">
+        <p class="cap" style="margin-top:0">Nella pagina <code>/recommend</code> si chiude solo con la ←. Se non hai scelto nessuno, il pulsante spento ha sotto il motivo: "Scegli almeno un amico". Il contatore compare quando mancano 20 caratteri ("188/200"). Le caselle della griglia sono alte più di 44, il piede resta fermo in fondo e la pagina non scorre di lato.</p>
+        <p class="cap"><b>In TV</b> il pannello resta come oggi, ma il messaggio sta in una cornice (<code>ui/tv_text_field_frame.dart</code>): il D-pad le passa sopra senza aprire la tastiera, e la tastiera si apre solo con OK. Lo schema è qui sotto.</p>
+      </div>
+    </div>
+
+    <h3>In TV: il messaggio in cornice</h3>
+    <div class="scroll"><div class="app tv">
+      <div class="tvbg" data-b="L'Istituto" style="filter:brightness(.3)"></div>
+      <aside class="side" style="width:380px">
+        <div class="hd"><div class="rhd"><i class="pst" data-p="L'Istituto"></i><div><h4>Consiglia L'Istituto</h4><div class="s2">Serie · 2025</div></div></div></div>
+        <div class="body">
+          <div class="ghd" style="margin-top:4px"><div class="gl">A chi? <span class="num">1 scelto</span></div><button class="b t sm">Scegli gli online</button></div>
+          <div class="rgrid">
+            <div class="rc sel"><div class="ring"><span class="av s">S<i class="on"></i></span><span class="ck" data-i="check"></span></div><div class="n">sara.lippolis</div></div>
+            <div class="rc"><div class="ring"><span class="av g">G<i class="on"></i></span></div><div class="n">Garg</div></div>
+            <div class="rc"><div class="ring"><span class="av c">C</span></div><div class="n">CaptainC</div></div>
+            <div class="rc no"><div class="ring"><span class="av m">M</span></div><div class="n">marta.r</div></div>
+          </div>
+          <div class="msgf tvf"><span data-i="pencil"></span>Aggiungi un messaggio<span class="k"><kbd>OK</kbd> per scrivere</span></div>
+        </div>
+        <div class="ft"><button class="b p" style="width:100%"><span data-i="send"></span>Invia a 1 amico</button></div>
+      </aside>
+    </div></div>
+    <p class="cap">Il focus è sulla cornice del messaggio, con il bordo crema e la scala 1.06. Premendo giù si arriva a "Invia" senza che si apra la tastiera.</p>
+  </section>
+
+  <!-- ===================================================== -->
+  <section class="s" id="telefono">
+    <h2>Notifiche, telefono</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Sul telefono le Notifiche sono la pagina <code>/inbox</code>, ma la ← della barra e la ✕ del pannello convivono: due chiusure (<code>app/shell_panels.dart</code>).</li>
+      <li>Nella barra le icone sono in un altro ordine, prima Notifiche e poi Amici (<code>app/app_shell.dart:226</code>).</li>
+      <li>Qui la ✕ di ogni riga si vede sempre, mentre sul desktop si nasconde: lo stesso elenco si comporta in due modi (<code>features/inbox/inbox_panel.dart:430</code>).</li>
+      <li>Mentre carica la pagina è vuota.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div class="app phone">
+        <div class="pbar"><span class="bk" aria-label="Indietro" data-i="arrowLeft"></span><h4>Notifiche</h4><button class="b t sm" style="height:44px">Svuota tutto</button></div>
+        <div class="pbody">
+          <div class="seg" style="margin-top:8px"><span class="chip on">Per te <span class="n num">3</span></span><span class="chip">Server <span class="n num">2</span></span></div>
+          <div class="gl">Oggi</div>
+          <div class="nr un">
+            <div class="who"><span class="av s">S</span><i class="mini" data-p="L'Istituto"></i></div>
+            <div class="tx"><b>sara.lippolis</b> ti invita a guardare <b>L'Istituto</b> · S1:E4
+              <div class="ln"><span class="m num">adesso · 2 nel party</span><button class="b s sm">Unisciti</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr un">
+            <div class="who"><span class="av g">G</span><i class="mini" data-p="Chernobyl"></i></div>
+            <div class="tx"><b>Garg</b> ti consiglia <b>Chernobyl</b>
+              <div class="q">«Guardala con le cuffie: il primo episodio è da brividi.»</div>
+              <div class="ln"><span class="m num">12 min fa</span><button class="b s sm">Apri</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="nr un">
+            <div class="who"><span class="av g">G</span><span class="badge" data-i="heartHandshake"></span></div>
+            <div class="tx"><b>Garg</b> ti invita a un <b>Match</b>
+              <div class="ln"><span class="m num">1 h fa · sala aperta</span><button class="b s sm">Unisciti</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="gl">Ieri</div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="flag"></span><i class="mini" data-p="The Wrestler"></i></div>
+            <div class="tx">La tua segnalazione su <b>The Wrestler</b> è risolta
+              <div class="ln"><span class="m num">ieri, 18:05</span></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+          <div class="gl">Questa settimana</div>
+          <div class="nr">
+            <div class="who"><span class="sys" data-i="shieldCheck"></span></div>
+            <div class="tx"><b>Proteggi il tuo account</b>: aggiungi un'email per recuperare la password
+              <div class="ln"><span class="m num">3 giorni fa</span><button class="b s sm">Aggiungi email</button></div></div>
+            <span class="more" aria-label="Altro" data-i="ellipsis"></span>
+          </div>
+        </div>
+        <div class="bbar">
+          <a><span data-i="house"></span>Home</a><a><span data-i="search"></span>Cerca</a><a><span data-i="heart"></span>La mia lista</a><a><span data-i="messageSquarePlus"></span>Richieste</a><a><span data-i="ellipsis"></span>Altro</a>
+        </div>
+      </div>
+
+      <div class="app phone">
+        <div class="pbar"><span class="bk" aria-label="Indietro" data-i="arrowLeft"></span><h4>Notifiche</h4></div>
+        <div class="pbody">
+          <div class="empty">
+            <div class="ic" data-i="inbox"></div>
+            <h5>Tutto letto</h5>
+            <p>Qui arrivano gli inviti degli amici, i consigli e i titoli nuovi. Chiedi un film e ti avvisiamo quando è pronto.</p>
+            <button class="b s">Chiedi un titolo</button>
+          </div>
+          <div style="position:absolute;left:8px;right:8px;bottom:16px">
+            <div class="gl">Mentre carica</div>
+            <div class="skel"><i style="width:40px;height:40px;border-radius:50%"></i><div style="flex:1"><i style="width:85%;height:11px;margin-top:4px"></i><i style="width:45%;height:9px;margin-top:9px"></i></div></div>
+            <div class="skel"><i style="width:40px;height:40px;border-radius:50%"></i><div style="flex:1"><i style="width:70%;height:11px;margin-top:4px"></i><i style="width:35%;height:9px;margin-top:9px"></i></div></div>
+            <div class="err" style="margin:6px 8px 0">Se non arrivano: "Non riesco a leggere le notifiche. Controlla la connessione e riprova." + <b style="color:var(--gold)">Riprova</b></div>
+          </div>
+        </div>
+        <div class="bbar">
+          <a><span data-i="house"></span>Home</a><a><span data-i="search"></span>Cerca</a><a><span data-i="heart"></span>La mia lista</a><a><span data-i="messageSquarePlus"></span>Richieste</a><a><span data-i="ellipsis"></span>Altro</a>
+        </div>
+      </div>
+      <div style="max-width:420px">
+        <p class="cap" style="margin-top:0">La pagina ha un titolo solo, nella barra, e si chiude solo con la ←. "Svuota tutto" sta nella barra e ha la stessa conferma sul posto del desktop. Le righe, i gruppi e il selettore "Per te · Server" sono quelli del pannello; pastiglie e azioni sono alte almeno 40–44, e la pagina non scorre di lato.</p>
+        <p class="cap">A destra: il vuoto invita a fare qualcosa, invece di lasciare la pagina bianca. Sotto ci sono il caricamento con righe grigie della stessa forma delle vere e l'errore che dice cosa fare (nella bozza stanno insieme solo per mostrarli tutti: nell'app uno esclude gli altri).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== -->
+  <section class="s" id="carte">
+    <h2>Carte di invito</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Le carte sono larghe 340 e si chiudono dopo 10 secondi (<code>features/watch_party/invite_card_frame.dart:72</code>, <code>watch_party_invites.dart:49</code>, <code>features/match/match_invites.dart:22</code>), ma non si vede quanto tempo resta e il timer non si ferma se ci passi sopra col mouse.</li>
+      <li>Lo stesso invito ha tre frasi diverse: "{nome} ti invita" nella carta (<code>l10n/app_it.arb:378</code>), "{nome} ti invita a guardare" nel pannello (<code>:387</code>), "{nome} ti invita a un watch party" nel toast di Windows (<code>:1717</code>).</li>
+      <li>L'invito ha un'icona oro senza faccia. La richiesta di amicizia ha invece l'avatar da 24 (<code>features/friends/friend_request_card.dart:20</code>) con "Accetta"/"Rifiuta": sono due forme diverse.</li>
+      <li>Nella carta non c'è il titolo, quindi non sai cosa ti chiedono di guardare finché non entri.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" data-bg="home">
+      <div class="cards">
+        <div class="card">
+          <div class="who"><span class="av s">S</span><i class="mini" data-p="L'Istituto"></i></div>
+          <div class="tx"><b>sara.lippolis</b> ti invita a guardare <b>L'Istituto</b>
+            <div class="m num">S1:E4 · watch party, 2 dentro</div>
+            <div class="acts"><button class="b p sm">Unisciti</button><button class="b t sm">Più tardi</button></div></div>
+          <span class="timer"><i></i></span>
+        </div>
+        <div class="card">
+          <div class="who"><span class="av g">G</span><span class="badge" data-i="heartHandshake"></span></div>
+          <div class="tx"><b>Garg</b> ti invita a un <b>Match</b>
+            <div class="m">Scegliete insieme cosa guardare</div>
+            <div class="acts"><button class="b s sm">Unisciti</button><button class="b t sm">Più tardi</button></div></div>
+          <span class="timer"><i></i></span>
+        </div>
+        <div class="card">
+          <div class="who"><span class="av l">L</span><span class="badge" data-i="userPlus"></span></div>
+          <div class="tx"><b>luca88</b> vuole essere tuo amico
+            <div class="m">Vedrete cosa guardate e potrete invitarvi</div>
+            <div class="acts"><button class="b s sm">Accetta</button><button class="b t sm">Rifiuta</button></div></div>
+          <span class="timer"><i></i></span>
+        </div>
+      </div>
+    </div></div>
+    <p class="cap">Le tre carte hanno una forma sola, la stessa delle righe delle Notifiche: avatar di chi invita, con la locandina se c'è un titolo o il simbolo se è un Match o un'amicizia, una frase sola e due azioni. La barretta oro in fondo mostra i 10 secondi che restano e si ferma col mouse o col focus sopra; con "riduci movimento" la carta resta ferma e non si chiude da sola. "Più tardi" chiude la carta, e l'invito resta nelle Notifiche. Nella bozza le tre carte compaiono insieme; nell'app capita di rado, e il primario oro va solo alla più nuova.</p>
+
+    <div class="pair" style="margin-top:28px">
+      <div class="app phone phhome">
+        <div class="phhero" data-b="L'Istituto"></div><div class="t">L'Istituto</div>
+        <div class="rowp" style="left:16px;top:470px"><div class="l">Stasera</div><div class="ps"><i class="pst" data-p="Hope" style="width:104px"></i><i class="pst" data-p="Black Clover" style="width:104px"></i><i class="pst" data-p="Chernobyl" style="width:104px"></i><i class="pst" data-p="The Wrestler" style="width:104px"></i></div></div>
+        <div class="pbar"><span class="logo">WonderFlix</span><span class="tools"><span class="chipwp" style="height:28px;padding:0 9px;font-size:11.5px">Watch party · 1</span><span data-i="users"></span><span class="dot-badge" data-n="3" data-i="inbox"></span></span></div>
+        <div class="cards ph">
+          <div class="card">
+            <div class="who"><span class="av s">S</span><i class="mini" data-p="L'Istituto"></i></div>
+            <div class="tx"><b>sara.lippolis</b> ti invita a guardare <b>L'Istituto</b>
+              <div class="m num">S1:E4 · watch party, 2 dentro</div>
+              <div class="acts"><button class="b p" style="height:40px">Unisciti</button><button class="b t" style="height:40px">Più tardi</button></div></div>
+            <span class="timer"><i></i></span>
+          </div>
+        </div>
+        <div class="bbar">
+          <a class="on"><span data-i="house"></span>Home</a><a><span data-i="search"></span>Cerca</a><a><span data-i="heart"></span>La mia lista</a><a><span data-i="messageSquarePlus"></span>Richieste</a><a><span data-i="ellipsis"></span>Altro</a>
+        </div>
+      </div>
+      <div style="max-width:520px">
+        <p class="cap" style="margin-top:0">Sul telefono la carta è larga quanto lo schermo, sotto la barra, come oggi. Nella barra le icone hanno lo stesso ordine del desktop: Watch party, Amici, Notifiche.</p>
+        <p class="cap">Il toast di Windows usa la stessa frase della carta e del pannello:</p>
+        <div class="toast"><div class="ap">WonderFlix</div><div class="tt">sara.lippolis ti invita a guardare L'Istituto</div><div>S1:E4 · watch party, 2 dentro</div></div>
+        <p class="cap">Per il toast basta cambiare <code>notifInviteTitle</code> e aggiungere il titolo. Il titolo nella carta arriva già con l'invito, quindi non serve il plugin. Solo il "2 dentro" chiede il numero di chi c'è nel party: se l'invito non lo porta, si toglie.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== -->
+  <section class="s" id="fuori">
+    <h2>Fuori da questa bozza</h2>
+    <ul>
+      <li>Amici e Notifiche in TV: oggi non ci sono, e la bozza non li aggiunge.</li>
+      <li>Il pannello del voto (<code>RatePanelHost</code>), che usa lo stesso guscio: ha la sua bozza.</li>
+      <li>La chat del watch party e il menu del party in corso (copia codice, invita, esci).</li>
+      <li>Il dettaglio di ogni avviso per gli admin (spazio, download, riavvio): qui cambia solo dove stanno. Le pagine che aprono sono nella Cabina.</li>
+      <li>"Ultima visita" sotto chi è offline: servirebbe il plugin, quindi resta solo la scritta "Offline".</li>
+      <li>Raggruppare più consigli dello stesso titolo ("Garg e sara.lippolis ti consigliano…"): utile, ma è un'altra regola delle notifiche.</li>
+    </ul>
+  </section>
+</div>
+
+<template id="tHome">
+  <div class="bgimg" data-b="L'Istituto"></div>
+  <div class="nav">
+    <span class="logo">WonderFlix</span>
+    <a class="on">Home</a><a>Film</a><a>Serie</a><a>La mia lista</a><a>Richieste</a><a>Calendario</a>
+    <span class="tools">
+      <span class="chipwp">Watch party · 1</span>
+      <span class="ico dot-badge" data-n="1" data-i="users"></span>
+      <span class="ico dot-badge" data-n="3" data-i="inbox"></span>
+      <span class="av d">D</span>
+    </span>
+  </div>
+  <div class="herotx">
+    <div class="t">L'Istituto</div>
+    <div class="m">Serie · 2025 · Mistero, Fantascienza · 2 stagioni</div>
+    <div class="o">Luke Ellis, un quattordicenne prodigio, viene rapito nel cuore della notte e portato all'Istituto.</div>
+    <button class="b p lg"><span data-i="play"></span>Riproduci S1:E5</button>
+  </div>
+  <div class="rowp"><div class="l">Stasera</div><div class="ps">
+    <i class="pst" data-p="Hope"></i><i class="pst" data-p="Black Clover"></i><i class="pst" data-p="Chernobyl"></i><i class="pst" data-p="The Wrestler"></i><i class="pst" data-p="Sakamoto Days"></i><i class="pst" data-p="Sharp Objects"></i><i class="pst" data-p="The Outsider"></i><i class="pst" data-p="Constellation"></i>
+  </div></div>
+</template>
+<template id="tScheda">
+  <div class="bgimg" data-b="L'Istituto" style="height:640px"></div>
+  <div class="nav"><span class="logo">WonderFlix</span><a>Home</a><a>Film</a><a class="on">Serie</a><a>La mia lista</a><a>Richieste</a><a>Calendario</a>
+    <span class="tools"><span class="ico" data-i="users"></span><span class="ico dot-badge" data-n="3" data-i="inbox"></span><span class="av d">D</span></span></div>
+  <div class="herotx" style="top:250px">
+    <div class="t">L'Istituto</div>
+    <div class="m">Serie · 2025 · Mistero, Fantascienza · 2 stagioni · ★ 7,5</div>
+    <div class="o">Luke Ellis, un quattordicenne prodigio, viene rapito nel cuore della notte e portato all'Istituto, una struttura simile a una prigione nel Maine rurale.</div>
+    <div style="display:flex;gap:10px"><button class="b p lg"><span data-i="play"></span>Riproduci S1:E5</button><button class="b s lg">La mia lista</button><button class="b s lg"><span data-i="send"></span>Consiglia</button></div>
+  </div>
+</template>
+
+<script>
+const ICONS = {
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  ellipsis:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  sparkles:'<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+  hardDrive:'<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
+  heartHandshake:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M12 5 9.04 7.96a2.17 2.17 0 0 0 0 3.08c.82.82 2.13.85 3 .07l2.07-1.9a2.82 2.82 0 0 1 3.79 0l2.96 2.66"/><path d="m18 15-2-2"/><path d="m15 18-2-2"/>',
+  flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+  circleCheck:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  circleDot:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1"/>',
+  shieldCheck:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  ticket:'<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>',
+  userPlus:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
+  userMinus:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="22" x2="16" y1="11" y2="11"/>',
+  arrowLeft:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  send:'<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  loaderCircle:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  chevronDown:'<path d="m6 9 6 6 6-6"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  rotateCw:'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  house:'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  messageSquarePlus:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+};
+document.querySelectorAll('.app[data-bg]').forEach(a => {
+  const t = document.getElementById(a.dataset.bg === 'scheda' ? 'tScheda' : 'tHome');
+  a.prepend(t.content.cloneNode(true));
+});
+const posterOf = t => (POSTERS.find(p => p.t === t) || {}).p || (Object.values(T).find(x => x.title === t) || {}).poster;
+const backOf = t => BACKDROPS[t] || (Object.values(T).find(x => x.title === t) || {}).backdrop;
+document.querySelectorAll('[data-p]').forEach(e => { const p = posterOf(e.dataset.p); if (p) e.style.backgroundImage = `url(${P(p, 185)})`; });
+document.querySelectorAll('[data-b]').forEach(e => { const p = backOf(e.dataset.b); if (p) e.style.backgroundImage = `url(${B(p)})`; });
+document.querySelectorAll('[data-i]').forEach(e => {
+  e.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[e.dataset.i] || ''}</svg>`);
+});
+</script>
+</body>
+</html>

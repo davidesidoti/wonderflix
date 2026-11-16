@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player e trailer, bozza</title>
+<link rel="stylesheet" href="kit.css">
+<script src="data.js"></script>
+<style>
+  /* il fotogramma del video */
+  .vid { position:absolute; inset:0; background:#000 center/cover; }
+  .shT { position:absolute; left:0; right:0; top:0; height:170px; background:linear-gradient(180deg,rgba(10,10,10,.88),rgba(10,10,10,0)); }
+  .shB { position:absolute; left:0; right:0; bottom:0; height:240px; background:linear-gradient(0deg,rgba(10,10,10,.92),rgba(10,10,10,0)); }
+  .ic { display:inline-grid; place-items:center; flex:none; }
+  .ic svg { width:100%; height:100%; }
+  .b .ic, .chip .ic { width:16px; height:16px; }
+
+  /* barra alta */
+  .top { position:absolute; left:24px; right:24px; top:18px; display:flex; align-items:center; gap:10px; }
+  .top .tt { font:400 28px/1 'Bebas Neue'; letter-spacing:1px; }
+  .top .ep { color:var(--mu); font-size:13px; margin-top:3px; }
+
+  /* comandi */
+  .pb { width:44px; height:44px; display:inline-grid; place-items:center; border-radius:50%; color:var(--cr); position:relative; flex:none; }
+  .pb .ic { width:24px; height:24px; }
+  .pb.big .ic { width:34px; height:34px; }
+  .pb.hov { background:radial-gradient(circle,rgba(212,166,74,.30) 0,rgba(212,166,74,0) 70%); color:var(--gold); }
+  .ctl { position:absolute; left:24px; right:24px; bottom:18px; display:flex; align-items:center; gap:2px; }
+  .sep { width:1px; height:22px; background:rgba(242,234,211,.2); margin:0 10px; flex:none; }
+  .vol { width:120px; height:4px; border-radius:2px; background:rgba(242,234,211,.25); position:relative; margin:0 6px 0 4px; flex:none; }
+  .vol i { position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--gold); }
+  .vol b { position:absolute; top:50%; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:var(--gold); }
+  .tip { position:absolute; bottom:52px; left:50%; transform:translateX(-50%); white-space:nowrap; background:var(--sf); border:1px solid var(--bd); border-radius:6px; padding:7px 10px; font-size:12.5px; color:var(--cr); display:flex; align-items:center; gap:10px; box-shadow:0 10px 26px rgba(0,0,0,.5); }
+
+  /* seek bar */
+  .seekrow { position:absolute; left:24px; right:24px; bottom:72px; display:flex; align-items:center; gap:14px; }
+  .seekrow .tm { font:600 13px/1 Inter; font-variant-numeric:tabular-nums; color:var(--cr); flex:none; }
+  .seekrow .tm.r { color:var(--mu); font-weight:500; }
+  .sk { position:relative; flex:1; height:20px; }
+  .sk .sg { position:absolute; top:50%; height:5px; margin-top:-2.5px; border-radius:2px; background:rgba(242,234,211,.22); overflow:hidden; }
+  .sk .sg .bf { position:absolute; left:0; top:0; bottom:0; background:rgba(242,234,211,.22); }
+  .sk .sg .pl { position:absolute; left:0; top:0; bottom:0; background:var(--gold); }
+  .sk .sg .zn { position:absolute; top:0; bottom:0; background:repeating-linear-gradient(-45deg,rgba(242,234,211,.6) 0 2px,transparent 2px 5px); }
+  .sk .kn { position:absolute; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 4px rgba(212,166,74,.25); }
+  .sk.tall { height:44px; }
+  .sk.tall .kn { width:16px; height:16px; margin:-8px 0 0 -8px; }
+
+  /* Salta intro: la linea oro si accorcia */
+  .skip { position:absolute; right:24px; bottom:132px; height:42px; padding:0 18px; border-radius:6px; border:1px solid rgba(242,234,211,.35); background:rgba(10,10,10,.55); display:flex; align-items:center; gap:8px; font-weight:600; overflow:hidden; }
+  .skip .ic { width:16px; height:16px; }
+  .skip::after { content:''; position:absolute; left:0; bottom:0; height:2px; width:62%; background:var(--gold); }
+
+  /* pastiglia del player (player_pill.dart) */
+  .pill { position:absolute; left:50%; transform:translateX(-50%); top:20px; height:36px; padding:0 16px; border-radius:18px; background:rgba(18,18,18,.92); border:1px solid var(--bd); display:flex; align-items:center; gap:8px; white-space:nowrap; font-size:13px; }
+  .pill .ic { width:16px; height:16px; color:var(--gold); }
+
+  /* pausa e scheda dei tasti */
+  .pz { position:absolute; inset:0; background:linear-gradient(90deg,rgba(10,10,10,.96) 0,rgba(10,10,10,.82) 46%,rgba(10,10,10,.45) 100%); }
+  .pzc { position:absolute; left:72px; top:150px; width:560px; }
+  .pzc .k { color:var(--gold); font-weight:600; font-size:14px; }
+  .pzc .tt { font:400 76px/.9 'Bebas Neue'; letter-spacing:1px; margin:10px 0 8px; }
+  .pzc .ep { font:600 18px/1.3 Inter; }
+  .pzc .m { color:var(--mu); margin-top:6px; }
+  .pzc .o { margin-top:14px; line-height:1.6; font-size:14px; color:rgba(242,234,211,.85); display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+  .pzc .go { display:flex; align-items:center; gap:14px; margin-top:26px; }
+  .pzb { position:absolute; left:72px; right:72px; bottom:40px; display:flex; align-items:center; gap:14px; color:var(--mu); font-size:12.5px; }
+  .pzb .bar { flex:1; }
+  .prog { position:absolute; right:64px; top:96px; width:420px; padding:26px 30px 22px; background:var(--sf); border:1px solid var(--gold); border-radius:4px; outline:1px solid rgba(212,166,74,.35); outline-offset:-8px; box-shadow:0 30px 70px rgba(0,0,0,.6); }
+  .prog .pt { text-align:center; font:400 40px/1 'Bebas Neue'; letter-spacing:3px; }
+  .prog .orn { display:flex; align-items:center; gap:10px; justify-content:center; color:var(--gold); margin:6px 0 4px; }
+  .prog .orn::before, .prog .orn::after { content:''; width:70px; border-top:1px solid rgba(212,166,74,.5); }
+  .prog .orn i { width:5px; height:5px; background:var(--gold); transform:rotate(45deg); }
+  .prog .ps { text-align:center; color:var(--mu); font-size:12px; margin-bottom:6px; }
+  .prog .pg { font:600 11.5px/1 Inter; color:var(--gold); margin:16px 0 6px; }
+  .prog .pr { display:flex; align-items:flex-end; font-size:13px; color:var(--cr); padding:3px 0; }
+  .prog .pr i { flex:1; border-bottom:1px dotted rgba(242,234,211,.28); margin:0 8px 6px; }
+  .prog .pr span.ks { display:flex; gap:4px; }
+
+  /* pannelli tracce */
+  .tk .meta { display:flex; align-items:center; gap:10px; padding:0 20px 14px; border-bottom:1px solid var(--bd); }
+  .tk .meta .still { width:64px; }
+  .tk .meta .a { font-weight:600; font-size:13px; }
+  .tk .meta .b2 { color:var(--mu); font-size:12px; }
+  .lab { display:flex; align-items:center; gap:8px; font:600 12px/1 Inter; color:var(--mu); margin:18px 0 6px; }
+  .lab .v { color:var(--cr); font-weight:500; }
+  .lab kbd { margin-left:auto; }
+  .row { min-height:44px; display:flex; align-items:center; gap:12px; padding:5px 10px; border-radius:6px; color:var(--cr); }
+  .row .t2 { flex:1; line-height:1.25; }
+  .row .t2 small { display:block; color:var(--mu); font-size:11.5px; }
+  .row .ck { width:18px; height:18px; color:var(--gold); }
+  .row.on { background:rgba(212,166,74,.1); }
+  .row.on .t2 > span { color:var(--gold); font-weight:600; }
+  .row .ic.l { width:16px; height:16px; color:var(--mu); }
+  .row .ch { width:16px; height:16px; color:var(--dim); }
+  .step { display:flex; align-items:center; gap:8px; }
+  .sq { width:44px; height:38px; border-radius:6px; background:var(--sh); border:1px solid var(--bd); display:grid; place-items:center; color:var(--cr); }
+  .sq .ic { width:16px; height:16px; }
+  .step .val { min-width:70px; text-align:center; font:600 14px/1 Inter; font-variant-numeric:tabular-nums; }
+  .aa { width:46px; justify-content:center; padding:0; font-weight:600; }
+  .note1 { font-size:11.5px; color:var(--dim); margin-top:6px; line-height:1.4; }
+
+  /* telefono */
+  .sbar { position:absolute; left:0; right:0; top:0; height:47px; display:flex; align-items:center; padding:0 28px; font:600 13px/1 Inter; }
+  .ptop { position:absolute; left:8px; right:16px; top:52px; display:flex; align-items:center; gap:4px; }
+  .ptop .tt { font:400 26px/1 'Bebas Neue'; letter-spacing:1px; }
+  .ptop .ep { color:var(--mu); font-size:12.5px; margin-top:2px; }
+  .pv { position:absolute; left:0; right:0; top:250px; height:219px; background:#000 center/cover; }
+  .trio { position:absolute; left:0; right:0; top:327px; display:flex; justify-content:center; align-items:center; gap:30px; }
+  .trio .pb { width:52px; height:52px; background:rgba(10,10,10,.45); }
+  .trio .pb.big { width:68px; height:68px; background:rgba(10,10,10,.55); border:1px solid rgba(242,234,211,.3); }
+  .pseek { position:absolute; left:16px; right:16px; top:486px; }
+  .ptimes { display:flex; justify-content:space-between; font:600 12.5px/1 Inter; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .ptimes .r { color:var(--mu); font-weight:500; }
+  .pact { position:absolute; left:16px; right:16px; top:580px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .pact .b { height:44px; justify-content:flex-start; }
+  .sheet { position:absolute; left:0; right:0; bottom:0; height:546px; background:var(--sf); border-radius:16px 16px 0 0; z-index:5; box-shadow:0 -20px 60px rgba(0,0,0,.55); display:flex; flex-direction:column; overflow:hidden; }
+  .sheet .hnd { width:36px; height:4px; border-radius:2px; background:rgba(242,234,211,.3); margin:10px auto 4px; flex:none; }
+  .sheet .hd { display:flex; align-items:center; padding:8px 8px 4px 20px; }
+  .sheet .hd h4 { margin:0; font:400 30px/1 'Bebas Neue'; letter-spacing:1px; }
+  .sheet .hd .x { margin-left:auto; width:44px; height:44px; display:grid; place-items:center; }
+  .sheet .body { padding:0 16px 20px; overflow:hidden; flex:1; -webkit-mask-image:linear-gradient(180deg,#000 85%,transparent); mask-image:linear-gradient(180deg,#000 85%,transparent); }
+  .sheet .row { min-height:48px; }
+
+  /* TV */
+  .tvtop { position:absolute; left:48px; right:48px; top:32px; }
+  .tvtop .tt { font:400 34px/1 'Bebas Neue'; letter-spacing:1px; }
+  .tvtop .ep { color:var(--mu); font-size:14px; margin-top:4px; }
+  .tvseek { position:absolute; left:48px; right:48px; bottom:142px; display:flex; align-items:center; gap:14px; }
+  .tvseek .tm { font:600 14px/1 Inter; font-variant-numeric:tabular-nums; }
+  .tvseek .tm.r { color:var(--mu); font-weight:500; }
+  .tvctl { position:absolute; left:48px; right:48px; bottom:28px; display:flex; align-items:flex-start; gap:14px; }
+  .tvb { width:60px; text-align:center; flex:none; }
+  .tvb .c { width:56px; height:56px; margin:0 auto; border-radius:50%; display:grid; place-items:center; color:var(--cr); background:rgba(10,10,10,.35); }
+  .tvb .c .ic { width:30px; height:30px; }
+  .tvb.big .c .ic { width:32px; height:32px; }
+  .tvb .c.tvf { background:rgba(242,234,211,.14); }
+  .tvb .lb { font-size:13px; font-weight:600; margin-top:12px; white-space:nowrap; display:block; transform:translateX(-50%); margin-left:50%; width:max-content; }
+  .tvsep { width:1px; height:30px; margin:13px 4px 0; background:rgba(242,234,211,.2); flex:none; }
+  .side.tvp { width:380px; }
+  .side.tvp .row { min-height:52px; font-size:14px; }
+
+  /* errore e caricamento */
+  .errw { position:absolute; inset:0; display:grid; place-items:center; text-align:center; }
+  .errw .in2 { max-width:46ch; display:flex; flex-direction:column; align-items:center; }
+  .errw .ic.a { width:44px; height:44px; color:var(--no); }
+  .errw h5 { margin:16px 0 10px; font:400 34px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .errw p { margin:0; color:rgba(242,234,211,.82); line-height:1.6; font-size:14px; }
+  .errw .acts { display:flex; gap:14px; margin-top:24px; }
+  .errw .det { margin-top:16px; font-size:12px; color:var(--dim); }
+  .load { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; }
+  .load .tt { font:400 46px/1 'Bebas Neue'; letter-spacing:1px; }
+  .gl { width:200px; height:3px; background:rgba(242,234,211,.15); border-radius:2px; overflow:hidden; position:relative; }
+  .gl i { position:absolute; top:0; bottom:0; width:40%; left:30%; background:var(--gold); border-radius:2px; }
+
+  /* post-play */
+  .film { position:absolute; left:48px; top:48px; width:520px; aspect-ratio:16/9; border-radius:8px; background:#000 center/cover; box-shadow:0 20px 50px rgba(0,0,0,.6); overflow:hidden; }
+  .film .cr { position:absolute; left:0; right:0; bottom:0; padding:10px 14px; font-size:12px; color:var(--mu); background:linear-gradient(0deg,rgba(10,10,10,.85),transparent); }
+  .ppt { position:absolute; left:48px; top:372px; width:540px; }
+  .ppt .k { color:var(--gold); font-weight:600; font-size:14px; }
+  .ppt .tt { font:400 46px/.95 'Bebas Neue'; letter-spacing:1px; margin:8px 0 6px; }
+  .ppt .ep { font:600 16px/1.3 Inter; }
+  .ppt .o { color:rgba(242,234,211,.8); margin-top:10px; line-height:1.6; font-size:14px; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .ppt .go { display:flex; gap:12px; margin-top:22px; }
+  .ppimg { position:absolute; right:48px; top:150px; width:600px; aspect-ratio:16/9; border-radius:8px; background:var(--sh) center/cover; box-shadow:0 24px 60px rgba(0,0,0,.6); }
+  /* Riproduci tra 8 s: l'oro si riempie (l'unico movimento della pagina) */
+  .cnt { position:relative; height:46px; padding:0 22px; border-radius:6px; border:1px solid var(--gold); background:rgba(212,166,74,.12); color:var(--cr); font-weight:700; font-size:14px; display:inline-flex; align-items:center; gap:8px; overflow:hidden; white-space:nowrap; }
+  .cnt .ic { width:16px; height:16px; }
+  .cnt .fill { position:absolute; inset:0; background:var(--gold); color:var(--bg); display:flex; align-items:center; gap:8px; padding:0 22px; clip-path:inset(0 45% 0 0); animation:fill 10s linear -2s infinite; }
+  .cnt.sm { height:38px; font-size:13px; padding:0 16px; }
+  .cnt.sm .fill { padding:0 16px; }
+  @keyframes fill { from { clip-path:inset(0 100% 0 0); } to { clip-path:inset(0 0 0 0); } }
+  .nxc { position:absolute; right:24px; bottom:96px; width:360px; background:rgba(18,18,18,.94); border:1px solid var(--bd); border-radius:10px; padding:14px; box-shadow:0 20px 50px rgba(0,0,0,.55); }
+  .nxc .r1 { display:flex; gap:12px; }
+  .nxc .still { width:120px; }
+  .nxc .k { color:var(--gold); font-weight:600; font-size:12px; }
+  .nxc .go { display:flex; gap:8px; margin-top:12px; }
+  .app.mid { width:640px; height:360px; }
+  .pair > div:has(> .app.phone) { width:440px; }
+  .pair > div:has(> .app.mid) { width:640px; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Player e trailer, bozza</h1>
+  <p>Esempio vero del server: <b>L'Istituto</b>, S1:E4 "La scatola", 52 minuti; il prossimo è S1:E5 "La seconda casa". Il fotogramma del video è lo still dell'episodio da TMDB. I capitoli, l.intro (1:10–3:40) e i titoli di coda (49:10) sono inventati ma plausibili. Codice di partenza: <code>app/lib/features/player/</code> (<code>player_overlay.dart</code>, <code>seek_bar.dart</code>, <code>tracks_panel.dart</code>, <code>pause_screen.dart</code>, <code>post_play.dart</code>, <code>player_loading.dart</code>, <code>player_side_panel_host.dart</code>) e <code>app/lib/features/trailer/trailer_screen.dart</code>.</p>
+  <p>Il player funziona e ha già dei pezzi buoni. <b>Restano come sono:</b> i capitoli come segmenti staccati nella seek bar, le zone di intro, riassunto e titoli a righe diagonali, l'anteprima trickplay da 240 con l'etichetta oro, il conto alla rovescia che si riempie d'oro, il video che si rimpicciolisce nel post-play, la linea oro che si accorcia sotto "Salta intro", la pastiglia che somma i salti ("+30 s · 12:34"), la schermata di pausa col logo, l'alone oro dei comandi e il menu "⋯" dello stretto che non perde comandi.</p>
+  <p>Cosa cambia, in breve: i comandi si raggruppano e dicono il loro tasto; il tempo non balla più e dice quando finisce; velocità nel pannello delle tracce; telefono e TV smettono di condividere un layout; errori, avvisi e trailer parlano la stessa lingua del player. <b>L'elemento memorabile della pagina</b> è la scheda "Tasti" nella schermata di pausa, disegnata come un programma di sala.</p>
+
+  <!-- 1 -->
+  <section class="s" id="s1">
+    <h2>Comandi, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Undici comandi in fila con lo stesso peso: riproduzione, social e impostazioni non si distinguono (<code>player_overlay.dart:310-439</code>).</li>
+      <li>Il player ha undici tasti (Spazio, ←/→, ↑/↓, F, M, G/H, N, P, Esc) ma quasi nessun tooltip li dice, e non c'è un posto dove leggerli (<code>player_commands.dart:35-53</code>).</li>
+      <li>Il tempo "0:12 / 1:45:00" non usa cifre tabellari: la riga cambia larghezza ogni secondo (<code>seek_bar.dart:623</code>). Non dice quanto manca né a che ora finisce.</li>
+      <li>Il pallino della seek bar si vede solo al passaggio del mouse (<code>seek_bar.dart:210</code>).</li>
+      <li>Lo slider del volume è crema, l'unico controllo pieno non oro.</li>
+      <li>Nessuna velocità (il motore ha già <code>setRate</code>, <code>core/video/video_engine.dart:72</code>).</li>
+      <li>"Indietro" esce dal player, "Indietro di 10 secondi" torna indietro nel video: stessa parola, due azioni.</li>
+      <li>L'avviso "Il server sta convertendo questo video." è una SnackBar Material dentro il player (<code>player_screen.dart:1558</code>).</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk">
+      <div class="vid" data-bg="B(T.istituto.episodes[3].s)"></div>
+      <div class="shT"></div><div class="shB"></div>
+      <div class="top">
+        <span class="pb"><i class="ic" data-i="arrowLeft"></i></span>
+        <div><div class="tt">L'Istituto</div><div class="ep">S1:E4 · La scatola</div></div>
+      </div>
+      <div class="skip"><i class="ic" data-i="skipForward"></i>Salta intro</div>
+      <div class="seekrow">
+        <span class="tm">2:05</span>
+        <div class="sk" data-seek='{"dur":3120,"pos":125,"buf":420,"ch":[70,220,860,1670,2370,2950],"zn":[[70,220],[2950,3120]]}'></div>
+        <span class="tm r">−49:55 · finisce alle 23:41</span>
+      </div>
+      <div class="ctl">
+        <span class="pb big"><i class="ic" data-i="pause"></i></span>
+        <span class="pb"><i class="ic" data-i="rewind"></i></span>
+        <span class="pb"><i class="ic" data-i="fastForward"></i></span>
+        <span class="pb"><i class="ic" data-i="volume2"></i></span>
+        <span class="vol"><i style="width:72%"></i><b style="left:72%"></b></span>
+        <span class="sep"></span>
+        <span class="pb"><i class="ic" data-i="skipBack"></i></span>
+        <span class="pb hov"><i class="ic" data-i="skipForward"></i><span class="tip">Episodio successivo <kbd>N</kbd></span></span>
+        <span class="sep"></span>
+        <span class="pb"><i class="ic" data-i="users"></i></span>
+        <span class="pb"><i class="ic" data-i="message"></i></span>
+        <span class="pb"><i class="ic" data-i="smilePlus"></i></span>
+        <span style="flex:1"></span>
+        <span class="pb"><i class="ic" data-i="listVideo"></i></span>
+        <span class="pb"><i class="ic" data-i="captions"></i></span>
+        <span class="pb"><i class="ic" data-i="gauge"></i></span>
+        <span class="pb"><i class="ic" data-i="maximize"></i></span>
+      </div>
+    </div></div>
+    <p class="cap">Quattro gruppi separati da un filo: riproduzione e volume, episodi, il gruppo "in compagnia" (Guarda insieme, Chat, Reazioni), poi coda, tracce, velocità e schermo intero. Ogni tooltip dice il suo tasto in un <code>kbd</code>; il volume diventa oro come il resto. Il tempo ha cifre tabellari e a destra dice quanto manca e l'ora di fine (l'ora viene dal telefono o dal PC, nessun dato nuovo). Il pallino resta sempre visibile.</p>
+    <p class="cap">La freccia in alto si chiama "Torna alla scheda" (o "Torna alla Home" se il video è partito da lì): "Indietro" resta solo per i 10 secondi. L'avviso del server che converte va nella pastiglia del player, non in una SnackBar.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="s" id="s2">
+    <h2>Pausa e scheda dei tasti</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>"STAI GUARDANDO" in oro maiuscolo spaziato (<code>pause_screen.dart:176</code>).</li>
+      <li>Nessun invito a riprendere: in basso a destra solo "In pausa". La schermata ignora il puntatore, quindi il mouse non riporta i comandi (<code>pause_screen.dart:245</code>).</li>
+      <li>I tasti del player non sono scritti da nessuna parte.</li>
+      <li>In TV la schermata usa il layout piccolo del telefono (<code>pause_screen.dart:242</code>).</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk">
+      <div class="vid" data-bg="B(T.istituto.episodes[3].s)"></div>
+      <div class="pz"></div>
+      <div class="pzc">
+        <div class="k">Stai guardando</div>
+        <div class="tt">L'Istituto</div>
+        <div class="ep">S1:E4 · La scatola</div>
+        <div class="m">2025 · 52 min · Mistero · Fantascienza e fantasy</div>
+        <div class="o" data-txt="T.istituto.episodes[3].o + '…'"></div>
+        <div class="go">
+          <span class="b p lg"><i class="ic" data-i="play" style="width:16px;height:16px"></i>Riprendi</span>
+          <span class="muted" style="display:flex;align-items:center;gap:6px">oppure <kbd>Spazio</kbd></span>
+        </div>
+      </div>
+      <div class="prog">
+        <div class="pt">Tasti</div>
+        <div class="orn"><i></i></div>
+        <div class="ps">Valgono in tutto il player. <kbd>?</kbd> apre e chiude questa scheda.</div>
+        <div class="pg">Riproduzione</div>
+        <div class="pr">Pausa e riprendi<i></i><kbd>Spazio</kbd></div>
+        <div class="pr">Indietro e avanti di 10 secondi<i></i><span class="ks"><kbd>←</kbd><kbd>→</kbd></span></div>
+        <div class="pr">Volume<i></i><span class="ks"><kbd>↑</kbd><kbd>↓</kbd></span></div>
+        <div class="pr">Disattiva e riattiva l'audio<i></i><kbd>M</kbd></div>
+        <div class="pr">Schermo intero<i></i><kbd>F</kbd></div>
+        <div class="pg">Episodi e sottotitoli</div>
+        <div class="pr">Episodio successivo e precedente<i></i><span class="ks"><kbd>N</kbd><kbd>P</kbd></span></div>
+        <div class="pr">Sottotitoli prima e dopo<i></i><span class="ks"><kbd>G</kbd><kbd>H</kbd></span></div>
+        <div class="pg">In compagnia</div>
+        <div class="pr">Chat<i></i><kbd>Invio</kbd></div>
+        <div class="pr">Reazioni<i></i><kbd>1–6</kbd></div>
+        <div class="pr" style="margin-top:10px">Chiudi un pannello o esci<i></i><kbd>Esc</kbd></div>
+      </div>
+      <div class="pzb">
+        <i class="ic" data-i="pause" style="width:16px;height:16px;color:var(--gold)"></i>
+        <span class="num" style="color:var(--cr)">23:12</span>
+        <div class="bar"><i style="width:44.6%"></i></div>
+        <span class="num">resta 28:48</span>
+      </div>
+    </div></div>
+    <p class="cap">"Stai guardando" in frase normale, e un primario solo: "Riprendi", con <kbd>Spazio</kbd> accanto. Il mouse che si muove riporta i comandi, un clic ovunque riprende. In basso l'avanzamento sottile al posto della scritta "In pausa".</p>
+    <p class="cap">La scheda "Tasti" è il pezzo memorabile della pagina: un programma di sala con doppio filo oro e i puntini fino al tasto. Compare nella pausa sul desktop e si apre in qualsiasi momento con <kbd>?</kbd> (tasto nuovo, solo app). In TV e sul telefono non c'è: lì i tasti non esistono.</p>
+  </section>
+
+  <!-- 3 -->
+  <section class="s" id="s3">
+    <h2>Audio e sottotitoli, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Righe alte circa 36, sotto i 44 di un bersaglio comodo (<code>tracks_panel.dart:222</code>).</li>
+      <li>Il pannello non dice su quale titolo agisce.</li>
+      <li>Il ritardo dei sottotitoli usa due IconButton Material; i tasti G/H stanno solo nel tooltip.</li>
+      <li>"Dimensione" a parole (Molto piccoli … Molto grandi) senza un'anteprima di quanto sono grandi.</li>
+      <li>Niente velocità; la qualità si cambia solo in Impostazioni, fuori dal video.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk">
+      <div class="vid" data-bg="B(T.istituto.episodes[3].s)"></div>
+      <div class="scrim" style="background:rgba(0,0,0,.35)"></div>
+      <div class="side tk">
+        <div class="hd"><h4>Audio e sottotitoli</h4><span class="pb x" style="width:38px;height:38px"><i class="ic" data-i="x" style="width:18px;height:18px"></i></span></div>
+        <div class="meta"><div class="still" data-bg="STILL(T.istituto.episodes[3].s)"></div><div><div class="a">L'Istituto</div><div class="b2">S1:E4 · La scatola</div></div></div>
+        <div class="body">
+          <div class="lab">Audio</div>
+          <div class="row on"><div class="t2"><span>Italiano</span><small>AC3 5.1 · predefinita</small></div><i class="ic ck" data-i="check"></i></div>
+          <div class="row"><div class="t2"><span>Inglese</span><small>E-AC3 5.1 · originale</small></div></div>
+          <div class="lab">Sottotitoli</div>
+          <div class="row"><div class="t2"><span>Nessuno</span></div></div>
+          <div class="row on"><div class="t2"><span>Italiano</span><small>SRT · esterno</small></div><i class="ic ck" data-i="check"></i></div>
+          <div class="row"><div class="t2"><span>Inglese</span><small>SubRip · nel file</small></div></div>
+          <div class="row"><i class="ic l" data-i="search"></i><div class="t2"><span>Cerca sottotitoli…</span></div></div>
+          <div class="lab">Ritardo dei sottotitoli<span style="margin-left:auto;display:flex;gap:4px"><kbd>G</kbd><kbd>H</kbd></span></div>
+          <div class="step"><span class="sq"><i class="ic" data-i="minus"></i></span><span class="val">+0,3 s</span><span class="sq"><i class="ic" data-i="plus"></i></span><span class="muted" style="font-size:12px;margin-left:6px">− prima, + dopo l'audio</span></div>
+          <div class="lab">Dimensione <span class="v">Normali</span></div>
+          <div class="chips">
+            <span class="chip aa" style="font-size:10px">Aa</span><span class="chip aa" style="font-size:12px">Aa</span><span class="chip aa on" style="font-size:14px">Aa</span><span class="chip aa" style="font-size:16.5px">Aa</span><span class="chip aa" style="font-size:19px">Aa</span>
+          </div>
+          <div class="lab">Velocità</div>
+          <div class="chips"><span class="chip num">0,75×</span><span class="chip on num">1×</span><span class="chip num">1,25×</span><span class="chip num">1,5×</span><span class="chip num">2×</span></div>
+          <div class="row" style="margin-top:12px;padding-left:0"><div class="t2"><span>Qualità</span><small>Cambiarla riapre il video dallo stesso punto</small></div><span class="muted">Originale</span><i class="ic ch" data-i="chevronRight"></i></div>
+        </div>
+      </div>
+    </div></div>
+    <p class="cap">Titolo in Bebas e sotto la riga dell'episodio su cui agisce. Righe da 44 con la lingua in italiano e il dettaglio spento sotto ("AC3 5.1 · predefinita"); la scelta è in oro con la spunta. Il ritardo usa i pulsanti del kit e mostra <kbd>G</kbd>/<kbd>H</kbd> accanto al valore. "Dimensione" diventa cinque "Aa" della grandezza vera, col nome della scelta nell'etichetta.</p>
+    <p class="cap"><b>Velocità</b> è solo app: il motore ha già <code>setRate</code>. In Guarda insieme resta 1× e la riga lo dice ("In compagnia la velocità resta 1×"), perché SyncPlay non sincronizza la velocità. <b>Qualità</b> è una proposta: riusa la stessa scelta di Impostazioni e riapre lo stream dal punto attuale (nessun plugin); se pesa troppo per la 0.42 si toglie la riga e la qualità resta in Impostazioni.</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="s" id="s4">
+    <h2>Telefono</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il titolo usa Inter (titleLarge) invece di Bebas (<code>player_overlay.dart:266</code>).</li>
+      <li>La seek bar ha un'area tattile di 28 e il pallino compare solo al passaggio, che col dito non esiste (<code>seek_bar.dart:150,210,316</code>).</li>
+      <li>Il pannello tracce è un foglio dal basso al 70% ma col bordo sinistro del pannello laterale, senza maniglia né angoli (<code>tracks_panel.dart:165</code>, <code>player_side_panel_host.dart:467</code>).</li>
+      <li>I comandi in basso sono solo icone anche dove c'è spazio per la parola.</li>
+      <li>Il ← del caricamento e "Tocca per riprodurre" non hanno SafeArea: sull'iPhone finiscono sotto la tacca.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div>
+        <div class="app phone">
+          <div class="sbar num">23:12</div>
+          <div class="ptop">
+            <span class="pb"><i class="ic" data-i="arrowLeft"></i></span>
+            <div><div class="tt">L'Istituto</div><div class="ep">S1:E4 · La scatola</div></div>
+          </div>
+          <div class="pill" style="top:118px"><i class="ic" data-i="info"></i>Il server sta convertendo questo video</div>
+          <div class="pv" data-bg="B(T.istituto.episodes[3].s,780)"></div>
+          <div class="trio">
+            <span class="pb"><i class="ic" data-i="rewind"></i></span>
+            <span class="pb big"><i class="ic" data-i="pause"></i></span>
+            <span class="pb"><i class="ic" data-i="fastForward"></i></span>
+          </div>
+          <div class="pseek">
+            <div class="sk tall" data-seek='{"dur":3120,"pos":1392,"buf":1700,"ch":[70,220,860,1670,2370,2950],"zn":[[70,220],[2950,3120]]}'></div>
+            <div class="ptimes"><span>23:12</span><span class="r">−28:48 · finisce alle 23:41</span></div>
+          </div>
+          <div class="pact">
+            <span class="b q"><i class="ic" data-i="captions"></i>Audio e sottotitoli</span>
+            <span class="b q"><i class="ic" data-i="skipForward"></i>Episodio successivo</span>
+            <span class="b q"><i class="ic" data-i="users"></i>Guarda insieme</span>
+            <span class="b q"><i class="ic" data-i="ellipsis"></i>Altro</span>
+          </div>
+        </div>
+        <p class="cap">Titolo in Bebas 26 sotto la tacca, trio centrale da 52/68, seek bar con area tattile da 44 e pallino sempre visibile, tempo tabellare. Sotto, quattro pulsanti con la parola; "Altro" (ultimo) tiene Chat, Reazioni, Coda, Episodio precedente e Velocità. L'avviso del server è la pastiglia del player.</p>
+      </div>
+      <div>
+        <div class="app phone">
+          <div class="sbar num">23:12</div>
+          <div class="pv" style="top:8px" data-bg="B(T.istituto.episodes[3].s,780)"></div>
+          <div class="scrim"></div>
+          <div class="sheet tk">
+            <div class="hnd"></div>
+            <div class="hd"><h4>Audio e sottotitoli</h4><span class="x"><i class="ic" data-i="x" style="width:20px;height:20px"></i></span></div>
+            <div class="meta" style="padding:2px 20px 12px"><div class="still" data-bg="STILL(T.istituto.episodes[3].s)"></div><div><div class="a">L'Istituto</div><div class="b2">S1:E4 · La scatola</div></div></div>
+            <div class="body">
+              <div class="lab">Audio</div>
+              <div class="row on"><div class="t2"><span>Italiano</span><small>AC3 5.1 · predefinita</small></div><i class="ic ck" data-i="check"></i></div>
+              <div class="row"><div class="t2"><span>Inglese</span><small>E-AC3 5.1 · originale</small></div></div>
+              <div class="lab">Sottotitoli</div>
+              <div class="row"><div class="t2"><span>Nessuno</span></div></div>
+              <div class="row on"><div class="t2"><span>Italiano</span><small>SRT · esterno</small></div><i class="ic ck" data-i="check"></i></div>
+              <div class="row"><div class="t2"><span>Inglese</span><small>SubRip · nel file</small></div></div>
+              <div class="row"><i class="ic l" data-i="search"></i><div class="t2"><span>Cerca sottotitoli…</span></div></div>
+              <div class="lab">Ritardo</div>
+              <div class="step"><span class="sq" style="height:44px"><i class="ic" data-i="minus"></i></span><span class="val">+0,3 s</span><span class="sq" style="height:44px"><i class="ic" data-i="plus"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">Un vero foglio dal basso: maniglia, angoli da 16 in alto, nessun bordo a sinistra, righe da 48 e × da 44. Stesso contenuto e stesso ordine del pannello desktop, senza i tasti (sul telefono non ci sono). Si chiude trascinando giù o toccando il video.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section class="s" id="s5">
+    <h2>TV (Fire Stick, 960×540)</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>La TV prende i layout del telefono perché il codice guarda <code>compact</code> senza <code>&amp;&amp; !tv</code>: pannelli come foglio dal basso, pausa piccola, post-play senza immagine (<code>player_side_panel_host.dart:447</code>, <code>pause_screen.dart:242</code>, <code>post_play.dart:105,196</code>, <code>player_screen.dart:1736</code>).</li>
+      <li>Il focus è solo un anello da 2, senza scala, su icone da 24: dal divano non si vede dove si è (<code>player_overlay.dart:614-638</code>).</li>
+      <li>Le icone non hanno nome: col telecomando non c'è il tooltip del mouse.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div>
+        <div class="app tv">
+          <div class="vid" data-bg="B(T.istituto.episodes[3].s)"></div>
+          <div class="shT"></div><div class="shB" style="height:260px"></div>
+          <div class="tvtop"><div class="tt">L'Istituto</div><div class="ep">S1:E4 · La scatola</div></div>
+          <div class="tvseek">
+            <span class="tm">23:12</span>
+            <div class="sk" data-seek='{"dur":3120,"pos":1392,"buf":1700,"ch":[70,220,860,1670,2370,2950],"zn":[[70,220],[2950,3120]]}'></div>
+            <span class="tm r">−28:48 · finisce alle 23:41</span>
+          </div>
+          <div class="tvctl">
+            <div class="tvb"><div class="c"><i class="ic" data-i="skipBack"></i></div></div>
+            <div class="tvb"><div class="c"><i class="ic" data-i="rewind"></i></div></div>
+            <div class="tvb big"><div class="c"><i class="ic" data-i="pause"></i></div></div>
+            <div class="tvb"><div class="c"><i class="ic" data-i="fastForward"></i></div></div>
+            <div class="tvb"><div class="c"><i class="ic" data-i="skipForward"></i></div></div>
+            <span class="tvsep"></span>
+            <div class="tvb"><div class="c"><i class="ic" data-i="users"></i></div></div>
+            <div class="tvb"><div class="c"><i class="ic" data-i="message"></i></div></div>
+            <span class="tvsep"></span>
+            <div class="tvb"><div class="c"><i class="ic" data-i="listVideo"></i></div></div>
+            <div class="tvb"><div class="c tvf"><i class="ic" data-i="captions"></i></div><span class="lb">Audio e sottotitoli</span></div>
+          </div>
+        </div>
+        <p class="cap">Icone da 30 (32 per la pausa) in cerchi da 56. Il focus è quello di tutta la TV: bordo crema da 2 e scala 1.06, e sotto il pulsante col focus compare il suo nome. Niente volume né schermo intero (li fa il telecomando).</p>
+      </div>
+      <div>
+        <div class="app tv">
+          <div class="vid" data-bg="B(T.istituto.episodes[3].s)"></div>
+          <div class="scrim" style="background:rgba(0,0,0,.45)"></div>
+          <div class="side tk tvp">
+            <div class="hd"><h4>Audio e sottotitoli</h4></div>
+            <div class="meta"><div class="still" data-bg="STILL(T.istituto.episodes[3].s)"></div><div><div class="a">L'Istituto</div><div class="b2">S1:E4 · La scatola</div></div></div>
+            <div class="body" style="overflow:hidden">
+              <div class="lab">Audio</div>
+              <div class="row on"><div class="t2"><span>Italiano</span><small>AC3 5.1 · predefinita</small></div><i class="ic ck" data-i="check"></i></div>
+              <div class="row"><div class="t2"><span>Inglese</span><small>E-AC3 5.1 · originale</small></div></div>
+              <div class="lab">Sottotitoli</div>
+              <div class="row"><div class="t2"><span>Nessuno</span></div></div>
+              <div class="row tvf" style="transform:scale(1.03)"><div class="t2"><span>Italiano</span><small>SRT · esterno</small></div></div>
+              <div class="row"><div class="t2"><span>Inglese</span><small>SubRip · nel file</small></div></div>
+            </div>
+          </div>
+        </div>
+        <p class="cap">In TV il pannello resta laterale (380 a destra) come sul desktop, non un foglio dal basso: <code>compact &amp;&amp; !tv</code> nei quattro punti citati. Righe da 52. Il ritardo dei sottotitoli resta fuori dalla TV, come oggi (col motore Media3 non funziona). Back chiude il pannello. (Sulla riga piena la scala scende a 1.03, sennò esce dal pannello.)</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="s" id="s6">
+    <h2>Errore e caricamento</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>L'errore ha il messaggio generico "Qualcosa è andato storto. Riprova." allineato a sinistra e senza larghezza massima: su un monitor largo diventa una riga lunghissima (<code>player_loading.dart:408</code>).</li>
+      <li>In TV "Riprova" probabilmente non si raggiunge col telecomando: nessuno ha il focus all'apertura (<code>player_screen.dart:1872, 1159</code>).</li>
+      <li>"Torna indietro" non dice dove si torna.</li>
+      <li>Il caricamento ha la linea oro 200×3, ma il buffering a metà video usa uno spinner Material (<code>player_loading.dart:347</code>).</li>
+      <li>"Tocca per riprodurre" compare anche col mouse.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div>
+        <div class="app tv">
+          <div class="vid" data-bg="B(T.istituto.episodes[3].s)" style="opacity:.12"></div>
+          <div class="errw"><div class="in2">
+            <i class="ic a" data-i="alert"></i>
+            <h5>Il video non parte</h5>
+            <p>Il server non ha mandato S1:E4 "La scatola" entro 30 secondi. Di solito basta riprovare. Se succede ancora, scegli una qualità più bassa in Impostazioni.</p>
+            <div class="acts">
+              <span class="b p lg tvf"><i class="ic" data-i="rotate" style="width:16px;height:16px"></i>Riprova</span>
+              <span class="b s lg">Torna alla scheda</span>
+            </div>
+            <div class="det">Dettaglio per chi gestisce il server: HTTP 504</div>
+          </div></div>
+        </div>
+        <p class="cap">Tutto centrato, al massimo 46 caratteri per riga. Il titolo dice cosa è successo, il testo cosa fare. "Riprova" ha il focus all'apertura, anche in TV, così OK basta. "Torna alla scheda" dice dove porta. Il dettaglio tecnico resta, piccolo, per chi deve aprire i log.</p>
+      </div>
+      <div>
+        <div class="app phone">
+          <div class="vid" data-bg="B(T.istituto.backdrop,780)" style="opacity:.2"></div>
+          <div class="sbar num">23:12</div>
+          <div class="ptop"><span class="pb"><i class="ic" data-i="arrowLeft"></i></span></div>
+          <div class="load">
+            <div class="tt">L'Istituto</div>
+            <div class="muted" style="margin-top:-14px">S1:E4 · La scatola</div>
+            <div class="gl"><i></i></div>
+          </div>
+        </div>
+        <p class="cap">La ← sta sotto la tacca (SafeArea), anche su "Riproduci" e sui comandi del trailer. Quando il video si ferma per caricare, al centro compare la stessa linea oro, non lo spinner Material. "Tocca per riprodurre" diventa "Riproduci": vale per il dito e per il mouse.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="s" id="s7">
+    <h2>Prossimo episodio</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>"PROSSIMO EPISODIO" in maiuscolo.</li>
+      <li>"Riproduci ora · 10": un numero senza unità.</li>
+      <li>La carta che compare sui titoli dice "Annulla", il post-play "Guarda i titoli": due nomi per la stessa scelta (<code>player_extras.dart:411</code>, <code>post_play.dart:266</code>).</li>
+      <li>In TV il post-play non ha l'immagine dell'episodio (<code>post_play.dart:196,276</code>).</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk">
+      <div class="film" data-bg="B(T.istituto.episodes[3].s,780)"><div class="cr">Titoli di coda · S1:E4</div></div>
+      <div class="ppimg" data-bg="B(T.istituto.episodes[4].s)"></div>
+      <div class="ppt">
+        <div class="k">Prossimo episodio</div>
+        <div class="tt">L'Istituto</div>
+        <div class="ep">S1:E5 · La seconda casa</div>
+        <div class="o" data-txt="T.istituto.episodes[4].o + '…'"></div>
+        <div class="go">
+          <span class="cnt"><i class="ic" data-i="play"></i><span class="num">Riproduci tra 8 s</span><span class="fill"><i class="ic" data-i="play"></i><span class="num">Riproduci tra 8 s</span></span></span>
+          <span class="b s lg">Guarda i titoli</span>
+        </div>
+      </div>
+    </div></div>
+    <p class="cap">Il video dei titoli si rimpicciolisce in alto a sinistra come oggi. "Prossimo episodio" in frase normale; il primario dice il tempo con l'unità, "Riproduci tra 8 s", e l'oro lo riempie mentre conta (è l'unico movimento della pagina; con movimento ridotto resta fermo). La seconda azione è "Guarda i titoli" sia qui sia sulla carta.</p>
+    <div class="pair" style="margin-top:24px">
+      <div>
+        <div class="app mid">
+          <div class="vid" data-bg="B(T.istituto.episodes[3].s,780)"></div>
+          <div class="shB" style="height:200px"></div>
+          <div class="nxc" style="right:16px;bottom:16px;width:340px">
+            <div class="r1">
+              <div class="still" data-bg="STILL(T.istituto.episodes[4].s)"></div>
+              <div><div class="k">Prossimo episodio</div><div style="font-weight:600;margin-top:4px">S1:E5 · La seconda casa</div></div>
+            </div>
+            <div class="go">
+              <span class="cnt sm"><i class="ic" data-i="play"></i><span class="num">Riproduci tra 8 s</span><span class="fill"><i class="ic" data-i="play"></i><span class="num">Riproduci tra 8 s</span></span></span>
+              <span class="b s">Guarda i titoli</span>
+            </div>
+          </div>
+        </div>
+        <p class="cap">La carta sui titoli di coda: stessi due pulsanti, stessi nomi. "Annulla" sparisce.</p>
+      </div>
+      <div>
+        <div class="app tv">
+          <div class="film" style="left:40px;top:36px;width:380px" data-bg="B(T.istituto.episodes[3].s,780)"></div>
+          <div class="ppimg" style="right:40px;top:36px;width:460px" data-bg="B(T.istituto.episodes[4].s,780)"></div>
+          <div class="ppt" style="left:40px;top:270px;width:460px">
+            <div class="k">Prossimo episodio</div>
+            <div class="tt" style="font-size:40px">L'Istituto</div>
+            <div class="ep">S1:E5 · La seconda casa</div>
+            <div class="go" style="margin-top:20px">
+              <span class="cnt tvf"><i class="ic" data-i="play"></i><span class="num">Riproduci tra 8 s</span><span class="fill"><i class="ic" data-i="play"></i><span class="num">Riproduci tra 8 s</span></span></span>
+              <span class="b s lg">Guarda i titoli</span>
+            </div>
+          </div>
+        </div>
+        <p class="cap">In TV l'immagine c'è, perché il layout è <code>compact &amp;&amp; !tv</code> e non quello del telefono. La trama si toglie per stare nei 540 di altezza. Il focus parte sul primario.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="s" id="s8">
+    <h2>Trailer</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Nessuna sfumatura dietro i comandi: su una scena chiara non si leggono (<code>trailer_screen.dart</code>).</li>
+      <li>Niente tempo e niente avviso del volume.</li>
+      <li>Pulsanti FilledButton Material; quando il trailer non c'è compaiono due "Chiudi" (<code>trailer_screen.dart:287, 321</code>).</li>
+      <li>Un clic sul video mostra i comandi invece di mettere in pausa, al contrario del player.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk">
+      <div class="vid" data-bg="B(T.istituto.backdrop)"></div>
+      <div class="shT"></div><div class="shB" style="height:200px"></div>
+      <div class="top">
+        <div style="margin-left:12px"><div class="tt">L'Istituto</div><div class="ep">Trailer · 2:12</div></div>
+        <span class="b s" style="margin-left:auto"><i class="ic" data-i="x"></i>Chiudi</span>
+      </div>
+      <div class="pill"><i class="ic" data-i="volume2"></i><span class="num">Volume 60%</span></div>
+      <div class="seekrow" style="bottom:72px">
+        <span class="tm">0:48</span>
+        <div class="sk" data-seek='{"dur":132,"pos":48,"buf":90,"ch":[],"zn":[]}'></div>
+        <span class="tm r">−1:24</span>
+      </div>
+      <div class="ctl">
+        <span class="pb big"><i class="ic" data-i="pause"></i></span>
+        <span class="pb"><i class="ic" data-i="rewind"></i></span>
+        <span class="pb"><i class="ic" data-i="fastForward"></i></span>
+        <span class="pb"><i class="ic" data-i="volume2"></i></span>
+        <span class="vol"><i style="width:60%"></i><b style="left:60%"></b></span>
+      </div>
+    </div></div>
+    <p class="cap">Il trailer usa i pezzi del player: sfumature in alto e in basso, la seek bar col tempo tabellare, la pastiglia "Volume 60%" quando cambia, gli stessi tasti (Spazio, ←/→, ↑/↓, M, Esc). Un clic sul video mette in pausa come nel player. Un solo "Chiudi", con la parola, in alto a destra. Se il trailer non c'è: "Trailer non disponibile" al centro e quel solo "Chiudi" col focus.</p>
+  </section>
+
+  <section class="s" id="fuori">
+    <h2>Fuori da questa bozza</h2>
+    <ul>
+      <li>La coda, la chat e le reazioni di Guarda insieme: hanno le loro bozze e i loro pannelli; qui cambia solo il gruppo dei pulsanti.</li>
+      <li>L'anteprima trickplay, le zone a righe, la pastiglia dei salti, il menu "⋯" dello stretto: restano come sono.</li>
+      <li>Un elenco dei capitoli da scegliere: i capitoli sono già segmenti nella seek bar; un elenco a parte si può fare dopo.</li>
+      <li>Il ritardo dei sottotitoli in TV: col motore Media3 oggi non funziona, resta fuori.</li>
+      <li>La finestra "Cerca sottotitoli" (scarica e carica): stessa finestra di oggi, aperta dalla riga del pannello.</li>
+      <li>Nulla richiede il plugin. Il tasto <kbd>?</kbd>, la velocità, l'ora di fine e la riga Qualità sono solo app.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const I = {
+  arrowLeft:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  pause:'<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+  rewind:'<polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/>',
+  fastForward:'<polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/>',
+  skipBack:'<polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/>',
+  skipForward:'<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>',
+  volume2:'<path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  message:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  smilePlus:'<path d="M22 11v1a10 10 0 1 1-9-10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M16 5h6"/><path d="M19 2v6"/>',
+  listVideo:'<path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/><path d="m16 12 5 3-5 3v-6Z"/>',
+  captions:'<rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/>',
+  gauge:'<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
+  maximize:'<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  ellipsis:'<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  minus:'<path d="M5 12h14"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  chevronRight:'<path d="m9 18 6-6-6-6"/>',
+  rotate:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+};
+const svg = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
+document.querySelectorAll('[data-i]').forEach(e => { e.innerHTML = svg(e.dataset.i); });
+document.querySelectorAll('[data-bg]').forEach(e => { e.style.backgroundImage = `url(${new Function('return ' + e.dataset.bg)()})`; });
+document.querySelectorAll('[data-txt]').forEach(e => { e.textContent = new Function('return ' + e.dataset.txt)(); });
+
+// seek bar: capitoli come segmenti staccati, zone a righe, buffer, avanzamento, pallino
+const pct = (v, d) => (v / d * 100);
+document.querySelectorAll('[data-seek]').forEach(e => {
+  const o = JSON.parse(e.dataset.seek), d = o.dur;
+  const cuts = [0, ...o.ch.filter(c => c > 0 && c < d), d];
+  let h = '';
+  for (let k = 0; k < cuts.length - 1; k++) {
+    const a = cuts[k], b = cuts[k + 1], w = b - a;
+    const part = v => Math.max(0, Math.min(1, (v - a) / w)) * 100;
+    let z = '';
+    o.zn.forEach(([za, zb]) => {
+      const s = Math.max(a, za), t = Math.min(b, zb);
+      if (t > s) z += `<i class="zn" style="left:${(s - a) / w * 100}%;width:${(t - s) / w * 100}%"></i>`;
+    });
+    h += `<div class="sg" style="left:calc(${pct(a, d)}% + ${k ? 1.5 : 0}px);width:calc(${pct(w, d)}% - ${(k ? 1.5 : 0) + (k < cuts.length - 2 ? 1.5 : 0)}px)"><i class="bf" style="width:${part(o.buf)}%"></i><i class="pl" style="width:${part(o.pos)}%"></i>${z}</div>`;
+  }
+  h += `<i class="kn" style="left:${pct(o.pos, d)}%"></i>`;
+  e.innerHTML = h;
+});
+</script>
+</body>
+</html>

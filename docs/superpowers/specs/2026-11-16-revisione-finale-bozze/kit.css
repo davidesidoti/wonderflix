@@ -1,0 +1,144 @@
+/* Kit comune delle bozze della revisione finale (16 novembre 2026).
+   Token = app/lib/app/theme.dart (Noir & Oro). Nessun colore nuovo. */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg:#0A0A0A; --sf:#121212; --sh:#1B1B1B; --bd:#262626; --gold:#D4A64A; --cr:#F2EAD3;
+  --mu:rgba(242,234,211,.6); --dim:rgba(242,234,211,.32); --yes:#5BBF6A; --no:#C8463C;
+  /* solo il foglio della bozza, non l'app */
+  --page:#1c1c1c; --note:#b9b4a6;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--page); color:var(--note); font:14px/1.55 Inter, sans-serif; }
+button { font:inherit; color:inherit; }
+:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+
+/* ---------- il foglio ---------- */
+.doc { max-width:1340px; margin:0 auto; padding:32px 16px 64px; }
+.doc > h1 { font:400 44px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 8px; }
+.doc p, .doc ul, .doc ol { max-width:80ch; }
+.doc li { margin:3px 0; }
+.doc b { color:var(--cr); font-weight:600; }
+.doc code { font-size:12.5px; color:var(--cr); background:#262626; padding:0 4px; border-radius:3px; }
+section.s { margin:56px 0; }
+section.s > h2 { font:400 30px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); margin:0 0 6px; }
+section.s > h3 { font:600 15px/1.3 Inter; color:var(--cr); margin:24px 0 6px; }
+.pair { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+.tag { display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:4px; margin-bottom:6px; }
+.tag.old { background:rgba(200,70,60,.18); color:#e58a80; }
+.tag.new { background:rgba(212,166,74,.18); color:var(--gold); }
+.cap { font-size:13px; margin:8px 0 0; max-width:62ch; }
+.scroll { overflow-x:auto; padding-bottom:6px; }
+.issues { columns:2 360px; column-gap:32px; font-size:13px; padding-left:18px; }
+.issues li { break-inside:avoid; }
+.issues code { font-size:11.5px; }
+
+/* ---------- cornici ---------- */
+.app { background:var(--bg); color:var(--cr); border-radius:8px; overflow:hidden; font-size:13px; position:relative; flex:none; }
+.app.desk { width:1280px; height:780px; }
+.app.phone { width:390px; height:780px; }
+.app.tv { width:960px; height:540px; }
+.nav { position:absolute; left:0; right:0; top:0; height:56px; display:flex; align-items:center; gap:22px; padding:0 32px; background:linear-gradient(180deg,rgba(10,10,10,.92),rgba(10,10,10,0)); z-index:3; }
+.nav .logo { font:400 17px/1 'Bebas Neue'; letter-spacing:1px; color:var(--gold); margin-right:14px; }
+.nav a { color:var(--mu); text-decoration:none; }
+.nav a.on { color:var(--cr); }
+.nav .tools { margin-left:auto; display:flex; align-items:center; gap:16px; color:var(--cr); }
+.nav .tools svg { width:19px; height:19px; }
+.dot-badge { position:relative; }
+.dot-badge::after { content:attr(data-n); position:absolute; top:-6px; right:-8px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--gold); color:var(--bg); font:700 10px/15px Inter; text-align:center; }
+
+/* ---------- pezzi ---------- */
+.av { width:26px; height:26px; border-radius:50%; flex:none; display:grid; place-items:center; font:600 11px/1 Inter; color:var(--cr); position:relative; }
+.av.d { background:linear-gradient(135deg,#6b4a8a,#2a1d38); }
+.av.s { background:linear-gradient(135deg,#8f5a3f,#46261e); }
+.av.g { background:linear-gradient(135deg,#3f6f8f,#1e3446); }
+.av.c { background:linear-gradient(135deg,#5d7a45,#26341c); }
+.av.m { background:linear-gradient(135deg,#8a4a63,#3a1d29); }
+.av.l { background:linear-gradient(135deg,#7a6a45,#342c1c); }
+.av .on { position:absolute; right:-1px; bottom:-1px; width:30%; height:30%; min-width:8px; min-height:8px; border-radius:50%; background:var(--yes); box-shadow:0 0 0 2px var(--bg); }
+
+.b { height:38px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:0 16px; border-radius:6px; font-weight:700; font-size:13px; cursor:pointer; border:1px solid transparent; white-space:nowrap; background:none; }
+.b.p { background:var(--gold); color:var(--bg); }
+.b.s { color:var(--cr); border-color:rgba(242,234,211,.3); font-weight:600; }
+.b.q { background:var(--sh); border-color:var(--bd); color:var(--cr); font-weight:500; }
+.b.t { color:var(--gold); font-weight:600; padding:0 8px; }
+.b.danger { color:#e58a80; border-color:rgba(200,70,60,.5); font-weight:600; }
+.b.sm { height:30px; padding:0 11px; font-size:12.5px; }
+.b.lg { height:46px; padding:0 22px; font-size:14px; }
+.b[disabled] { opacity:.4; cursor:default; }
+.b svg { width:16px; height:16px; flex:none; }
+.ib { width:38px; height:38px; display:inline-grid; place-items:center; border-radius:50%; border:1px solid rgba(242,234,211,.3); color:var(--cr); background:rgba(10,10,10,.3); }
+.ib svg { width:18px; height:18px; }
+.ib.on { color:var(--gold); border-color:var(--gold); }
+/* sulla TV: bordo 2 crema/oro e scala 1.06, come TvFocusable */
+.tvf { box-shadow:0 0 0 2px var(--cr) !important; transform:scale(1.06); }
+.tvf.gold { box-shadow:0 0 0 2px var(--gold) !important; }
+
+.pst { aspect-ratio:2/3; border-radius:6px; background:var(--sh) center/cover; flex:none; }
+.still { aspect-ratio:16/9; border-radius:6px; background:var(--sh) center/cover; flex:none; position:relative; overflow:hidden; }
+.bar { height:3px; background:rgba(242,234,211,.18); border-radius:2px; overflow:hidden; }
+.bar i { display:block; height:100%; background:var(--gold); }
+.muted { color:var(--mu); } .dim { color:var(--dim); } .gold { color:var(--gold); }
+.num { font-variant-numeric:tabular-nums; }
+.disp { font-family:'Bebas Neue'; font-weight:400; letter-spacing:1px; line-height:.95; }
+
+/* il biglietto (ui/ticket_shape.dart): tacche laterali sullo strappo + strappo tratteggiato */
+.ticket { --cut:150px; position:relative; display:flex; background:var(--sf); border:1px solid var(--bd); border-radius:8px;
+  -webkit-mask: radial-gradient(circle 8px at var(--cut) 0, #0000 98%, #000) top/100% 51% no-repeat,
+                radial-gradient(circle 8px at var(--cut) 100%, #0000 98%, #000) bottom/100% 51% no-repeat;
+          mask: radial-gradient(circle 8px at var(--cut) 0, #0000 98%, #000) top/100% 51% no-repeat,
+                radial-gradient(circle 8px at var(--cut) 100%, #0000 98%, #000) bottom/100% 51% no-repeat; }
+.ticket::before { content:''; position:absolute; left:var(--cut); top:10px; bottom:10px; border-left:1.5px dashed var(--bd); }
+.ticket.gold { border-color:var(--gold); }
+
+/* la lampada (admin_kit.dart WfLamp) */
+.lamp { width:8px; height:8px; border-radius:50%; background:var(--gold); box-shadow:0 0 8px rgba(212,166,74,.8); flex:none; display:inline-block; }
+.lamp.off { background:var(--bd); box-shadow:none; }
+.lamp.red { background:var(--no); box-shadow:0 0 8px rgba(200,70,60,.7); }
+.lamp.green { background:var(--yes); box-shadow:0 0 8px rgba(91,191,106,.6); }
+
+/* pannello laterale (ui/shell_side_panel.dart): 360 a destra */
+.side { position:absolute; top:0; right:0; bottom:0; width:380px; background:var(--sf); border-left:1px solid var(--bd); z-index:5; display:flex; flex-direction:column; box-shadow:-20px 0 60px rgba(0,0,0,.5); }
+.scrim { position:absolute; inset:0; background:rgba(0,0,0,.54); z-index:4; }
+.side .hd { display:flex; align-items:center; gap:10px; padding:18px 18px 12px 20px; }
+.side .hd h4 { margin:0; font:400 30px/1 'Bebas Neue'; letter-spacing:1px; }
+.side .hd .x { margin-left:auto; }
+.side .body { flex:1; overflow:auto; padding:0 20px 20px; }
+.side .ft { padding:14px 20px; border-top:1px solid var(--bd); }
+
+/* finestra (ui/wf_dialog.dart) */
+.dlg { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--sf); border:1px solid var(--bd); border-radius:12px; overflow:hidden; box-shadow:0 30px 80px rgba(0,0,0,.6); z-index:5; display:flex; flex-direction:column; max-height:calc(100% - 48px); }
+.dlg .hd { display:flex; gap:14px; align-items:center; padding:20px 24px 14px; }
+.dlg .hd h4 { margin:0; font:400 32px/1 'Bebas Neue'; letter-spacing:1px; }
+.dlg .hd .sub { color:var(--mu); font-size:12.5px; margin-top:4px; }
+.dlg .body { padding:0 24px 18px; overflow:auto; }
+.dlg .ft { display:flex; align-items:center; gap:10px; justify-content:flex-end; padding:14px 24px; border-top:1px solid var(--bd); background:rgba(10,10,10,.35); }
+.dlg .ft .left { margin-right:auto; color:var(--mu); font-size:12.5px; }
+
+/* campi */
+.fl { display:block; font:600 12px/1 Inter; color:var(--mu); margin:14px 0 7px; }
+.in { width:100%; height:40px; border-radius:6px; background:var(--sh); border:1px solid var(--bd); color:var(--cr); padding:0 12px; font:inherit; display:flex; align-items:center; }
+.in.f { border-color:var(--gold); }
+.in.ta { height:auto; min-height:84px; align-items:flex-start; padding:10px 12px; line-height:1.5; }
+.hint { font-size:12px; color:var(--dim); margin-top:6px; }
+.err { font-size:12px; color:#e58a80; margin-top:6px; }
+
+/* scelte a pastiglia, al posto dei ChoiceChip Material */
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+.chip { height:32px; display:inline-flex; align-items:center; gap:7px; padding:0 13px; border-radius:16px; border:1px solid var(--bd); background:var(--sh); color:var(--cr); font-weight:500; font-size:12.5px; }
+.chip.on { border-color:var(--gold); background:rgba(212,166,74,.14); color:var(--gold); }
+.chip svg { width:14px; height:14px; }
+
+/* menu (wf_menus.dart) */
+.menu { position:absolute; z-index:6; min-width:230px; background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:6px; box-shadow:0 16px 40px rgba(0,0,0,.55); font-size:13px; }
+.menu .mi { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:5px; color:var(--cr); }
+.menu .mi svg { width:16px; height:16px; color:var(--mu); flex:none; }
+.menu .mi:hover, .menu .mi.f { background:var(--sh); }
+.menu .mi .k { margin-left:auto; color:var(--dim); font-size:11.5px; }
+.menu .grp { font:600 11px/1 Inter; color:var(--dim); padding:10px 10px 6px; }
+.menu hr { border:0; border-top:1px solid var(--bd); margin:6px 4px; }
+
+/* tasti */
+kbd { display:inline-grid; place-items:center; min-width:22px; height:22px; padding:0 6px; border:1px solid var(--bd); border-bottom-width:2px; border-radius:4px; background:var(--sh); color:var(--cr); font:600 11px/1 Inter; }
+
+@media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }

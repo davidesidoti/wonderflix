@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheda del titolo, bozza</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  .pair > div { width:390px; }
+  /* pagina dentro la cornice */
+  .pg { position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+  .pg::-webkit-scrollbar { display:none; }
+  .hero { position:relative; height:600px; }
+  .hb { position:absolute; inset:0; background:var(--sh) center 20%/cover; }
+  .hb::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.8) 35%,rgba(10,10,10,0) 75%); }
+  .hb::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 45%); }
+  .ht { position:absolute; left:32px; bottom:24px; width:660px; }
+  .kick { color:var(--gold); font-size:12.5px; font-weight:600; margin-bottom:6px; }
+  .ttl { font:400 96px/.9 'Bebas Neue'; letter-spacing:1px; margin:0; text-transform:uppercase; }
+  .meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:var(--mu); margin-top:14px; }
+  .meta .r { color:var(--gold); font-weight:600; }
+  .cert { border:1px solid rgba(242,234,211,.35); border-radius:3px; padding:0 5px; font-size:11px; line-height:17px; color:var(--mu); margin-left:4px; }
+  .ov { margin:10px 0 0; line-height:1.5; color:var(--cr); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; max-width:64ch; }
+  .ov.open { display:block; }
+  .more { background:none; border:0; padding:0; color:var(--gold); font-weight:600; cursor:pointer; margin-top:4px; font-size:12.5px; }
+  .acts { display:flex; align-items:center; gap:10px; margin-top:18px; }
+  .acts .sep { width:1px; height:24px; background:var(--bd); margin:0 2px; }
+  .duo { display:flex; gap:6px; align-items:center; }
+  .rem { display:flex; align-items:center; gap:8px; color:var(--mu); font-size:12px; margin-top:10px; }
+  .rem .bar { width:120px; }
+  .tipw { position:relative; display:inline-flex; }
+  .tip { position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); background:var(--cr); color:var(--bg); font-size:11.5px; font-weight:600; padding:4px 8px; border-radius:4px; white-space:nowrap; }
+  .ib { cursor:pointer; }
+  .ib.on svg { fill:currentColor; }
+  .ib.on.ck svg { fill:none; }
+
+  /* barra in alto */
+  .nav.solid { background:var(--bg); border-bottom:1px solid var(--sf); }
+  .nav .bt { font:400 22px/1 'Bebas Neue'; letter-spacing:1px; }
+  .nav .av { width:26px; height:26px; }
+
+  /* righe sotto */
+  .rows { padding:4px 0 48px; }
+  .rsec { margin-top:28px; }
+  .rh { display:flex; align-items:baseline; gap:12px; padding:0 32px; margin-bottom:12px; }
+  .rh h4 { margin:0; font:400 24px/1 'Bebas Neue'; letter-spacing:1px; }
+  .rh .c { color:var(--mu); font-size:12.5px; }
+  .rh .b { margin-left:auto; }
+  .strip { display:flex; gap:12px; padding:0 32px; overflow:hidden; }
+  .box { width:220px; height:112px; flex:none; background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:12px 14px; }
+  .avg { display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .avg .n { font:400 40px/1 'Bebas Neue'; color:var(--gold); letter-spacing:1px; }
+  .fr { display:flex; align-items:center; gap:8px; font-weight:600; }
+  .fr .fs { margin-left:auto; font:400 24px/1 'Bebas Neue'; color:var(--gold); }
+  .fc { margin-top:8px; font-size:12.5px; color:var(--mu); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .pc { width:120px; flex:none; }
+  .pc .ph { width:120px; height:150px; border-radius:6px; background:var(--sh) center 20%/cover; display:grid; place-items:center; color:var(--dim); }
+  .pc .ph svg { width:34px; height:34px; }
+  .pc .n { font-weight:600; margin-top:8px; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pc .ch { color:var(--mu); font-size:12px; }
+  .pp { width:140px; flex:none; }
+  .pp .pst { width:140px; }
+  .pp .n { margin-top:8px; font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pp .m { font-size:12px; color:var(--mu); }
+  .pp .here { color:var(--gold); font-weight:600; }
+
+  /* stagioni ed episodi */
+  .tabs { display:flex; align-items:flex-end; gap:28px; padding:0 32px; border-bottom:1px solid var(--bd); position:relative; margin-top:8px; }
+  .tabs .sl { display:flex; gap:28px; overflow-x:auto; scrollbar-width:none; position:relative; }
+  .tab { padding:14px 0 12px; color:var(--mu); font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap; background:none; border:0; position:relative; }
+  .tab.on { color:var(--cr); }
+  .tab .k { font-weight:400; color:var(--dim); margin-left:4px; font-size:12.5px; }
+  .tab.on::after { content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--gold); animation:ul .25s ease-out; transform-origin:left; }
+  @keyframes ul { from { transform:scaleX(.2); opacity:.4; } to { transform:none; opacity:1; } }
+  .tabs .stools { margin-left:auto; align-self:center; position:relative; padding-bottom:4px; }
+  .tabs .stools .ib { width:34px; height:34px; }
+  .rstrip { display:flex; align-items:center; gap:12px; margin:0 32px; padding:12px 0; border-bottom:1px solid var(--sf); }
+  .rstrip .lab { color:var(--mu); font-size:12.5px; }
+  .rstrip .an { font:400 28px/1 'Bebas Neue'; color:var(--gold); letter-spacing:1px; }
+  .rstrip .b { margin-left:auto; }
+  .fchip { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 10px 0 3px; border-radius:15px; background:var(--sh); border:1px solid var(--bd); font-size:12px; }
+  .fchip .av { width:24px; height:24px; font-size:10px; }
+  .fchip .s { font:400 18px/1 'Bebas Neue'; color:var(--gold); }
+  .eps { padding:10px 20px 40px; }
+  .ep { display:flex; gap:18px; align-items:center; padding:12px; border-radius:8px; margin-bottom:4px; }
+  .ep .still { width:200px; }
+  .still .bar { position:absolute; left:8px; right:8px; bottom:8px; }
+  .still .pl { position:absolute; inset:0; display:grid; place-items:center; }
+  .still .pl span { width:40px; height:40px; border-radius:50%; background:rgba(10,10,10,.6); display:grid; place-items:center; border:1px solid rgba(242,234,211,.5); }
+  .still .pl svg { width:16px; height:16px; margin-left:2px; }
+  .ep .tx { flex:1; min-width:0; }
+  .ep .t { font-weight:600; font-size:15px; }
+  .ep .m { color:var(--mu); font-size:12.5px; margin-top:2px; }
+  .ep .o { margin-top:6px; color:var(--mu); font-size:12.5px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:72ch; }
+  .ep .o.open { display:block; }
+  .ea { display:flex; align-items:center; gap:8px; flex:none; }
+  .ea .ib { width:34px; height:34px; }
+  .chip { cursor:pointer; }
+  .chip.on svg { color:var(--gold); }
+  .ep.nx { padding:14px 12px; margin:6px 0 10px; color:var(--cr); }
+  .nx .lbl { color:var(--gold); font-weight:600; font-size:12px; margin-bottom:2px; }
+  .nx .res { display:flex; align-items:center; gap:10px; margin-top:8px; color:var(--cr); font-size:12.5px; font-weight:600; }
+  .nx .res .bar { width:160px; }
+  .menu.smenu { right:0; top:42px; width:270px; }
+
+  /* telefono */
+  .phone .pg { bottom:56px; }
+  .ptop { position:absolute; top:0; left:0; right:0; height:52px; display:flex; align-items:center; gap:4px; padding:0 4px; z-index:3; background:linear-gradient(180deg,rgba(10,10,10,.75),rgba(10,10,10,0)); }
+  .ptop.solid { background:var(--bg); border-bottom:1px solid var(--sf); }
+  .ptop .bk { width:44px; height:44px; display:grid; place-items:center; }
+  .ptop .bk svg { width:22px; height:22px; }
+  .ptop .bt { font:400 22px/1 'Bebas Neue'; letter-spacing:1px; flex:1; }
+  .ptop .b { margin-right:8px; }
+  .pimg { aspect-ratio:16/9; background:var(--sh) center/cover; position:relative; }
+  .pimg::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,0) 45%); }
+  .pt { padding:0 16px; position:relative; margin-top:-6px; }
+  .phone .ttl { font-size:48px; }
+  .phone .meta { margin-top:10px; font-size:12.5px; }
+  .phone .ov { font-size:13px; }
+  .pplay { width:100%; height:46px; margin-top:16px; font-size:14px; }
+  .phone .rem { justify-content:center; }
+  .pacts { display:grid; grid-template-columns:repeat(6,1fr); margin:10px -8px 0; }
+  .pa { display:flex; flex-direction:column; align-items:center; gap:5px; min-height:58px; padding:8px 0 4px; font-size:11px; color:var(--mu); background:none; border:0; cursor:pointer; }
+  .pa svg { width:22px; height:22px; color:var(--cr); }
+  .pa.on, .pa.on svg { color:var(--gold); }
+  .pa.on svg.fill { fill:currentColor; }
+  .phone .tabs { padding:0 16px; margin-top:12px; }
+  .phone .tabs .sl { gap:22px; }
+  .phone .rstrip { margin:0 16px; flex-wrap:wrap; row-gap:8px; }
+  .phone .eps { padding:6px 16px 24px; }
+  .phone .ep { gap:12px; padding:10px 0; align-items:flex-start; margin:0; border-radius:0; border-bottom:1px solid var(--sf); }
+  .phone .ep .still { width:128px; }
+  .phone .ep .t { font-size:14px; }
+  .phone .ep .m { font-size:12px; }
+  .phone .ep .o { display:none; }
+  .phone .ea { margin-top:8px; }
+  .phone .ea .chip { height:36px; }
+  .phone .ea .ib { width:36px; height:36px; }
+  .phone .ep.nx { padding:10px; margin:10px 0; border-bottom:1px solid var(--gold); border-radius:8px; }
+  .phone .nx .res { flex-direction:column; align-items:flex-start; gap:6px; }
+  .phone .nx .res .bar { width:100%; }
+  .pnav { position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; justify-content:space-around; align-items:center; border-top:1px solid var(--sf); color:var(--mu); font-size:11px; background:var(--bg); z-index:4; }
+
+  /* tv */
+  .rail { position:absolute; left:0; top:0; bottom:0; width:64px; z-index:6; background:linear-gradient(90deg,var(--bg) 60%,rgba(10,10,10,0)); display:flex; flex-direction:column; align-items:center; gap:22px; padding-top:28px; color:var(--mu); }
+  .rail i { width:20px; height:20px; border-radius:4px; border:2px solid currentColor; opacity:.8; }
+  .rail i.on { color:var(--gold); opacity:1; }
+  .tv .pg { left:64px; overflow:hidden; }
+  .tv .hero { height:388px; }
+  .tv .ht { left:24px; bottom:8px; width:560px; }
+  .tv .ttl { font-size:72px; height:80px; display:flex; align-items:flex-end; }
+  .tv .meta { margin-top:8px; font-size:12.5px; }
+  .tv .ov { -webkit-line-clamp:2; font-size:12.5px; }
+  .tv .acts { margin-top:14px; gap:12px; align-items:flex-start; }
+  .tvi { display:flex; flex-direction:column; align-items:center; gap:4px; font-size:10.5px; color:var(--mu); min-width:44px; white-space:nowrap; }
+  .tvi .ib { width:36px; height:36px; }
+  .tv .tabs { padding:0 24px; margin-top:0; }
+  .tv .eps { padding:6px 12px; }
+  .tv .ep .still { width:160px; }
+
+  /* pannello voto */
+  .rsub { display:flex; gap:12px; align-items:center; padding:2px 0 16px; border-bottom:1px solid var(--bd); }
+  .rsub .pst { width:46px; }
+  .rsub .t { font-weight:600; font-size:15px; }
+  .rsub .m { color:var(--mu); font-size:12.5px; }
+  .q { font-weight:600; margin:18px 0 10px; color:var(--cr); }
+  .scale { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; }
+  .sc { height:56px; border-radius:8px; background:var(--sh); border:1px solid var(--bd); font:400 30px/1 'Bebas Neue'; color:var(--cr); cursor:pointer; display:grid; place-items:center; padding-top:3px; }
+  .sc:hover { border-color:rgba(212,166,74,.6); }
+  .sc.on { background:var(--gold); color:var(--bg); border-color:var(--gold); }
+  .word { margin-top:12px; color:var(--gold); font-weight:600; min-height:20px; }
+  .word .num { font-family:'Bebas Neue'; font-size:22px; font-weight:400; margin-right:6px; }
+  .side .ft { display:flex; align-items:center; gap:10px; }
+  .side .ft .b.p { margin-left:auto; }
+  .b.t.rm { color:#e58a80; padding:0 4px; }
+  .side .hd .ib { width:34px; height:34px; }
+  .in.ta.tvta { display:flex; align-items:center; gap:10px; color:var(--mu); min-height:52px; }
+  .tvta svg { width:18px; height:18px; flex:none; }
+  .tv .side { width:360px; }
+  .tv .side .hd h4 { font-size:28px; }
+  .tv .sc { height:46px; font-size:26px; }
+
+  /* persona e saga */
+  .per { padding:60px 16px 24px; }
+  .per .top { display:flex; gap:14px; align-items:flex-end; }
+  .per .ph { width:104px; height:140px; border-radius:8px; background:var(--sh) center 20%/cover; flex:none; }
+  .per h3 { font:400 40px/.9 'Bebas Neue'; letter-spacing:1px; margin:0; }
+  .per .m { color:var(--mu); font-size:12.5px; margin-top:6px; }
+  .per .bio { margin-top:14px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+  .per h4 { font:400 24px/1 'Bebas Neue'; letter-spacing:1px; margin:24px 0 12px; }
+  .pgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .pgrid > div { min-width:0; }
+  .pgrid .n { font-size:12px; font-weight:600; margin-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .empty { border:1px dashed var(--bd); border-radius:8px; padding:16px; color:var(--mu); font-size:13px; }
+  .empty .b { margin-top:12px; }
+  .tv .per { position:absolute; left:64px; right:0; top:0; bottom:0; padding:32px 24px; display:grid; grid-template-columns:180px 1fr; gap:28px; }
+  .tv .per .ph { width:180px; height:270px; }
+  .tv .per h3 { font-size:56px; }
+  .tv .per .bio { -webkit-line-clamp:5; font-size:13px; }
+  .tv .per .row { display:flex; gap:14px; }
+  .tv .per .row .pst { width:104px; }
+  .tv .per .row .pst.tvf { margin:0 4px; }
+  .tvtext { border-radius:6px; padding:6px 8px; margin:8px -8px 0; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Scheda del titolo, bozza</h1>
+  <p>La scheda di un film e di una serie, il pannello "Il tuo voto", e le correzioni per Persona e Saga. Dati veri (TMDB via Seerr, 16 novembre): The Wrestler con cast e regista, L'Istituto con le due stagioni da 8 episodi, still e date della prima. I voti degli amici, le durate degli episodi e il punto di ripresa sono inventati, con le persone del server. Codice di partenza: <code>app/lib/features/detail/</code>, <code>ratings/</code>, <code>person/</code>, <code>collections/collection_screen.dart</code>; il modello è il carosello della Home (<code>home/hero_carousel.dart</code>, <code>hero_labels.dart</code>).</p>
+  <p>L'idea in breve: <b>la scheda parla come la Home</b>. Riga oro piccola, titolo grande, una sola riga di dati con i generi in italiano, azioni sempre nello stesso ordine e il ⋯ ultimo. L'unico elemento forte della pagina è il <b>biglietto del prossimo episodio</b>; il resto è ordine e correzioni. Nessuna proposta richiede il plugin.</p>
+
+  <section class="s" id="s1">
+    <h2>Film, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il titolo è più debole della Home: Bebas 56 (36 nello stretto) contro 104, e manca la riga oro "Film · arrivato ieri" (<code>detail_header.dart:284</code>).</li>
+      <li>I dati stanno su due righe: anno, durata, voto e classificazione sopra, i generi sotto. I generi non sono tradotti e sono tutti (<code>detail_header.dart:295</code>); la Home li traduce e ne mostra due (<code>hero_labels.dart:34</code>).</li>
+      <li>La trama è tagliata a 4 righe e non si apre (<code>detail_header.dart:308</code>).</li>
+      <li>Fino a 9 azioni in fila, e due pulsanti di testo ("Consiglia a…", "Richiedi stagioni") vengono dopo il ⋯ (<code>detail_header.dart:391-461</code>). In TV Vota e Consiglia stanno tra ♥ e ✓.</li>
+      <li>"Voti degli amici" ha un pulsante Material di serie (<code>friend_ratings_row.dart:55</code>).</li>
+      <li>"Fa parte di" ha locandine larghe 160 in una riga alta 300, fisse; Simili usa <code>rowPosterSize</code>: due misure nella stessa pagina (<code>collection_rows.dart:61</code>, <code>:71</code>).</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" id="filmTop"></div></div>
+    <p class="cap">Come la Home: riga oro "Film di Darren Aronofsky", titolo Bebas 96, <b>una riga sola</b> di dati con due generi tradotti, il voto e la classificazione. La trama ha 3 righe e "Altro" la apre (prova). Le azioni hanno un ordine fisso: il primario con accanto ↺ Ricomincia, poi Guarda insieme e Trailer, poi le icone di stato (La mia lista, Visto, Vota, Consiglia a…) e il ⋯ per ultimo. Sotto il primario quanto manca.</p>
+    <div class="scroll" style="margin-top:24px"><div class="app desk" id="filmRows"></div></div>
+    <p class="cap">Scorsa: titolo e "Riprendi da 34:12" salgono nella barra (come oggi). "Voti degli amici" ha il pulsante del kit ("Il tuo voto: 8", oro). Il cast ha foto e personaggio, chi non ha foto ha la sagoma. "Fa parte di" e Simili hanno <b>la stessa misura</b> (<code>rowPosterSize</code>). La riga della saga è d'esempio: The Wrestler non fa parte di una saga, qui conta la misura.</p>
+  </section>
+
+  <section class="s" id="s2">
+    <h2>Serie, desktop, agli episodi</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>"Voti degli amici · Stagione 1" sta sopra le schede delle stagioni, ma dipende dalla scheda scelta sotto (<code>series_detail_view.dart:116</code>).</li>
+      <li>Le schede delle stagioni sono in un Wrap e vanno a capo; i nomi sono quelli grezzi di Jellyfin (<code>series_detail_view.dart:253</code>).</li>
+      <li>Non si può segnare come visto un episodio né una stagione: il ⋯ dell'episodio ha solo "Togli da Continua a guardare" (<code>series_detail_view.dart:461</code>).</li>
+      <li>Il segno "visto" viene <i>dopo</i> il ⋯ (<code>series_detail_view.dart:470</code>).</li>
+      <li>Il prossimo episodio si riconosce solo da uno sfondo appena più chiaro (<code>series_detail_view.dart:396</code>).</li>
+      <li>Niente data di uscita; la trama è di 2 righe e non si apre.</li>
+      <li>Tutta la stagione è costruita in una Column (<code>series_detail_view.dart:341</code>): con un anime da 170 episodi la pagina è lenta.</li>
+      <li>"Sci-Fi &amp; Fantasy" e "Action &amp; Adventure" (generi delle serie su TMDB) non sono in <code>genre_labels.dart</code>: restano in inglese anche passando da <code>genreLabel</code>.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" id="seriesDesk"></div></div>
+    <p class="cap">Le stagioni sono una riga che scorre ("Stagione 1 · 8 episodi"), con la sottolineatura oro di oggi. Subito sotto, in una riga bassa, i voti di <b>quella</b> stagione e "Vota la stagione". Ogni episodio ha la data, la durata e un pulsante <b>Visto</b> prima del ⋯ (prova a cliccarlo). Il ⋯ accanto alle schede vale per la stagione: "Segna la stagione come vista". Il prossimo episodio è un <b>biglietto</b> col bordo oro: "Prossimo", "Riprendi · rimangono 18 min". La lista si costruisce a pezzi (sliver), non tutta insieme.</p>
+  </section>
+
+  <section class="s" id="s3">
+    <h2>Serie, telefono</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Riproduci a tutta larghezza, poi solo icone tonde (↺, Guarda insieme, Trailer, ♥, ✓, ⋯) con un tooltip: sul touch il tooltip non si vede e non si capisce cosa fanno (<code>detail_header.dart:336-390</code>).</li>
+      <li>Le schede delle stagioni vanno a capo anche qui; il prossimo episodio non si distingue.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div><div class="app phone" id="phoneTop"></div><p class="cap">Immagine 16:9 e testo sotto (come oggi), una riga di dati, Riprendi a tutta larghezza. Poi una fila di sei azioni con <b>icona e parola sotto</b>, bersagli alti 58. Ricomincia e "Richiedi stagioni" vanno in Altro.</p></div>
+      <div><div class="app phone" id="phoneEps"></div><p class="cap">Scorsa: titolo e Riprendi nella barra. Stagioni scorrevoli, voti della stagione in due righe, episodi compatti con data, durata e "Visto" a portata di pollice. Il biglietto del prossimo episodio c'è anche qui.</p></div>
+    </div>
+  </section>
+
+  <section class="s" id="s4">
+    <h2>Serie, TV</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>L'intestazione è alta e sotto si intravedono 140 px: la riga dei voti, non le stagioni (<code>series_detail_view.dart:116</code>).</li>
+      <li>Le icone non hanno nome: in TV non c'è il passaggio del mouse, quindi nemmeno il tooltip.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app tv" id="seriesTv"></div></div>
+    <p class="cap">Intestazione più bassa: nome (o logo) alto 80, trama di 2 righe. Il focus parte su Riprendi (bordo crema, scala 1.06). Le icone hanno il nome sotto. Sotto si vedono le stagioni e il primo episodio: Giù porta lì, i voti della stagione vengono dopo le schede.</p>
+  </section>
+
+  <section class="s" id="s5">
+    <h2>Il tuo voto</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il titolo è Inter 20, con la X Material (<code>rate_panel.dart:138</code>, <code>:144</code>).</li>
+      <li>La riga 1–10 è piccola; il voto scelto non dice niente a parole.</li>
+      <li>"Salva" sta su una riga a destra, "Togli il mio voto" su un'altra riga sotto: due piedi.</li>
+      <li>In TV il campo del commento è nudo (<code>rating_widgets.dart:87</code>): passandoci col D-pad si apre la tastiera.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" id="rateDesk"></div></div>
+    <p class="cap">Pannello laterale di 380. Titolo Bebas "Il tuo voto" e la riga con locandina e titolo su cui si vota. La scala è grande (due file da cinque, Bebas 30); il voto scelto è oro e sotto c'è una parola sobria (prova: 1–2 Da evitare, 3–4 Deludente, 5–6 Così così, 7 Bello, 8 Molto bello, 9 Bellissimo, 10 Imperdibile). Un piede solo: "Togli il mio voto" a sinistra in rosso tenue, "Salva voto" a destra.</p>
+    <div class="scroll" style="margin-top:24px"><div class="app tv" id="rateTv"></div></div>
+    <p class="cap">In TV, voto nuovo su una stagione: "Togli il mio voto" non c'è. Il commento è una cornice che prende il focus (<code>TvTextFieldFrame</code>): OK apre la tastiera, Su e Giù la passano senza aprirla.</p>
+  </section>
+
+  <section class="s" id="s6">
+    <h2>Persona e saga</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Persona in TV usa il layout del telefono: <code>person_screen.dart:81</code> guarda <code>compact</code> senza <code>!tv</code>.</li>
+      <li>Margini 32 anche sul telefono (<code>person_screen.dart:99</code>, <code>:131</code>, <code>:153</code>); biografia tagliata a 10 righe senza "Altro" (<code>:89</code>).</li>
+      <li>"Su WonderFlix" compare anche senza titoli (<code>person_screen.dart:133</code>).</li>
+      <li>Saga: margini 32 nella griglia contro 16 dell'intestazione nello stretto (<code>collection_screen.dart:175</code>); una saga vuota dice "0 film · 0 visti".</li>
+      <li>La pagina di un titolo da TMDB (<code>requests/tmdb_title_screen.dart</code>) è una copia vecchia dell'intestazione, senza layout stretto.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div><div class="app phone" id="person"></div><p class="cap">Margini 16 ovunque. Biografia di 4 righe con "Altro". "Su WonderFlix" solo se c'è almeno un titolo; altrimenti una riga che invita a cercare in Richieste.</p></div>
+      <div><div class="app phone" id="saga"></div><p class="cap">Saga: griglia e intestazione allineate a 16. Se la saga è vuota non scrive "0 film · 0 visti", ma cosa fare.</p></div>
+    </div>
+    <div class="scroll" style="margin-top:24px"><div class="app tv" id="personTv"></div></div>
+    <p class="cap">Persona in TV col suo layout (<code>compact &amp;&amp; !tv</code>): foto a sinistra, biografia raggiungibile col focus (OK la apre), titoli in una fila. <b>Pagina TMDB:</b> stessa intestazione della scheda (riga oro "Non ancora su WonderFlix", una riga di dati, "Richiedi" come primario), anche nello stretto.</p>
+  </section>
+
+  <section class="s" id="s7">
+    <h2>Fuori da questa bozza</h2>
+    <ul>
+      <li>Il contenuto del menu ⋯ (lo ridisegna <code>strumenti.html</code>): qui si vede solo dove sta. Il ⋯ della stagione è nuovo e ha solo le voci della stagione.</li>
+      <li>Da tenere com'è: fondale con parallasse e Hero, scheletri uguali alla pagina, immagine 16:9 con testo sotto nello stretto, titolo e primario che salgono nella barra, barretta di avanzamento e "rimangono …", righe che spariscono se falliscono, media degli amici in Bebas oro.</li>
+      <li>Il pannello "Consiglia a…" e la finestra Guarda insieme: non cambiano qui.</li>
+      <li>Logo del titolo: la bozza mostra il nome in Bebas; dove Jellyfin ha il logo resta il logo, alla stessa altezza.</li>
+      <li>Tutto si fa con Jellyfin e il plugin di oggi: "Visto" di episodio e stagione è <code>/UserPlayedItems</code>, la data è <code>PremiereDate</code>, le parole del voto stanno solo nell'app.</li>
+    </ul>
+  </section>
+</div>
+
+<script src="data.js"></script>
+<script>
+const svg = (d, fill) => `<svg viewBox="0 0 24 24" fill="${fill ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ico = {
+  play: svg('<polygon points="6 3 20 12 6 21 6 3"/>', true),
+  restart: svg('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'),
+  users: svg('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  clap: svg('<path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+  heart: svg('<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>'),
+  check: svg('<path d="M20 6 9 17l-5-5"/>'),
+  star: svg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
+  starF: svg('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', true),
+  send: svg('<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>'),
+  more: svg('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'),
+  x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  back: svg('<path d="m15 18-6-6 6-6"/>'),
+  pencil: svg('<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>'),
+  search: svg('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  bell: svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>'),
+  user: svg('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>'),
+  keys: svg('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/>'),
+};
+const W = T.wrestler, I = T.istituto;
+const MESI = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+const fmtDate = (d, year = true) => { const [y, m, g] = d.split('-').map(Number); return `${g} ${MESI[m - 1]}${year ? ' ' + y : ''}`; };
+const runtime = (m) => `${Math.floor(m / 60)}h ${m % 60}m`;
+const av = (p) => `<span class="av ${p.c}">${p.i}${p.on ? '<i class="on"></i>' : ''}</span>`;
+const [me, sara, garg, capt] = PEOPLE;
+const filmFriends = [{ p: sara, s: 8, c: 'Rourke è enorme. Il finale fa male.' }, { p: garg, s: 7, c: '' }, { p: capt, s: 9, c: 'Da rivedere, anche solo per la scena del banco gastronomia.' }];
+const seasonFriends = [{ p: sara, s: 7 }, { p: garg, s: 8 }];
+const EP_MIN = [58, 52, 54, 52, 55, 51, 53, 61];
+const NEXT = 4; // S1:E4, visti 1-3
+
+const navDesk = (on, bar) => `<div class="nav${bar ? ' solid' : ''}"><span class="logo">WonderFlix</span>${bar
+  ? `<span class="bt">${bar.t}</span><span class="b p sm">${ico.play}${bar.a}</span>`
+  : ['Home', 'Film', 'Serie', 'La mia lista', 'Richieste', 'Calendario'].map(n => `<a class="${n === on ? 'on' : ''}">${n}</a>`).join('')}<span class="tools">${ico.search}<span class="dot-badge" data-n="2">${ico.bell}</span>${av(me)}</span></div>`;
+
+/* intestazione: film o serie */
+function header(k, { tv = false, phone = false, tip = false } = {}) {
+  const film = k === 'film';
+  const it = film ? W : I;
+  const kick = film ? 'Film di Darren Aronofsky' : `Serie di ${I.creators[0]}`;
+  const data = film
+    ? `<span class="num">2008</span>·<span class="num">${runtime(W.runtime)}</span>·<span>Dramma</span>·<span>Romance</span>·<span class="r num">★ 7,5</span><span class="cert">VM14</span>`
+    : `<span class="num">2025</span>·<span>2 stagioni</span>·<span>Mistero</span>·<span>Fantascienza e fantasy</span>·<span class="r num">★ 7,5</span><span class="cert">VM14</span>`;
+  const primary = film ? 'Riprendi da 34:12' : `Riprendi S1:E${NEXT}`;
+  const left = film ? 'rimangono 1h 15m' : 'rimangono 18 min';
+  const pct = film ? 31 : 65;
+  const ov = `<p class="ov">${it.overview}</p>${tv ? '' : '<button class="more" data-more>Altro</button>'}`;
+  if (phone) {
+    return `<div class="pimg" style="background-image:url(${B(it.backdrop, 780)})"></div>
+      <div class="pt"><div class="kick">${kick}</div><h3 class="ttl">${it.title}</h3><div class="meta">${data}</div>${ov}
+      <button class="b p pplay">${ico.play}${primary}</button>
+      <div class="rem"><span class="bar"><i style="width:${pct}%"></i></span>${left}</div>
+      <div class="pacts">
+        <button class="pa on" data-tog>${svg('<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>', true)}La mia lista</button>
+        <button class="pa" data-tog>${ico.check}Visto</button>
+        <button class="pa">${ico.clap}Trailer</button>
+        <button class="pa">${ico.users}Insieme</button>
+        <button class="pa">${ico.send}Consiglia</button>
+        <button class="pa">${ico.more}Altro</button>
+      </div></div>`;
+  }
+  const ib = (i, label, cls = '') => tv
+    ? `<span class="tvi"><span class="ib ${cls}">${i}</span>${label}</span>`
+    : `<span class="tipw"><span class="ib ${cls}" title="${label}" aria-label="${label}" data-tog>${i}</span>${tip && label === 'Vota' ? '<span class="tip">Vota</span>' : ''}</span>`;
+  const icons = [ib(ico.heart, 'La mia lista', 'on'), ib(ico.check, 'Visto', 'ck'), film ? ib(ico.star, 'Vota') : '', ib(ico.send, 'Consiglia a…'), ib(ico.more, 'Altro')].join('');
+  return `<div class="hero"><div class="hb" style="background-image:url(${B(it.backdrop)})"></div>
+    <div class="ht"><div class="kick">${kick}</div><h3 class="ttl">${it.title}</h3><div class="meta">${data}</div>${ov}
+    <div class="acts">
+      <span class="duo"><span class="b p${tv ? '' : ' lg'}${tv ? ' tvf' : ''}">${ico.play}${primary}</span>${tv ? '' : `<span class="ib" title="Ricomincia" aria-label="Ricomincia">${ico.restart}</span>`}</span>
+      <span class="b s">${ico.users}Guarda insieme</span>
+      <span class="b s">${ico.clap}Trailer</span>
+      ${tv ? '' : '<span class="sep"></span>'}${icons}
+    </div>
+    ${tv ? '' : `<div class="rem"><span class="bar"><i style="width:${pct}%"></i></span>${left}</div>`}
+    </div></div>`;
+}
+
+/* righe sotto il film */
+function filmRows() {
+  const friends = filmFriends.map(f => `<div class="box"><div class="fr">${av(f.p)}<span>${f.p.n}</span><span class="fs">${f.s}</span></div>${f.c ? `<div class="fc">${f.c}</div>` : ''}</div>`).join('');
+  const cast = W.cast.slice(0, 8).concat(W.cast[9]).map(c => `<div class="pc"><div class="ph" style="${c.p ? `background-image:url(${FACE(c.p)})` : ''}">${c.p ? '' : ico.user}</div><div class="n">${c.n}</div><div class="ch">${c.c}</div></div>`).join('');
+  const poster = (t, here) => `<div class="pp"><div class="pst" style="background-image:url(${P(t.p)})"></div><div class="n">${t.t}</div><div class="m">${here ? '<span class="here">Questo film</span>' : `<span class="num">${t.y}</span>${t.r ? ` · ★ <span class="num">${t.r}</span>` : ''}`}</div></div>`;
+  const byT = (n) => POSTERS.find(p => p.t === n);
+  const saga = [poster(byT('The Wrestler'), true), poster(byT('Beautiful Boy')), poster(byT('I Swear - È più forte di me'))].join('');
+  const similar = POSTERS.filter(p => p.k === 'Film' && !['The Wrestler', 'Beautiful Boy', 'I Swear - È più forte di me'].includes(p.t)).slice(0, 8).map(p => poster(p)).join('');
+  return `<div class="rows">
+    <div class="rsec"><div class="rh"><h4>Voti degli amici</h4><span class="c">3 amici</span><span class="b t">${ico.pencil}Il tuo voto: 8</span></div>
+      <div class="strip"><div class="box avg"><span class="n">8,0</span><span class="muted">3 amici</span></div>${friends}</div></div>
+    <div class="rsec"><div class="rh"><h4>Cast</h4><span class="c">Regia di Darren Aronofsky</span></div><div class="strip">${cast}</div></div>
+    <div class="rsec"><div class="rh"><h4>Fa parte di: Saga d'esempio</h4><span class="c">3 film · 1 visto</span></div><div class="strip">${saga}</div></div>
+    <div class="rsec"><div class="rh"><h4>Simili</h4></div><div class="strip">${similar}</div></div>
+  </div>`;
+}
+
+/* stagioni ed episodi della serie */
+function seasons({ menu = false } = {}) {
+  return `<div class="tabs"><div class="sl">${I.seasons.map((s, i) => `<button class="tab${i ? '' : ' on'}" data-tab>Stagione ${s.n}<span class="k">· ${s.e} episodi</span></button>`).join('')}</div>
+    <span class="stools"><span class="ib" title="Altro per la stagione" aria-label="Altro per la stagione" data-menu>${ico.more}</span>
+    <div class="menu smenu" ${menu ? '' : 'hidden'}><div class="grp">Stagione 1</div><div class="mi f">${ico.check}Segna la stagione come vista</div><div class="mi">${ico.star}Vota la stagione</div></div></span></div>`;
+}
+function ratingStrip() {
+  return `<div class="rstrip"><span class="lab">Voti degli amici · Stagione 1</span><span class="an">7,5</span><span class="muted" style="font-size:12.5px">2 amici</span>${seasonFriends.map(f => `<span class="fchip">${av(f.p)}${f.p.n}<span class="s">${f.s}</span></span>`).join('')}<span class="b t sm">${ico.star}Vota la stagione</span></div>`;
+}
+function episodes(count = 8, phone = false) {
+  return I.episodes.slice(0, count).map((e, i) => {
+    const n = e.n, watched = n < NEXT, next = n === NEXT;
+    const m = `<span class="num">S1:E${n}</span> · <span class="num">${fmtDate(e.d, !phone)}</span> · <span class="num">${EP_MIN[i]} min</span>`;
+    const acts = `<span class="ea"><span class="chip${watched ? ' on' : ''}" data-seen>${ico.check}Visto</span><span class="ib" title="Altro" aria-label="Altro">${ico.more}</span></span>`;
+    const still = `<div class="still" style="background-image:url(${STILL(e.s)})">${next ? `<span class="pl"><span>${ico.play}</span></span><span class="bar"><i style="width:65%"></i></span>` : ''}</div>`;
+    if (next) {
+      return `<div class="ticket gold ep nx" style="--cut:${phone ? 148 : 224}px">${still}<div class="tx"><div class="lbl">Prossimo</div><div class="t">${e.t}</div><div class="m">${m}</div>${phone ? '' : `<div class="o">${e.o}…</div>`}<div class="res">Riprendi · rimangono 18 min<span class="bar"><i style="width:65%"></i></span></div>${phone ? acts : ''}</div>${phone ? '' : acts}</div>`;
+    }
+    return `<div class="ep">${still}<div class="tx"><div class="t">${e.t}</div><div class="m">${m}</div><div class="o">${e.o}…</div>${phone ? acts : ''}${!phone && n === 5 ? '<button class="more" data-more>Altro</button>' : ''}</div>${phone ? '' : acts}</div>`;
+  }).join('');
+}
+
+/* cornici */
+const $ = (id) => document.getElementById(id);
+$('filmTop').innerHTML = `<div class="pg">${header('film', { tip: true })}${filmRows()}</div>${navDesk('Film')}`;
+$('filmRows').innerHTML = `<div class="pg">${header('film')}${filmRows()}</div>${navDesk('Film', { t: 'The Wrestler', a: 'Riprendi da 34:12' })}`;
+$('seriesDesk').innerHTML = `<div class="pg">${header('series')}${seasons({ menu: true })}${ratingStrip()}<div class="eps">${episodes()}</div></div>${navDesk('Serie', { t: "L'Istituto", a: `Riprendi S1:E${NEXT}` })}`;
+
+const phoneShell = (body, bar) => `<div class="pg">${body}</div><div class="ptop${bar ? ' solid' : ''}"><span class="bk">${ico.back}</span>${bar ? `<span class="bt">L'Istituto</span><span class="b p sm">${ico.play}S1:E${NEXT}</span>` : ''}</div><div class="pnav"><span>Home</span><span>Cerca</span><span>La mia lista</span><span>Richieste</span><span>Altro</span></div>`;
+const phoneBody = `${header('series', { phone: true })}${seasons()}${ratingStrip()}<div class="eps">${episodes(8, true)}</div>`;
+$('phoneTop').innerHTML = phoneShell(phoneBody);
+$('phoneEps').innerHTML = phoneShell(phoneBody, true);
+
+$('seriesTv').innerHTML = `<div class="rail"><i></i><i class="on"></i><i></i><i></i><i></i></div><div class="pg">${header('series', { tv: true })}${seasons()}<div class="eps">${episodes(2)}</div></div>`;
+
+/* pannello voto */
+const WORDS = { 1: 'Da evitare', 2: 'Da evitare', 3: 'Deludente', 4: 'Deludente', 5: 'Così così', 6: 'Così così', 7: 'Bello', 8: 'Molto bello', 9: 'Bellissimo', 10: 'Imperdibile' };
+function ratePanel({ tv = false, score = 8 } = {}) {
+  const sub = tv
+    ? `<div class="pst" style="background-image:url(${P(I.seasons[0].p)})"></div><div><div class="t">L'Istituto</div><div class="m">Stagione 1 · 8 episodi</div></div>`
+    : `<div class="pst" style="background-image:url(${P(W.poster)})"></div><div><div class="t">The Wrestler</div><div class="m">Film · 2008</div></div>`;
+  const scale = Array.from({ length: 10 }, (_, i) => `<button class="sc${i + 1 === score ? ' on' : ''}" data-sc="${i + 1}">${i + 1}</button>`).join('');
+  const comment = tv
+    ? `<div class="in ta tvf tvta">${ico.keys}<span>Scrivi un commento</span><span style="margin-left:auto"><kbd>OK</kbd></span></div>`
+    : `<div class="in ta f">Rourke è enorme. Il finale fa male.</div><div class="hint">Gli amici vedono voto e commento nella scheda.</div>`;
+  return `<div class="scrim"></div><div class="side"><div class="hd"><h4>Il tuo voto</h4><span class="ib x" aria-label="Chiudi">${ico.x}</span></div>
+    <div class="body"><div class="rsub">${sub}</div>
+      <div class="q">Quanto ti è ${tv ? 'piaciuta' : 'piaciuto'}?</div><div class="scale">${scale}</div>
+      <div class="word" data-word><span class="num">${score}</span>${WORDS[score]}</div>
+      <label class="fl">Commento (facoltativo)</label>${comment}</div>
+    <div class="ft">${tv ? '' : '<span class="b t rm">Togli il mio voto</span>'}<span class="b p">Salva voto</span></div></div>`;
+}
+$('rateDesk').innerHTML = `<div class="pg">${header('film')}${filmRows()}</div>${navDesk('Film')}${ratePanel()}`;
+$('rateTv').innerHTML = `<div class="rail"><i></i><i class="on"></i><i></i><i></i><i></i></div><div class="pg">${header('series', { tv: true })}${seasons()}<div class="eps">${episodes(2)}</div></div>${ratePanel({ tv: true, score: 7 })}`;
+$('rateTv').querySelector('.hero .b.p').classList.remove('tvf');
+
+/* persona e saga */
+const rourke = W.cast[0];
+const bio = 'Mickey Rourke (Schenectady, 16 settembre 1952) è un attore statunitense. Negli anni Ottanta è uno dei volti del cinema americano, poi lascia per anni il cinema per la boxe. Torna con The Wrestler, che gli vale il Golden Globe e la candidatura all\'Oscar.';
+$('person').innerHTML = `<div class="pg"><div class="per"><div class="top"><div class="ph" style="background-image:url(${FACE(rourke.p, 342)})"></div><div><h3>Mickey Rourke</h3><div class="m">Attore · nato il 16 settembre 1952</div></div></div>
+  <div class="bio">${bio}</div><button class="more">Altro</button>
+  <h4>Su WonderFlix</h4><div class="pgrid"><div><div class="pst" style="background-image:url(${P(W.poster)})"></div><div class="n">The Wrestler</div><div class="muted num" style="font-size:12px">2008 · Randy</div></div></div>
+  <h4>Se non ci sono titoli</h4><div class="empty">Nessun suo titolo è sul server.<br><span class="b s sm">${ico.search}Cerca in Richieste</span></div></div></div>
+  <div class="ptop"><span class="bk">${ico.back}</span></div><div class="pnav"><span>Home</span><span>Cerca</span><span>La mia lista</span><span>Richieste</span><span>Altro</span></div>`;
+const ace = POSTERS.find(p => p.t.startsWith('Ace Ventura'));
+$('saga').innerHTML = `<div class="pg"><div class="per"><div class="kick">Saga</div><h3>Ace Ventura - La collezione</h3><div class="m">1 film · 0 visti</div>
+  <h4 style="margin-top:18px">Film</h4><div class="pgrid"><div><div class="pst" style="background-image:url(${P(ace.p)})"></div><div class="n">${ace.t}</div><div class="muted num" style="font-size:12px">${ace.y}</div></div></div>
+  <h4>Se la saga è vuota</h4><div class="empty">Nessun film di questa saga è sul server.<br><span class="b s sm">${ico.search}Cerca in Richieste</span></div></div></div>
+  <div class="ptop"><span class="bk">${ico.back}</span></div><div class="pnav"><span>Home</span><span>Cerca</span><span>La mia lista</span><span>Richieste</span><span>Altro</span></div>`;
+$('personTv').innerHTML = `<div class="rail"><i></i><i class="on"></i><i></i><i></i><i></i></div><div class="per"><div class="ph" style="background-image:url(${FACE(rourke.p, 342)})"></div>
+  <div><h3>Mickey Rourke</h3><div class="m">Attore · nato il 16 settembre 1952</div><div class="tvtext"><div class="bio" style="margin-top:0">${bio}</div></div>
+  <h4>Su WonderFlix</h4><div class="row"><div class="pst tvf" style="background-image:url(${P(W.poster)})"></div></div></div></div>`;
+
+/* interazioni */
+document.addEventListener('click', (ev) => {
+  const t = ev.target.closest('[data-more],[data-tab],[data-seen],[data-menu],[data-sc],[data-tog]');
+  if (!t) return;
+  if (t.matches('[data-more]')) { const ov = t.previousElementSibling; const open = ov.classList.toggle('open'); t.textContent = open ? 'Meno' : 'Altro'; }
+  if (t.matches('[data-tab]')) { t.parentElement.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t)); }
+  if (t.matches('[data-seen],[data-tog]')) t.classList.toggle('on');
+  if (t.matches('[data-menu]')) { const m = t.nextElementSibling; m.hidden = !m.hidden; }
+  if (t.matches('[data-sc]')) {
+    const s = +t.dataset.sc, side = t.closest('.side');
+    side.querySelectorAll('.sc').forEach(x => x.classList.toggle('on', x === t));
+    side.querySelector('[data-word]').innerHTML = `<span class="num">${s}</span>${WORDS[s]}`;
+  }
+});
+
+/* scorrimento iniziale delle cornici "scorse" */
+const scrollTo = (id, sel, off) => { const app = $(id), pg = app.querySelector('.pg'); pg.scrollTop = (sel ? app.querySelector(sel).offsetTop : 0) - off; };
+scrollTo('filmRows', '.rows .rsec:nth-child(2)', 76);
+scrollTo('seriesDesk', '.tabs', 60);
+scrollTo('phoneEps', '.rstrip', 52);
+
+/* ?s=N: mostra solo la sezione N (per gli screenshot) */
+const only = new URLSearchParams(location.search).get('s');
+if (only) document.querySelectorAll('section.s').forEach(s => { if (s.id !== 's' + only) s.style.display = 'none'; });
+</script>
+</body>
+</html>

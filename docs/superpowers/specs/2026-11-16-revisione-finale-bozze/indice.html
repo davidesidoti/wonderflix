@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisione finale, indice</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  .lead { font-size:15px; color:var(--cr); max-width:72ch; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; margin-top:20px; }
+  .card { display:block; text-decoration:none; color:inherit; background:var(--sf); border:1px solid var(--bd); border-radius:10px; overflow:hidden; }
+  .card:hover, .card:focus-visible { border-color:var(--gold); }
+  .card .img { height:132px; background:var(--sh) center/cover; position:relative; }
+  .card .img::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,var(--sf),transparent 70%); }
+  .card .tx { padding:4px 16px 16px; }
+  .card h3 { margin:0; font:400 28px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .card p { margin:6px 0 0; font-size:13px; }
+  .card .what { color:var(--gold); font-size:12.5px; font-weight:600; margin-top:10px; }
+  table { border-collapse:collapse; width:100%; max-width:1100px; font-size:13px; margin-top:12px; }
+  th, td { text-align:left; padding:9px 12px; border-top:1px solid var(--bd); vertical-align:top; }
+  th { color:var(--cr); font-weight:600; }
+  td:first-child { white-space:nowrap; color:var(--cr); }
+  .lv { display:inline-flex; align-items:center; gap:7px; }
+  @media (max-width:700px) { td:first-child { white-space:normal; } }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Revisione finale prima della 0.42</h1>
+  <p class="lead">Le pagine che non avevamo ancora rifatto: player, scheda del titolo, le finestre del menu ⋯ (segnala, metadati, sottotitoli, info), amici, consigli, notifiche, cerca, e le schermate d'accesso. Ogni bozza mostra cosa non va oggi (con il file e la riga) e la proposta, su desktop, telefono e TV.</p>
+  <p>Come sono fatte: l'analisi viene dalla lettura del codice di <code>main</code> (8fe4346f), non dall'app aperta, quindi i difetti "visivi" sono ricostruiti. Immagini, trame, cast ed episodi sono veri (Seerr/TMDB, 16 novembre); le persone sono quelle del server. Lo stile non cambia: Noir &amp; Oro, Bebas Neue e Inter, nessun colore nuovo. Nessuna proposta richiede il plugin, salvo dove la bozza lo scrive.</p>
+
+  <div class="grid" id="cards"></div>
+
+  <section class="s">
+    <h2>Correzioni che valgono ovunque</h2>
+    <p>Sono piccole, si possono fare anche senza le bozze, e alcune sono difetti veri più che gusto.</p>
+    <table>
+      <tr><th>Cosa</th><th>Dove oggi</th><th>Correzione</th></tr>
+      <tr><td><span class="lv"><i class="lamp red"></i>TV con il layout del telefono</span></td><td>player (pannelli, pausa, post-play, posizioni), Persona, finestre Segnala e Info tecniche: usano <code>compact</code> senza <code>&amp;&amp; !tv</code></td><td>Layout TV propri, come dice CLAUDE.md; finestre con <code>fullPageWhenCompact: !tv</code>.</td></tr>
+      <tr><td><span class="lv"><i class="lamp red"></i>Campi di testo nudi in TV</span></td><td>nota di Segnala, commento del voto, messaggio di Consiglia a…, recupero password</td><td><code>TvTextFieldFrame</code> ovunque ci sia un campo raggiungibile in TV.</td></tr>
+      <tr><td><span class="lv"><i class="lamp red"></i>"Riprova" irraggiungibile</span></td><td>errore del player in TV (<code>player_screen.dart:1872</code>), server irraggiungibile in TV</td><td>Focus iniziale sul pulsante.</td></tr>
+      <tr><td><span class="lv"><i class="lamp"></i>Generi in inglese</span></td><td>scheda del titolo (<code>detail_header.dart:295</code>)</td><td><code>genreLabel</code> e al massimo 2, nella riga dei dati, come la Home.</td></tr>
+      <tr><td><span class="lv"><i class="lamp"></i>Generi delle serie mancanti</span></td><td><code>core/jellyfin/genre_labels.dart</code> non ha "Sci-Fi &amp; Fantasy", "Action &amp; Adventure", "War &amp; Politics", "Crime", "Fantasy", "Horror", "Romance"…: restano in inglese anche dove l'app traduce</td><td>Aggiungere le voci (e controllare i generi reali del server in <code>/Items/Filters2</code>).</td></tr>
+      <tr><td><span class="lv"><i class="lamp"></i>Episodi "S1 E2"</span></td><td>Segnala, amici ("Sta guardando … S2 E3"), admin segnalazioni</td><td><code>episodeCode</code>: "S1:E2".</td></tr>
+      <tr><td><span class="lv"><i class="lamp"></i>Etichette in maiuscolo</span></td><td>"STAI GUARDANDO", "PROSSIMO EPISODIO", "RICHIESTE (N)", "AMICI", "WATCH PARTY ATTIVI", "ACCEDI", "AGGIORNAMENTO NECESSARIO"</td><td>Frase normale.</td></tr>
+      <tr><td><span class="lv"><i class="lamp"></i>Finestre e pannelli</span></td><td>titoli Inter 20, tre piedi diversi, chip/checkbox/radio/switch Material di serie (il tema non li definisce)</td><td>Titolo Bebas con il titolo su cui si agisce, un piede comune, temi per chip, checkbox, radio, switch e menu a tendina in <code>theme.dart</code>.</td></tr>
+      <tr><td><span class="lv"><i class="lamp"></i>Pagina intera nello stretto</span></td><td><code>wf_dialog.dart:45</code>: solo una ← e pulsanti che scorrono via; pannelli con doppia chiusura</td><td>Barra con titolo e ✕, pulsanti fissi in basso; una sola chiusura.</td></tr>
+      <tr><td><span class="lv"><i class="lamp off"></i>Snackbar dappertutto</span></td><td>player, pannelli social, immagini</td><td>L'esito nel punto dell'azione (pastiglia del player, riga del pannello, finestra).</td></tr>
+    </table>
+  </section>
+
+  <section class="s">
+    <h2>Come leggere le bozze</h2>
+    <ul>
+      <li><span class="tag old">Oggi</span> elenca i difetti con file e riga.</li>
+      <li><span class="tag new">Nuova</span> sono le cornici: desktop 1280×780, telefono 390×780, TV 960×540 (la Fire Stick disegna a quella misura).</li>
+      <li>Ogni bozza ha un solo elemento "forte" (la scheda dei tasti nel player, il biglietto del prossimo episodio, Ora/Dopo in Identifica, le notifiche per giorno, il miglior risultato, il server che si avvia); il resto è correzione.</li>
+      <li>Scegli per ogni area cosa tenere: poi scrivo la spec e il piano, come per le altre pagine.</li>
+    </ul>
+  </section>
+</div>
+<script src="data.js"></script>
+<script>
+const pages = [
+  { f:'player.html', t:'Player', img:B(T.istituto.backdrop,780), p:'Comandi, pausa, audio e sottotitoli, errore, post-play, trailer.', w:'Tasti in vista, tempo che resta, velocità, TV vera.' },
+  { f:'scheda.html', t:'Scheda del titolo', img:B(T.wrestler.backdrop,780), p:'Film e serie, episodi, voto, persona e saga.', w:'Visto per episodio, prossimo come biglietto, azioni in ordine.' },
+  { f:'strumenti.html', t:'Menu ⋯ e strumenti', img:B(T.hope.backdrop,780), p:'Segnala un problema, metadati, identifica, immagini, sottotitoli, info tecniche.', w:'Blocchi spiegati, Ora/Dopo, niente sostituzioni senza conferma.' },
+  { f:'social.html', t:'Amici, consigli, notifiche', img:B(T.chernobyl.backdrop,780), p:'I pannelli a destra e le carte d\'invito.', w:'Notifiche per giorno con chi le manda, una frase per invito.' },
+  { f:'cerca.html', t:'Cerca', img:B(T.blackClover.backdrop,780), p:'Prima di scrivere, risultati, nessun risultato, TV.', w:'Miglior risultato, recenti, due colonne sul telefono.' },
+  { f:'accesso.html', t:'Accesso', img:B(BACKDROPS['Osiris'],780), p:'Chi guarda?, accedi, server irraggiungibile, aggiornamento.', w:'Offline o server che si avvia, Bentornato.' },
+];
+document.getElementById('cards').innerHTML = pages.map(x => `
+  <a class="card" href="${x.f}">
+    <div class="img" style="background-image:url(${x.img})"></div>
+    <div class="tx"><h3>${x.t}</h3><p>${x.p}</p><div class="what">${x.w}</div></div>
+  </a>`).join('');
+</script>
+</body>
+</html>

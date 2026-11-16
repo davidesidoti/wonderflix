@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cerca, bozza</title>
+<link rel="stylesheet" href="kit.css">
+<style>
+  .nav { background:var(--bg); }
+  .pg { position:absolute; inset:56px 0 0; overflow-y:auto; padding:12px 32px 40px; scrollbar-width:none; }
+  .pg::-webkit-scrollbar { display:none; }
+
+  /* il campo */
+  .sf { max-width:880px; height:56px; display:flex; align-items:center; gap:12px; padding:0 8px 0 18px; background:var(--sh); border:1px solid var(--bd); border-radius:8px; font-size:18px; color:var(--cr); }
+  .sf.f { border-color:var(--gold); }
+  .sf > svg { width:22px; height:22px; color:var(--mu); flex:none; }
+  .sf .tx { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sf .ph { color:var(--dim); }
+  .sf .caret { display:inline-block; width:2px; height:22px; background:var(--gold); vertical-align:-4px; margin-left:1px; }
+  .sf .k { color:var(--dim); font-size:12px; display:flex; align-items:center; gap:6px; flex:none; }
+  .sf .clr { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; border:0; background:none; color:var(--mu); cursor:pointer; flex:none; }
+  .sf .clr:hover { background:var(--bd); color:var(--cr); }
+  .sf .clr svg { width:18px; height:18px; }
+  .ld { max-width:880px; height:2px; margin-top:-2px; border-radius:0 0 8px 8px; overflow:hidden; visibility:hidden; }
+  .ld i { display:block; width:28%; height:100%; background:var(--gold); animation:ld 1.1s cubic-bezier(.4,0,.2,1) infinite; }
+  @keyframes ld { from { transform:translateX(-100%); } to { transform:translateX(360%); } }
+  .refining .ld { visibility:visible; }
+  .refining .res { opacity:.55; transition:opacity .2s; }
+  .sum { color:var(--mu); font-size:13px; margin:10px 0 0; max-width:880px; }
+  .sum b { color:var(--cr); font-weight:600; }
+
+  /* sezioni */
+  .sec { margin-top:32px; }
+  .sh { display:flex; align-items:baseline; gap:10px; margin-bottom:12px; }
+  .sh h3 { margin:0; font:400 30px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .sh .n { color:var(--mu); font-size:14px; }
+  .sh .all { margin-left:auto; align-self:center; }
+  .sh .sub { color:var(--mu); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(var(--cols,7),minmax(0,1fr)); gap:24px 16px; }
+  .card { min-width:0; cursor:pointer; }
+  .card .pst { width:100%; transition:transform .18s, box-shadow .18s; }
+  .card:hover .pst { transform:translateY(-3px); box-shadow:0 0 0 2px var(--gold); }
+  .card b { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-weight:600; font-size:13px; line-height:1.3; margin-top:8px; color:var(--cr); }
+  .card .l2 { display:block; color:var(--mu); font-size:12px; margin-top:2px; }
+  .card .orig { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color:var(--dim); font-size:11.5px; line-height:1.35; margin-top:3px; }
+  mark { background:none; color:var(--gold); }
+
+  /* miglior risultato: l'elemento memorabile */
+  .top2 { display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:32px; margin-top:24px; }
+  .best { position:relative; height:290px; border-radius:10px; overflow:hidden; background:#000 right 30%/cover; }
+  .best::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,var(--bg) 0,rgba(10,10,10,.82) 38%,rgba(10,10,10,.1) 80%), linear-gradient(0deg,rgba(10,10,10,.7),rgba(10,10,10,0) 55%); }
+  .best .bi { position:absolute; left:28px; bottom:24px; right:34%; }
+  .best .lbl { font-size:12.5px; font-weight:600; color:var(--gold); }
+  .best h4 { margin:8px 0 0; font:400 84px/.86 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .best h4 u { text-decoration:underline; text-decoration-color:var(--gold); text-decoration-thickness:5px; text-underline-offset:7px; }
+  .best .m { color:var(--mu); margin-top:12px; }
+  .best .o { margin-top:8px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; max-width:52ch; color:var(--cr); opacity:.85; }
+  .best .btns { display:flex; gap:10px; margin-top:16px; }
+
+  .ppl { display:flex; flex-direction:column; gap:2px; }
+  .pr { display:flex; align-items:center; gap:12px; padding:7px 10px; border-radius:8px; cursor:pointer; margin:0 -10px; }
+  .pr:hover { background:var(--sh); }
+  .fc { width:48px; height:48px; border-radius:50%; background:var(--sh) center 20%/cover; flex:none; }
+  .pr .tx { min-width:0; flex:1; }
+  .pr .nm { color:var(--cr); font-weight:600; font-size:14px; }
+  .pr .rl { color:var(--mu); font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pr .rl i { font-style:normal; color:var(--cr); opacity:.8; }
+  .pr .ct { color:var(--dim); font-size:12px; flex:none; }
+
+  /* pastiglie */
+  .blk { margin-top:28px; max-width:880px; }
+  .blk .hd { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .blk .hd b { color:var(--cr); font-weight:600; font-size:14px; }
+  .blk .hd .hint { margin:0; }
+  .chip.rec { padding-right:4px; }
+  .chip.rec .x { width:24px; height:24px; border-radius:50%; display:grid; place-items:center; color:var(--mu); }
+  .chip.rec .x:hover { background:var(--bd); color:var(--cr); }
+  .chip.rec .x svg { width:12px; height:12px; }
+  .chip.rec > svg { color:var(--dim); }
+  .seg2 { display:inline-flex; gap:6px; margin-left:auto; }
+  .seg2 .chip { height:28px; }
+
+  /* da richiedere */
+  .rq { display:flex; flex-direction:column; }
+  .rq .l2 { margin-bottom:8px; }
+  .rq .rqa, .rq .rqs { margin-top:auto; }
+  .rq .pst { filter:saturate(.75) brightness(.88); }
+  .rq:hover .pst { filter:none; }
+  .rqa { margin-top:8px; height:30px; width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px; border-radius:6px; border:1px solid rgba(212,166,74,.55); color:var(--gold); background:none; font-weight:600; font-size:12.5px; cursor:pointer; }
+  .rqa:hover { background:rgba(212,166,74,.12); }
+  .rqa svg { width:14px; height:14px; }
+  .rqs { margin-top:8px; height:30px; display:flex; align-items:center; justify-content:center; gap:6px; border-radius:6px; background:var(--sh); color:var(--gold); font-weight:600; font-size:12.5px; }
+  .rqs svg { width:14px; height:14px; }
+  .rqs.req { color:var(--cr); }
+  .legend { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .legend > div { width:130px; }
+
+  /* nessun risultato */
+  .empty h3 { margin:28px 0 0; font:400 40px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .empty p { margin:8px 0 0; color:var(--mu); font-size:14px; max-width:60ch; }
+  .empty .tips { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .feat { display:flex; gap:20px; margin-top:28px; padding:18px; background:var(--sf); border:1px solid var(--bd); border-radius:10px; max-width:880px; }
+  .feat .pst { width:120px; }
+  .feat .lbl { font-size:12.5px; font-weight:600; color:var(--gold); }
+  .feat h4 { margin:6px 0 0; font:400 52px/.9 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .feat .m { color:var(--mu); margin-top:8px; }
+  .feat .st { display:inline-flex; align-items:center; gap:6px; margin-top:12px; color:var(--gold); font-weight:600; }
+  .feat .st svg { width:15px; height:15px; }
+  .feat .btns { display:flex; gap:10px; margin-top:14px; }
+
+  /* telefono */
+  .phone .pg { inset:0 0 64px; padding:14px 16px 28px; }
+  .phone .sf { height:48px; font-size:16px; padding-left:14px; gap:10px; }
+  .phone .sf > svg { width:20px; height:20px; }
+  .phone .sec { margin-top:26px; }
+  .phone .sh h3 { font-size:26px; }
+  .phone .sh .all { height:44px; }
+  .phone .grid { --cols:2; }
+  .phone .best { height:230px; margin-top:16px; background-position:65% 30%; }
+  .phone .best::before { background:linear-gradient(0deg,var(--bg) 0,rgba(10,10,10,.75) 45%,rgba(10,10,10,.05) 100%); }
+  .phone .best .bi { left:16px; right:16px; bottom:14px; }
+  .phone .best h4 { font-size:54px; }
+  .phone .best h4 u { text-decoration-thickness:4px; text-underline-offset:5px; }
+  .phone .best .btns .b { flex:1; height:44px; }
+  .hrow { display:flex; gap:14px; overflow-x:auto; margin:0 -16px; padding:0 16px 4px; scrollbar-width:none; }
+  .hrow::-webkit-scrollbar { display:none; }
+  .pc { width:86px; flex:none; text-align:center; }
+  .pc .fc { width:72px; height:72px; margin:0 auto 6px; }
+  .pc .nm { color:var(--cr); font-weight:600; font-size:12.5px; line-height:1.25; }
+  .pc .rl { color:var(--mu); font-size:11.5px; line-height:1.3; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .hrow .card { width:124px; flex:none; }
+  .wide { width:100%; margin-top:14px; height:44px; }
+  .pnav { position:absolute; left:0; right:0; bottom:0; height:64px; display:flex; justify-content:space-around; align-items:center; border-top:1px solid var(--sf); background:var(--bg); color:var(--mu); font-size:11px; z-index:4; }
+  .pnav span { display:flex; flex-direction:column; align-items:center; gap:4px; min-width:56px; }
+  .pnav svg { width:20px; height:20px; }
+  .pnav .on { color:var(--gold); }
+
+  /* oggi, ricostruzione */
+  .oldf { position:absolute; inset:0 0 64px; padding:32px; overflow:hidden; }
+  .oldin { height:56px; background:#1e1e1e; border-bottom:1px solid var(--mu); border-radius:4px 4px 0 0; display:flex; align-items:center; gap:12px; padding:0 12px; font-size:18px; }
+  .oldin svg { width:22px; height:22px; color:var(--mu); }
+  .oldh { font:400 26px/1 'Bebas Neue'; letter-spacing:1px; margin:24px 0 12px; }
+  .oldp { width:150px; }
+  .oldp .pst { width:150px; }
+  .oldp b { display:block; font-size:13px; margin-top:8px; }
+  .gap { position:absolute; left:198px; right:32px; border:1.5px dashed rgba(200,70,60,.6); border-radius:6px; display:grid; place-items:center; color:#e58a80; font-size:12px; text-align:center; padding:8px; }
+
+  /* TV */
+  .tv .rail { position:absolute; left:0; top:0; bottom:0; width:64px; z-index:6; background:var(--bg); border-right:1px solid var(--sf); display:flex; flex-direction:column; align-items:center; gap:24px; padding-top:28px; color:var(--mu); }
+  .tv .rail svg { width:20px; height:20px; }
+  .tv .rail .on { color:var(--gold); }
+  .tpg { position:absolute; left:64px; right:0; top:0; bottom:0; padding:22px 0 0 24px; overflow:hidden; }
+  .tv .sf { max-width:600px; height:52px; font-size:17px; transform-origin:left center; }
+  .tv .sf .ok { color:var(--dim); font-size:12px; display:flex; align-items:center; gap:6px; padding-right:10px; flex:none; }
+  .tv .blk { margin-top:24px; }
+  .tv .blk .hd b { font:400 22px/1 'Bebas Neue'; letter-spacing:1px; font-weight:400; }
+  .tv .chips { flex-wrap:nowrap; }
+  .tv .chip { height:36px; padding:0 15px; font-size:13.5px; white-space:nowrap; flex:none; }
+  .trow { margin-top:20px; }
+  .trow .sh { margin-bottom:10px; }
+  .trow .sh h3 { font-size:22px; }
+  .tline { display:flex; gap:14px; align-items:flex-start; }
+  .tline .card { width:96px; flex:none; }
+  .tline .card b { font-size:12px; -webkit-line-clamp:1; }
+  .tline .card .pst { transform-origin:center; }
+  .tline .card.tvc .pst { box-shadow:0 0 0 2px var(--cr); transform:scale(1.06); }
+  .tline .card.tvc b { color:var(--cr); }
+  .tbest { width:256px; flex:none; }
+  .tbest .still { width:256px; }
+  .tbest .still::after { content:''; position:absolute; inset:0; background:linear-gradient(0deg,rgba(10,10,10,.85),transparent 60%); }
+  .tbest .still span { position:absolute; left:10px; bottom:8px; z-index:1; font:400 30px/1 'Bebas Neue'; letter-spacing:1px; color:var(--cr); }
+  .tbest .still span u { text-decoration-color:var(--gold); text-decoration-thickness:3px; text-underline-offset:4px; }
+  .tbest .l2 { display:block; color:var(--mu); font-size:12px; margin-top:6px; }
+  .tbest .l2 .gold { font-weight:600; }
+  .tmore { width:96px; aspect-ratio:2/3; flex:none; border-radius:6px; border:1px solid var(--bd); display:grid; place-items:center; color:var(--mu); font-size:12px; text-align:center; padding:8px; }
+  .tline .pc { width:84px; }
+  .tline .pc .fc { width:64px; height:64px; }
+
+  #s3 .pair > div { width:390px; }
+  #d4 .grid { --cols:8; }
+  #d4 .feat { margin-top:20px; padding:14px; }
+  #d4 .feat .pst { width:84px; }
+  #d4 .feat .btns { margin-top:0; }
+  .phone .rqa { height:40px; }
+  #d4 .feat h4 { font-size:44px; }
+  #d4 .empty h3 { margin-top:22px; }
+  #d4 .sec { margin-top:24px; }
+  .notes { columns:2 420px; column-gap:40px; font-size:13.5px; }
+  .notes h3 { font:600 15px/1.3 Inter; color:var(--cr); margin:0 0 6px; break-after:avoid; }
+  .notes ul { margin:0 0 18px; padding-left:18px; break-inside:avoid; }
+  .toggle { margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Cerca, bozza</h1>
+  <p>Dati veri del 16 novembre, letti dal server: per “ist” la libreria trova davvero <b>15 film e 3 serie</b> (L'Istituto, Marvel's Iron Fist, The Terminal List: Lupo Nero), <b>459 persone</b> (quasi tutte “Christ…”), nessuna delle 100 saghe; Seerr risponde con titoli tedeschi (“Fakt ist!”, “Musik ist Trumpf”: “ist” in tedesco vuol dire “è”), 12 su 20 senza locandina. Odissea (2026) e Clayface sono davvero “In arrivo” su Seerr. Locandine e foto da TMDB. Le ricerche recenti sono inventate.</p>
+  <p>Codice di partenza: <code>app/lib/features/search/</code> (<code>search_screen.dart</code>, <code>search_controller.dart</code>), <code>features/collections/sagas_search_section.dart</code>, <code>features/requests/requestables_section.dart</code> e <code>requestable_poster_card.dart</code>. Margini, griglia e titoli si allineano al catalogo rifatto (<code>features/catalog/catalog_screen.dart</code>: margini 16/32/24, celle da 180 al massimo, titoli 26/30/22).</p>
+  <p>L'idea in una riga: <b>la ricerca indovina cosa cercavi e lo mette in cima.</b> Un miglior risultato grande, col pezzo che hai scritto sottolineato in oro nel titolo (lo stesso segno delle parole che si cambiano in Stasera). Sotto, sezioni ordinate per pertinenza, ognuna col suo conteggio e “Vedi tutti”. Il resto è quieto: una sola cosa si muove, la linea oro sotto il campo mentre la ricerca si aggiorna.</p>
+
+  <!-- 1 -->
+  <section class="s" id="s1">
+    <h2>Prima di scrivere</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il campo è quello Material di serie, pieno, con testo 18 e suggerimento “Cerca film, serie o persone” (<code>search_screen.dart:104-131</code>).</li>
+      <li>Non c'è una ✕ per svuotarlo; Esc non lo svuota; Invio non fa niente.</li>
+      <li>Sotto c'è solo “Scrivi almeno 2 lettere per cercare.” (<code>search_screen.dart:139-141</code>): niente ricerche recenti, niente generi, niente da cui partire.</li>
+      <li>Da tenere: in TV la cornice prende il focus e OK apre la tastiera (<code>search_screen.dart:121-131</code>).</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" id="d1"></div></div>
+    <p class="cap">Campo alto 56 con la lente e un suggerimento che dice cosa si può scrivere (“Titolo, attore o regista”). Le ricerche recenti sono pastiglie con la ✕ per toglierle una per una, salvate solo su questo dispositivo (lo dice la riga accanto). I generi portano al catalogo già filtrato: Film o Serie si sceglie con le due pastiglie a destra. “Aggiunti di recente” è la stessa riga della Home, con la griglia del catalogo.</p>
+  </section>
+
+  <!-- 2 -->
+  <section class="s" id="s2">
+    <h2>Risultati, desktop</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Un'unica lista con margine fisso 32 in ogni formato (<code>search_screen.dart:87-98</code>); l'ordine è sempre campo, Saghe, Film, Serie, Persone, Da richiedere.</li>
+      <li>Nessun ordine per pertinenza: per “ist” L'Istituto finisce dopo 15 film, e chi cerca una persona la trova sotto 24 locandine. Nessun miglior risultato, nessun conteggio.</li>
+      <li>Le liste si fermano a 24 film, 24 serie e 12 persone (<code>search_controller.dart:76,83</code>) senza un “Vedi tutti”: per “ist” le persone sono 459, se ne vedono 12 a caso.</li>
+      <li>Locandine fisse da 150 in un <code>Wrap</code> (<code>search_screen.dart:200-210</code>): righe sfrangiate a destra sugli schermi larghi. Titoli di sezione sempre Bebas 26 (<code>:195</code>, <code>:223</code>).</li>
+      <li>Persone: foto tonda da 90 e nome, nessun ruolo (“Attore”, “Regista”) né per cosa sono note (<code>search_screen.dart:217-265</code>).</li>
+      <li>Un titolo trovato solo per il titolo originale non lo dice: “Maleficent - Signora del male” esce per “ist” per via di “Mistress”, e non si capisce perché.</li>
+      <li>“Da richiedere” dice “Non sono ancora su WonderFlix” (<code>requestables_section.dart:84-97</code>) ma le carte possono dire “Su WonderFlix” o “In parte” (<code>requestable_poster_card.dart:21</code>): si contraddice. L'etichetta “Film”/“Serie” in alto a sinistra e nessun “Richiedi” le fanno sembrare locandine della libreria.</li>
+      <li>Per “ist” Seerr dà 20 titoli tedeschi, 12 senza locandina: oggi compaiono tutti, coi riquadri vuoti.</li>
+      <li>Mentre affini la ricerca restano i risultati vecchi, cliccabili, senza nessun segno di caricamento (<code>search_controller.dart:59</code>; lo scheletro c'è solo in “Da richiedere”).</li>
+      <li>Da tenere: attesa di 300 ms con annullamento, saghe dalla cache, “Da richiedere” che aspetta la libreria per non mostrare doppioni, scheletri della stessa misura, entrata animata solo a ricerca finita.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" id="d2"></div></div>
+    <p class="cap">In cima il miglior risultato: L'Istituto vince perché una parola del titolo comincia con “ist”, mentre i film lo contengono solo a metà. Accanto le persone più presenti in libreria, con ruolo e titolo per cui sono note. Le sezioni hanno il conteggio e arrivano in ordine di pertinenza; la griglia è quella del catalogo (sette colonne a 1280).</p>
+    <button class="b s sm toggle" id="tg">Mostra mentre affina (“isti”)</button>
+    <div class="scroll" style="margin-top:24px"><div class="app desk" id="d3"></div></div>
+    <p class="cap">Più in basso. I film mostrano una riga e “Vedi tutti” apre il catalogo Film con la ricerca già scritta: nessuna pagina nuova. I titoli trovati solo per il titolo originale finiscono in fondo e lo dicono in una riga. “Da richiedere” ha un sottotitolo onesto, una sola riga, solo titoli con locandina, e su ogni carta il pulsante “Richiedi” o lo stato.</p>
+    <div class="legend">
+      <div><div class="rqa">${'+'} Richiedi</div></div>
+      <div><div class="rqs req" id="lg2"></div></div>
+      <div><div class="rqs" id="lg3"></div></div>
+      <div><div class="rqs" id="lg4"></div></div>
+      <span class="cap" style="margin:0">Gli stati della carta: da richiedere, già richiesto da qualcuno, approvato e in arrivo, una serie che c'è solo in parte.</span>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="s" id="s3">
+    <h2>Telefono</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Margine 32 anche sul telefono e locandine da 150: 375 − 64 = 311, meno delle due colonne (316). Resta <b>una sola colonna</b> con un gran vuoto a destra (<code>search_screen.dart:89</code>, <code>:200-210</code>).</li>
+      <li>Le persone vanno a capo in un <code>Wrap</code> di cerchi da 90: con 12 persone sono quattro righe prima di “Da richiedere”.</li>
+    </ul>
+    <div class="pair">
+      <div><span class="tag old">Oggi</span><div class="app phone" id="p0"></div><p class="cap">Ricostruzione: “ist” su un telefono da 390.</p></div>
+      <div><span class="tag new">Nuova</span><div class="app phone" id="p1"></div><p class="cap">Margini 16, miglior risultato a tutta larghezza con i pulsanti da 44. Le persone sono una fila che scorre di lato: occupano una riga sola.</p></div>
+      <div><span class="tag new">Nuova, più in basso</span><div class="app phone" id="p2"></div><p class="cap">Due colonne come il catalogo, quattro film e “Vedi tutti i 15 film”. “Da richiedere” è una fila che scorre, più piccola delle locandine della libreria.</p></div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section class="s" id="s4">
+    <h2>Nessun risultato</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Una riga grigia, «Nessun risultato per “odissea”» (<code>search_screen.dart:157</code>), anche quando sotto “Da richiedere” trova proprio il film cercato.</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="scroll"><div class="app desk" id="d4"></div></div>
+    <p class="cap">La frase dice cosa è successo e cosa provare. Sotto, subito, il titolo che TMDB conosce: Odissea (2026) è già “In arrivo”, quindi niente pulsante Richiedi, solo la scheda. Gli altri titoli simili seguono con “Richiedi”. Se nemmeno TMDB trova nulla resta la frase, con “nemmeno su TMDB” in coda. Attenzione: TMDB non corregge i refusi (con “odisea” risponde con film spagnoli intitolati “Odisea”), per questo la frase chiede di controllare l'ortografia.</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="s" id="s5">
+    <h2>TV</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Stessa lista del desktop: locandine in un <code>Wrap</code> che va a capo, e col telecomando si scende carta per carta.</li>
+      <li>Prima di scrivere c'è solo la frase “Scrivi almeno 2 lettere”.</li>
+      <li>Da tenere: la cornice del campo prende il focus e OK apre la tastiera (<code>search_screen.dart:121-131</code>).</li>
+    </ul>
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div class="app tv" id="t1"></div>
+      <div class="app tv" id="t2"></div>
+    </div>
+    <p class="cap">Sopra, all'apertura: il focus è sulla cornice del campo (OK apre la tastiera), sotto due file per il telecomando, ricerche recenti e generi. Sotto, i risultati di “ist”: una fila per sezione, il miglior risultato è la prima carta (larga, col fondale) della sua fila, l'ultima carta di ogni fila è “Vedi tutti”. Su e giù cambiano fila, destra e sinistra scorrono. Margine 24 come il catalogo in TV, titoli 22.</p>
+  </section>
+
+  <section class="s" id="s6">
+    <h2>Cosa serve nel codice</h2>
+    <div class="notes">
+      <h3>Solo app (nessun cambio al plugin)</h3>
+      <ul>
+        <li><b>Campo</b>: ✕ quando c'è testo (svuota e ridà il focus), Esc svuota, Invio apre il miglior risultato. In TV niente ✕: OK sulla cornice riapre la tastiera col testo.</li>
+        <li><b>Ricerche recenti</b>: gli ultimi 8 termini in <code>SharedPreferences</code>, solo sul dispositivo. Si salvano quando apri un risultato o premi Invio, non a ogni lettera. ✕ toglie un termine, “Cancella” li toglie tutti.</li>
+        <li><b>Generi</b>: la lista del catalogo (<code>/Items/Filters2</code> + <code>genreLabel</code>); la pastiglia apre il catalogo Film o Serie col genere già scelto.</li>
+        <li><b>Miglior risultato</b>: una funzione semplice dà un punteggio a film, serie e saghe: 0 se il titolo comincia col termine (saltando “L'”, “Il”, “The”…), 1 se una parola comincia col termine, 2 se lo contiene, 3 se lo contiene solo il titolo originale. Vince il punteggio più basso purché sia 0 o 1; a parità, prima le serie e i film già iniziati. Una persona vince solo se il nome comincia col termine e nessun titolo ha 0. Se nessuno ha 0 o 1 il riquadro non c'è.</li>
+        <li><b>Ordine</b>: le sezioni seguono il punteggio del loro primo elemento; dentro una sezione i titoli col punteggio 3 vanno in fondo con la riga “Titolo originale: …”.</li>
+        <li><b>Conteggi e Vedi tutti</b>: il totale è già nella risposta di <code>/Items</code> (<code>TotalRecordCount</code>, oggi ignorato). “Vedi tutti” apre il catalogo con la ricerca scritta; per le persone una lista con la stessa griglia.</li>
+      </ul>
+      <ul>
+        <li><b>Persone</b>: per le prime sei, una chiamata <code>/Items?personIds=…&amp;limit=1&amp;sortBy=CommunityRating</code> dà il titolo noto e il totale dei titoli; il ruolo viene dal <code>People</code> di quel titolo. Le sei si riordinano per numero di titoli. Quali 12 persone arrivano lo decide il server, come oggi.</li>
+        <li><b>Griglia</b>: <code>catalogCellExtent</code> e i margini 16/32/24 del catalogo; titoli di sezione 26/30/22.</li>
+        <li><b>Mentre affini</b>: <code>SearchState.loading</code> c'è già; la linea oro si vede mentre è vero, i risultati vecchi si attenuano e non si aprono.</li>
+        <li><b>Da richiedere</b>: sottotitolo nuovo, via le carte senza locandina e quelle “Su WonderFlix”, una riga sola, pulsante “Richiedi” o lo stato (dati già in <code>RequestableTitle.status</code>). “Richiedi” apre la stessa scheda di richiesta di oggi.</li>
+        <li><b>Testi nuovi</b> in <code>app_it.arb</code>: suggerimento del campo, “Ricerche recenti”, “Prova con un genere”, “Miglior risultato”, “Vedi tutti”, il sottotitolo di “Da richiedere”, la frase del vuoto.</li>
+      </ul>
+      <h3>Plugin</h3>
+      <ul><li>Nulla. Tutto passa da chiamate che l'app fa già a Jellyfin e a Seerr.</li></ul>
+    </div>
+  </section>
+
+  <section class="s" id="s7">
+    <h2>Fuori da questa bozza</h2>
+    <ul>
+      <li>Episodi nei risultati: Jellyfin li cerca, ma raddoppiano le chiamate e affollano la pagina. Si potrà aggiungere come sezione in coda.</li>
+      <li>“Forse cercavi…”, la correzione dei refusi: né Jellyfin né TMDB la fanno, servirebbe un indice nel plugin.</li>
+      <li>Ricerche recenti uguali su tutti i dispositivi (si potrebbero mettere nei <code>CustomPrefs</code> dell'utente): per ora restano sul dispositivo.</li>
+      <li>Filtri per tipo in cima (Film, Serie, Persone): li sostituiscono i conteggi e “Vedi tutti”.</li>
+      <li>Saghe: per “ist” nessuna delle 100 saghe c'entra, quindi non sono disegnate. Restano con le carte di oggi, nella griglia nuova, al posto che dà il punteggio.</li>
+      <li>Una scorciatoia da tastiera per aprire Cerca da ogni pagina (es. <kbd>/</kbd>).</li>
+    </ul>
+  </section>
+</div>
+
+<script src="data.js"></script>
+<script>
+const sv = (d, fill) => `<svg viewBox="0 0 24 24" fill="${fill || 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ico = {
+  search: sv('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  x: sv('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  play: sv('<polygon points="6 3 20 12 6 21 6 3"/>', 'currentColor'),
+  info: sv('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+  plus: sv('<path d="M5 12h14"/><path d="M12 5v14"/>'),
+  hist: sv('<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'),
+  clock: sv('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'),
+  check: sv('<path d="M20 6 9 17l-5-5"/>'),
+  half: sv('<circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor"/>'),
+  home: sv('<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  film: sv('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/>'),
+  tv: sv('<rect width="20" height="15" x="2" y="7" rx="2"/><polyline points="17 2 12 7 7 2"/>'),
+  list: sv('<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>'),
+  inbox: sv('<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'),
+  more: sv('<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>'),
+  cal: sv('<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>'),
+};
+
+// Dati veri del server per "ist" (16 novembre). [titolo, anno, locandina, titolo originale se il termine è solo lì]
+const FILMS = [
+  ['Amistad', 1997, '/1378mLbmntbso0s2PX33vBXiRC.jpg'],
+  ['Drive - Cuori in pista', 2026, '/9nS6pALpvYLt9LHzx2Rtb1xbtoi.jpg'],
+  ['Gli Aristogatti', 1970, '/uPKzHYVn8rHnS49hzjzGVhRjFmk.jpg'],
+  ["I Lampaclima e l'isola misteriosa", 2006, '/90NOclOE6fjG9zRzjbVoNDcOWc4.jpg'],
+  ['Il pianista', 2002, '/zK3KyPLAQl0IRIToIaQsMxm0aR3.jpg'],
+  ['Jurassic World – Il regno distrutto', 2018, '/4iGHioQuva4Q3KkeYNgohMP9kaR.jpg'],
+  ['Long Distance - Senza ossigeno', 2024, '/eAZytDr3dmq8q12tMamX601xkgf.jpg'],
+  ['Misteri dal profondo', 2025, '/7IU0AhsnulBMEGauba755Snhcy4.jpg'],
+  ['Nightmare Before Christmas', 1993, '/meiO5BIcMp5EXmFHuRfc9lG1gOd.jpg'],
+  ["Schindler's List", 1993, '/9SiPeJ9Wf2MoUdzUskaw5OrRV4V.jpg'],
+  ['Seven Sisters', 2017, '/aOuklSmOvDJmznqV6aRF1tcDzyw.jpg'],
+  ['The Florist', 2026, '/4tnRvIiWMzVA2Tw9c7INLo4sfo0.jpg'],
+  ['The Mortuary Assistant - Anatomia di un incubo', 2026, '/4obNHbw8kUsrT4EBfr3POnkvUB8.jpg'],
+  ['Maleficent - Signora del male', 2019, '/6sxoWdpuIpqg0omByuWfxPfuCZv.jpg', 'Maleficent: Mistress of Evil'],
+  ['Material Love', 2025, '/nmNi5uMO5earkzK9OL0nsWMQOr7.jpg', 'Materialists'],
+];
+const SERIES = [
+  ["L'Istituto", '2025 · 2 stagioni', T.istituto.poster],
+  ["Marvel's Iron Fist", '2017 · 2 stagioni', '/skP4xTtPpMEECncsPD8Wq5fgx1t.jpg'],
+  ['The Terminal List: Lupo Nero', '2025 · 1 stagione', '/6wLeaoq4nSex3Yqza2WiBxKXiFf.jpg'],
+];
+// [nome, ruolo, noto per, titoli in libreria, foto]
+const PPL = [
+  ['Dave Bautista', 'Attore', "Avatar Aang: L'ultimo dominatore dell'aria", 11, '/snk6JiXOOoRjPtHU5VMoy6qbd32.jpg'],
+  ['Christopher Nolan', 'Regista', 'Il cavaliere oscuro', 10, '/xuAIuYSmsUzKlUMBFGVZaWsY3DZ.jpg'],
+  ['Christian Bale', 'Attore', 'Il cavaliere oscuro', 8, '/7Pxez9J8fuPd2Mn9kex13YALrCQ.jpg'],
+  ['Christopher McQuarrie', 'Sceneggiatore', 'Top Gun: Maverick', 8, '/xVbQBRpqzKkllUAvjJbgnAmTwaZ.jpg'],
+  ['Kristen Stewart', 'Attrice', 'The Twilight Saga: Breaking Dawn - Parte 2', 6, '/ryhCjTGqS6G6OprbR0qUEH355lA.jpg'],
+  ['Christopher Lee', 'Attore', "Il Signore degli Anelli - La Compagnia dell'Anello", 5, '/dA26fBr3t7mKqjn3OYW6kbD1LXM.jpg'],
+];
+// Seerr per "ist", solo quelli con locandina. [titolo, tipo, anno, locandina, stato]
+const RQ = [
+  ['Lui è tornato', 'Film', 2015, '/zt0PlEWLrxi7gpMFDIbXmjSVFau.jpg'],
+  ['Sorelle e delitti', 'Serie', 2022, '/yn3y01bHkfjRKhWEyCQqyoAluA2.jpg'],
+  ['Der Lack ist ab', 'Serie', 2015, '/4WVCgywpLQoz5kNROAwViL5Wdug.jpg'],
+  ['Wischen ist Macht', 'Serie', 2020, '/zqzGb6XqQZ5xLd7ALdbTtK87ydx.jpg'],
+  ['Mama ist unmöglich', 'Serie', 1997, '/pZtR0NLtqjd7lqvoX0kCKsfD5qI.jpg'],
+  ['Was ist Was TV', 'Serie', 2001, '/itWU0YZ023iqBn8UvGWvg7z5JCk.jpg'],
+  ['Wo ist Fred?', 'Film', 2006, '/9DkMHl3XHEYRBUXCOm3WVbmBn8G.jpg'],
+  ['Schicksale – und plötzlich ist alles anders', 'Serie', 2010, '/uLo8eCgL5pYnJpD46WpeOk89K73.jpg'],
+];
+const ODY = [
+  ['2001: Odissea nello spazio', 'Film', 1968, '/uvSRVMXGHaCeYAj2pCYNdC31b2u.jpg'],
+  ['SeaQuest - Odissea negli abissi', 'Serie', 1993, '/aAAMWe5dh4o2MQ721cZcI05gsiI.jpg'],
+  ['Cosmos - Odissea nello spazio', 'Serie', 2014, '/5o07ps0QZ0bNoRYxTn9cPdRWlUu.jpg'],
+  ['Odissea', 'Serie', 1968, '/cMFd2kNhnS4mFgrGBFXcM4ZR3EK.jpg'],
+  ['Odissea', 'Film', 1969, '/orlKW4piaeA5UMTMqrQsQuOKl5w.jpg'],
+];
+const RECENT = [
+  ['Steins;Gate', 'Serie · 2011', '/6iysgZr6Upm5RlAlVFo5f4D9euu.jpg'],
+  ['Hope', 'Film · 2026', T.hope.poster],
+  ["Ace Ventura - L'acchiappanimali", 'Film · 1994', '/ptTaBr68fiHfjDVNmQRoOantMDy.jpg'],
+  ['Beautiful Boy', 'Film · 2018', '/pcKYTnOEVjCRzCawlc6y5QsbJyN.jpg'],
+  ['I Swear - È più forte di me', 'Film · 2025', '/aEIT9GFMGYytuUFCiVSv21OhkWk.jpg'],
+  ['Cyberpunk: Edgerunners', 'Serie · 2022', '/v3JuB15WybKmxDeT1hWdK3j6eSJ.jpg'],
+  ['Animali fantastici e dove trovarli', 'Film · 2016', '/w5tKxNmdf3yI5lXSDa5vs6YwxHN.jpg'],
+];
+const SEARCHES = ['chernobyl', 'christopher nolan', 'black clover', 'mickey rourke', 'steins gate'];
+const GENRES = ['Dramma', 'Commedia', 'Azione e avventura', 'Fantascienza', 'Animazione', 'Thriller', 'Horror', 'Mistero', 'Romance', 'Crimine', 'Documentario', 'Famiglia'];
+
+const hl = (s, term = 'ist') => {
+  const i = s.toLowerCase().indexOf(term);
+  return i < 0 ? s : `${s.slice(0, i)}<mark>${s.slice(i, i + term.length)}</mark>${s.slice(i + term.length)}`;
+};
+const card = (t, meta, p, orig) => `<div class="card"><div class="pst" style="background-image:url(${P(p)})"></div><b>${hl(t)}</b><span class="l2 num">${meta}</span>${orig ? `<span class="orig">Titolo originale: ${hl(orig)}</span>` : ''}</div>`;
+const state = (s) => s === 'coming' ? `<div class="rqs">${ico.clock} In arrivo</div>`
+  : s === 'req' ? `<div class="rqs req">${ico.check} Richiesto</div>`
+  : s === 'part' ? `<div class="rqs">${ico.half} In parte</div>`
+  : `<button class="rqa">${ico.plus} Richiedi</button>`;
+const rqCard = ([t, k, y, p, s], term) => `<div class="card rq"><div class="pst" style="background-image:url(${P(p)})"></div><b>${term ? hl(t, term) : t}</b><span class="l2 num">${k} · ${y}</span>${state(s)}</div>`;
+const sh = (title, n, all, sub) => `<div class="sh"><h3>${title}</h3>${n != null ? `<span class="n num">${n}</span>` : ''}${sub ? `<span class="sub">${sub}</span>` : ''}${all ? `<button class="b t all">${all}</button>` : ''}</div>`;
+const nav = () => `<div class="nav"><span class="logo">WonderFlix</span>${['Home', 'Film', 'Serie', 'La mia lista', 'Richieste', 'Calendario', 'Cerca'].map(n => `<a class="${n === 'Cerca' ? 'on' : ''}">${n}</a>`).join('')}<span class="tools"><span class="av d">D</span></span></div>`;
+const field = (text, { focus = false, clear = true, esc = true } = {}) => `<div class="sf${focus ? ' f' : ''}">${ico.search}<span class="tx">${text ? `${text}<i class="caret"></i>` : `<i class="caret"></i><span class="ph">Titolo, attore o regista</span>`}</span>${text && esc ? `<span class="k"><kbd>Esc</kbd> svuota</span>` : ''}${text && clear ? `<button class="clr" aria-label="Svuota">${ico.x}</button>` : ''}</div><div class="ld"><i></i></div>`;
+
+/* 1. Prima di scrivere */
+document.getElementById('d1').innerHTML = nav() + `<div class="pg">
+  ${field('', { focus: true })}
+  <div class="blk"><div class="hd"><b>Ricerche recenti</b><span class="hint">Solo su questo dispositivo</span><button class="b t sm" style="margin-left:auto">Cancella</button></div>
+    <div class="chips">${SEARCHES.map(s => `<span class="chip rec">${ico.hist}${s}<span class="x" aria-label="Togli">${ico.x}</span></span>`).join('')}</div></div>
+  <div class="blk"><div class="hd"><b>Prova con un genere</b><span class="seg2"><span class="chip on">Film</span><span class="chip">Serie</span></span></div>
+    <div class="chips">${GENRES.map(g => `<span class="chip">${g}</span>`).join('')}</div></div>
+  <div class="sec">${sh('Aggiunti di recente', null, 'Vedi tutti')}<div class="grid">${RECENT.map(([t, m, p]) => card(t, m, p)).join('')}</div></div>
+</div>`;
+
+/* 2. Risultati desktop */
+const results = () => `
+  <div class="res">
+  <div class="top2">
+    <div class="best" style="background-image:url(${B(T.istituto.backdrop)})"><div class="bi">
+      <div class="lbl">Miglior risultato</div>
+      <h4>L'<u>Ist</u>ituto</h4>
+      <div class="m num">Serie · 2025 · 2 stagioni · Thriller · <span class="gold">★ 7,5</span></div>
+      <div class="o">${T.istituto.overview}</div>
+      <div class="btns"><button class="b p">${ico.play} Riproduci</button><button class="b s">${ico.info} Scheda</button></div>
+    </div></div>
+    <div>${sh('Persone', '459', 'Vedi tutte')}<div class="ppl">${PPL.slice(0, 4).map(([n, r, k, c, p]) => `<div class="pr"><div class="fc" style="background-image:url(${FACE(p)})"></div><div class="tx"><div class="nm">${hl(n)}</div><div class="rl">${r} · <i>${k}</i></div></div><span class="ct num">${c} titoli</span></div>`).join('')}</div></div>
+  </div>
+  <div class="sec">${sh('Serie', '3')}<div class="grid">${SERIES.map(([t, m, p]) => card(t, m, p)).join('')}</div></div>
+  <div class="sec" id="films">${sh('Film', '15', 'Vedi tutti')}<div class="grid">${FILMS.slice(0, 7).map(([t, y, p]) => card(t, y, p)).join('')}</div></div>
+  <div class="sec">${sh('Da richiedere', '8', 'Vedi tutti', 'Trovati su TMDB, non ancora su WonderFlix: chiedili all\'admin.')}<div class="grid">${RQ.slice(0, 7).map(r => rqCard(r, 'ist')).join('')}</div></div>
+  </div>`;
+document.getElementById('d2').innerHTML = nav() + `<div class="pg">${field('ist')}${results()}</div>`;
+
+// La stessa pagina più in basso, con i film fino al titolo originale (finto "Vedi tutti" aperto sulla riga 2).
+document.getElementById('d3').innerHTML = nav() + `<div class="pg">${field('ist')}${results().replace(FILMS.slice(0, 7).map(([t, y, p]) => card(t, y, p)).join(''), [...FILMS.slice(0, 5), ...FILMS.slice(13)].map(([t, y, p, o]) => card(t, y, p, o)).join(''))}</div>`;
+document.querySelector('#d3 #films .sh .all').insertAdjacentHTML('beforebegin', '<span class="sub">in fondo i titoli che hanno “ist” solo nel titolo originale</span>');
+
+const tg = document.getElementById('tg');
+const setRefining = (on) => {
+  const d2 = document.getElementById('d2');
+  d2.classList.toggle('refining', on);
+  d2.querySelector('.sf .tx').innerHTML = (on ? 'isti' : 'ist') + '<i class="caret"></i>';
+  tg.textContent = on ? 'Mostra a ricerca finita (“ist”)' : 'Mostra mentre affina (“isti”)';
+};
+tg.onclick = () => setRefining(!document.getElementById('d2').classList.contains('refining'));
+if (location.search.includes('affina')) setRefining(true);
+
+document.getElementById('lg2').innerHTML = `${ico.check} Richiesto`;
+document.getElementById('lg3').innerHTML = `${ico.clock} In arrivo`;
+document.getElementById('lg4').innerHTML = `${ico.half} In parte`;
+document.querySelector('.legend .rqa').innerHTML = `${ico.plus} Richiedi`;
+
+/* 3. Telefono */
+const pnav = `<div class="pnav"><span>${ico.home}Home</span><span class="on">${ico.search}Cerca</span><span>${ico.list}La mia lista</span><span>${ico.inbox}Richieste</span><span>${ico.more}Altro</span></div>`;
+document.getElementById('p0').innerHTML = `<div class="oldf">
+  <div class="oldin">${ico.search}ist</div>
+  <div class="oldh">Film</div>
+  <div class="oldp"><div class="pst" style="background-image:url(${P(FILMS[0][2])})"></div><b>Amistad</b></div>
+  <div class="gap" style="top:142px;height:250px">Vuoto: la seconda locandina non ci sta (311 &lt; 316)</div>
+  <div class="oldp" style="margin-top:24px"><div class="pst" style="background-image:url(${P(FILMS[1][2])})"></div><b>Drive - Cuori in pista</b></div>
+</div>${pnav}`;
+const phoneTop = `
+  <div class="best" style="background-image:url(${B(T.istituto.backdrop, 780)})"><div class="bi">
+    <div class="lbl">Miglior risultato</div>
+    <h4>L'<u>Ist</u>ituto</h4>
+    <div class="m num">Serie · 2025 · 2 stagioni · <span class="gold">★ 7,5</span></div>
+    <div class="btns"><button class="b p">${ico.play} Riproduci</button><button class="b s">${ico.info} Scheda</button></div>
+  </div></div>
+  <div class="sec">${sh('Persone', '459', 'Vedi tutte')}<div class="hrow">${PPL.map(([n, r, k, c, p]) => `<div class="pc"><div class="fc" style="background-image:url(${FACE(p)})"></div><div class="nm">${hl(n)}</div><div class="rl">${r} · ${k}</div></div>`).join('')}</div></div>
+  <div class="sec">${sh('Serie', '3')}<div class="grid">${SERIES.map(([t, m, p]) => card(t, m, p)).join('')}</div></div>`;
+document.getElementById('p1').innerHTML = `<div class="pg">${field('ist', { esc: false })}${phoneTop}</div>${pnav}`;
+document.getElementById('p2').innerHTML = `<div class="pg">${field('ist', { esc: false })}${phoneTop}
+  <div class="sec" id="pf">${sh('Film', '15')}<div class="grid">${FILMS.slice(0, 4).map(([t, y, p]) => card(t, y, p)).join('')}</div><button class="b q wide">Vedi tutti i 15 film</button></div>
+  <div class="sec">${sh('Da richiedere', '8')}<div class="sub muted" style="margin:-6px 0 12px;font-size:13px">Trovati su TMDB, non ancora su WonderFlix: chiedili all'admin.</div><div class="hrow">${RQ.map(r => rqCard(r, 'ist')).join('')}</div></div>
+</div>${pnav}`;
+
+/* 4. Nessun risultato */
+document.getElementById('d4').innerHTML = nav() + `<div class="pg">${field('odissea')}
+  <div class="empty"><h3>Nessun titolo per “odissea”</h3>
+    <p>Su WonderFlix non c'è nessun film, serie o persona con questo nome. Controlla l'ortografia o prova col titolo originale.</p></div>
+  <div class="feat"><div class="pst" style="background-image:url(${P('/e8YlpOPYuzIdccZRTcBRFhz6Ocn.jpg')})"></div><div style="flex:1">
+    <div class="lbl">Su TMDB c'è</div><h4>Odissea</h4><div class="m num">Film · 2026</div>
+    <div class="st">${ico.clock} In arrivo <span class="muted" style="font-weight:400">· qualcuno l'ha già chiesto: arriva su WonderFlix appena si trova.</span></div>
+  </div><div class="btns" style="align-self:center"><button class="b s">${ico.info} Scheda</button></div></div>
+  <div class="sec">${sh('Altri da richiedere', '5', null, 'Trovati su TMDB, non ancora su WonderFlix: chiedili all\'admin.')}<div class="grid">${ODY.map(r => rqCard(r, 'odissea')).join('')}</div></div>
+</div>`;
+
+/* 5. TV */
+const rail = `<div class="rail"><span>${ico.home}</span><span class="on">${ico.search}</span><span>${ico.film}</span><span>${ico.tv}</span><span>${ico.list}</span><span>${ico.cal}</span></div>`;
+const tfield = (text, focus) => `<div class="sf${focus ? ' tvf' : ''}">${ico.search}<span class="tx">${text || `<span class="ph">Titolo, attore o regista</span>`}</span><span class="ok"><kbd>OK</kbd> ${text ? 'modifica' : 'scrivi'}</span></div>`;
+document.getElementById('t1').innerHTML = rail + `<div class="tpg">
+  ${tfield('', true)}
+  <div class="blk"><div class="hd"><b>Ricerche recenti</b><span class="hint">Solo su questo dispositivo</span></div><div class="chips">${SEARCHES.map(s => `<span class="chip">${ico.hist}${s}</span>`).join('')}</div></div>
+  <div class="blk"><div class="hd"><b>Prova con un genere</b></div><div class="chips">${GENRES.map(g => `<span class="chip">${g}</span>`).join('')}</div></div>
+  <div class="trow">${sh('Aggiunti di recente')}<div class="tline">${RECENT.map(([t, m, p]) => `<div class="card"><div class="pst" style="background-image:url(${P(p)})"></div><b>${t}</b></div>`).join('')}</div></div>
+</div>`;
+const tcard = ([t, y, p], f) => `<div class="card${f ? ' tvc' : ''}"><div class="pst" style="background-image:url(${P(p)})"></div><b>${hl(t)}</b>${f ? `<span class="l2 num">${y}</span>` : ''}</div>`;
+document.getElementById('t2').innerHTML = rail + `<div class="tpg">
+  ${tfield('ist', false)}
+  <div class="trow">${sh('Serie', '3')}<div class="tline">
+    <div class="tbest"><div class="still" style="background-image:url(${B(T.istituto.backdrop, 780)})"><span>L'<u>Ist</u>ituto</span></div><span class="l2"><span class="gold">Miglior risultato</span> · Serie · 2 stagioni</span></div>
+    ${SERIES.slice(1).map(s => tcard(s)).join('')}</div></div>
+  <div class="trow">${sh('Film', '15')}<div class="tline">${FILMS.slice(0, 6).map((f, i) => tcard(f, i === 4)).join('')}<div class="tmore">Vedi tutti i 15 film</div></div></div>
+  <div class="trow">${sh('Persone', '459')}<div class="tline">${PPL.map(([n, r, k, c, p]) => `<div class="pc"><div class="fc" style="background-image:url(${FACE(p)})"></div><div class="nm">${hl(n)}</div><div class="rl">${r}</div></div>`).join('')}</div></div>
+</div>`;
+
+// Cornici "più in basso": scorrono fino ai film.
+addEventListener('load', () => {
+  const d3 = document.querySelector('#d3 .pg'), rq = d3.querySelector('#films').nextElementSibling;
+  d3.scrollTop = rq.offsetTop + rq.offsetHeight - d3.clientHeight + 28;
+  const p2 = document.querySelector('#p2 .pg'); p2.scrollTop = p2.scrollHeight;
+});
+</script>
+</body>
+</html>

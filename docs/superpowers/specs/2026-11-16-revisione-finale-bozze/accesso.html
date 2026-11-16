@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prima dell'app, bozza</title>
+<link rel="stylesheet" href="kit.css">
+<script src="data.js"></script>
+<style>
+  /* schermate senza barra: tutto al centro */
+  .pre { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 16px; }
+  /* il png ha un fondo appena più chiaro del nero dell app: sfumo i bordi */
+  .logo-img { display:block; -webkit-mask:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent),linear-gradient(transparent 6%,#000 15%,#000 85%,transparent 94%); -webkit-mask-composite:source-in; mask:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent),linear-gradient(transparent 6%,#000 15%,#000 85%,transparent 94%); mask-composite:intersect; }
+  .ico { display:inline-grid; place-items:center; }
+  .ico svg { width:100%; height:100%; }
+
+  /* ---- Chi guarda? ---- */
+  .who h3 { font:400 56px/1 'Bebas Neue'; letter-spacing:1px; margin:6px 0 34px; color:var(--cr); }
+  .cards { display:flex; gap:30px; justify-content:center; }
+  .pc { width:150px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+  .pc .face { width:132px; height:132px; border-radius:50%; font:400 58px/1 'Bebas Neue'; letter-spacing:0; }
+  .pc .nm { font-size:15px; font-weight:500; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pc .st { font-size:12px; color:var(--gold); font-weight:600; margin-top:-6px; }
+  .pc.exp .face { opacity:.45; }
+  .pc.exp .nm { color:var(--mu); }
+  .pc.kb .face { box-shadow:0 0 0 3px var(--bg), 0 0 0 5px var(--gold); }
+  .pc.add .face { background:none; border:2px dashed rgba(242,234,211,.3); color:var(--mu); }
+  .pc.add .face .ico { width:40px; height:40px; }
+  .count { margin-top:30px; font-size:12.5px; color:var(--dim); }
+
+  /* TV, gestione */
+  .tvwho h3 { font:400 44px/1 'Bebas Neue'; letter-spacing:1px; margin:0; color:var(--cr); }
+  .tvwho .sub { color:var(--mu); font-size:14px; margin:8px 0 26px; }
+  .tvwho .cards { gap:22px; }
+  .tvwho .pc { width:128px; gap:9px; }
+  .tvwho .pc .face { width:100px; height:100px; font-size:44px; filter:brightness(.55) saturate(.7); position:relative; }
+  .tvwho .pc .nm { font-size:14px; }
+  .tvwho .pc .acts { display:flex; flex-direction:column; gap:7px; width:116px; margin-top:2px; }
+  .tvwho .pc .acts .b { width:100%; height:32px; font-size:13px; }
+  .limit { display:flex; align-items:center; gap:9px; margin-top:26px; font-size:13.5px; color:var(--mu); background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:9px 14px; }
+  .limit .ico { width:17px; height:17px; color:var(--gold); }
+
+  /* ---- Accesso ---- */
+  .login { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; gap:96px; }
+  .panel { width:420px; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:28px; text-align:left; }
+  .panel h4 { margin:0; font:400 34px/1 'Bebas Neue'; letter-spacing:1px; }
+  .who-row { display:flex; align-items:center; gap:14px; }
+  .who-row .av { width:52px; height:52px; font:400 26px/1 'Bebas Neue'; }
+  .who-row .sm { color:var(--mu); font-size:12.5px; margin-top:4px; }
+  .note { display:flex; gap:10px; align-items:flex-start; background:var(--sh); border:1px solid var(--bd); border-radius:8px; padding:10px 12px; margin:18px 0 18px; font-size:13px; color:var(--mu); line-height:1.45; }
+  .note .ico { width:16px; height:16px; flex:none; margin-top:1px; color:var(--cr); }
+  .lrow { display:flex; align-items:baseline; justify-content:space-between; }
+  .lrow .fl { margin-bottom:7px; }
+  .lrow a { font-size:12px; color:var(--gold); font-weight:600; text-decoration:none; }
+  .in .eye { margin-left:auto; width:18px; height:18px; color:var(--mu); }
+  .dots { letter-spacing:3px; font-size:15px; }
+  .caret { display:inline-block; width:1.5px; height:17px; background:var(--gold); margin-left:2px; vertical-align:middle; }
+  .forgot { display:flex; justify-content:flex-end; margin:6px -8px 18px 0; }
+  .wide { width:100%; }
+  .foot-l { margin-top:16px; font-size:12.5px; color:var(--dim); text-align:center; }
+  .foot-l a { color:var(--gold); font-weight:600; text-decoration:none; }
+
+  /* Quick Connect (telefono) */
+  .qc { position:absolute; inset:0; padding:56px 16px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; }
+  .qc h4 { margin:14px 0 18px; font:400 34px/1 'Bebas Neue'; letter-spacing:1px; }
+  .qc .box { width:100%; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:20px 18px; margin-top:18px; }
+  .qc .lab { font-size:12px; font-weight:600; color:var(--mu); }
+  .qc .code { font:400 68px/1 'Bebas Neue'; letter-spacing:6px; color:var(--gold); margin:8px 0 6px; }
+  .qc .wait { display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--mu); }
+  .qc .wait .ico { width:15px; height:15px; color:var(--gold); }
+  .steps { list-style:none; padding:0; margin:18px 0 0; text-align:left; border-top:1px solid var(--bd); }
+  .steps li { display:flex; gap:12px; padding:12px 0 0; font-size:14px; line-height:1.45; color:var(--cr); }
+  .steps li .n { width:24px; height:24px; flex:none; border-radius:50%; border:1px solid var(--gold); color:var(--gold); display:grid; place-items:center; font:600 12px/1 Inter; }
+  .steps b { font-weight:600; }
+
+  /* ---- Server irraggiungibile: l'elemento memorabile ---- */
+  .down h3 { font:400 68px/.95 'Bebas Neue'; letter-spacing:1px; margin:22px 0 14px; color:var(--cr); }
+  .down p { margin:0; max-width:52ch; color:var(--mu); font-size:15px; line-height:1.55; }
+  .glow { position:absolute; inset:0; background:radial-gradient(ellipse 50% 40% at 50% 46%, rgba(212,166,74,.07), transparent 70%); }
+  .chain { display:flex; align-items:center; gap:0; font-size:13px; color:var(--mu); }
+  .chain .nd { display:flex; align-items:center; gap:8px; background:var(--sf); border:1px solid var(--bd); border-radius:16px; height:32px; padding:0 13px; }
+  .chain .nd b { color:var(--cr); font-weight:600; }
+  .chain .ln { width:64px; height:0; border-top:1.5px dashed var(--bd); }
+  .chain .ln.ok { border-top:1.5px solid rgba(91,191,106,.6); }
+  .clock { margin:28px 0 24px; width:360px; }
+  .clock .t { display:flex; justify-content:space-between; font-size:13px; color:var(--mu); margin-bottom:9px; }
+  .clock .t b { color:var(--cr); font-weight:600; }
+  .clock .track { height:3px; background:rgba(242,234,211,.14); border-radius:2px; overflow:hidden; }
+  .clock .track i { display:block; height:100%; width:20%; background:var(--gold); box-shadow:0 0 10px rgba(212,166,74,.7); }
+  .clock.run .track i { animation:fill 15s linear infinite; }
+  @keyframes fill { from { width:0; } to { width:100%; } }
+  .acts-row { display:flex; gap:12px; }
+  .acts-row .b { min-width:170px; }
+  .phone .down h3 { font-size:48px; margin:20px 0 12px; }
+  .phone .down p { font-size:14px; }
+  .phone .chain .ln { width:28px; }
+  .phone .clock { width:100%; }
+  .phone .acts-col { display:flex; flex-direction:column; gap:10px; width:100%; }
+  .phone .acts-col .b { width:100%; height:46px; }
+  .small-note { margin-top:10px !important; font-size:12.5px !important; color:var(--dim) !important; }
+
+  /* ---- Aggiornamento ---- */
+  .fake { position:absolute; inset:0; filter:brightness(.5); }
+  .fake .row { position:absolute; left:16px; right:16px; top:76px; display:flex; gap:10px; }
+  .fake .row .pst { width:104px; }
+  .fake .hero { position:absolute; left:0; right:0; top:0; height:230px; background:center 20%/cover; -webkit-mask-image:linear-gradient(#000 40%,transparent); mask-image:linear-gradient(#000 40%,transparent); }
+  .upd { position:absolute; left:16px; right:16px; bottom:16px; background:var(--sh); border:1px solid var(--bd); border-radius:10px; padding:14px 16px; box-shadow:0 16px 40px rgba(0,0,0,.6); z-index:2; }
+  .upd .top { display:flex; align-items:flex-start; gap:12px; }
+  .upd .top .ico { width:20px; height:20px; color:var(--gold); flex:none; margin-top:1px; }
+  .upd .top .tt { font-weight:600; line-height:1.4; }
+  .upd .top .tt span { display:block; font-weight:400; color:var(--mu); font-size:12.5px; }
+  .upd .btns { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+  .mand { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  .mand .col { width:520px; text-align:left; }
+  .mand .ico.big { width:36px; height:36px; color:var(--gold); }
+  .mand h4 { font:400 40px/1 'Bebas Neue'; letter-spacing:1px; margin:14px 0 8px; }
+  .mand .rn { background:var(--sf); border:1px solid var(--bd); border-radius:8px; padding:12px 14px; margin:18px 0 20px; font-size:13px; }
+  .mand .rn b { display:block; color:var(--cr); margin-bottom:4px; }
+  .mand .rn ul { margin:0; padding-left:18px; color:var(--mu); }
+  .indet { height:3px; background:rgba(242,234,211,.14); border-radius:2px; overflow:hidden; position:relative; }
+  .indet i { position:absolute; left:28%; width:30%; top:0; bottom:0; background:var(--gold); border-radius:2px; }
+  .frame-lab { font-size:12px; color:var(--dim); margin:0 0 6px; }
+
+  table.copy { border-collapse:collapse; font-size:13px; margin-top:10px; max-width:980px; }
+  table.copy td, table.copy th { text-align:left; padding:6px 14px 6px 0; border-bottom:1px solid #2c2c2c; vertical-align:top; }
+  table.copy th { color:var(--dim); font-weight:600; font-size:12px; }
+  table.copy td:first-child { color:#e58a80; }
+  table.copy td:nth-child(2) { color:var(--cr); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Prima dell'app: profili, accesso, server, aggiornamento</h1>
+  <p>Le schermate che si vedono prima della Home. Codice di partenza: <code>app/lib/features/profiles/</code>, <code>app/lib/features/auth/</code> (<code>login_screen.dart</code>, <code>password_login_form.dart</code>, <code>quick_connect_panel.dart</code>, <code>recovery_panel.dart</code>), <code>app/lib/features/startup/</code> e <code>app/lib/features/update/</code>, letto su <code>main</code> 8fe4346f. Persone: gli account veri del server (<code>PEOPLE</code> in <code>data.js</code>). Bozza corta: solo i difetti veri, il resto resta com'è.</p>
+
+  <!-- ============ 1. CHI GUARDA? ============ -->
+  <section class="s" id="profili">
+    <h2>Chi guarda?</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Le misure sono fisse su ogni schermo: logo 140, titolo 48, carte 150 con avatar 120 (<code>profiles_screen.dart:21-38</code>, <code>:145</code>). Sulla TV e sul telefono la pagina ha le stesse misure del PC.</li>
+      <li>In TV il profilo col focus prende solo un velo oro al 18% (<code>profiles_screen.dart:246</code>, <code>:366</code>), mentre il resto dell'app usa cornice crema e ingrandimento. Da lontano non si capisce dove si è.</li>
+      <li>"Rimuovere {nome} da questo PC?" e la scheda "Dal PC" compaiono anche su telefono, web e TV (<code>app_it.arb:772</code>, <code>:786</code>).</li>
+      <li>Nella finestra dell'immagine la terza scheda si chiama "Rimuovi" (<code>avatar_dialog.dart:299</code>): è la stessa parola che toglie il profilo. La finestra non dice di chi è l'immagine e non mostra quella attuale.</li>
+      <li>Con 5 profili il "+" sparisce e basta (<code>profile_store.dart:96</code>, <code>:133</code>): il limite si legge solo come errore "Massimo 5 profili".</li>
+      <li>La modalità "Gestisci profili" si riconosce solo da due iconcine sugli angoli dell'avatar: non c'è scritto cosa fanno.</li>
+      <li><b>Da tenere:</b> focus sull'ultimo profilo usato, profilo scaduto al 45% con "Accedi di nuovo" (<code>:27</code>, <code>:258</code>), velo con spinner mentre il profilo si apre (<code>:281</code>).</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="scroll">
+      <div class="app desk" id="who-desk">
+        <div class="pre who">
+          <img class="logo-img" src="../../../../app/assets/brand/logo.png" alt="WonderFlix" width="120" height="120">
+          <h3>Chi guarda?</h3>
+          <div class="cards" id="cards-desk"></div>
+          <div class="count num">4 profili su 5 su questo PC</div>
+          <div style="margin-top:16px"><button class="b s"><span class="ico" data-i="pencil" style="width:16px;height:16px"></span>Gestisci profili</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Stessa pagina, misure più generose (avatar 132, titolo 56) e un conto tranquillo sotto le carte: "4 profili su 5 su questo PC" avvisa del limite prima che arrivi. All'apertura il focus da tastiera è sull'ultimo profilo usato (anello oro). Il profilo scaduto resta al 45% con "Accedi di nuovo" scritto sotto. Sul telefono le carte vanno su due colonne con avatar 96.</p>
+
+    <div class="scroll" style="margin-top:28px">
+      <div class="app tv" id="who-tv">
+        <div class="pre tvwho">
+          <h3>Gestisci profili</h3>
+          <div class="sub">Scegli cosa cambiare. Quando hai finito, premi Fine.</div>
+          <div class="cards" id="cards-tv"></div>
+          <div class="limit"><span class="ico" data-i="info"></span>5 profili su questa TV: rimuovine uno per aggiungerne un altro.</div>
+          <div style="margin-top:22px"><button class="b p">Fine</button></div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">TV 960×540 in modalità gestione. Il titolo cambia in "Gestisci profili", gli avatar si spengono e ogni carta ha due pulsanti scritti, "Modifica" e "Rimuovi": il D-pad li raggiunge uno per uno, con cornice crema e scala 1.06 come nel resto della TV (qui il focus è su "Rimuovi" di Garg). Al posto del "+" sparito c'è una riga che spiega il limite. La stessa riga compare anche fuori dalla gestione quando i profili sono 5.</p>
+
+    <h3>Testi da cambiare</h3>
+    <table class="copy">
+      <tr><th>Oggi</th><th>Nuovo</th><th>Dove</th></tr>
+      <tr><td>Rimuovere {nome} da questo PC?</td><td>Rimuovere {nome} da questo PC? / browser? / TV? / telefono?</td><td>arb:772, scelto in base alla piattaforma</td></tr>
+      <tr><td>Dal PC</td><td>Dal PC (Windows), Dal telefono (Android), Carica immagine (web)</td><td>arb:786</td></tr>
+      <tr><td>Immagine del profilo</td><td>Immagine di {nome}, con l'immagine attuale accanto al titolo</td><td>avatar_dialog.dart, intestazione</td></tr>
+      <tr><td>Rimuovi (scheda) / Rimuovi immagine</td><td>Niente scheda: "Togli immagine" come pulsante sotto l'immagine attuale</td><td>avatar_dialog.dart:299, :451</td></tr>
+      <tr><td>Massimo 5 profili</td><td>5 profili su questo PC: rimuovine uno per aggiungerne un altro.</td><td>arb:775</td></tr>
+    </table>
+  </section>
+
+  <!-- ============ 2. ACCESSO ============ -->
+  <section class="s" id="accesso">
+    <h2>Accesso</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il pannello (380, <code>login_screen.dart:144</code>) parte con le schede "Password | Quick Connect" senza un titolo: non dice "Accedi".</li>
+      <li>I campi hanno solo il suggerimento "Nome utente"/"Password", che sparisce appena scrivi (<code>password_login_form.dart:93</code>, <code>:107</code>). Niente compilazione automatica per i gestori di password, niente occhio per vedere la password (<code>:105</code>).</li>
+      <li>Il pulsante dice "ACCEDI" in maiuscolo (<code>app_it.arb:8</code>), gli altri sono in frase normale.</li>
+      <li>Su desktop le schede hanno altezza fissa 300 (<code>login_screen.dart:229</code>): un errore su due righe rischia di finire tagliato.</li>
+      <li>"Sessione scaduta, accedi di nuovo." esce nel riquadro rosso degli errori (<code>login_screen.dart:169</code>), come se avessi sbagliato qualcosa. E non c'è un "Bentornato" col tuo nome.</li>
+      <li>Quick Connect: "Il tuo codice:" con i due punti, codice Bebas 52, aiuto fitto in 12,5 (<code>quick_connect_panel.dart:76-97</code>). L'aiuto dice di aprire "Impostazioni → Quick Connect", ma in Impostazioni la voce si chiama "Autorizza un dispositivo" (<code>account_settings_section.dart:72</code>, <code>app_it.arb:809</code>).</li>
+      <li>"Scrivi all'admin" apre un link (<code>app_it.arb:10</code>): sulla TV non porta da nessuna parte.</li>
+      <li>Recupero password: campi nudi con <code>autofocus</code> (<code>recovery_panel.dart:301-368</code>); sulla Fire TV la tastiera si apre appena entri.</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="scroll">
+      <div class="app desk">
+        <div class="login">
+          <img class="logo-img" src="../../../../app/assets/brand/logo.png" alt="WonderFlix" width="300" height="300">
+          <div class="panel">
+            <div class="who-row">
+              <div class="av d">D</div>
+              <h4>Bentornato, davide.sidoti</h4>
+            </div>
+            <div class="note"><span class="ico" data-i="clock"></span><span>La sessione è scaduta, capita dopo un po' di tempo. Scrivi la password per rientrare.</span></div>
+            <div class="chips"><span class="chip on">Password</span><span class="chip">Quick Connect</span></div>
+            <div class="lrow"><span class="fl">Nome utente</span><a href="#">Non sei tu?</a></div>
+            <div class="in">davide.sidoti</div>
+            <span class="fl">Password</span>
+            <div class="in f"><span class="dots">••••••••</span><span class="caret"></span><span class="ico eye" data-i="eye"></span></div>
+            <div class="forgot"><button class="b t sm">Password dimenticata?</button></div>
+            <button class="b p lg wide">Accedi</button>
+            <div class="foot-l">Non riesci a entrare? <a href="#">Scrivi all'admin</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Variante "sessione scaduta": il titolo saluta per nome, con l'avatar, e il nome utente è già scritto ("Non sei tu?" lo svuota). L'avviso è neutro, grigio con un orologio, perché non è un errore. Al primo accesso il titolo è "Accedi a WonderFlix" e la riga dell'avatar sparisce. Campi con etichetta sopra e i suggerimenti di compilazione per i gestori di password (<code>AutofillGroup</code>, <code>username</code>/<code>password</code>), occhio per mostrare la password, "Accedi" in frase normale. Il pannello cresce col contenuto: niente altezza fissa.</p>
+
+    <div class="pair" style="margin-top:28px">
+      <div class="app phone">
+        <div class="qc">
+          <img class="logo-img" src="../../../../app/assets/brand/logo.png" alt="WonderFlix" width="96" height="96">
+          <h4>Accedi a WonderFlix</h4>
+          <div class="chips" style="justify-content:center"><span class="chip">Password</span><span class="chip on">Quick Connect</span></div>
+          <div class="box">
+            <div class="lab">Il tuo codice</div>
+            <div class="code num">123 456</div>
+            <div class="wait"><span class="ico" data-i="loader"></span>Aspetto che lo autorizzi</div>
+            <ol class="steps">
+              <li><span class="n">1</span><span>Su un telefono o un PC già collegato apri <b>Impostazioni › Account › Autorizza un dispositivo</b>.</span></li>
+              <li><span class="n">2</span><span>Scrivi questo codice e tocca <b>Autorizza</b>. Qui entri da solo.</span></li>
+            </ol>
+          </div>
+          <div class="foot-l" style="margin-top:auto">Non hai un altro dispositivo collegato? <a href="#">Scrivi all'admin</a></div>
+        </div>
+      </div>
+      <div style="max-width:560px">
+        <p class="cap" style="margin-top:0">Quick Connect sul telefono (ma è soprattutto la via della TV). Il codice è il protagonista: Bebas 68, cifre tabellari, senza i due punti nell'etichetta. I passi sono due righe numerate, perché sono davvero una sequenza, e usano il nome vero della voce in Impostazioni ("Autorizza un dispositivo") e del pulsante ("Autorizza").</p>
+        <p class="cap">Sulla TV la stessa colonna sta accanto al logo; "Scrivi all'admin" diventa testo semplice ("Chiedi all'admin di autorizzarti"), perché un link non si apre. Nel recupero password i campi passano a <code>TvTextFieldFrame</code> senza <code>autofocus</code>: la tastiera si apre solo con OK.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. SERVER IRRAGGIUNGIBILE ============ -->
+  <section class="s" id="server">
+    <h2>Server irraggiungibile</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Una sola schermata per due situazioni diverse: "sei offline" e "il server si sta avviando" (<code>unreachable_screen.dart:63-110</code>). Dopo un riavvio Jellyfin risponde 503 per 2–35 minuti: chi vede "WonderFlix non è raggiungibile" pensa a un guasto o alla propria rete.</li>
+      <li>"Nuovo tentativo automatico ogni 15 secondi." (<code>app_it.arb:22</code>) senza conto alla rovescia: il timer c'è (<code>:15</code>, <code>:28</code>) ma non si vede.</li>
+      <li>Niente margini (<code>Center</code> senza padding, <code>:64</code>) e titolo senza centratura del testo (<code>:70</code>): sul telefono va a capo allineato a sinistra.</li>
+      <li>In TV "Riprova" non ha il focus iniziale (<code>:77</code>): bisogna cercarlo col D-pad.</li>
+      <li>Avvio (<code>splash_screen.dart:74</code>): logo 220 con riflesso e spinner, nessun testo né via d'uscita se l'apertura del profilo si blocca.</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="scroll">
+      <div class="app desk">
+        <div class="glow"></div>
+        <div class="pre down">
+          <div class="chain">
+            <span class="nd"><i class="lamp green"></i>La tua connessione <b>ok</b></span>
+            <span class="ln ok"></span>
+            <span class="nd"><i class="lamp"></i>Server <b>in avvio</b></span>
+          </div>
+          <h3>Il server si sta avviando</h3>
+          <p>Dopo un riavvio Jellyfin può metterci da qualche minuto fino a mezz'ora. Non devi fare niente: appena è pronto entri da solo.</p>
+          <div class="clock run">
+            <div class="t"><span>Riprovo tra <b class="num" id="cd">12 s</b></span><span class="num">In attesa da 6 min</span></div>
+            <div class="track"><i></i></div>
+          </div>
+          <div class="acts-row">
+            <button class="b p lg"><span class="ico" data-i="refresh" style="width:16px;height:16px"></span>Riprova ora</button>
+            <button class="b s lg"><span class="ico" data-i="users" style="width:16px;height:16px"></span>Cambia profilo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Il punto audace della pagina. In cima una catena di due lampade dice dove si è rotto il collegamento: la tua connessione funziona (verde), il server risponde ma non è ancora pronto (oro). Sotto, il conto alla rovescia in cifre tabellari e una linea oro che si riempie in 15 secondi, l'unico movimento della pagina (fermo con <code>prefers-reduced-motion</code>). "Riprova ora" è il primario e in TV ha il focus iniziale. "In attesa da 6 min" rassicura nelle attese lunghe.</p>
+
+    <div class="pair" style="margin-top:28px">
+      <div class="app phone">
+        <div class="pre down" style="padding:0 16px">
+          <div class="chain">
+            <span class="nd"><i class="lamp red"></i>Connessione</span>
+            <span class="ln"></span>
+            <span class="nd"><i class="lamp off"></i>Server</span>
+          </div>
+          <h3>Sei offline</h3>
+          <p>Non riesco a raggiungere il server. Controlla il Wi-Fi o i dati mobili: riprovo da solo.</p>
+          <p class="small-note">Se la rete funziona, il server potrebbe essere spento: avvisa l'admin.</p>
+          <div class="clock">
+            <div class="t"><span>Riprovo tra <b class="num">8 s</b></span></div>
+            <div class="track"><i style="width:47%"></i></div>
+          </div>
+          <div class="acts-col">
+            <button class="b p"><span class="ico" data-i="refresh" style="width:16px;height:16px"></span>Riprova ora</button>
+            <button class="b s"><span class="ico" data-i="users" style="width:16px;height:16px"></span>Cambia profilo</button>
+          </div>
+        </div>
+      </div>
+      <div style="max-width:560px">
+        <p class="cap" style="margin-top:0">"Sei offline" sul telefono: tutto centrato, margini 16, pulsanti a tutta larghezza alti 46. La catena ha la prima lampada rossa e la seconda spenta: il problema è prima del server. La riga piccola copre il caso che l'app non sa distinguere: rete a posto ma macchina del server spenta.</p>
+        <p class="cap"><b>Come l'app distingue i due stati</b> (nessuna modifica al plugin o a Jellyfin):</p>
+        <ul class="cap" style="padding-left:18px">
+          <li>Nessuna risposta (errore di connessione o timeout di Dio): "Sei offline".</li>
+          <li>Risposta 503 (Jellyfin in avvio: <code>/health</code> risponde con una pagina HTML invece di "Healthy"): "Il server si sta avviando".</li>
+          <li>Risposta 502 o 504 dal proxy (Jellyfin fermo): stessa schermata, titolo "Il server non risponde", senza la frase sulla mezz'ora.</li>
+        </ul>
+        <p class="cap"><b>Avvio:</b> se dopo 10 secondi lo splash è ancora lì, sotto il logo compaiono "Apro il profilo di davide.sidoti…" e un pulsante "Cambia profilo".</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. AGGIORNAMENTO ============ -->
+  <section class="s" id="aggiornamento">
+    <h2>Aggiornamento</h2>
+    <span class="tag old">Oggi</span>
+    <ul class="issues">
+      <li>Il banner mette icona, titolo e tre pulsanti in una riga sola (<code>update_banner.dart:56-80</code>): nelle finestre strette il titolo si stringe su tre o quattro righe.</li>
+      <li>Schermata obbligatoria: "AGGIORNAMENTO NECESSARIO" in maiuscolo (<code>mandatory_update_screen.dart:44</code>).</li>
+      <li>"Download in corso… 0%" anche quando la barra non conosce ancora la percentuale (<code>mandatory_update_screen.dart:62-64</code>): sembra fermo.</li>
+    </ul>
+
+    <span class="tag new">Nuova</span>
+    <div class="pair">
+      <div>
+        <p class="frame-lab">Finestra stretta, 480 px</p>
+        <div class="app" style="width:480px;height:460px">
+          <div class="fake">
+            <div class="hero" id="upd-hero"></div>
+            <div class="row" id="upd-row" style="top:250px"></div>
+          </div>
+          <div class="upd">
+            <div class="top">
+              <span class="ico" data-i="download"></span>
+              <div class="tt">Aggiornamento pronto: WonderFlix 0.42.0<span>Riavvia WonderFlix per installarlo.</span></div>
+            </div>
+            <div class="btns">
+              <button class="b t sm" style="margin-right:auto;padding-left:24px">Novità</button>
+              <button class="b s sm">Più tardi</button>
+              <button class="b p sm"><span class="ico" data-i="rotate" style="width:14px;height:14px"></span>Riavvia ora</button>
+            </div>
+          </div>
+        </div>
+        <p class="cap" style="max-width:480px">Sotto i 640 px il banner va su due righe: titolo sopra, pulsanti sotto. "Novità" scivola a sinistra, "Riavvia ora" resta l'unico primario. Sopra i 640 torna su una riga sola.</p>
+      </div>
+      <div>
+        <p class="frame-lab">Aggiornamento necessario, finestra 760 px</p>
+        <div class="app" style="width:760px;height:460px">
+          <div class="mand">
+            <div class="col">
+              <span class="ico big" data-i="download"></span>
+              <h4>Aggiornamento necessario</h4>
+              <div class="muted">Questa versione di WonderFlix non è più supportata. Installa la 0.42.0 per continuare.</div>
+              <div class="rn"><b>Novità della 0.42.0</b><ul><li>Home con Stasera e In arrivo</li><li>Match con posti e biglietti</li><li>La mia lista con le date</li></ul></div>
+              <div class="indet"><i></i></div>
+              <div class="muted" style="margin-top:8px;font-size:12.5px">Download in corso…</div>
+            </div>
+          </div>
+        </div>
+        <p class="cap" style="max-width:620px">Titolo in frase normale. Finché il server non manda la dimensione del file la barra è indeterminata e il testo dice solo "Download in corso…"; quando la percentuale arriva diventa "Download in corso… 64%". In questa bozza la barra è ferma per non aggiungere un secondo movimento alla pagina.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FUORI ============ -->
+  <section class="s" id="fuori">
+    <h2>Fuori da questa bozza</h2>
+    <ul>
+      <li>La finestra dell'immagine del profilo (galleria, ritaglio): solo i testi della tabella sopra, il resto resta.</li>
+      <li>Il riflesso oro dello splash e il velo con spinner all'apertura del profilo: funzionano, restano.</li>
+      <li>Il recupero password via Discord/email: cambiano solo i campi in TV, non il flusso.</li>
+      <li>Un QR per Quick Connect: servirebbe un indirizzo web da aprire sul telefono che porti all'autorizzazione; oggi non esiste, quindi niente QR.</li>
+      <li>Gli aggiornamenti della TV: restano spenti finché l'APK non ha il suo file nella release.</li>
+    </ul>
+    <p><b>Plugin e Jellyfin:</b> nulla da cambiare. La distinzione offline / in avvio / fermo viene dal tipo di errore e dal codice di risposta che l'app riceve già; il resto è solo app.</p>
+  </section>
+</div>
+
+<script>
+const ICONS = {
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  trash:'<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  eye:'<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  refresh:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  rotate:'<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+  loader:'<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+};
+const svg = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
+
+// Chi guarda? desktop: 4 profili, uno scaduto, più "Aggiungi"
+const desk = [PEOPLE[0], PEOPLE[1], PEOPLE[2], {...PEOPLE[4], exp:true}];
+document.getElementById('cards-desk').innerHTML = desk.map((p, i) => `
+  <div class="pc${p.exp ? ' exp' : ''}${i === 0 ? ' kb' : ''}">
+    <div class="av ${p.c} face">${p.i}</div>
+    <div class="nm">${p.n}</div>${p.exp ? '<div class="st">Accedi di nuovo</div>' : ''}
+  </div>`).join('') + `
+  <div class="pc add"><div class="av face"><span class="ico" data-i="plus"></span></div><div class="nm muted">Aggiungi profilo</div></div>`;
+
+// TV gestione: 5 profili, focus su "Rimuovi" di Garg
+document.getElementById('cards-tv').innerHTML = PEOPLE.slice(0, 5).map((p, i) => `
+  <div class="pc">
+    <div class="av ${p.c} face">${p.i}</div>
+    <div class="nm">${p.n}</div>
+    <div class="acts">
+      <button class="b q"><span class="ico" data-i="pencil" style="width:14px;height:14px"></span>Modifica</button>
+      <button class="b danger${i === 2 ? ' tvf' : ''}"><span class="ico" data-i="trash" style="width:14px;height:14px"></span>Rimuovi</button>
+    </div>
+  </div>`).join('');
+
+// Home finta dietro il banner
+document.getElementById('upd-hero').style.backgroundImage = `url(${B(BACKDROPS["L'Istituto"], 780)})`;
+document.getElementById('upd-row').innerHTML = POSTERS.slice(0, 4).map(p => `<div class="pst" style="background-image:url(${P(p.p, 185)})"></div>`).join('');
+
+document.querySelectorAll('[data-i]').forEach(el => { el.classList.add('ico'); el.innerHTML = svg(el.dataset.i); });
+
+// conto alla rovescia vero, legato alla linea (15 s)
+const cd = document.getElementById('cd');
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  const t0 = Date.now();
+  setInterval(() => { cd.textContent = (15 - Math.floor((Date.now() - t0) / 1000) % 15) + ' s'; }, 250);
+}
+</script>
+</body>
+</html>
