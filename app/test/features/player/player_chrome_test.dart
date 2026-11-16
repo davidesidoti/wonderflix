@@ -500,4 +500,22 @@ void main() {
       chrome.dispose();
     });
   });
+
+  test('scheda dei tasti: si apre, si richiude, si chiude', () {
+    final chrome = PlayerChromeController();
+    var notified = 0;
+    chrome.addListener(() => notified++);
+    expect(chrome.keysCard, isFalse);
+    chrome.toggleKeysCard();
+    expect(chrome.keysCard, isTrue);
+    chrome.toggleKeysCard();
+    expect(chrome.keysCard, isFalse);
+    chrome
+      ..toggleKeysCard()
+      ..closeKeysCard();
+    expect(chrome.keysCard, isFalse);
+    chrome.closeKeysCard();
+    expect(notified, 4);
+    chrome.dispose();
+  });
 }

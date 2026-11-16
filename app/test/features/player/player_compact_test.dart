@@ -428,7 +428,11 @@ void main() {
       await pumpApp(
         tester,
         // Nel player sta dentro uno `Scaffold` (lo stile del testo).
-        Scaffold(body: PauseScreen(item: episode, visible: true)),
+        Scaffold(body: PauseScreen(
+            item: episode,
+            visible: true,
+            engine: FakeVideoEngine(),
+            onResume: () {})),
         surfaceSize: size,
         touch: true,
       );
@@ -540,7 +544,11 @@ void main() {
   testWidgets('TV: la pausa usa le misure del desktop', (tester) async {
     await pumpApp(
       tester,
-      Scaffold(body: PauseScreen(item: episode, visible: true)),
+      Scaffold(body: PauseScreen(
+            item: episode,
+            visible: true,
+            engine: FakeVideoEngine(),
+            onResume: () {})),
       surfaceSize: tvSize,
       tv: true,
     );

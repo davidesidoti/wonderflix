@@ -97,6 +97,7 @@ class PlayerChromeController extends ChangeNotifier {
   bool _playing = false;
   bool _pauseScreen = false;
   bool _postPlayDismissed = false;
+  bool _keysCard = false;
 
   /// La schermata di pausa è ammessa adesso (lo decide `PlayerScreen`).
   bool _canShowPauseScreen = false;
@@ -140,6 +141,20 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// Riscontro da mostrare adesso; `null` = nessuno.
   PlayerFeedback? get feedback => _feedback;
+
+  /// Scheda "Tasti" aperta col tasto `?`.
+  bool get keysCard => _keysCard;
+
+  void toggleKeysCard() {
+    _keysCard = !_keysCard;
+    notifyListeners();
+  }
+
+  void closeKeysCard() {
+    if (!_keysCard) return;
+    _keysCard = false;
+    notifyListeners();
+  }
 
   /// Il mouse si è mosso: controlli visibili, schermata di pausa chiusa, e
   /// i conti per nasconderli ripartono.

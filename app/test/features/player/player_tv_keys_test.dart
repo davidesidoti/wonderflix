@@ -14,6 +14,7 @@ import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
+import 'package:wonderflix/features/player/player_keys.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -159,6 +160,16 @@ void main() {
     await tester.sendKeyEvent(key);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('? non apre la scheda dei tasti', (tester) async {
+    await pumpPlayer(tester);
+    // Maiusc+/ sulla tastiera americana.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.slash, character: '?');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.slash);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerKeysCard), findsNothing);
+    await unmount(tester);
+  });
 
   testWidgets('OK: pausa e controlli; di nuovo OK riprende', (tester) async {
     await pumpPlayer(tester);

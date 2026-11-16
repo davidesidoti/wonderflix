@@ -142,4 +142,25 @@ void main() {
     expect(size.height, 22);
     expect(size.width, greaterThanOrEqualTo(22));
   });
+
+  testWidgets('la scheda elenca tutti i tasti', (tester) async {
+    await pumpApp(tester, const Scaffold(body: Center(child: PlayerKeysCard())));
+    for (final k in [
+      'Spazio', '←', '→', '↑', '↓', 'M', 'F', 'N', 'P', 'G', 'H', 'Invio', //
+      '1–6', 'Esc',
+    ]) {
+      expect(
+          find.descendant(
+              of: find.byType(PlayerKeysCard),
+              matching: find.descendant(
+                  of: find.byType(KeyCap), matching: find.text(k))),
+          findsOneWidget,
+          reason: k);
+    }
+    expect(find.text('Tasti'), findsOneWidget);
+    expect(find.text('Episodi e sottotitoli'), findsOneWidget);
+    expect(find.text('Chiudi un pannello o esci'), findsOneWidget);
+    expect(tester.getSize(find.byType(PlayerKeysCard)).width, 420);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -52,6 +52,7 @@ import 'player_active.dart';
 import 'player_chrome.dart';
 import 'player_handover.dart';
 import 'player_loading.dart';
+import 'player_keys.dart';
 import 'player_overlay.dart';
 import 'player_pill.dart';
 import 'player_providers.dart';
@@ -1113,7 +1114,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// dire lasciare il gruppo.
   void _escape() {
     final view = ref.read(playerControllerProvider(widget.args));
-    if (_chrome.popup == PlayerPopup.rating) {
+    if (_chrome.keysCard) {
+      _chrome.closeKeysCard();
+    } else if (_chrome.popup == PlayerPopup.rating) {
       _closeRatingPanel();
     } else if (_chrome.popup != null) {
       _chrome.closePopup();
@@ -1360,6 +1363,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_queueSearchFocused) return _onQueueSearchKey(event);
     if (_ratingCommentFocused) return _onRatingCommentKey(event);
     if (_onRatingKey(event)) return KeyEventResult.handled;
+    // ? apre e chiude la scheda dei tasti; da una tastiera italiana è
+    // Maiusc+' e il tasto logico non è `question`: conta il carattere.
+    if (event is KeyDownEvent &&
+        (event.character == '?' ||
+            event.logicalKey == LogicalKeyboardKey.question) &&
+        !FormFactor.of(context).tv) {
+      _chrome
+        ..keyActivity()
+        ..toggleKeysCard();
+      return KeyEventResult.handled;
+    }
     // Invio apre la chat del watch party, solo con il focus al player: su
     // un pulsante (per esempio "Riprova") lo preme.
     if (event is KeyDownEvent &&
@@ -1899,7 +1913,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     key: const ValueKey('player-pause-layer'),
                     child: ExcludeFocus(
                       child: PauseScreen(
-                          item: view.item!, visible: _chrome.pauseScreen),
+                          item: view.item!,
+                          visible: _chrome.pauseScreen,
+                          engine: controller.engine,
+                          onResume: () => unawaited(controller.togglePlay())),
                     ),
                   ),
                 if (view.status == PlayerStatus.error)
@@ -2247,6 +2264,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               _chrome.closePopup(PlayerPopup.reactions),
                         ),
                       ),
+                    ),
+                  ),
+                // Scheda dei tasti aperta con ?: nella pausa c'è già la sua.
+                if (_chrome.keysCard && !_chrome.pauseScreen)
+                  Positioned.fill(
+                    key: const ValueKey('player-keys-card'),
+                    child: ExcludeFocus(
+                      child: compact
+                          ? const Align(
+                              alignment: Alignment.topCenter,
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(16, 96, 16, 0),
+                                child: PlayerKeysCard(),
+                              ),
+                            )
+                          : const Stack(
+                              children: [
+                                Positioned(
+                                    right: 64, top: 96, child: PlayerKeysCard()),
+                              ],
+                            ),
                     ),
                   ),
                 // Riscontro dei tasti e avvisi del watch party (anche dopo

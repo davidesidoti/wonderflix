@@ -24,6 +24,7 @@ import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_loading.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
+import 'package:wonderflix/features/player/player_keys.dart';
 import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
@@ -514,6 +515,50 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Stai guardando'), findsOneWidget);
   }
+
+  /// ? come Maiusc+/ (tastiera americana) o Maiusc+' (italiana).
+  Future<void> pressQuestion(WidgetTester tester,
+      {LogicalKeyboardKey key = LogicalKeyboardKey.slash}) async {
+    await tester.sendKeyDownEvent(key, character: '?');
+    await tester.sendKeyUpEvent(key);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('? apre e chiude la scheda dei tasti, Esc la chiude', (
+    tester,
+  ) async {
+    await pumpPlayer(tester);
+    await pressQuestion(tester);
+    expect(find.byType(PlayerKeysCard), findsOneWidget);
+    await pressQuestion(tester);
+    expect(find.byType(PlayerKeysCard), findsNothing);
+
+    await pressQuestion(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerKeysCard), findsNothing);
+    expect(find.text('home'), findsNothing, reason: 'si resta nel player');
+    await unmount(tester);
+  });
+
+  testWidgets('? da tastiera italiana (Maiusc+\') apre la scheda', (
+    tester,
+  ) async {
+    await pumpPlayer(tester);
+    await pressQuestion(tester, key: LogicalKeyboardKey.quote);
+    expect(find.byType(PlayerKeysCard), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets('pausa: Riprendi riprende il video', (tester) async {
+    await pumpPlayer(tester);
+    await pauseUntilPauseScreen(tester);
+    expect(engine.playing, isFalse);
+    await tester.tap(find.text('Riprendi'));
+    await tester.pumpAndSettle();
+    expect(engine.playing, isTrue);
+    await unmount(tester);
+  });
 
   testWidgets('pausa: qualsiasi tasto la chiude, anche senza comando', (
     tester,

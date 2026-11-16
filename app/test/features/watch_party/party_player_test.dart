@@ -25,6 +25,7 @@ import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_extras.dart';
+import 'package:wonderflix/features/player/player_keys.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_pill.dart';
@@ -1137,6 +1138,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(chatField(), findsNothing);
     expect(find.byType(TracksPanel), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('chat aperta: ? va al campo, la scheda dei tasti non si apre',
+      (tester) async {
+    await pumpPartyPlayer(tester);
+    await openChatWithEnter(tester);
+    // Maiusc+/ sulla tastiera americana.
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.slash, character: '?');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.slash);
+    await tester.pump();
+    expect(find.byType(PlayerKeysCard), findsNothing);
     await finish(tester);
   });
 
