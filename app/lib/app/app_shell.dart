@@ -223,8 +223,8 @@ class _AppShellState extends ConsumerState<AppShell> {
         const SizedBox(width: 8),
         Expanded(child: Center(child: _BarTitle(header: _header))),
         const WatchPartyButton(),
-        const InboxButton(),
         const FriendsButton(),
+        const InboxButton(),
         if (user != null) _UserMenu(user: user, compact: true),
       ];
 }

@@ -13,7 +13,9 @@ import '../../core/reports/report_models.dart';
 import '../../core/social/inbox_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/panel_header.dart';
 import '../../ui/shell_side_panel.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
@@ -140,25 +142,12 @@ class _InboxPanelState extends ConsumerState<InboxPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(l.inboxTitle,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w700)),
-                ),
-                if (hasEntries) const _ClearButton(),
-                IconButton(
-                  focusNode: _closeFocus,
-                  tooltip: l.friendsClose,
-                  icon: const Icon(LucideIcons.x, size: 20),
-                  onPressed: () =>
-                      ref.read(shellPanelProvider.notifier).close(),
-                ),
-              ],
-            ),
+          PanelHeader(
+            title: l.inboxTitle,
+            actions: [if (hasEntries) const _ClearButton()],
+            closeTooltip: l.friendsClose,
+            closeFocusNode: _closeFocus,
+            onClose: () => ref.read(shellPanelProvider.notifier).close(),
           ),
           const Expanded(child: _Entries()),
         ],
@@ -226,8 +215,7 @@ class _Entries extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final inbox = ref.watch(inboxControllerProvider);
     if (!inbox.loaded) {
-      // Mentre carica la prima volta il pannello resta vuoto.
-      if (!inbox.failed) return const SizedBox.shrink();
+      if (!inbox.failed) return const PanelRowsSkeleton();
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
         child: Column(

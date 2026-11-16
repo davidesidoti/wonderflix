@@ -20,7 +20,7 @@ class ShellSidePanel extends StatefulWidget {
   });
 
   /// Larghezza, e quota massima della finestra.
-  static const width = 360.0;
+  static const width = 380.0;
   static const maxWidthFraction = 0.9;
 
   /// Opacità del nero sul resto della finestra a pannello aperto (come lo

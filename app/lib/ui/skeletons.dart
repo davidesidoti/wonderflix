@@ -271,3 +271,42 @@ class PersonSkeleton extends StatelessWidget {
       );
   }
 }
+
+/// Righe di un pannello della shell (Amici, Notifiche, Consiglia) mentre
+/// carica: un cerchio da 32 e due barre, come le righe vere.
+class PanelRowsSkeleton extends StatelessWidget {
+  const PanelRowsSkeleton({super.key, this.rows = 3});
+
+  final int rows;
+
+  @override
+  Widget build(BuildContext context) => WfShimmer(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows; i++)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      SkeletonBox(width: 32, height: 32, radius: 16),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SkeletonBox(width: 140, height: 14),
+                            SizedBox(height: 8),
+                            SkeletonBox(width: 90, height: 12),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+}

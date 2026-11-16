@@ -10,7 +10,9 @@ import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/panel_header.dart';
 import '../../ui/shell_side_panel.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/wf_menus.dart';
 import '../match/match_actions.dart';
 import '../match/match_entry.dart';
@@ -104,23 +106,10 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(l.friendsTitle,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w700)),
-                ),
-                IconButton(
-                  tooltip: l.friendsClose,
-                  icon: const Icon(LucideIcons.x, size: 20),
-                  onPressed: () =>
-                      ref.read(shellPanelProvider.notifier).close(),
-                ),
-              ],
-            ),
+          PanelHeader(
+            title: l.friendsTitle,
+            closeTooltip: l.friendsClose,
+            onClose: () => ref.read(shellPanelProvider.notifier).close(),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -395,8 +384,7 @@ class _FriendLists extends ConsumerWidget {
     final friendsState = ref.watch(friendsControllerProvider);
     final controller = ref.read(friendsControllerProvider.notifier);
     if (!friendsState.loaded) {
-      // Mentre carica la prima volta il pannello resta vuoto.
-      if (!friendsState.failed) return const SizedBox.shrink();
+      if (!friendsState.failed) return const PanelRowsSkeleton();
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
         child: Column(

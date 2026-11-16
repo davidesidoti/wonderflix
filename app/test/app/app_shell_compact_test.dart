@@ -113,6 +113,14 @@ void main() {
   String location(GoRouter router) =>
       router.routerDelegate.currentConfiguration.last.matchedLocation;
 
+  testWidgets('stretto: Amici viene prima di Notifiche nella barra in alto',
+      (tester) async {
+    await pumpShell(tester,
+        features: const SocialFeatures(friends: true, inbox: true));
+    expect(tester.getTopLeft(find.byKey(const Key('friends-button'))).dx,
+        lessThan(tester.getTopLeft(find.byKey(const Key('inbox-button'))).dx));
+  });
+
   testWidgets('stretto: barra in basso con Home, Cerca, La mia lista, Altro',
       (tester) async {
     await pumpShell(tester);

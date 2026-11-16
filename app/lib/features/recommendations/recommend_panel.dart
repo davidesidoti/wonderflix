@@ -12,7 +12,9 @@ import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/rune_limit.dart';
+import '../../ui/panel_header.dart';
 import '../../ui/shell_side_panel.dart';
+import '../../ui/skeletons.dart';
 import '../../ui/tv_focusable.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
@@ -155,23 +157,11 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(l.recommendPanelTitle,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w700)),
-                ),
-                IconButton(
-                  focusNode: _closeFocus,
-                  tooltip: l.friendsClose,
-                  icon: const Icon(LucideIcons.x, size: 20),
-                  onPressed: () => ref.read(shellPanelProvider.notifier).close(),
-                ),
-              ],
-            ),
+          PanelHeader(
+            title: l.recommendPanelTitle,
+            closeTooltip: l.friendsClose,
+            closeFocusNode: _closeFocus,
+            onClose: () => ref.read(shellPanelProvider.notifier).close(),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -199,8 +189,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
           ),
           Expanded(
             child: targets.when(
-              // Mentre carica il pannello resta vuoto (come gli altri).
-              loading: () => const SizedBox.shrink(),
+              loading: () => const PanelRowsSkeleton(),
               error: (error, _) => Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Column(
