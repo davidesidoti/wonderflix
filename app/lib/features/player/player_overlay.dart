@@ -187,7 +187,7 @@ class PlayerOverlay extends StatelessWidget {
       onPressed: () => onSeekBy(-seekStep),
     );
     final playPause = PlayerIconButton(
-      iconSize: compact ? 40 : 34,
+      iconSize: tv ? 32 : (compact ? 40 : 34),
       icon: PlayPauseIcon(playing: view.playing),
       tooltip: view.playing ? l.playerPause : l.actionPlay,
       shortcut: l.playerKeySpace,
@@ -405,7 +405,8 @@ class PlayerOverlay extends StatelessWidget {
                   child: Padding(
                   padding: compact
                       ? const EdgeInsets.fromLTRB(12, 24, 12, 8)
-                      : const EdgeInsets.fromLTRB(24, 48, 24, 16),
+                      // Sulla TV sotto la fila c'è il nome del pulsante.
+                      : EdgeInsets.fromLTRB(24, 48, 24, tv ? 40 : 16),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -725,7 +726,7 @@ class PlayerIconButton extends StatefulWidget {
     required this.tooltip,
     required this.onPressed,
     this.shortcut,
-    this.iconSize = 24,
+    this.iconSize,
     this.size,
     this.focusNode,
   });
@@ -738,17 +739,20 @@ class PlayerIconButton extends StatefulWidget {
   /// Tasto che fa lo stesso: si mostra nel suggerimento solo con tastiera
   /// (né dito né TV).
   final String? shortcut;
-  final double iconSize;
+  /// `null` = 24 (30 sulla TV).
+  final double? iconSize;
 
   /// Lato fisso del pulsante (layout stretto); `null` = misura del tema.
   final double? size;
   final FocusNode? focusNode;
 
   /// Sulla TV il bordo oro del focus.
-  static final _tvFocusSide = WidgetStateBorderSide.resolveWith((states) =>
-      states.contains(WidgetState.focused)
-          ? const BorderSide(color: tvFocusColor, width: 2)
-          : null);
+  static final _tvFocusSide = WidgetStateBorderSide.resolveWith(
+      (states) => states.contains(WidgetState.focused) ? tvFocusSide : null);
+
+  /// Sulla TV il cerchio del pulsante e la distanza del suo nome.
+  static const _tvSize = 56.0;
+  static const _tvLabelGap = 12.0;
 
   @override
   State<PlayerIconButton> createState() => _PlayerIconButtonState();
@@ -757,6 +761,7 @@ class PlayerIconButton extends StatefulWidget {
 class _PlayerIconButtonState extends State<PlayerIconButton> {
   bool _hovered = false;
   bool _pressed = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
@@ -764,14 +769,17 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
     final enabled = widget.onPressed != null;
     final hovered = enabled && _hovered;
     final formFactor = FormFactor.of(context);
-    final scale = !enabled || motion.isReduced
+    final tv = formFactor.tv;
+    final scale = tv
+        ? (_focused ? tvFocusScale : 1.0)
+        : !enabled || motion.isReduced
         ? 1.0
         : _pressed
             ? 0.97
             : hovered
                 ? 1.08
                 : 1.0;
-    return MouseRegion(
+    final button = MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
         _hovered = false;
@@ -805,15 +813,17 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
                   : widget.shortcut,
               child: IconButton(
                 icon: widget.icon,
-                iconSize: widget.iconSize,
+                iconSize: widget.iconSize ?? (tv ? 30 : 24),
                 onPressed: widget.onPressed,
                 focusNode: widget.focusNode,
-                style: !formFactor.tv
+                style: !tv
                     ? (widget.size == null ? null : _sizedStyle(widget.size!))
-                    : (widget.size == null
-                            ? const ButtonStyle()
-                            : _sizedStyle(widget.size!))
-                        .copyWith(side: PlayerIconButton._tvFocusSide),
+                    : _sizedStyle(widget.size ?? PlayerIconButton._tvSize)
+                        .copyWith(
+                        backgroundColor: WidgetStatePropertyAll(
+                            WfColors.bg.withValues(alpha: 0.35)),
+                        side: PlayerIconButton._tvFocusSide,
+                      ),
                 color: WfColors.cream,
                 // Spec D §7.2: fondo crema al 12% al passaggio.
                 hoverColor: WfColors.cream.withValues(alpha: 0.12),
@@ -821,6 +831,38 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
             ),
           ),
         ),
+      ),
+    );
+    if (!tv) return button;
+    // Il nome sta sotto il cerchio col focus, fuori dal layout: la fila non
+    // si muove.
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onFocusChange: (focused) => setState(() => _focused = focused),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          button,
+          if (_focused)
+            Positioned(
+              top: (widget.size ?? PlayerIconButton._tvSize) +
+                  PlayerIconButton._tvLabelGap,
+              left: (widget.size ?? PlayerIconButton._tvSize) / 2,
+              child: FractionalTranslation(
+                translation: const Offset(-0.5, 0),
+                child: Text(
+                  widget.tooltip,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: const TextStyle(
+                      color: WfColors.cream,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

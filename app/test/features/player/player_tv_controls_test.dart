@@ -24,6 +24,7 @@ import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/form_factor.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -220,6 +221,69 @@ void main() {
     expect(focusOnPlayer(), isTrue);
     await press(tester, LogicalKeyboardKey.arrowRight);
     expect(engine.seeks.last, const Duration(seconds: 10));
+    await unmount(tester);
+  });
+
+  testWidgets('TV: cerchi da 56 e icone da 30, play/pausa 32', (tester) async {
+    await pumpPlayer(tester, size: const Size(960, 540));
+    final tracks = find.byTooltip('Audio e sottotitoli');
+    expect(tester.getSize(tracks), const Size(56, 56));
+    expect(
+      tester.getSize(find.descendant(of: tracks, matching: find.byType(Icon))),
+      const Size(30, 30),
+    );
+    final pause = find.byTooltip('Pausa');
+    expect(tester.getSize(pause), const Size(56, 56));
+    expect(
+      tester.getSize(find.descendant(of: pause, matching: find.byType(Icon))),
+      const Size(32, 32),
+    );
+    await unmount(tester);
+  });
+
+  testWidgets('TV: il nome compare sotto il pulsante col focus', (
+    tester,
+  ) async {
+    await pumpPlayer(tester, size: const Size(960, 540));
+    final pause = find.byTooltip('Pausa');
+    final rewind = find.byTooltip('Indietro di 10 secondi');
+    expect(find.text('Pausa'), findsNothing);
+    final rowY = tester.getCenter(pause).dy;
+
+    await press(tester, LogicalKeyboardKey.arrowDown);
+    expect(find.text('Pausa'), findsOneWidget);
+    final label = find.text('Pausa');
+    final circleBottom = tester.getBottomLeft(pause).dy;
+    expect(tester.getTopLeft(label).dy, greaterThan(circleBottom));
+    expect(tester.getTopLeft(label).dy - circleBottom, lessThan(16));
+    expect(tester.getCenter(label).dx, closeTo(tester.getCenter(pause).dx, 1));
+    expect(tester.getBottomLeft(label).dy, lessThanOrEqualTo(540));
+    expect(tester.getCenter(pause).dy, rowY, reason: 'la fila non si muove');
+    expect(tester.getCenter(rewind).dy, rowY);
+
+    await press(tester, LogicalKeyboardKey.arrowRight);
+    expect(find.text('Indietro di 10 secondi'), findsOneWidget);
+    expect(find.text('Pausa'), findsNothing);
+    expect(tester.getBottomLeft(find.text('Indietro di 10 secondi')).dy,
+        lessThanOrEqualTo(540));
+    expect(tester.getCenter(rewind).dy, rowY);
+    await unmount(tester);
+  });
+
+  testWidgets('TV: il pulsante col focus cresce', (tester) async {
+    await pumpPlayer(tester, size: const Size(960, 540));
+    double scaleOf(String tooltip) => tester
+        .widget<AnimatedScale>(find
+            .ancestor(
+              of: find.byTooltip(tooltip),
+              matching: find.byType(AnimatedScale),
+            )
+            .first)
+        .scale;
+    expect(scaleOf('Pausa'), 1);
+    await press(tester, LogicalKeyboardKey.arrowDown);
+    expect(scaleOf('Pausa'), tvFocusScale);
+    expect(scaleOf('Indietro di 10 secondi'), 1);
     await unmount(tester);
   });
 
