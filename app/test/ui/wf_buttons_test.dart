@@ -142,4 +142,34 @@ void main() {
     expect(style.foregroundColor!.resolve({}), WfColors.gold);
     expect(style.side!.resolve({})!.color, WfColors.gold);
   });
+
+  testWidgets('WfButton.secondary in TV: focus crema sull oro, oro altrimenti',
+      (tester) async {
+    await pumpApp(
+      tester,
+      Column(children: [
+        WfButton.secondary(
+            key: const Key('g'),
+            label: 'Il tuo voto: 8',
+            icon: LucideIcons.pencil,
+            gold: true,
+            onPressed: () {}),
+        WfButton.secondary(
+            key: const Key('n'),
+            label: 'Altro',
+            icon: LucideIcons.star,
+            onPressed: () {}),
+      ]),
+      surfaceSize: const Size(960, 540),
+      tv: true,
+    );
+    BorderSide? focused(String key) => tester
+        .widget<OutlinedButton>(find.descendant(
+            of: find.byKey(Key(key)), matching: find.byType(OutlinedButton)))
+        .style!
+        .side!
+        .resolve({WidgetState.focused});
+    expect(focused('g'), tvFocusSideOnGold);
+    expect(focused('n'), tvFocusSide);
+  });
 }

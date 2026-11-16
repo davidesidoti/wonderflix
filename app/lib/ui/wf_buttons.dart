@@ -92,7 +92,10 @@ class WfButton extends StatelessWidget {
         foregroundColor: gold ? WfColors.gold : WfColors.cream,
         backgroundColor: small ? WfColors.surfaceHigh : null,
         side: side,
-      ).copyWith(side: tvButtonSide(tv, side)),
+      ).copyWith(
+          // Su un bordo oro il focus oro non si vedrebbe: crema.
+          side: tvButtonSide(
+              tv, side, gold ? tvFocusSideOnGold : tvFocusSide)),
       icon: iconWidget ?? Icon(icon, size: 18),
       label: dense
           ? Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)
