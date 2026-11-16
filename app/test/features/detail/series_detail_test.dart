@@ -289,15 +289,85 @@ void main() {
         findsOneWidget);
   });
 
+  testWidgets('stagione senza episodi: niente "0 episodi"', (tester) async {
+    api.seasonsBySeries['s1'] = [
+      testItem(
+          id: 'se1',
+          name: 'Stagione 1',
+          kind: ItemKind.season,
+          index: 1,
+          childCount: 0),
+    ];
+    await pumpSeries(tester);
+    expect(find.textContaining('episodi'), findsNothing);
+    expect(find.text('Stagione 1'), findsOneWidget);
+  });
+
+  group('stagioni lunghe in una riga che scorre (telefono)', () {
+    const narrow = Size(390, 780);
+    void twelveSeasons() => api.seasonsBySeries['s1'] = [
+          for (var i = 1; i <= 12; i++)
+            testItem(
+                id: 'x$i',
+                name: 'Stagione numero $i',
+                kind: ItemKind.season,
+                index: i),
+        ];
+    Finder strip() => find.byWidgetPredicate((w) =>
+        w is SingleChildScrollView && w.scrollDirection == Axis.horizontal);
+    Rect tabRect(WidgetTester t, int i) =>
+        t.getRect(find.text('Stagione numero $i'));
+
+    void expectShownUnderTab(WidgetTester t, int i) {
+      final viewport = t.getRect(strip());
+      final tab = tabRect(t, i);
+      expect(tab.left, greaterThanOrEqualTo(viewport.left));
+      expect(tab.right, lessThanOrEqualTo(viewport.right));
+      final line = t.getRect(find.byKey(const Key('season-indicator')));
+      expect(line.left, closeTo(tab.left - 8, 1));
+      expect(line.left, greaterThanOrEqualTo(viewport.left - 1));
+      expect(line.right, lessThanOrEqualTo(viewport.right + 1));
+    }
+
+    testWidgets('si apre sull\'ultima: scheda e linea sono in vista',
+        (tester) async {
+      twelveSeasons();
+      await pumpSeries(tester, seasonId: 'x12', surfaceSize: narrow);
+      await tester.pumpAndSettle();
+      expectShownUnderTab(tester, 12);
+    });
+
+    testWidgets('scegliere una scheda tagliata la porta in vista',
+        (tester) async {
+      twelveSeasons();
+      await pumpSeries(tester, surfaceSize: narrow);
+      final viewport = tester.getRect(strip());
+      // La prima scheda tagliata dal bordo destro.
+      final i = [for (var i = 1; i <= 12; i++) i].firstWhere((i) =>
+          tabRect(tester, i).right > viewport.right &&
+          tabRect(tester, i).left - 8 < viewport.right - 8);
+      await tester.tapAt(Offset(viewport.right - 4, tabRect(tester, i).center.dy));
+      await tester.pumpAndSettle();
+      expectShownUnderTab(tester, i);
+    });
+  });
+
   testWidgets('menu "⋯" della stagione: Segna la stagione come vista',
       (tester) async {
     await pumpSeries(tester);
+    final episodesBefore = api.episodesCalls.where((id) => id == 'se1').length;
+    final nextUpBefore = api.nextUpCalls.length;
     await tester.tap(find.byTooltip('Altre azioni').at(1)); // testata, poi stagione
     await tester.pumpAndSettle();
     await tester.tap(find.text('Segna la stagione come vista'));
     await tester.pump();
     await tester.pump();
     expect(api.playedCalls, contains(('se1', true)));
+    // Gli episodi e il prossimo da guardare si rileggono dal server.
+    await tester.pumpAndSettle();
+    expect(api.episodesCalls.where((id) => id == 'se1').length,
+        greaterThan(episodesBefore));
+    expect(api.nextUpCalls.length, greaterThan(nextUpBefore));
     await tester.tap(find.byTooltip('Altre azioni').at(1));
     await tester.pumpAndSettle();
     expect(find.text('Segna la stagione come da vedere'), findsOneWidget);

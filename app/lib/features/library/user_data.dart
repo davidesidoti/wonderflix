@@ -31,6 +31,17 @@ class UserDataOverrides extends Notifier<Map<String, UserItemData>> {
     state = {...state, ...changes};
   }
 
+  /// Dimentica le modifiche degli elementi [ids] (il server ha deciso al
+  /// loro posto, es. una stagione segnata vista).
+  void forget(Iterable<String> ids) {
+    final drop = ids.toSet();
+    if (drop.isEmpty) return;
+    state = {
+      for (final e in state.entries)
+        if (!drop.contains(e.key)) e.key: e.value,
+    };
+  }
+
   /// Dimentica tutte le modifiche (es. dopo una riconnessione).
   void clear() => state = const {};
 

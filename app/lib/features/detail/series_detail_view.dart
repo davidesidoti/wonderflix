@@ -182,17 +182,30 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                                       : l.detailSeasonMarkWatched,
                                   onSelected: () => unawaited(
                                     runUserDataAction(context, () async {
-                                      await ref
-                                          .read(
-                                            userDataOverridesProvider.notifier,
-                                          )
-                                          .togglePlayed(season);
-                                      ref.invalidate(
-                                        episodesProvider((
-                                          seriesId: series.id,
-                                          seasonId: season.id,
-                                        )),
+                                      final key = (
+                                        seriesId: series.id,
+                                        seasonId: season.id,
                                       );
+                                      final overrides = ref.read(
+                                        userDataOverridesProvider.notifier,
+                                      );
+                                      final episodes = ref
+                                          .read(episodesProvider(key))
+                                          .value;
+                                      await overrides.togglePlayed(season);
+                                      // Il server ha cambiato gli episodi:
+                                      // si rileggono, senza le modifiche
+                                      // locali di prima, e con loro "Riprendi"
+                                      // e il Visto della serie.
+                                      overrides.forget([
+                                        for (final e in episodes ?? const []) e.id,
+                                      ]);
+                                      ref.invalidate(episodesProvider(key));
+                                      ref
+                                          .read(
+                                            userDataRevisionProvider.notifier,
+                                          )
+                                          .bump();
                                     }),
                                   ),
                                 ),
@@ -276,6 +289,52 @@ class _SeasonTabs extends StatefulWidget {
 /// Stagioni con la linea oro che scorre sotto quella scelta (spec C §9.3).
 class _SeasonTabsState extends State<_SeasonTabs> {
   final _keys = <Object, GlobalKey>{};
+  final _viewportKey = GlobalKey();
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _showSelected();
+  }
+
+  @override
+  void didUpdateWidget(_SeasonTabs old) {
+    super.didUpdateWidget(old);
+    if (old.selectedId != widget.selectedId) _showSelected();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Porta la scheda scelta dentro la riga che scorre (solo quella: la
+  /// pagina sotto non si muove, per questo non `Scrollable.ensureVisible`).
+  void _showSelected() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      final viewport = _viewportKey.currentContext?.findRenderObject();
+      final tab = _keys[widget.selectedId]?.currentContext?.findRenderObject();
+      if (viewport is! RenderBox || tab is! RenderBox || !tab.hasSize) return;
+      final left = tab.localToGlobal(Offset.zero, ancestor: viewport).dx;
+      final right = left + tab.size.width;
+      if (left >= 0 && right <= viewport.size.width) return;
+      final target = (_scroll.offset +
+              left -
+              (viewport.size.width - tab.size.width) / 2)
+          .clamp(0.0, _scroll.position.maxScrollExtent);
+      final duration = WfMotion.of(context)
+          .pick(full: WfMotion.medium, reduced: Duration.zero);
+      if (duration == Duration.zero) {
+        _scroll.jumpTo(target);
+      } else {
+        unawaited(_scroll.animateTo(target,
+            duration: duration, curve: WfMotion.emphasized));
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -284,12 +343,15 @@ class _SeasonTabsState extends State<_SeasonTabs> {
     final l = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-      child: SlidingUnderline(
-        selected: selectedId,
-        itemKeys: _keys,
-        indicatorKey: const Key('season-indicator'),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+      // La linea oro sta dentro al riquadro che scorre: va con le schede.
+      child: SingleChildScrollView(
+        key: _viewportKey,
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        child: SlidingUnderline(
+          selected: selectedId,
+          itemKeys: _keys,
+          indicatorKey: const Key('season-indicator'),
           child: Row(
             children: [
               for (final season in widget.seasons)
@@ -315,7 +377,7 @@ class _SeasonTabsState extends State<_SeasonTabs> {
                                 : WfColors.cream,
                           ),
                           children: [
-                            if (season.childCount case final count?)
+                            if (season.childCount case final count? when count > 0)
                               TextSpan(
                                 text: ' · ${l.detailEpisodes(count)}',
                                 style: const TextStyle(

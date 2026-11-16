@@ -183,6 +183,13 @@ void main() {
     expect(container.read(userDataOverridesProvider), isEmpty);
   });
 
+  test('forget toglie solo gli id indicati', () {
+    final data = testItem().userData;
+    overrides().applyAll({'a': data, 'b': data, 'c': data});
+    overrides().forget(['a', 'c', 'zzz']);
+    expect(container.read(userDataOverridesProvider).keys, ['b']);
+  });
+
   test('apply da evento server', () {
     final item = testItem();
     overrides().apply('m1', item.userData.copyWith(played: true));

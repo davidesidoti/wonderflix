@@ -177,7 +177,7 @@ void main() {
     }
   }
 
-  testWidgets('il bottone non c\'è senza voci', (tester) async {
+  testWidgets('la testata della serie senza voci non ha il ⋯', (tester) async {
     await pumpDetail(tester, 's1', reports: false);
     // La serie non ha voci; restano la stagione (Segna come vista) e gli
     // episodi (Info tecniche).
