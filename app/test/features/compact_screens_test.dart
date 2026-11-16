@@ -308,7 +308,7 @@ void main() {
     await tester.binding.setSurfaceSize(_sizes.first);
     tester.view.physicalSize = _sizes.first * tester.view.devicePixelRatio;
     await tester.pumpAndSettle();
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

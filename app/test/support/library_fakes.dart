@@ -48,6 +48,9 @@ class FakeLibraryApi implements LibraryApi {
   /// `favoritesProvider`) aspettano che si completi.
   Completer<void>? favoritesGate;
 
+  /// Se valorizzato, [nextUp] aspetta che si completi.
+  Completer<void>? nextUpGate;
+
   /// Se valorizzato, [itemsByIds] aspetta che si completi prima di
   /// rispondere (i dettagli dei titoli in coda arrivano dopo).
   Completer<void>? itemsByIdsGate;
@@ -168,7 +171,9 @@ class FakeLibraryApi implements LibraryApi {
     nextUpCalls.add(seriesId);
     nextUpLimits.add(limit);
     nextUpCutoffs.add(dateCutoff);
-    return _answer(() => nextUpItems);
+    final gate = nextUpGate;
+    if (gate == null) return _answer(() => nextUpItems);
+    return gate.future.then((_) => _answer(() => nextUpItems));
   }
 
   @override

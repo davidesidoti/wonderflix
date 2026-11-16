@@ -10,20 +10,25 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/media_row.dart';
 import '../../ui/shimmer.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
+import '../../ui/ticket_card.dart';
 import '../../ui/wf_switcher.dart';
 import '../match/match_actions.dart';
 import '../match/match_entry.dart';
 import '../settings/home_settings_section.dart';
 import '../tonight/tonight_dialog.dart';
 import 'hero_carousel.dart';
+import 'home_glow.dart';
 import 'home_layout.dart';
 import 'home_providers.dart';
 import 'home_row_content.dart';
 import 'home_row_view.dart';
+import 'home_sections.dart';
+import 'tonight_row.dart';
 
 /// L'entrata delle righe della Home si vede una volta per sessione
 /// (decisione 6b): tornando alla Home dalla barra non si ripete.
@@ -63,24 +68,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// ancora arrivate tutte.
   Timer? _revealTimer;
 
-  /// Le righe arrivate quando la Home si è aperta, con il loro posto
-  /// nell'entrata scaglionata; `null` finché non si è aperta.
-  Map<HomeRowKind, int>? _entrance;
+  /// Le sezioni arrivate quando la Home si è aperta (per `HomeSection.id`),
+  /// con il loro posto nell'entrata scaglionata; `null` finché non si è
+  /// aperta. Una sezione unita entra con la prima delle sue righe arrivata:
+  /// l'altra si aggiunge al suo posto, senza un'altra entrata.
+  Map<String, int>? _entrance;
 
   /// Le righe dell'ultima costruzione: quando scade [homeRevealWait] si apre
   /// con queste, senza leggere altri provider (la composizione potrebbe
   /// essere cambiata un attimo prima della prossima costruzione).
   Map<HomeRowKind, AsyncValue<HomeRowContent>>? _rows;
 
-  /// Le righe arrivate dopo l'apertura che hanno già fatto la loro entrata:
-  /// la lista smonta le righe lontane e le ricostruisce scorrendo, e allora
-  /// non devono rifarla.
-  final _lateEntered = <HomeRowKind>{};
+  /// Le sezioni arrivate dopo l'apertura che hanno già fatto la loro
+  /// entrata: la lista smonta le righe lontane e le ricostruisce scorrendo,
+  /// e allora non devono rifarla.
+  final _lateEntered = <String>{};
+
+  /// Il titolo mostrato dal carosello, per l'alone; `null` = il primo (il
+  /// carosello non avvisa per il primo).
+  final _glowId = ValueNotifier<String?>(null);
 
   @override
   void dispose() {
     _revealTimer?.cancel();
     _scroll.dispose();
+    _glowId.dispose();
     super.dispose();
   }
 
@@ -98,15 +110,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static bool _arrived(AsyncValue<Object?> value) =>
       !value.isLoading && _settled(value);
 
-  /// Apre la Home: entrano insieme le righe già arrivate che si vedono (non
-  /// quelle vuote o in errore), nell'ordine e senza buchi.
+  /// Una riga arrivata con qualcosa (non vuota, non in errore).
+  static bool _filled(AsyncValue<HomeRowContent>? row) =>
+      !(row?.value?.isEmpty ?? true);
+
+  /// Apre la Home: entrano insieme le sezioni già arrivate che si vedono
+  /// (non quelle vuote o in errore), nell'ordine e senza buchi. [rows] è
+  /// nell'ordine della composizione.
   void _open(Map<HomeRowKind, AsyncValue<HomeRowContent>> rows) {
     _revealTimer?.cancel();
     _revealTimer = null;
     var index = 0;
     _entrance = {
-      for (final MapEntry(:key, :value) in rows.entries)
-        if (value.value case final content? when !content.isEmpty) key: index++,
+      for (final section in homeSections(rows.keys.toList()))
+        if (section.rows.any((kind) => _filled(rows[kind])))
+          section.id: index++,
     };
   }
 
@@ -186,10 +204,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return ('error', ErrorView(error: featured.error!, onRetry: _retry));
     }
     final featuredItems = featured.value ?? const [];
+    final tv = FormFactor.of(context).tv;
+    List<JellyfinItem> itemsOf(HomeRowKind kind) => switch (rows[kind]?.value) {
+      ItemsRowContent(:final items) => items,
+      _ => const [],
+    };
+    // Stasera c'è se ha almeno un biglietto (non tutti tolti). Senza le due
+    // righe non si leggono le serie tolte.
+    final hasTonight = (layout.visible.contains(HomeRowKind.resume) ||
+            layout.visible.contains(HomeRowKind.nextUp)) &&
+        watchTonightTickets(ref,
+                resume: itemsOf(HomeRowKind.resume),
+                nextUp: itemsOf(HomeRowKind.nextUp))
+            .isNotEmpty;
     final shown = <Widget>[
-      for (final kind in layout.visible)
-        if (rows[kind]!.value case final content? when !content.isEmpty)
-          _row(kind, content, entrance[kind]),
+      for (final section in homeSections(layout.visible))
+        if (section.rows.any((kind) => _filled(rows[kind])))
+          _section(section, rows, itemsOf, entrance[section.id], tv: tv),
     ];
     if (featuredItems.isEmpty && shown.isEmpty) {
       final pending = !_settled(featured) || !rows.values.every(_settled);
@@ -238,10 +269,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             bottom: 40,
           ),
           children: [
-            if (featuredItems.isNotEmpty) HeroCarousel(items: featuredItems),
-            // Fino all'intestazione di Stasera, Match e il dado stanno
-            // sopra le righe, a destra.
-            _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
+            if (featuredItems.isNotEmpty)
+              _heroWithGlow(featuredItems, tv: tv, hasTonight: hasTonight),
+            // Senza Stasera Match e il dado stanno sopra le righe, a destra;
+            // in TV "Stasera?" è già nel carosello.
+            if (!hasTonight && !(tv && featuredItems.isNotEmpty))
+              _TonightCorner(onTonight: _openTonight, onMatch: _openMatch),
             ...shown,
             const Align(
               alignment: Alignment.centerLeft,
@@ -253,63 +286,117 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  /// Una riga arrivata all'apertura entra con le altre; una arrivata dopo
+  /// Il carosello con l'alone sotto (spec §5.4): l'alone sta dietro le prime
+  /// sezioni, che la lista dipinge dopo.
+  Widget _heroWithGlow(List<JellyfinItem> items,
+          {required bool tv, required bool hasTonight}) =>
+      Stack(
+        clipBehavior: Clip.none,
+        children: [
+          HeroCarousel(
+            items: items,
+            extraAction: tv
+                ? TonightButton(short: true, onPressed: _openTonight)
+                : null,
+            autofocusPlay: !hasTonight,
+            onCurrentChanged: (item) => _glowId.value = item.id,
+          ),
+          Positioned(
+            top: HeroCarousel.heightOf(context),
+            left: 0,
+            right: 0,
+            height: homeGlowHeight,
+            child: IgnorePointer(
+              child: ValueListenableBuilder(
+                valueListenable: _glowId,
+                builder: (context, id, _) => HomeGlow(
+                  item: items.firstWhere((item) => item.id == id,
+                      orElse: () => items.first),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+
+  /// Una sezione arrivata all'apertura entra con le altre; una arrivata dopo
   /// entra da sola, al suo posto (decisione 6 del piano 19b).
-  Widget _row(HomeRowKind kind, HomeRowContent content, int? index) {
-    if (index == null) {
+  Widget _section(
+    HomeSection section,
+    Map<HomeRowKind, AsyncValue<HomeRowContent>> rows,
+    List<JellyfinItem> Function(HomeRowKind) itemsOf,
+    int? index, {
+    required bool tv,
+  }) {
+    final late = index == null;
+    final animate = late || _animate;
+    Widget row(HomeRowKind kind) => HomeRowView(
+        kind: kind, content: rows[kind]!.value!, animateEntrance: animate);
+    final child = switch (section) {
+      RowSection(:final kind) => row(kind),
+      TonightSection() => TonightRow(
+          resume: itemsOf(HomeRowKind.resume),
+          nextUp: itemsOf(HomeRowKind.nextUp),
+          onTonight: _openTonight,
+          onMatch: _openMatch,
+          animateEntrance: animate,
+          autofocusFirst: tv,
+        ),
+      // shortcut: fino alla settimana di In arrivo, le due righe di oggi una
+      // sotto l'altra.
+      UpcomingSection(rows: final kinds) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final kind in kinds)
+              if (_filled(rows[kind])) row(kind),
+          ],
+        ),
+    };
+    final id = section.id;
+    if (late) {
       return _LateRow(
-        key: ValueKey('home-late-${kind.id}'),
-        kind: kind,
-        content: content,
+        key: ValueKey('home-late-$id'),
+        id: id,
         entered: _lateEntered,
         onPlayed: () {
-          _lateEntered.add(kind);
+          _lateEntered.add(id);
           // Se la Home si è aperta senza righe, questa è l'entrata della
           // sessione: la prossima visita non la rifà.
           ref.read(homeEntrancePlayedProvider.notifier).markPlayed();
         },
+        child: child,
       );
     }
     return StaggerItem(
-      key: ValueKey('home-row-${kind.id}'),
-      index: index,
-      child: HomeRowView(
-        kind: kind,
-        content: content,
-        animateEntrance: _animate,
-      ),
-    );
+        key: ValueKey('home-row-$id'), index: index, child: child);
   }
 }
 
-/// Una riga arrivata dopo l'apertura, con una sua piccola entrata (decisione
-/// 6 del piano 19b). Entra una volta sola: la lista smonta le righe lontane
-/// e le rimonta scorrendo, con lo stesso widget di prima, quindi se la riga
-/// è già entrata ([entered]) lo si decide qui, a ogni montaggio, e non alla
-/// costruzione della Home.
+/// Una sezione arrivata dopo l'apertura, con una sua piccola entrata
+/// (decisione 6 del piano 19b). Entra una volta sola: la lista smonta le
+/// righe lontane e le rimonta scorrendo, con lo stesso widget di prima,
+/// quindi se la sezione è già entrata ([entered]) lo si decide qui, a ogni
+/// montaggio, e non alla costruzione della Home.
 class _LateRow extends StatelessWidget {
   const _LateRow({
     super.key,
-    required this.kind,
-    required this.content,
+    required this.id,
     required this.entered,
     required this.onPlayed,
+    required this.child,
   });
 
-  final HomeRowKind kind;
-  final HomeRowContent content;
-  final Set<HomeRowKind> entered;
+  final String id;
+  final Set<String> entered;
   final VoidCallback onPlayed;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) => StaggerGroup(
     count: 1,
-    play: !entered.contains(kind),
+    play: !entered.contains(id),
     onPlayed: onPlayed,
-    child: StaggerItem(
-      index: 0,
-      child: HomeRowView(kind: kind, content: content, animateEntrance: true),
-    ),
+    child: StaggerItem(index: 0, child: child),
   );
 }
 
@@ -318,36 +405,48 @@ class _HomeSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // La forma della pagina vera sul suo schermo (spec §11): il carosello a
+    // tutta larghezza dal bordo alto, poi una fila di biglietti e una di
+    // locandine.
+    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
+    final ticket = ticketSize(context);
+    final poster = rowPosterSize(context).width;
+    // Lista orizzontale ferma invece di una Row: nelle finestre strette le
+    // card in più vengono ritagliate, non debordano.
+    Widget strip(double width, double height) => SizedBox(
+          height: height,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            primary: false,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: side),
+            children: [
+              for (var i = 0; i < 6; i++) ...[
+                SkeletonBox(width: width, height: height),
+                const SizedBox(width: 16),
+              ],
+            ],
+          ),
+        );
+    Widget title() => Padding(
+          padding: EdgeInsets.fromLTRB(side, 28, side, 12),
+          child: const Align(
+            alignment: Alignment.centerLeft,
+            child: SkeletonBox(width: 240, height: 22),
+          ),
+        );
     // Un'unica onda per tutto lo scheletro.
     return WfShimmer(
       child: ListView(
         primary: false,
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(32, shellBarHeight + 32, 32, 32),
+        padding: const EdgeInsets.only(bottom: 32),
         children: [
-          const SkeletonBox(height: 380),
-          const SizedBox(height: 32),
-          for (var row = 0; row < 2; row++) ...[
-            const SkeletonBox(width: 240, height: 22),
-            const SizedBox(height: 12),
-            // Lista orizzontale ferma invece di una Row: nelle finestre
-            // strette le locandine in più vengono ritagliate, non debordano.
-            SizedBox(
-              height: 240,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                primary: false,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  for (var i = 0; i < 6; i++) ...[
-                    const SkeletonBox(width: 160, height: 240),
-                    const SizedBox(width: 16),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
+          SkeletonBox(height: HeroCarousel.heightOf(context), radius: 0),
+          title(),
+          strip(ticket.width, ticket.height),
+          title(),
+          strip(poster, poster * 1.5),
         ],
       ),
     );
@@ -371,7 +470,8 @@ class _CustomizeLink extends StatelessWidget {
   );
 }
 
-/// Il dado in cima alle righe, a destra (spec M §8.4).
+/// Match e il dado in cima alle righe, a destra, quando Stasera non c'è
+/// (spec §6.3).
 class _TonightCorner extends StatelessWidget {
   const _TonightCorner({required this.onTonight, required this.onMatch});
 
@@ -379,13 +479,28 @@ class _TonightCorner extends StatelessWidget {
   final VoidCallback onMatch;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
-    child: Align(
-      alignment: Alignment.centerRight,
-      child: _EntryButtons(onTonight: onTonight, onMatch: onMatch),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(side, 16, side, 0),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            Text(
+              AppLocalizations.of(context).homeUndecided,
+              style: const TextStyle(color: WfColors.creamMuted, fontSize: 13),
+            ),
+            _EntryButtons(onTonight: onTonight, onMatch: onMatch),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// "Match" e "Cosa guardo stasera?" uno accanto all'altro (spec P §7.2).

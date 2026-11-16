@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
-import 'package:wonderflix/features/home/home_layout.dart';
-import 'package:wonderflix/features/home/home_row_content.dart';
-import 'package:wonderflix/features/home/home_row_view.dart';
+import 'package:wonderflix/features/home/tonight_row.dart';
 import 'package:wonderflix/features/library/user_data.dart';
-import 'package:wonderflix/ui/landscape_card.dart';
+import 'package:wonderflix/ui/ticket_card.dart';
 
 import '../../support/home_fakes.dart';
 import '../../support/library_fakes.dart';
@@ -25,9 +23,11 @@ void main() {
       pumpApp(
         tester,
         Scaffold(
-          body: HomeRowView(
-            kind: HomeRowKind.resume,
-            content: ItemsRowContent(items),
+          body: TonightRow(
+            resume: items,
+            nextUp: const [],
+            onTonight: () {},
+            onMatch: () {},
             animateEntrance: false,
           ),
         ),
@@ -35,10 +35,10 @@ void main() {
       );
 
   ProviderContainer containerOf(WidgetTester tester) =>
-      ProviderScope.containerOf(tester.element(find.byType(HomeRowView)));
+      ProviderScope.containerOf(tester.element(find.byType(TonightRow)));
 
   void dismiss(WidgetTester tester, String id) => tester
-      .widget<LandscapeCard>(find.byKey(ValueKey('resume-$id')))
+      .widget<TicketCard>(find.byKey(ValueKey('resume-$id')))
       .previewExtra!
       .onDismiss!();
 
@@ -76,11 +76,11 @@ void main() {
 
   testWidgets('tutti tolti: la riga non c\'è', (tester) async {
     await pumpRow(tester, [dune]);
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
     dismiss(tester, 'm1');
     await tester.pump();
     await tester.pump();
-    expect(find.text('Continua a guardare'), findsNothing);
+    expect(find.text('Stasera'), findsNothing);
   });
 
   testWidgets('togliere non riuscito: la card torna e la SnackBar lo dice', (

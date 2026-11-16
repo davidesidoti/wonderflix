@@ -16,13 +16,16 @@ import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/social/home_models.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
+import 'package:wonderflix/features/home/home_glow.dart';
 import 'package:wonderflix/features/home/home_screen.dart';
+import 'package:wonderflix/features/match/match_entry.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/card_preview.dart';
-import 'package:wonderflix/ui/landscape_card.dart';
+import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/states.dart';
+import 'package:wonderflix/ui/ticket_card.dart';
 
 import '../../support/collections_fakes.dart';
 import '../../support/home_fakes.dart';
@@ -104,12 +107,12 @@ void main() {
   testWidgets('mostra le righe con contenuti', (tester) async {
     someRows();
     await pumpHome(tester);
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
     expect(find.text('Film aggiunti di recente'), findsOneWidget);
     expect(find.text('Serie aggiunte di recente'), findsOneWidget);
     expect(find.text('La mia lista'), findsOneWidget);
     expect(find.text('Oppenheimer'), findsWidgets);
-    expect(find.text('Prossimi episodi'), findsNothing, reason: 'riga vuota nascosta');
+    expect(find.text('Continua a guardare'), findsNothing, reason: 'in Stasera');
   });
 
   testWidgets('lo scheletro sta in una finestra stretta', (tester) async {
@@ -131,7 +134,7 @@ void main() {
     // Home resta sullo scheletro.
     await pumpHome(tester, features: SocialFeatures.unknown);
     expect(find.byType(SkeletonBox), findsWidgets, reason: 'si compone ancora');
-    expect(find.text('Continua a guardare'), findsNothing);
+    expect(find.text('Stasera'), findsNothing);
     expect(
         library.itemQueries.map((query) => query.kinds),
         unorderedEquals([
@@ -147,7 +150,7 @@ void main() {
       testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
     ];
     await pumpHome(tester, height: 900);
-    expect(tester.getTopLeft(find.text('Continua a guardare')).dy,
+    expect(tester.getTopLeft(find.text('Stasera')).dy,
         greaterThanOrEqualTo(shellBarHeight));
   });
 
@@ -176,7 +179,7 @@ void main() {
     await gesture.addPointer(location: Offset.zero);
     addTearDown(gesture.removePointer);
     for (final (cardType, play) in [
-      (LandscapeCard, 'Riprendi'),
+      (TicketCard, 'Riprendi'),
       (PosterCard, 'Riproduci'),
     ]) {
       final card = find.byType(cardType).first;
@@ -197,7 +200,7 @@ void main() {
     prefs.prefs = const HomeUserPrefs(
         rows: ['resume', 'myList'], hidden: ['latestMovies']);
     await pumpHome(tester, features: const SocialFeatures(home: true));
-    expect(tester.getTopLeft(find.text('Continua a guardare')).dy,
+    expect(tester.getTopLeft(find.text('Stasera')).dy,
         lessThan(tester.getTopLeft(find.text('La mia lista')).dy));
     expect(find.text('Film aggiunti di recente'), findsNothing);
     expect(find.text('Prossimi episodi'), findsNothing);
@@ -210,7 +213,7 @@ void main() {
     await pumpHome(tester);
     expect(library.playHistoryCalls, isEmpty);
     expect(library.nextUpCalls, isEmpty);
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
   });
 
   testWidgets('una riga lenta entra dopo 1,5 s, al suo posto', (tester) async {
@@ -220,11 +223,11 @@ void main() {
       ..series = UpcomingPage(items: [testEpisode()]);
     await pumpHome(tester, features: const SocialFeatures(upcomingSeries: true));
     expect(find.byType(SkeletonBox), findsWidgets, reason: 'si aspetta');
-    expect(find.text('Continua a guardare'), findsNothing);
+    expect(find.text('Stasera'), findsNothing);
 
     await tester.pump(homeRevealWait);
     await tester.pump();
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
     expect(find.text('Serie in arrivo'), findsNothing);
 
     home.seriesGate!.complete();
@@ -238,7 +241,7 @@ void main() {
     someRows();
     home.moviesError = const ServerUnreachableException();
     await pumpHome(tester, features: const SocialFeatures(upcomingMovies: true));
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
     expect(find.text('Film in arrivo'), findsNothing);
     expect(find.text('Riprova'), findsNothing);
   });
@@ -266,7 +269,7 @@ void main() {
     await pumpHome(tester);
     expect(find.text('Riprova'), findsNothing);
     expect(find.byType(HeroCarousel), findsNothing);
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
     expect(find.text('La mia lista'), findsOneWidget);
     expect(find.text('Film aggiunti di recente'), findsNothing);
   });
@@ -411,25 +414,77 @@ void main() {
     expect(find.byKey(const Key('home-customize')), findsOneWidget);
   });
 
-  // Il carosello non ha più l'angolo: il dado sta sotto, a destra, finché
-  // non va nell'intestazione di Stasera.
-  testWidgets('il dado sotto il carosello, a destra', (tester) async {
+  void fullTonight() => library
+    ..resumeItems = [
+      testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30),
+    ]
+    ..nextUpItems = [
+      testItem(
+          id: 'e1', name: 'Episodio', kind: ItemKind.episode, seriesId: 's9'),
+    ];
+
+  testWidgets('Stasera unisce Continua a guardare e Prossimi episodi, con '
+      'Match e il dado nell\'intestazione', (tester) async {
     someRows();
-    await pumpHome(tester);
+    fullTonight();
+    await pumpApp(tester, const HomeScreen(),
+        surfaceSize: const Size(1440, 1800),
+        overrides: [
+          ...homeOverrides(library: library, home: home, prefs: prefs),
+          matchEntryProvider.overrideWithValue(true),
+        ]);
+    await settle(tester);
+    expect(find.text('Stasera'), findsOneWidget);
+    expect(find.text('Continua a guardare'), findsNothing);
+    expect(find.text('Prossimi episodi'), findsNothing);
+    expect(find.text('2 da guardare'), findsOneWidget);
+    final row = find.ancestor(
+        of: find.text('Stasera'), matching: find.byType(MediaRow));
+    for (final finder in [
+      find.text('Non sai cosa scegliere?'),
+      find.byKey(const Key('match-button')),
+      find.byKey(const Key('tonight-button')),
+    ]) {
+      expect(find.descendant(of: row, matching: finder), findsOneWidget);
+    }
+    expect(find.byKey(const Key('tonight-button')), findsOneWidget);
+    expect(find.byType(TicketCard), findsNWidgets(2));
+  });
+
+  testWidgets('senza Stasera Match e il dado stanno sopra le righe, a destra',
+      (tester) async {
+    library.onItems = (query, start, limit) =>
+        pageOf([testItem(id: 'm1', name: 'Dune')]);
+    await pumpApp(tester, const HomeScreen(),
+        surfaceSize: const Size(1440, 1800),
+        overrides: [
+          ...homeOverrides(library: library, home: home, prefs: prefs),
+          matchEntryProvider.overrideWithValue(true),
+        ]);
+    await settle(tester);
+    expect(find.text('Stasera'), findsNothing);
     final button = find.byKey(const Key('tonight-button'));
     expect(button, findsOneWidget);
+    expect(find.byKey(const Key('match-button')), findsOneWidget);
+    expect(find.text('Non sai cosa scegliere?'), findsOneWidget);
     expect(
         find.descendant(of: find.byType(HeroCarousel), matching: button),
         findsNothing);
     expect(tester.getTopLeft(button).dy,
         greaterThanOrEqualTo(tester.getBottomLeft(find.byType(HeroCarousel)).dy));
+    expect(tester.getTopLeft(button).dy,
+        lessThan(tester.getTopLeft(find.text('Film aggiunti di recente')).dy));
     expect(tester.getTopRight(button).dx, greaterThan(1440 - 100));
   });
 
-  testWidgets('la lista della Home tiene montato il carosello (alone)',
+  testWidgets('l\'alone sotto il carosello resta scorrendo di 700 px',
       (tester) async {
     someRows();
-    await pumpHome(tester);
+    await pumpHome(tester, height: 900);
+    final glow = find.byType(HomeGlow);
+    expect(glow, findsOneWidget);
+    expect(tester.getTopLeft(glow).dy,
+        moreOrLessEquals(tester.getBottomLeft(find.byType(HeroCarousel)).dy));
     expect(
         tester
             .widget<ListView>(find
@@ -440,20 +495,102 @@ void main() {
             .scrollCacheExtent!
             .value,
         700);
+    final position =
+        tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    position.jumpTo(700);
+    await tester.pump();
+    expect(glow, findsOneWidget);
   });
 
-  testWidgets('senza carosello il dado è in cima alle righe, a destra',
-      (tester) async {
+  testWidgets('senza titoli in evidenza niente alone', (tester) async {
     library.resumeItems = [
       testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30)
     ];
     await pumpHome(tester);
+    expect(find.byType(HeroCarousel), findsNothing);
+    expect(find.byType(HomeGlow), findsNothing);
+  });
+
+  testWidgets('senza carosello né Stasera il dado è in cima alle righe, a '
+      'destra', (tester) async {
+    library.onItems = (query, start, limit) => query.favoritesOnly
+        ? pageOf([testItem(id: 'f1', name: 'Interstellar')])
+        : const ItemPage([], 0);
+    await pumpHome(tester);
+    expect(find.byType(HeroCarousel), findsNothing);
     final button = find.byKey(const Key('tonight-button'));
     expect(button, findsOneWidget);
     expect(tester.getTopRight(button).dx, greaterThan(1440 - 100));
     expect(tester.getTopLeft(button).dy,
-        lessThan(tester.getTopLeft(find.text('Continua a guardare')).dy));
+        lessThan(tester.getTopLeft(find.text('La mia lista')).dy));
   });
+
+  group('scheletro', () {
+    Future<void> pumpSkeleton(WidgetTester tester, Size size,
+        {bool tv = false}) async {
+      library.favoritesGate = Completer<void>();
+      await pumpApp(tester, const HomeScreen(),
+          surfaceSize: size,
+          tv: tv,
+          overrides: homeOverrides(library: library, home: home, prefs: prefs));
+      await settle(tester);
+    }
+
+    testWidgets('a 1280: carosello finto da y = 0, alto 500, a tutta larghezza',
+        (tester) async {
+      await pumpSkeleton(tester, const Size(1280, 800));
+      final first = tester.getRect(find.byType(SkeletonBox).first);
+      expect(first, const Rect.fromLTWH(0, 0, 1280, 500));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a 390: locandine larghe 112', (tester) async {
+      await pumpSkeleton(tester, const Size(390, 780));
+      expect(
+          tester
+              .widgetList<SkeletonBox>(find.byType(SkeletonBox))
+              .where((box) => box.width == 112),
+          isNotEmpty);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('TV: carosello finto alto 300', (tester) async {
+      await pumpSkeleton(tester, const Size(960, 540), tv: true);
+      expect(tester.getSize(find.byType(SkeletonBox).first).height, 300);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  for (final size in [const Size(1280, 800), const Size(390, 780)]) {
+    testWidgets('nessun overflow a ${size.width.toInt()} con tutte le righe',
+        (tester) async {
+      someRows();
+      fullTonight();
+      home
+        ..series = UpcomingPage(items: [testEpisode()])
+        ..movies = UpcomingPage(items: [testUpcomingMovie()]);
+      await pumpApp(tester, const HomeScreen(),
+          surfaceSize: size,
+          overrides: [
+            ...homeOverrides(
+                library: library,
+                home: home,
+                prefs: prefs,
+                features: const SocialFeatures(
+                    upcomingSeries: true, upcomingMovies: true)),
+            matchEntryProvider.overrideWithValue(true),
+          ]);
+      await settle(tester);
+      expect(find.text('Stasera'), findsOneWidget);
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+      for (var y = 0.0; y < position.maxScrollExtent; y += 400) {
+        position.jumpTo(y);
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'a $y');
+      }
+    });
+  }
 
   testWidgets('il dado anche nella Home vuota', (tester) async {
     await pumpHome(tester);
@@ -524,7 +661,7 @@ void main() {
     await tester.pump(homeRevealWait);
     await settle(tester);
     expect(find.byType(HeroCarousel), findsNothing);
-    expect(find.text('Continua a guardare'), findsOneWidget);
+    expect(find.text('Stasera'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('tonight-button')));
     await tester.pump();

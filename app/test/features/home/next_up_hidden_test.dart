@@ -8,11 +8,10 @@ import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/home/home_layout.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
-import 'package:wonderflix/features/home/home_row_content.dart';
-import 'package:wonderflix/features/home/home_row_view.dart';
 import 'package:wonderflix/features/home/home_rows_logic.dart';
 import 'package:wonderflix/features/home/next_up_hidden.dart';
-import 'package:wonderflix/ui/landscape_card.dart';
+import 'package:wonderflix/features/home/tonight_row.dart';
+import 'package:wonderflix/ui/ticket_card.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/home_fakes.dart';
@@ -205,9 +204,11 @@ void main() {
       pumpApp(
         tester,
         Scaffold(
-          body: HomeRowView(
-            kind: HomeRowKind.nextUp,
-            content: ItemsRowContent(items),
+          body: TonightRow(
+            resume: const [],
+            nextUp: items,
+            onTonight: () {},
+            onMatch: () {},
             animateEntrance: false,
           ),
         ),
@@ -215,7 +216,7 @@ void main() {
       );
 
   ProviderContainer containerOf(WidgetTester tester) =>
-      ProviderScope.containerOf(tester.element(find.byType(HomeRowView)));
+      ProviderScope.containerOf(tester.element(find.byType(TonightRow)));
 
   testWidgets('la riga salta le serie tolte con l\'episodio proposto', (
     tester,
@@ -234,7 +235,7 @@ void main() {
     prefs.nextUpHidden = {'s1': 'e1'};
     await pumpRow(tester, [_episode('e1', 's1', 'The Bear')]);
     await tester.pump();
-    expect(find.text('Prossimi episodi'), findsNothing);
+    expect(find.text('Stasera'), findsNothing);
   });
 
   testWidgets('togliere dalla riga: sparisce, SnackBar e Annulla la rimette', (
@@ -245,7 +246,7 @@ void main() {
       _episode('e2', 's2', 'Severance'),
     ]);
     await tester.pump();
-    final card = tester.widget<LandscapeCard>(
+    final card = tester.widget<TicketCard>(
       find.byKey(const ValueKey('next-up-e1')),
     );
     card.previewExtra!.onDismiss!();
@@ -269,7 +270,7 @@ void main() {
     ]);
     await tester.pump();
     tester
-        .widget<LandscapeCard>(find.byKey(const ValueKey('next-up-e1')))
+        .widget<TicketCard>(find.byKey(const ValueKey('next-up-e1')))
         .previewExtra!
         .onDismiss!();
     await tester.pump();
@@ -287,7 +288,7 @@ void main() {
     await pumpRow(tester, [_episode('e1', 's1', 'The Bear')]);
     await tester.pump();
     prefs.nextUpWriteError = Exception('giù');
-    final card = tester.widget<LandscapeCard>(
+    final card = tester.widget<TicketCard>(
       find.byKey(const ValueKey('next-up-e1')),
     );
     card.previewExtra!.onDismiss!();

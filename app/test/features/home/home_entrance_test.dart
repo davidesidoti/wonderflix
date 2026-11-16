@@ -42,10 +42,14 @@ void main() {
     final rows = tester.widget<StaggerGroup>(find.byKey(const Key('home-rows')));
     expect(rows.play, isTrue);
     // Le card della prima riga volano dentro con la riga.
-    final card = tester.widget<Transform>(find
-        .ancestor(of: find.text('Oppenheimer'), matching: find.byType(Transform))
-        .first);
-    expect(card.transform.getTranslation().x, greaterThan(0));
+    // Il biglietto ha un suo Transform (il sollevamento col mouse): si cerca
+    // quello dell'entrata tra gli antenati.
+    expect(
+        tester
+            .widgetList<Transform>(find.ancestor(
+                of: find.text('Oppenheimer'), matching: find.byType(Transform)))
+            .any((t) => t.transform.getTranslation().x > 0),
+        isTrue);
     await tester.pump(const Duration(seconds: 2));
   });
 
@@ -151,7 +155,7 @@ void main() {
     // Si apre senza la riga lenta; poi arriva e entra da sola.
     await tester.pump(homeRevealWait);
     await tester.pump();
-    final lateRow = find.byKey(const ValueKey('home-late-upcomingSeries'));
+    final lateRow = find.byKey(const ValueKey('home-late-upcoming'));
     // Il suo gruppo d'entrata (sotto ci sono quelli delle card).
     final lateGroup =
         find.descendant(of: lateRow, matching: find.byType(StaggerGroup)).first;
@@ -202,8 +206,8 @@ void main() {
   });
 
   testWidgets('le righe vuote non lasciano buchi nell\'entrata', (tester) async {
-    // "Continua a guardare" è arrivata ma vuota: la prima riga che si vede
-    // parte subito.
+    // "Continua a guardare" è arrivata ma vuota: Stasera c'è con i soli
+    // Prossimi episodi e parte subito.
     api
       ..resumeItems = []
       ..nextUpItems = [testItem(id: 'e1', name: 'Episodio', kind: ItemKind.episode)];
@@ -214,11 +218,50 @@ void main() {
     await settle(tester);
     int indexOf(String kind) =>
         tester.widget<StaggerItem>(find.byKey(ValueKey('home-row-$kind'))).index;
-    expect(indexOf('nextUp'), 0);
+    expect(indexOf('tonight'), 0);
     expect(indexOf('latestMovies'), 1);
     expect(indexOf('latestSeries'), 2);
     expect(indexOf('myList'), 3);
     expect(tester.widget<StaggerGroup>(find.byKey(const Key('home-rows'))).count, 4);
+    expect(find.text('Stasera'), findsOneWidget);
+    expect(find.text('Episodio'), findsWidgets);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('Prossimi episodi arriva dopo l\'apertura: Stasera resta al suo '
+      'posto e non rifà l\'entrata', (tester) async {
+    api
+      ..nextUpGate = Completer<void>()
+      ..nextUpItems = [
+        testItem(
+            id: 'e1', name: 'Episodio', kind: ItemKind.episode, seriesId: 's9'),
+      ];
+    await pumpApp(tester, const HomeScreen(),
+        surfaceSize: const Size(1440, 2600),
+        overrides: homeOverrides(library: api),
+        motion: MotionLevel.full);
+    await settle(tester);
+    await tester.pump(homeRevealWait);
+    await tester.pump();
+    final section = find.byKey(const ValueKey('home-row-tonight'));
+    expect(section, findsOneWidget);
+    expect(tester.widget<StaggerItem>(section).index, 0);
+    final element = tester.element(section);
+    await tester.pump(const Duration(seconds: 2));
+    // Misurato a entrata finita (la sezione entra salendo).
+    final top = tester.getTopLeft(find.text('Stasera')).dy;
+
+    api.nextUpGate!.complete();
+    await settle(tester);
+    expect(find.text('Episodio'), findsWidgets);
+    expect(find.byKey(const ValueKey('home-late-tonight')), findsNothing);
+    expect(tester.element(section), same(element));
+    expect(tester.getTopLeft(find.text('Stasera')).dy, top);
+    expect(find.text('Prossimi episodi'), findsNothing);
+    for (final opacity in tester.widgetList<Opacity>(
+        find.descendant(of: section, matching: find.byType(Opacity)))) {
+      expect(opacity.opacity, 1);
+    }
     await tester.pump(const Duration(seconds: 2));
   });
 }

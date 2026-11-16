@@ -61,7 +61,64 @@ void main() {
         isTrue,
       );
       expect(find.byKey(const Key('match-button')), findsNothing);
+      // "Stasera?" tra i pulsanti del carosello.
+      expect(
+        find.descendant(
+          of: find.byType(HeroCarousel),
+          matching: find.byKey(const Key('tonight-button')),
+        ),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('tonight-button')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'TV con Stasera: focus sul primo biglietto, Su porta ai pulsanti del '
+    'carosello, intestazione senza Match né dado',
+    (tester) async {
+      final library = FakeLibraryApi()
+        ..resumeItems = [
+          testItem(id: 'r1', name: 'Oppenheimer', playedPercentage: 30),
+          testItem(id: 'r2', name: 'Arrival', playedPercentage: 30),
+        ]
+        ..onItems = (query, start, limit) =>
+            pageOf([testItem(id: 'm1', name: 'Dune')]);
+      await pumpApp(
+        tester,
+        const FormFactorScope(tv: true, child: HomeScreen()),
+        overrides: [
+          ...homeOverrides(library: library),
+          matchEntryProvider.overrideWithValue(true),
+        ],
+        surfaceSize: const Size(960, 540),
+      );
+      for (var i = 0; i < 6; i++) {
+        await tester.pump();
+      }
+      final first = find.byKey(const ValueKey('resume-r1'));
+      expect(first, findsOneWidget);
+      expect(_focusIn(first), isTrue);
+      final row = find.ancestor(
+        of: find.text('Stasera'),
+        matching: find.byType(MediaRow),
+      );
+      expect(
+        find.descendant(of: row, matching: find.byType(TonightButton)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byType(MatchButton)),
+        findsNothing,
+      );
+      expect(find.text('Stasera?'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(WfMotion.fast);
+      }
+      expect(_focusIn(find.byType(HeroCarousel)), isTrue);
+      expect(tester.takeException(), isNull);
     },
   );
 
