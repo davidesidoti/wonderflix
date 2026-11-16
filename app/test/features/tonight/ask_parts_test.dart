@@ -140,10 +140,12 @@ void main() {
           final filters = TonightFilters(type: type, rating: rating);
           expect(text(filters, voice), expected[key], reason: key);
           final english = text(filters, voice, en);
-          if (rating == TonightRating.good)
+          if (rating == TonightRating.good) {
             expect(english, contains('rated well'));
-          if (rating == TonightRating.bad)
+          }
+          if (rating == TonightRating.bad) {
             expect(english, contains('rated badly'));
+          }
           cases++;
         }
       }
