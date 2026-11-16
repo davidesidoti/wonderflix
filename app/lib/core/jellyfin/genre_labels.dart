@@ -30,6 +30,10 @@ const _labels = {
 /// Etichetta italiana di un genere del server; quelli senza voce restano uguali.
 String genreLabel(String serverName) => _labels[serverName] ?? serverName;
 
+/// Al massimo [max] generi tradotti e senza doppioni.
+List<String> displayGenres(List<String> genres, {int max = 2}) =>
+    <String>{...genres.map(genreLabel)}.take(max).toList();
+
 /// Tutti i nomi del server che portano a [label]: l'etichetta per prima (può
 /// essere un genere già italiano), poi i nomi inglesi in ordine alfabetico.
 List<String> genreServerNames(String label) => [

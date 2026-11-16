@@ -62,11 +62,13 @@ class PanelHeader extends StatelessWidget {
 
 /// Il fuoco di partenza di un pannello aperto: sul desktop la ✕, in TV il
 /// primo controllo del pannello (mai un campo di testo: aprirebbe la
-/// tastiera), nello stretto col dito nessuno. `false` se in TV non c'è
-/// ancora nulla da raggiungere (elenco che carica): si riprova.
+/// tastiera), nello stretto col dito nessuno e senza dito (finestra stretta
+/// usata da tastiera) il primo controllo. `false` se non c'è ancora nulla
+/// da raggiungere (elenco che carica): si riprova.
 bool focusPanelStart(BuildContext panel, FocusNode close) {
   final form = FormFactor.of(panel);
   if (form.tv) return _focusFirstControl(panel);
+  if (form.compact && !form.touch) return _focusFirstControl(panel);
   if (!form.compact) close.requestFocus();
   return true;
 }

@@ -13,6 +13,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
@@ -322,6 +323,39 @@ void main() {
     await press(tester, LogicalKeyboardKey.select);
     expect(engine.opened.length, greaterThan(opens));
     expect(find.text('Riprova'), findsNothing);
+    await unmount(tester);
+  });
+
+  testWidgets(
+      'TV: errore a video in corso: Riprova prende il focus dal player, '
+      'le frecce non cercano, poi tornano a funzionare', (tester) async {
+    await pumpPlayer(tester, size: const Size(960, 540));
+    expect(engine.playing, isTrue);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'player');
+    // Un secondo avvio che fallisce (come un cambio di traccia): errore a video.
+    engine.failOpens = 2;
+    final container =
+        ProviderScope.containerOf(tester.element(find.byType(PlayerScreen)));
+    final args = (
+      itemId: 'e4',
+      start: playerStartFrom(Uri.parse('/play/e4')),
+      party: null,
+    );
+    unawaited(container.read(playerControllerProvider(args).notifier).retry());
+    await tester.pumpAndSettle();
+    expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
+    expect(Focus.of(tester.element(find.text('Riprova'))).hasFocus, isTrue,
+        reason: 'Riprova deve avere il focus anche se prima lo aveva il player');
+    final seeks = engine.seeks.length;
+    await press(tester, LogicalKeyboardKey.arrowRight);
+    expect(engine.seeks.length, seeks);
+    // La freccia sposta il fuoco su "Indietro": si torna a "Riprova".
+    await press(tester, LogicalKeyboardKey.arrowLeft);
+    expect(engine.seeks.length, seeks);
+    await press(tester, LogicalKeyboardKey.select);
+    expect(find.text('Riprova'), findsNothing);
+    await press(tester, LogicalKeyboardKey.arrowRight);
+    expect(engine.seeks.length, greaterThan(seeks));
     await unmount(tester);
   });
 

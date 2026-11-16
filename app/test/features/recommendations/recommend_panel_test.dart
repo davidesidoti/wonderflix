@@ -24,10 +24,13 @@ void main() {
   });
 
   Future<void> pump(WidgetTester tester,
-      {bool tv = false, Size size = const Size(1440, 900)}) async {
+      {bool tv = false,
+      bool touch = false,
+      Size size = const Size(1440, 900)}) async {
     await pumpApp(
       tester,
       tv: tv,
+      touch: touch,
       surfaceSize: size,
       const Scaffold(
         body: Align(
@@ -203,5 +206,29 @@ void main() {
     await tester.pump();
     expect(focusOnButton(), isTrue);
     expect(tvFieldFocused(tester, message), isFalse);
+  });
+
+  bool focusInside(WidgetTester tester, Finder of) {
+    final focus = FocusManager.instance.primaryFocus;
+    return focus?.context != null &&
+        find
+            .descendant(
+                of: of,
+                matching: find.byElementPredicate((e) => e == focus!.context))
+            .evaluate()
+            .isNotEmpty;
+  }
+
+  testWidgets('stretto con la tastiera (senza touch): il fuoco parte dal primo amico',
+      (tester) async {
+    await pump(tester, size: const Size(390, 780));
+    await tester.pump();
+    expect(focusInside(tester, target('u2')), isTrue);
+  });
+
+  testWidgets('stretto col dito: nessun fuoco nel pannello', (tester) async {
+    await pump(tester, touch: true, size: const Size(390, 780));
+    await tester.pump();
+    expect(focusInside(tester, find.byType(RecommendPanel)), isFalse);
   });
 }

@@ -32,4 +32,12 @@ void main() {
   test('Poliziesco manda al server anche Crime', () {
     expect(genreServerNames('Poliziesco'), ['Poliziesco', 'Crime']);
   });
+
+  test('displayGenres: tradotti, senza doppioni, al massimo due', () {
+    expect(displayGenres(['Science Fiction', 'Sci-Fi', 'Mystery', 'Drama']),
+        ['Fantascienza', 'Mistero']);
+    expect(displayGenres(['Drama', 'Comedy', 'War'], max: 3),
+        ['Dramma', 'Commedia', 'Guerra']);
+    expect(displayGenres(const []), isEmpty);
+  });
 }

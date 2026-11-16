@@ -26,10 +26,6 @@ String? heroArrivalLabel(JellyfinItem item, DateTime now, AppLocalizations l) {
   return isMovie ? l.heroArrivedMovie(when) : l.heroArrivedSeries(when);
 }
 
-/// Al massimo [max] generi tradotti e senza doppioni.
-List<String> displayGenres(List<String> genres, {int max = 2}) =>
-    <String>{...genres.map(genreLabel)}.take(max).toList();
-
 /// "2026 · 2h 37m · Fantascienza · Mistero": anno, durata o stagioni, al
 /// massimo due generi tradotti e senza doppioni. Vuota se non c'è nulla.
 String heroMeta(JellyfinItem item, AppLocalizations l) {

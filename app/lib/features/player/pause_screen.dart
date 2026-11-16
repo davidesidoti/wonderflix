@@ -4,11 +4,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
-import '../home/hero_labels.dart';
 import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 

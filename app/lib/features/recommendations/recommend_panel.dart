@@ -107,9 +107,9 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
     });
   }
 
-  /// In TV l'elenco arriva dopo l'apertura: il fuoco passa al primo amico.
+  /// L'elenco arriva dopo l'apertura: il fuoco passa al primo amico.
   void _retryFocus() {
-    if (_focused || !FormFactor.of(context).tv) return;
+    if (_focused) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_focused) _focused = focusPanelStart(context, _closeFocus);
     });
