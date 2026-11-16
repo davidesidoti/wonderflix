@@ -256,7 +256,6 @@ void main() {
     final circleBottom = tester.getBottomLeft(pause).dy;
     expect(tester.getTopLeft(label).dy, greaterThan(circleBottom));
     expect(tester.getTopLeft(label).dy - circleBottom, lessThan(16));
-    expect(tester.getCenter(label).dx, closeTo(tester.getCenter(pause).dx, 1));
     expect(tester.getBottomLeft(label).dy, lessThanOrEqualTo(540));
     expect(tester.getCenter(pause).dy, rowY, reason: 'la fila non si muove');
     expect(tester.getCenter(rewind).dy, rowY);
@@ -267,6 +266,29 @@ void main() {
     expect(tester.getBottomLeft(find.text('Indietro di 10 secondi')).dy,
         lessThanOrEqualTo(540));
     expect(tester.getCenter(rewind).dy, rowY);
+    await unmount(tester);
+  });
+
+  testWidgets('TV: il nome del primo e dell ultimo pulsante resta nello '
+      'schermo', (tester) async {
+    withNextEpisode();
+    await pumpPlayer(tester, size: const Size(960, 540));
+    void expectInside(String name) {
+      final label = find.text(name);
+      expect(label, findsOneWidget);
+      expect(tester.getTopRight(label).dx, lessThanOrEqualTo(960));
+      expect(tester.getTopLeft(label).dx, greaterThanOrEqualTo(0));
+      expect(tester.getBottomLeft(label).dy, lessThanOrEqualTo(540 - 8));
+    }
+
+    await press(tester, LogicalKeyboardKey.arrowDown);
+    expectInside('Pausa');
+    for (var i = 0; i < 4; i++) {
+      await press(tester, LogicalKeyboardKey.arrowRight);
+    }
+    expectInside('Episodio successivo');
+    await press(tester, LogicalKeyboardKey.arrowLeft);
+    expectInside('Audio e sottotitoli');
     await unmount(tester);
   });
 

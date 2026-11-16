@@ -754,6 +754,10 @@ class PlayerIconButton extends StatefulWidget {
   static const _tvSize = 56.0;
   static const _tvLabelGap = 12.0;
 
+  /// Margine minimo del nome dai bordi dello schermo (come il padding della
+  /// fila).
+  static const _tvLabelMargin = 24.0;
+
   @override
   State<PlayerIconButton> createState() => _PlayerIconButtonState();
 }
@@ -763,6 +767,30 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
   bool _pressed = false;
   bool _focused = false;
 
+  /// Sinistra del nome nel pulsante: centrato sotto il cerchio, ma dentro lo
+  /// schermo (il primo e l'ultimo pulsante sono vicini al bordo).
+  double _labelLeft(BuildContext context, double side, TextStyle style) {
+    final width = _labelWidth(context, style);
+    final centred = (side - width) / 2;
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return centred;
+    final screen = MediaQuery.sizeOf(context).width;
+    final x = box.localToGlobal(Offset.zero).dx;
+    const margin = PlayerIconButton._tvLabelMargin;
+    final right = screen - margin - width;
+    // Un nome più largo dello schermo parte dal margine sinistro.
+    final left = (x + centred).clamp(margin, right < margin ? margin : right);
+    return left - x;
+  }
+
+  double _labelWidth(BuildContext context, TextStyle style) => (TextPainter(
+        text: TextSpan(text: widget.tooltip, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout())
+      .width;
+
   @override
   Widget build(BuildContext context) {
     final motion = WfMotion.of(context);
@@ -770,6 +798,7 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
     final hovered = enabled && _hovered;
     final formFactor = FormFactor.of(context);
     final tv = formFactor.tv;
+    final side = widget.size ?? PlayerIconButton._tvSize;
     final scale = tv
         ? (_focused ? tvFocusScale : 1.0)
         : !enabled || motion.isReduced
@@ -818,7 +847,7 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
                 focusNode: widget.focusNode,
                 style: !tv
                     ? (widget.size == null ? null : _sizedStyle(widget.size!))
-                    : _sizedStyle(widget.size ?? PlayerIconButton._tvSize)
+                    : _sizedStyle(side)
                         .copyWith(
                         backgroundColor: WidgetStatePropertyAll(
                             WfColors.bg.withValues(alpha: 0.35)),
@@ -834,6 +863,9 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
       ),
     );
     if (!tv) return button;
+    final labelStyle = DefaultTextStyle.of(context).style.merge(
+        const TextStyle(
+            color: WfColors.cream, fontSize: 13, fontWeight: FontWeight.w600));
     // Il nome sta sotto il cerchio col focus, fuori dal layout: la fila non
     // si muove.
     return Focus(
@@ -846,20 +878,13 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
           button,
           if (_focused)
             Positioned(
-              top: (widget.size ?? PlayerIconButton._tvSize) +
-                  PlayerIconButton._tvLabelGap,
-              left: (widget.size ?? PlayerIconButton._tvSize) / 2,
-              child: FractionalTranslation(
-                translation: const Offset(-0.5, 0),
-                child: Text(
-                  widget.tooltip,
-                  maxLines: 1,
-                  softWrap: false,
-                  style: const TextStyle(
-                      color: WfColors.cream,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600),
-                ),
+              top: side + PlayerIconButton._tvLabelGap,
+              left: _labelLeft(context, side, labelStyle),
+              child: Text(
+                widget.tooltip,
+                maxLines: 1,
+                softWrap: false,
+                style: labelStyle,
               ),
             ),
         ],
