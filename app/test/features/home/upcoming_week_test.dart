@@ -51,6 +51,7 @@ void main() {
       digitalRelease: DateTime.utc(2026, 11, 20),
     ),
     testUpcomingMovie(
+      jellyfinItemId: 'm9',
       title: 'Heat',
       tmdbId: 8,
       digitalRelease: DateTime.utc(2026, 11, 23),
@@ -164,6 +165,20 @@ void main() {
       await tester.tap(find.text('Hope'));
       await tester.pumpAndSettle();
       expect(find.text('seerr movie 1058424'), findsOneWidget);
+    });
+  });
+
+  testWidgets('film in libreria: la scheda, anche con Seerr', (tester) async {
+    await withClock(Clock.fixed(now), () async {
+      await pumpWeek(tester, features: const SocialFeatures(requests: true));
+      await tester.scrollUntilVisible(
+        find.text('Heat'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(find.text('Heat'));
+      await tester.pumpAndSettle();
+      expect(find.text('scheda m9'), findsOneWidget);
     });
   });
 

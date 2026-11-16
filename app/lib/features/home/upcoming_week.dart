@@ -171,7 +171,7 @@ class _DayColumn extends StatelessWidget {
 }
 
 /// Un'uscita: immagine, titolo e codice dell'episodio o "Film, in digitale".
-/// Clic come le righe di prima (spec M §8.3): la scheda se la serie è in
+/// Clic: la scheda se il titolo è in
 /// libreria, poi Seerr, poi niente.
 class _Entry extends ConsumerWidget {
   const _Entry(this.entry);
@@ -195,11 +195,7 @@ class _Entry extends ConsumerWidget {
         l.homeUpcomingMovie,
         _moviePoster,
         movie.posterUrl == null ? null : RemoteImages.poster(movie.posterUrl!),
-        canRequest
-            ? () => unawaited(
-                context.push(tmdbRoute(RequestMediaType.movie, movie.tmdbId)),
-              )
-            : null,
+        _movieTap(context, movie, canRequest),
       ),
     };
     return TvFocusable(
@@ -260,8 +256,9 @@ class _Entry extends ConsumerWidget {
   /// locandina.
   static ImageRef? _episodeImage(WidgetRef ref, UpcomingEpisode episode) {
     final seriesId = episode.jellyfinSeriesId;
-    if (seriesId != null)
+    if (seriesId != null) {
       return ref.watch(imageUrlsProvider).backdropOf(seriesId);
+    }
     final remote = episode.backdropUrl ?? episode.posterUrl;
     return remote == null ? null : RemoteImages.backdrop(remote);
   }
@@ -279,5 +276,19 @@ class _Entry extends ConsumerWidget {
           unawaited(context.push(tmdbRoute(RequestMediaType.tv, tmdbId)));
     }
     return null;
+  }
+
+  /// La scheda se il film è in libreria, poi Seerr, poi niente (spec §8.2).
+  static VoidCallback? _movieTap(
+    BuildContext context,
+    UpcomingMovie movie,
+    bool canRequest,
+  ) {
+    final itemId = movie.jellyfinItemId;
+    if (itemId != null) return () => openItemById(context, itemId);
+    if (!canRequest) return null;
+    return () => unawaited(
+      context.push(tmdbRoute(RequestMediaType.movie, movie.tmdbId)),
+    );
   }
 }
