@@ -112,6 +112,16 @@ String? homeRowSource(AppLocalizations l, HomeRowKind row) => switch (row) {
       _ => null,
     };
 
+/// La nota sotto le righe che la Home mostra unite in una sola sezione
+/// (Stasera, In arrivo); `null` per le altre.
+String? homeRowTogether(AppLocalizations l, HomeRowKind row) => switch (row) {
+      HomeRowKind.resume || HomeRowKind.nextUp => l.homeRowsTogetherTonight,
+      HomeRowKind.upcomingSeries ||
+      HomeRowKind.upcomingMovies =>
+        l.homeRowsTogetherUpcoming,
+      _ => null,
+    };
+
 /// Perché una riga non c'è (spec M §6.5, §10); `null` se è disponibile.
 String? homeRowGateReason(AppLocalizations l, HomeRowGate gate) =>
     switch (gate) {

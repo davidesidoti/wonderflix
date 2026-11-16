@@ -253,4 +253,35 @@ void main() {
     await tester.pump();
     expect(toggles, [(HomeRowKind.upcomingSeries, true)]);
   });
+
+  testWidgets('le righe unite nella Home hanno una nota, le altre no',
+      (tester) async {
+    rows = [
+      HomeRowKind.resume,
+      HomeRowKind.nextUp,
+      HomeRowKind.upcomingSeries,
+      HomeRowKind.upcomingMovies,
+      HomeRowKind.latestMovies,
+    ];
+    await pumpEditor(tester);
+    const tonight = 'Nella Home stanno insieme in Stasera';
+    const upcoming = 'Nella Home stanno insieme in In arrivo';
+    expect(find.text(tonight), findsNWidgets(2));
+    expect(find.text(upcoming), findsNWidgets(2));
+    for (final (row, note) in [
+      (HomeRowKind.resume, tonight),
+      (HomeRowKind.nextUp, tonight),
+      (HomeRowKind.upcomingSeries, upcoming),
+      (HomeRowKind.upcomingMovies, upcoming),
+    ]) {
+      expect(
+          find.descendant(of: rowFinder(row), matching: find.text(note)),
+          findsOneWidget);
+    }
+    expect(
+        find.descendant(
+            of: rowFinder(HomeRowKind.latestMovies),
+            matching: find.textContaining('Nella Home')),
+        findsNothing);
+  });
 }

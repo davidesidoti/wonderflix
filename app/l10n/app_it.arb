@@ -949,6 +949,8 @@
   "homeRowsSourceSeerr": "da Seerr",
   "homeRowsSourceSonarr": "da Sonarr",
   "homeRowsSourceRadarr": "da Radarr",
+  "homeRowsTogetherTonight": "Nella Home stanno insieme in Stasera",
+  "homeRowsTogetherUpcoming": "Nella Home stanno insieme in In arrivo",
   "homeRowsMoveUp": "Sposta su",
   "homeRowsMoveDown": "Sposta giù",
   "homeRowsReset": "Ripristina la Home predefinita",

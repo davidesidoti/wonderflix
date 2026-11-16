@@ -119,6 +119,7 @@ class _HomeRowsEditorState extends State<HomeRowsEditor> {
   Widget _entry(AppLocalizations l, HomeRowsEditorEntry entry, int index) {
     final selected = entry.kind == _selected;
     final source = homeRowSource(l, entry.kind);
+    final together = homeRowTogether(l, entry.kind);
     final reason = entry.unavailable;
     final locked = widget.lockUnavailable && reason != null;
     const small = TextStyle(color: WfColors.creamMuted, fontSize: 12.5);
@@ -153,6 +154,7 @@ class _HomeRowsEditorState extends State<HomeRowsEditor> {
                                 ? WfColors.creamMuted
                                 : WfColors.cream)),
                     if (source != null) Text(source, style: small),
+                    if (together != null) Text(together, style: small),
                     if (reason != null)
                       Text(reason,
                           style: small.copyWith(color: WfColors.gold)),

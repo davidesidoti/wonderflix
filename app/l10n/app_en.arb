@@ -796,6 +796,8 @@
   "homeRowsSourceSeerr": "from Seerr",
   "homeRowsSourceSonarr": "from Sonarr",
   "homeRowsSourceRadarr": "from Radarr",
+  "homeRowsTogetherTonight": "Shown together as Tonight on Home",
+  "homeRowsTogetherUpcoming": "Shown together as Coming up on Home",
   "homeRowsMoveUp": "Move up",
   "homeRowsMoveDown": "Move down",
   "homeRowsReset": "Restore the default Home",
