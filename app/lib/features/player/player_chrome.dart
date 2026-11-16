@@ -50,6 +50,17 @@ final class SkipFeedback extends PlayerFeedback {
   final SkipKind kind;
 }
 
+/// Avvisi del player che prima erano SnackBar.
+enum PlayerNotice { transcoding, subtitleNextPlayback }
+
+/// Avviso del player (conversione in corso, sottotitolo per la prossima
+/// riproduzione): sta nella pillola, [PlayerChromeController.noticeDuration].
+final class NoticeFeedback extends PlayerFeedback {
+  const NoticeFeedback(this.notice);
+
+  final PlayerNotice notice;
+}
+
 /// Riquadri del player che si aprono uno alla volta (spec E §11): il
 /// pannello "Audio e sottotitoli", la chat e la barretta delle reazioni del
 /// watch party, il pannello "Coda" del gruppo (spec H §9.1), il pannello del
@@ -65,6 +76,9 @@ class PlayerChromeController extends ChangeNotifier {
 
   /// Quanto resta la pillola dopo l'ultimo tasto.
   static const feedbackDuration = Duration(milliseconds: 1200);
+
+  /// Quanto resta la pillola di un avviso: si legge, non è un riscontro.
+  static const noticeDuration = Duration(seconds: 4);
 
   /// Salti nella stessa direzione entro questo tempo: si sommano.
   static const seekSumWindow = Duration(seconds: 1);
@@ -241,8 +255,9 @@ class PlayerChromeController extends ChangeNotifier {
     _scheduleHide();
   }
 
-  /// Mostra [feedback] per [feedbackDuration]. I controlli non compaiono.
-  void showFeedback(PlayerFeedback feedback) {
+  /// Mostra [feedback] per [duration] (di solito [feedbackDuration]). I
+  /// controlli non compaiono.
+  void showFeedback(PlayerFeedback feedback, {Duration? duration}) {
     final now = clock.now();
     _feedback = feedback;
     _lastFeedback = feedback;
@@ -254,7 +269,7 @@ class PlayerChromeController extends ChangeNotifier {
       _lastSeekAt = now;
     }
     _feedbackTimer?.cancel();
-    _feedbackTimer = Timer(feedbackDuration, () {
+    _feedbackTimer = Timer(duration ?? feedbackDuration, () {
       _feedback = null;
       notifyListeners();
     });

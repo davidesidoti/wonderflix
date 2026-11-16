@@ -59,6 +59,15 @@ void main() {
         LucideIcons.skipForward);
   });
 
+  test('avvisi: testo e icona info', () {
+    const transcoding = NoticeFeedback(PlayerNotice.transcoding);
+    const subtitles = NoticeFeedback(PlayerNotice.subtitleNextPlayback);
+    expect(playerFeedbackText(l, transcoding), l.playerTranscoding);
+    expect(playerFeedbackText(l, subtitles), l.subtitlesNextPlayback);
+    expect(playerFeedbackIcon(transcoding), LucideIcons.info);
+    expect(playerFeedbackIcon(subtitles), LucideIcons.info);
+  });
+
   Future<ValueNotifier<(PlayerFeedback?, PartyNotice?)>> pumpPill(
       WidgetTester tester,
       {MotionLevel motion = MotionLevel.reduced}) async {

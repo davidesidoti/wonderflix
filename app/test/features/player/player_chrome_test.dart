@@ -96,6 +96,19 @@ void main() {
     });
   });
 
+  test('un avviso dura 4 s', () {
+    fakeAsync((async) {
+      final chrome = PlayerChromeController();
+      chrome.showFeedback(const NoticeFeedback(PlayerNotice.transcoding),
+          duration: PlayerChromeController.noticeDuration);
+      async.elapse(const Duration(seconds: 3));
+      expect(chrome.feedback, isA<NoticeFeedback>());
+      async.elapse(const Duration(seconds: 1));
+      expect(chrome.feedback, isNull);
+      chrome.dispose();
+    });
+  });
+
   test('salti: si sommano nella stessa direzione entro 1 s', () {
     fakeAsync((async) {
       final chrome = PlayerChromeController();

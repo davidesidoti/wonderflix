@@ -1337,8 +1337,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _searchSubtitles(
       PlayerController controller, PlayerViewState view) async {
     _chrome.closePanel();
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     Future<SubtitleRefresh>? refresh;
     await showSubtitlesDialog(
       context,
@@ -1346,11 +1344,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       title: view.item?.name ?? '',
       onTrackAdded: () => refresh = controller.refreshSubtitleStreams(),
     );
-    // Sotto la finestra lo snackbar scadrebbe prima che si veda: compare
-    // solo a finestra chiusa (la rilettura può non essere ancora finita).
+    // Sotto la finestra l'avviso scadrebbe prima che si veda: compare solo
+    // a finestra chiusa (la rilettura può non essere ancora finita).
     final nextPlayback = await refresh == SubtitleRefresh.nextPlayback;
     if (nextPlayback && mounted) {
-      messenger.showSnackBar(SnackBar(content: Text(l.subtitlesNextPlayback)));
+      _chrome.showFeedback(
+        const NoticeFeedback(PlayerNotice.subtitleNextPlayback),
+        duration: PlayerChromeController.noticeDuration,
+      );
     }
   }
 
@@ -1580,8 +1581,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
     ref.listen(provider.select((s) => s.transcodingFallback), (_, fallback) {
       if (fallback) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l.playerTranscoding)));
+        _chrome.showFeedback(
+          const NoticeFeedback(PlayerNotice.transcoding),
+          duration: PlayerChromeController.noticeDuration,
+        );
       }
     });
     ref.listen(provider.select((s) => s.status), (previous, status) {

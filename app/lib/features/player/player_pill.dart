@@ -28,6 +28,9 @@ String playerFeedbackText(AppLocalizations l, PlayerFeedback feedback) =>
           formatSubtitleDelay(delay, l.decimalSeparator)),
       SkipFeedback(kind: SkipKind.intro) => l.playerIntroSkipped,
       SkipFeedback(kind: SkipKind.recap) => l.playerRecapSkipped,
+      NoticeFeedback(notice: PlayerNotice.transcoding) => l.playerTranscoding,
+      NoticeFeedback(notice: PlayerNotice.subtitleNextPlayback) =>
+        l.subtitlesNextPlayback,
     };
 
 /// Icona oro del riscontro di un tasto.
@@ -40,6 +43,7 @@ IconData playerFeedbackIcon(PlayerFeedback feedback) => switch (feedback) {
         muted || volume == 0 ? LucideIcons.volumeX : LucideIcons.volume2,
       SubtitleDelayFeedback() => LucideIcons.captions,
       SkipFeedback() => LucideIcons.skipForward,
+      NoticeFeedback() => LucideIcons.info,
     };
 
 /// Pillola in alto al centro del player (spec D §9.3): il riscontro dei
@@ -86,6 +90,7 @@ class _PlayerPillState extends State<PlayerPill> {
           SubtitleDelayFeedback() => SubtitleDelayFeedback,
           // Riassunto saltato e poi intro saltata: il testo nuovo sfuma.
           SkipFeedback(:final kind) => (SkipFeedback, kind),
+          NoticeFeedback(:final notice) => (NoticeFeedback, notice),
         },
       );
     }

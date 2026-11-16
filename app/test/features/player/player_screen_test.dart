@@ -808,7 +808,14 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.byType(Dialog), findsNothing);
-    expect(find.text(nextPlayback), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('player-pill')),
+        matching: find.text(nextPlayback),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(SnackBar), findsNothing);
     await unmount(tester);
   });
 
@@ -855,6 +862,21 @@ void main() {
       findsNothing,
       reason: 'il pannello non resta a destra dello strato dell\'errore',
     );
+    await unmount(tester);
+  });
+
+  testWidgets('la conversione si annuncia nella pastiglia', (tester) async {
+    engine.failOpens = 1;
+    await pumpPlayer(tester);
+    final notice = find.descendant(
+      of: find.byKey(const Key('player-pill')),
+      matching: find.text('Il server sta convertendo questo video.'),
+    );
+    expect(notice, findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(notice, findsNothing, reason: 'dopo 4 s la pastiglia sparisce');
     await unmount(tester);
   });
 
