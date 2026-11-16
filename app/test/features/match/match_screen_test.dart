@@ -18,7 +18,10 @@ import 'package:wonderflix/features/match/match_celebration.dart';
 import 'package:wonderflix/features/match/match_providers.dart';
 import 'package:wonderflix/features/match/match_room_controller.dart';
 import 'package:wonderflix/features/match/match_screen.dart';
+import 'package:wonderflix/features/match/match_seats.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/tonight/ask_parts.dart';
+import 'package:wonderflix/features/tonight/ask_sentence.dart';
 import 'package:wonderflix/features/tonight/tonight_controller.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -67,7 +70,7 @@ void main() {
 
   /// La Home finta con "apri" e la pagina della sala `r1` già aperta.
   Future<ProviderContainer> pumpRoom(WidgetTester tester,
-      {MatchState? state}) async {
+      {MatchState? state, Size surfaceSize = const Size(1440, 900)}) async {
     match.rooms['r1'] = state ?? testMatchState();
     final router = GoRouter(
       initialLocation: '/',
@@ -94,7 +97,7 @@ void main() {
         ),
       ],
     );
-    await pumpAppRouter(tester, router, overrides: [
+    await pumpAppRouter(tester, router, surfaceSize: surfaceSize, overrides: [
       ...socialTestOverrides(social,
           events: events.stream,
           features: const SocialFeatures(
@@ -114,8 +117,13 @@ void main() {
       (tester) async {
     await pumpRoom(tester);
 
-    expect(find.text('MATCH DEL FILM'), findsOneWidget);
+    expect(find.text('MATCH'), findsOneWidget);
+    expect(find.textContaining('Votate gli stessi titoli'), findsOneWidget);
+    expect(find.text('In sala, 1 su 8'), findsOneWidget);
     expect(find.text('Mario'), findsOneWidget);
+    expect(find.text('Si vota tra'), findsOneWidget);
+    expect(tester.widget<AskSentence>(find.byType(AskSentence)).voice,
+        AskVoice.match);
     expect(find.byKey(const Key('ask-type')), findsOneWidget);
     expect(find.text('Amici online'), findsOneWidget);
     expect(find.byKey(const Key('match-invite-u2')), findsOneWidget);
@@ -147,6 +155,7 @@ void main() {
 
     expect(find.byKey(const Key('match-invite-u2')), findsNothing);
     expect(find.text('Serve almeno un amico nella sala'), findsNothing);
+    expect(find.text("Dopo l'inizio non entra più nessuno"), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('match-start')));
     await tester.pumpAndSettle();
@@ -159,10 +168,62 @@ void main() {
         state: testMatchState(
             creatorId: 'u2', creatorName: 'Luigi', members: [luigi, mario]));
 
-    expect(find.text('In attesa che Luigi inizi…'), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('match-panel')),
+            matching: find.text('In attesa che Luigi inizi…')),
+        findsOneWidget);
     expect(find.byKey(const Key('match-start')), findsNothing);
     expect(find.byKey(const Key('ask-type')), findsNothing);
   });
+
+  testWidgets('Invita sta subito dopo il nome, non sul bordo della pagina',
+      (tester) async {
+    await pumpRoom(tester, surfaceSize: const Size(1280, 800));
+
+    final invite = tester.getTopLeft(find.byKey(const Key('match-invite-u2')));
+    final name = tester.getRect(find.text('Luigi'));
+    expect(invite.dx - name.right, lessThan(24));
+    expect(invite.dx, lessThan(1280 / 2));
+  });
+
+  testWidgets('a 1280 i posti stanno a sinistra del riquadro', (tester) async {
+    await pumpRoom(tester, surfaceSize: const Size(1280, 800));
+
+    final seats = tester.getRect(find.byType(MatchSeats));
+    final panel = tester.getRect(find.byKey(const Key('match-panel')));
+    expect(seats.right, lessThan(panel.left));
+    expect(seats.top, closeTo(panel.top, 1));
+  });
+
+  testWidgets('a 390 il riquadro sta sotto i posti e gli amici', (tester) async {
+    await pumpRoom(tester, surfaceSize: const Size(390, 780));
+
+    final seats = tester.getRect(find.byType(MatchSeats));
+    await tester.scrollUntilVisible(find.byKey(const Key('match-panel')), 200);
+    final friends = tester.getRect(find.text('Amici online'));
+    final panel = tester.getRect(find.byKey(const Key('match-panel')));
+    expect(seats.left, closeTo(panel.left, 1));
+    expect(panel.top, greaterThan(friends.bottom));
+  });
+
+  for (final size in const [Size(1280, 800), Size(390, 780)]) {
+    testWidgets('otto membri dai nomi lunghi senza overflow a $size',
+        (tester) async {
+      await pumpRoom(tester,
+          surfaceSize: size,
+          state: testMatchState(members: [
+            for (var i = 1; i <= 8; i++)
+              MatchMember(
+                  userId: 'u${i == 1 ? 1 : i + 10}',
+                  name: 'Un nome davvero lunghissimo numero $i',
+                  voted: 0),
+          ]));
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('In sala, 8 su 8'), findsOneWidget);
+    });
+  }
 
   testWidgets('leavingThePageLeavesTheRoomOnce', (tester) async {
     final container = await pumpRoom(tester);

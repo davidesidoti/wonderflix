@@ -26,12 +26,19 @@ import '../watch_party/watch_party_actions.dart';
 import 'match_actions.dart';
 import 'match_celebration.dart';
 import 'match_column.dart';
-import 'match_members_bar.dart';
 import 'match_room_controller.dart';
+import 'match_seats.dart';
 import 'match_swipe_deck.dart';
 import 'match_titles.dart';
 
 const _muted = TextStyle(color: WfColors.creamMuted);
+
+/// Le etichette piccole della sala ("Amici online", "Si vota tra").
+const _label = TextStyle(
+    color: WfColors.creamMuted, fontSize: 13, fontWeight: FontWeight.w600);
+
+/// Riga delle regole: circa 62 caratteri a 14.
+const _leadMaxWidth = 560.0;
 
 /// Pausa prima di riprovare un "no" automatico che non è partito.
 const _autoRetryDelay = Duration(seconds: 2);
@@ -191,27 +198,26 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final state = _isThisRoom(view) ? view!.state : null;
     final compact = FormFactor.of(context).compact;
     final side = compact ? 16.0 : 32.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      padding: EdgeInsets.fromLTRB(side, 22, side, 40),
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(side, 16, side, 12),
-          child: Text(l.matchTitle.toUpperCase(),
-              style: WfText.display(compact ? 28 : 40)),
+        Text(l.matchPageTitle.toUpperCase(),
+            style: WfText.display(compact ? 40 : 56)),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _leadMaxWidth),
+            child: Text(l.matchLead, style: _muted.copyWith(fontSize: 14)),
+          ),
         ),
-        Expanded(
-          child: state == null
-              ? const SizedBox.shrink()
-              : ListView(
-                  padding: EdgeInsets.fromLTRB(side, 0, side, 40),
-                  children: [
-                    MatchMembersBar(state: state),
-                    const SizedBox(height: 32),
-                    if (state.phase == MatchPhase.waiting) _waiting(l, state),
-                    if (state.phase == MatchPhase.voting) _voting(l, view!, state),
-                  ],
-                ),
-        ),
+        const SizedBox(height: 28),
+        if (state != null && state.phase == MatchPhase.voting) ...[
+          MatchSeats(state: state),
+          const SizedBox(height: 32),
+          _voting(l, view!, state),
+        ] else if (state != null)
+          _waiting(l, state, compact),
       ],
     );
   }
@@ -394,38 +400,79 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     );
   }
 
-  Widget _waiting(AppLocalizations l, MatchState state) {
-    if (!state.isCreator(ref.watch(currentUserIdProvider))) {
-      return Text(l.matchWaitingFor(state.creatorName),
-          style: _muted.copyWith(fontSize: 16));
-    }
+  /// Posti e amici a sinistra, il riquadro con la frase e "Inizia" a destra
+  /// (spec §5.3); nello stretto uno sotto l'altro.
+  Widget _waiting(AppLocalizations l, MatchState state, bool compact) {
+    final creator = state.isCreator(ref.watch(currentUserIdProvider));
     final enough = state.members.length >= matchMinMembers;
-    return Column(
+    final left = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AskSentence(
-          filters: _filters,
-          voice: AskVoice.match,
-          onChanged: _setFilters,
-          fontSize: 19,
-        ),
-        const SizedBox(height: 32),
-        _InviteFriends(state: state, invited: _invited, onInvite: _invite),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            WfButton.primary(
-              key: const Key('match-start'),
-              label: l.matchStart,
-              icon: LucideIcons.play,
-              onPressed: enough && !_starting ? () => unawaited(_start()) : null,
+        MatchSeats(state: state),
+        // Solo chi ha aperto può invitare (il plugin risponde NotCreator).
+        if (creator) ...[
+          const SizedBox(height: 26),
+          _InviteFriends(state: state, invited: _invited, onInvite: _invite),
+        ],
+      ],
+    );
+    final panel = Container(
+      key: const Key('match-panel'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
+      decoration: BoxDecoration(
+        color: WfColors.surface,
+        border: Border.all(color: WfColors.border),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: !creator
+          ? Text(l.matchWaitingFor(state.creatorName),
+              style: _muted.copyWith(fontSize: 16))
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l.matchVoteAmong, style: _label),
+                const SizedBox(height: 12),
+                AskSentence(
+                  filters: _filters,
+                  voice: AskVoice.match,
+                  onChanged: _setFilters,
+                  fontSize: 19,
+                ),
+                const SizedBox(height: 26),
+                Row(
+                  children: [
+                    WfButton.primary(
+                      key: const Key('match-start'),
+                      label: l.matchStart,
+                      icon: LucideIcons.play,
+                      onPressed: enough && !_starting
+                          ? () => unawaited(_start())
+                          : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Flexible(
+                      child: Text(
+                          enough ? l.matchNoLateJoin : l.matchNeedFriend,
+                          style: _muted),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            if (!enough) ...[
-              const SizedBox(width: 16),
-              Flexible(child: Text(l.matchNeedFriend, style: _muted)),
-            ],
-          ],
-        ),
+    );
+    if (compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [left, const SizedBox(height: 28), panel],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 5, child: left),
+        const SizedBox(width: 48),
+        Expanded(flex: 4, child: panel),
       ],
     );
   }
@@ -433,6 +480,9 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
 
 /// Diametro degli avatar degli amici da invitare.
 const _friendAvatarSize = 32.0;
+
+/// Larghezza minima del nome di un amico da invitare.
+const _friendNameMin = 160.0;
 
 /// Gli amici online, fuori da un watch party e non ancora nella sala, con
 /// "Invita" (spec P §7.3). Un nuovo clic su "Invitato" rimanda l'invito.
@@ -457,13 +507,14 @@ class _InviteFriends extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l.matchFriendsOnline,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        Text(l.matchFriendsOnline, style: _label),
         const SizedBox(height: 12),
         if (online.isEmpty) Text(l.matchNoFriendsOnline, style: _muted),
         for (final friend in online)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: WfColors.surface))),
             child: Row(
               children: [
                 UserAvatar.lookup(
@@ -471,19 +522,26 @@ class _InviteFriends extends ConsumerWidget {
                     name: friend.name,
                     size: _friendAvatarSize),
                 const SizedBox(width: 12),
-                Expanded(child: Text(friend.name)),
-                TextButton(
+                // "Invita" subito dopo il nome, non in fondo alla riga.
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minWidth: _friendNameMin),
+                    child: Text(friend.name,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                WfButton.secondary(
                   key: Key('match-invite-${friend.userId}'),
-                  onPressed: () => unawaited(onInvite(friend.userId)),
-                  style: TextButton.styleFrom(
-                      foregroundColor: WfColors.gold,
-                      // Col dito si tocca su almeno 44.
-                      minimumSize: FormFactor.of(context).compact
-                          ? const Size(minTouchTarget, minTouchTarget)
-                          : null),
-                  child: Text(invited.contains(friend.userId)
+                  // Col dito si tocca su almeno 44: nello stretto è alto.
+                  small: !FormFactor.of(context).compact,
+                  icon: invited.contains(friend.userId)
+                      ? LucideIcons.check
+                      : LucideIcons.userPlus,
+                  label: invited.contains(friend.userId)
                       ? l.matchInvited
-                      : l.matchInviteFriend),
+                      : l.matchInviteFriend,
+                  onPressed: () => unawaited(onInvite(friend.userId)),
                 ),
               ],
             ),

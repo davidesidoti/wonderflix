@@ -1932,5 +1932,9 @@
   "matchSeatFree": "libero",
   "matchVotedOf": "{n} su {total}",
   "@matchVotedOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
-  "matchDone": "finito"
+  "matchDone": "finito",
+  "matchPageTitle": "Match",
+  "matchLead": "Votate gli stessi titoli, ognuno per conto suo: quelli che piacciono a tutti diventano un match. Chi ha aperto la sala sceglie da quale cominciare.",
+  "matchVoteAmong": "Si vota tra",
+  "matchNoLateJoin": "Dopo l'inizio non entra più nessuno"
 }

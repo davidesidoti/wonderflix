@@ -1734,5 +1734,9 @@
   "matchSeatFree": "free",
   "matchVotedOf": "{n} of {total}",
   "@matchVotedOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
-  "matchDone": "done"
+  "matchDone": "done",
+  "matchPageTitle": "Match",
+  "matchLead": "Vote on the same titles, each on your own: the ones everybody likes become a match. Whoever opened the room picks where to start.",
+  "matchVoteAmong": "Voting on",
+  "matchNoLateJoin": "Nobody can join after the start"
 }
