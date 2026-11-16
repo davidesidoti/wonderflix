@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/features/player/player_controller.dart';
 import 'package:wonderflix/features/player/player_keys.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
@@ -86,6 +88,51 @@ void main() {
       expect(tips.where((t) => t.shortcut != null), isEmpty,
           reason: 'touch $touch tv $tv');
     }
+  });
+
+  testWidgets('il tooltip col tasto usa il font del tema (Inter)',
+      (tester) async {
+    // Senza Material sopra l'overlay: il testo prende lo stile solo dal tema.
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: MediaQuery(
+        data: const MediaQueryData(),
+        child: Theme(
+          data: buildWonderflixTheme(),
+          child: Overlay(initialEntries: [
+            OverlayEntry(
+              builder: (_) => const Center(
+                child: KeyTooltip(
+                  message: 'Pausa',
+                  shortcut: 'Spazio',
+                  child: SizedBox(width: 48, height: 48),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(tester.getCenter(find.byType(SizedBox)));
+    await tester.pump(const Duration(seconds: 1));
+    for (final text in ['Pausa', 'Spazio']) {
+      final paragraph =
+          tester.renderObject<RenderParagraph>(find.text(text));
+      expect(paragraph.text.style?.fontFamily, 'Inter', reason: text);
+    }
+  });
+
+  testWidgets('finestra stretta col mouse: i comandi compatti hanno il tasto',
+      (tester) async {
+    await pumpOverlay(tester, size: const Size(700, 800));
+    final tips = tester.widgetList<KeyTooltip>(find.byType(KeyTooltip));
+    final keys = {for (final t in tips) t.message: t.shortcut};
+    expect(keys['Pausa'], 'Spazio');
+    expect(keys['Schermo intero'], 'F');
+    expect(keys['Chat'], 'Invio');
   });
 
   testWidgets('KeyCap ha la misura della bozza', (tester) async {

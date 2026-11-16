@@ -75,21 +75,19 @@ class KeyTooltip extends StatelessWidget {
             border: Border.all(color: WfColors.border),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(
-                  color: WfColors.cream,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w400,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-              const SizedBox(width: 10),
-              KeyCap(key),
-            ],
+          // Nell'overlay non c'è un Material: lo stile del tema (Inter) va
+          // messo a mano.
+          child: DefaultTextStyle(
+            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+              color: WfColors.cream,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w400,
+              decoration: TextDecoration.none,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [Text(message), const SizedBox(width: 10), KeyCap(key)],
+            ),
           ),
         ),
       ),
