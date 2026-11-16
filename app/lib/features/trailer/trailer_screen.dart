@@ -219,7 +219,8 @@ class _TrailerScreenState extends ConsumerState<TrailerScreen> {
     if (key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.space) {
-      // Senza trailer il "Chiudi" ha il focus, ma OK lo preme anche da qui.
+      // Col focus su "Chiudi" il tasto è del pulsante.
+      if (!_focusNode.hasPrimaryFocus) return KeyEventResult.ignored;
       if (down) _unavailable ? _close() : _togglePlay();
       return KeyEventResult.handled;
     }

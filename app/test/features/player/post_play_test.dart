@@ -127,9 +127,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('PROSSIMO EPISODIO'), findsNothing);
-      final style = tester.widget<Text>(find.text('Prossimo episodio')).style!;
-      expect(style.fontFamily, isNot(contains('Bebas')));
+      final eyebrow = find.text('Prossimo episodio');
+      final style = tester.widget<Text>(eyebrow).style!;
+      expect(style.fontWeight, FontWeight.w600);
       expect(style.fontSize, 14);
+      // Niente Bebas: il testo eredita il carattere del corpo (Inter).
+      expect(style.fontFamily, isNull);
+      expect(
+          DefaultTextStyle.of(tester.element(eyebrow)).style.fontFamily,
+          'Inter');
     });
 
     testWidgets('TV: il focus parte su Riproduci tra N s', (tester) async {

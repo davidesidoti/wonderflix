@@ -145,6 +145,22 @@ void main() {
     expect(find.text('home'), findsOneWidget);
   });
 
+  testWidgets('col focus su Chiudi, Invio chiude e non mette in pausa',
+      (tester) async {
+    await pumpTrailer(tester);
+    engine.calls.clear();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    final close = find.widgetWithText(WfButton, 'Chiudi');
+    expect(Focus.of(tester.element(find.text('Chiudi'))).hasPrimaryFocus,
+        isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+    expect(engine.calls, isNot(contains('pause')));
+    expect(close, findsNothing);
+    expect(find.text('home'), findsOneWidget);
+  });
+
   testWidgets('non disponibile: Esc chiude', (tester) async {
     api.startResult = const TrailerStatus('k1', TrailerState.none);
     await pumpTrailer(tester);

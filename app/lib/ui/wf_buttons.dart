@@ -17,7 +17,8 @@ class WfButton extends StatelessWidget {
   })  : primary = true,
         small = false,
         iconWidget = null,
-        alignment = null;
+        alignment = null,
+        dense = false;
 
   const WfButton.secondary({
     super.key,
@@ -29,6 +30,7 @@ class WfButton extends StatelessWidget {
     this.small = false,
     this.iconWidget,
     this.alignment,
+    this.dense = false,
   }) : primary = false;
 
   final String label;
@@ -54,10 +56,14 @@ class WfButton extends StatelessWidget {
   /// centro.
   final AlignmentGeometry? alignment;
 
+  /// Per le celle strette (il telefono): padding 12 e l'etichetta su una riga
+  /// con i puntini.
+  final bool dense;
+
   /// Il primario prende dal tema il bordo col focus della TV.
   Widget _button(bool tv) {
     final size = Size(0, small ? 32 : 44);
-    final padding = EdgeInsets.symmetric(horizontal: small ? 12 : 20);
+    final padding = EdgeInsets.symmetric(horizontal: small || dense ? 12 : 20);
     final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(6));
     if (primary) {
       return FilledButton.icon(
@@ -83,7 +89,9 @@ class WfButton extends StatelessWidget {
       ).copyWith(
           side: tvButtonSide(tv, const BorderSide(color: WfColors.border))),
       icon: iconWidget ?? Icon(icon, size: 18),
-      label: Text(label),
+      label: dense
+          ? Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)
+          : Text(label),
     );
   }
 

@@ -631,10 +631,11 @@ void main() {
     expect(find.text('Guarda i titoli'), findsOneWidget);
     expect(find.text('Annulla'), findsNothing);
     final card = find.byType(NextEpisodeCard);
-    for (final m in tester.widgetList<Material>(
-        find.descendant(of: card, matching: find.byType(Material)))) {
-      expect(m.elevation, 0);
-    }
+    expect(find.descendant(of: card, matching: find.byType(PhysicalModel)),
+        findsNothing);
+    final box = tester.widget<DecoratedBox>(
+        find.descendant(of: card, matching: find.byType(DecoratedBox)).first);
+    expect((box.decoration as BoxDecoration).boxShadow, isNull);
     final eyebrow = tester.widget<Text>(find.text('Prossimo episodio'));
     expect(eyebrow.style!.fontSize, 14);
     expect(eyebrow.style!.fontWeight, FontWeight.w600);

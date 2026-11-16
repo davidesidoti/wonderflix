@@ -153,6 +153,17 @@ void main() {
       expect(find.bySemanticsLabel(label), findsOneWidget);
     }
 
+    // La traccia scelta è un pulsante "selezionato" per chi usa lo screen reader.
+    expect(
+        tester.getSemantics(find.text('Nessuno')),
+        matchesSemantics(
+            label: 'Nessuno',
+            isButton: true,
+            isSelected: true,
+            hasSelectedState: true,
+            isFocusable: true,
+            hasTapAction: true,
+            hasFocusAction: true));
     await tester.tap(find.text('English - AAC'));
     expect(audioPicked, 2);
     await tester.tap(find.text('Italiano - ASS'));

@@ -402,7 +402,10 @@ class _TrackTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final form = FormFactor.of(context);
     final minHeight = form.tv ? 52.0 : (form.compact ? 48.0 : 44.0);
-    return TvFocusable(
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: TvFocusable(
       autofocus: selected,
       onActivate: onTap,
       focusScale: 1.03,
@@ -464,6 +467,7 @@ class _TrackTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

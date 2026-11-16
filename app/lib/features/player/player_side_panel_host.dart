@@ -104,13 +104,19 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
 
   double _drag = 0;
 
-  /// Il pannello nel foglio dal basso, con la maniglia che lo chiude.
+  /// Altezza dell'area tattile della maniglia (la barretta è 36×4 al centro).
+  static const _handleHeight = 44.0;
+
+  /// Il pannello nel foglio dal basso, con la maniglia che lo chiude. La
+  /// SafeArea sta dentro il foglio: il fondo copre l'indicatore home.
   Widget _sheet() => ClipRRect(
         key: const Key('panel-sheet'),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         child: ColoredBox(
           color: WfColors.surface,
-          child: Column(
+          child: SafeArea(
+            top: false,
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               GestureDetector(
@@ -124,8 +130,8 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
                     widget.onClose?.call();
                   }
                 },
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 10, bottom: 4),
+                child: SizedBox(
+                  height: _handleHeight,
                   child: Center(
                     child: SizedBox(
                       key: const Key('panel-sheet-handle'),
@@ -145,7 +151,8 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
             ],
           ),
         ),
-      );
+      ),
+    );
 
   @override
   Widget build(BuildContext context) {
@@ -181,15 +188,12 @@ class _PlayerSidePanelHostState extends State<PlayerSidePanelHost>
                     bottom: 0,
                     height: constraints.maxHeight *
                         PlayerSidePanelHost.compactHeightFraction,
-                    child: SafeArea(
-                      top: false,
-                      child: reduced
-                          ? Opacity(opacity: t, child: _sheet())
-                          : FractionalTranslation(
-                              translation: Offset(0, 1 - t),
-                              child: _sheet(),
-                            ),
-                    ),
+                    child: reduced
+                        ? Opacity(opacity: t, child: _sheet())
+                        : FractionalTranslation(
+                            translation: Offset(0, 1 - t),
+                            child: _sheet(),
+                          ),
                   )
                 else
                 Positioned(

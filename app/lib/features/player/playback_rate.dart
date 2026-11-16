@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../app/theme.dart';
+import '../../l10n/gen/app_localizations.dart';
 import '../../ui/wf_menus.dart';
 
 /// Velocità di riproduzione che il player offre.
@@ -23,10 +23,7 @@ Future<void> showSpeedMenu(
   required double rate,
   required ValueChanged<double> onSelected,
 }) async {
-  final separator =
-      NumberFormat('0.0', Localizations.localeOf(anchor).toString())
-          .symbols
-          .DECIMAL_SEP;
+  final separator = AppLocalizations.of(anchor).decimalSeparator;
   final picked = await showMenu<double>(
     context: anchor,
     position: menuPositionBelow(anchor,

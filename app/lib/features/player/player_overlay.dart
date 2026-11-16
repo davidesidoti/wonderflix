@@ -614,6 +614,7 @@ class PlayerOverlay extends StatelessWidget {
         label: l.playerAudioAndSubtitles,
         icon: LucideIcons.captions,
         alignment: align,
+        dense: true,
         onPressed: onToggleTracks,
       ),
       if (onNextEpisode case final next?)
@@ -621,6 +622,7 @@ class PlayerOverlay extends StatelessWidget {
           label: partyQueue ? l.playerNextInQueue : l.playerNextEpisode,
           icon: LucideIcons.skipForward,
           alignment: align,
+          dense: true,
           onPressed: next,
         ),
       if (onWatchTogether case final together?)
@@ -630,6 +632,7 @@ class PlayerOverlay extends StatelessWidget {
             label: l.watchPartyWatchTogether,
             icon: LucideIcons.users,
             alignment: align,
+            dense: true,
             onPressed: () => together(buttonContext),
           ),
         ),
@@ -646,6 +649,7 @@ class PlayerOverlay extends StatelessWidget {
               child: const Icon(LucideIcons.ellipsis, size: 18),
             ),
             alignment: align,
+            dense: true,
             onPressed: () => unawaited(_showMore(buttonContext, more)),
           ),
         ),
@@ -783,13 +787,17 @@ class _PlayerIconButtonState extends State<PlayerIconButton> {
     return left - x;
   }
 
-  double _labelWidth(BuildContext context, TextStyle style) => (TextPainter(
-        text: TextSpan(text: widget.tooltip, style: style),
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-        maxLines: 1,
-      )..layout())
-      .width;
+  double _labelWidth(BuildContext context, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: widget.tooltip, style: style),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
 
   @override
   Widget build(BuildContext context) {

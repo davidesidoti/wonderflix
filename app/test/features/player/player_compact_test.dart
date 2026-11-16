@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -205,6 +206,31 @@ void main() {
     expect(tester.getSize(find.byType(SeekBar)).height, 44);
     expect(find.byKey(const Key('volume-slider')), findsNothing);
     expect(find.byTooltip(l.playerMute), findsNothing, reason: 'è in Altro');
+  });
+
+  testWidgets('telefono: i pulsanti con la parola hanno la stessa altezza e '
+      "l'etichetta su una riga", (tester) async {
+    await pumpOverlay(tester, const Size(390, 780));
+    expect(tester.takeException(), isNull);
+    final heights = <double>{};
+    final lines = <double>{};
+    for (final label in [
+      l.playerAudioAndSubtitles,
+      l.playerNextInQueue,
+      l.watchPartyWatchTogether,
+      l.playerMore,
+    ]) {
+      final button = find.widgetWithText(WfButton, label);
+      expect(button, findsOneWidget, reason: label);
+      heights.add(tester.getSize(button).height);
+      lines.add(tester
+          .renderObject<RenderParagraph>(
+              find.descendant(of: button, matching: find.text(label)))
+          .size
+          .height);
+    }
+    expect(heights, hasLength(1), reason: 'stessa altezza per tutti');
+    expect(lines, hasLength(1), reason: 'una riga per tutte');
   });
 
   testWidgets('telefono: Altro tiene il resto, Velocità fuori dal party', (
@@ -585,6 +611,53 @@ void main() {
     // Il pannello sta sotto la maniglia.
     expect(panel.top,
         greaterThan(tester.getRect(find.byKey(const Key('panel-sheet-handle'))).bottom));
+  });
+
+  testWidgets('foglio: la maniglia si afferra anche 20 px sotto la barretta',
+      (tester) async {
+    var closed = 0;
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: PlayerSidePanelHost(
+          open: true,
+          panel: const SizedBox.expand(),
+          onClose: () => closed++,
+        ),
+      ),
+      surfaceSize: const Size(390, 780),
+      touch: true,
+    );
+    final bar = tester.getRect(find.byKey(const Key('panel-sheet-handle')));
+    expect(bar.size, const Size(36, 4));
+    await tester.dragFrom(bar.center + const Offset(0, 20), const Offset(0, 200));
+    await tester.pumpAndSettle();
+    expect(closed, 1);
+  });
+
+  testWidgets("foglio: il fondo copre l'indicatore home e non rientra dai lati",
+      (tester) async {
+    await pumpApp(
+      tester,
+      Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+              padding: const EdgeInsets.only(left: 40, right: 40, bottom: 20)),
+          child: const Scaffold(
+            body: PlayerSidePanelHost(
+                open: true, panel: SizedBox.expand(key: Key('panel'))),
+          ),
+        ),
+      ),
+      surfaceSize: const Size(844, 390),
+      touch: true,
+    );
+    final sheet = tester.getRect(find.byKey(const Key('panel-sheet')));
+    expect(sheet.bottom, 390, reason: 'il foglio arriva in fondo');
+    expect(sheet.left, 0);
+    expect(sheet.right, 844);
+    final panel = tester.getRect(find.byKey(const Key('panel')));
+    expect(panel.bottom, 370, reason: "il contenuto sta sopra l'indicatore");
   });
 
   testWidgets("TV: il post-play mostra l'immagine dell'episodio, senza trama",
