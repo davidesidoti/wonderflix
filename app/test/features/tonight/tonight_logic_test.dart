@@ -155,6 +155,26 @@ void main() {
         '2016 · 3 stagioni · Dramma');
   });
 
+  test('la riga dei dati traduce i generi e toglie i doppioni', () {
+    expect(
+        tonightMeta(
+            l,
+            testItem(
+                kind: ItemKind.series,
+                year: 2021,
+                childCount: 1,
+                genres: ['Science Fiction', 'Drama', 'Thriller'])),
+        '2021 · 1 stagione · Fantascienza · Dramma · Thriller');
+    expect(
+        tonightMeta(
+            l,
+            testItem(
+                year: null,
+                runtimeMinutes: null,
+                genres: ['Drama', 'Dramma', 'Horror', 'Comedy'])),
+        'Dramma · Horror · Commedia');
+  });
+
   test('i generi: unione senza doppioni, in ordine', () {
     expect(
         tonightGenreUnion([

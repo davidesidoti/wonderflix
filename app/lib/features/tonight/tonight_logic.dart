@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../library/item_labels.dart';
@@ -158,7 +159,7 @@ bool _rated(double? score, TonightRating rating) {
 }
 
 /// "2024 · 2h 46m · Fantascienza · Avventura · Dramma"; per una serie le
-/// stagioni al posto della durata.
+/// stagioni al posto della durata. I generi sono tradotti e senza doppioni.
 String tonightMeta(AppLocalizations l, JellyfinItem item) {
   final runtime = item.runtime;
   final seasons = item.childCount;
@@ -167,7 +168,7 @@ String tonightMeta(AppLocalizations l, JellyfinItem item) {
     if (item.kind == ItemKind.movie && runtime != null) formatRuntime(runtime),
     if (item.kind == ItemKind.series && seasons != null)
       l.detailSeasons(seasons),
-    ...item.genres.take(tonightMetaGenres),
+    ...{...item.genres.map(genreLabel)}.take(tonightMetaGenres),
   ].join(' · ');
 }
 
