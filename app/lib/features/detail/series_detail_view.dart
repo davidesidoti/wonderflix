@@ -96,102 +96,115 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
     final page = StaggerGroup(
       count: detailEntranceCount,
       delay: widget.entranceDelay,
-      child: ListView(
+      // A pezzi (sliver): di una stagione da 170 episodi si costruiscono
+      // solo quelli vicini allo schermo.
+      child: CustomScrollView(
         controller: widget.controller,
-        padding: const EdgeInsets.only(bottom: 40),
-        children: [
-          DetailHeader(
-            key: widget.headerKey,
-            item: series,
-            primary: primary,
-            controller: widget.controller,
-            rated: shownSeason == null
-                ? null
-                : (
-                    item: shownSeason,
-                    title: '${series.name} · ${shownSeason.name}',
-                  ),
+        slivers: [
+          SliverToBoxAdapter(
+            child: DetailHeader(
+              key: widget.headerKey,
+              item: series,
+              primary: primary,
+              controller: widget.controller,
+              rated: shownSeason == null
+                  ? null
+                  : (
+                      item: shownSeason,
+                      title: '${series.name} · ${shownSeason.name}',
+                    ),
+            ),
           ),
-          ReportsBanner(titleId: series.id),
+          SliverToBoxAdapter(child: ReportsBanner(titleId: series.id)),
           if (shownSeason != null)
-            StaggerItem(
-              index: 5,
-              child: FriendRatingsRow(
-                key: ValueKey(shownSeason.id),
-                item: shownSeason,
-                title: l.ratingFriendsRowSeason(shownSeason.name),
-                onRate: (r) => openRatePanel(
-                  context,
-                  ref,
-                  RateSubject(
-                    item: shownSeason,
-                    title: '${series.name} · ${shownSeason.name}',
-                    mine: r.mine,
+            SliverToBoxAdapter(
+              child: StaggerItem(
+                index: 5,
+                child: FriendRatingsRow(
+                  key: ValueKey(shownSeason.id),
+                  item: shownSeason,
+                  title: l.ratingFriendsRowSeason(shownSeason.name),
+                  onRate: (r) => openRatePanel(
+                    context,
+                    ref,
+                    RateSubject(
+                      item: shownSeason,
+                      title: '${series.name} · ${shownSeason.name}',
+                      mine: r.mine,
+                    ),
                   ),
                 ),
               ),
             ),
-          StaggerItem(
-            index: 6,
-            child: WfSwitcher(
-              child: seasons.when(
-                loading: () => const EpisodeListSkeleton(
-                  key: ValueKey('loading'),
-                  count: 2,
-                ),
-                error: (error, _) => ErrorView(
-                  key: const ValueKey('error'),
-                  error: error,
-                  onRetry: () => ref.invalidate(seasonsProvider(series.id)),
-                ),
-                data: (list) {
-                  final seasonId = _seasonToShow(list, next);
-                  if (seasonId == null) {
-                    return const SizedBox.shrink(key: ValueKey('empty'));
-                  }
-                  return Column(
-                    key: const ValueKey('data'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _SeasonTabs(
-                              seasons: list,
-                              selectedId: seasonId,
-                              onSelect: (id) =>
-                                  setState(() => _selectedSeasonId = id),
-                            ),
+          SliverToBoxAdapter(
+            child: StaggerItem(
+              index: 6,
+              child: WfSwitcher(
+                child: seasons.when(
+                  loading: () => const EpisodeListSkeleton(
+                    key: ValueKey('loading'),
+                    count: 2,
+                  ),
+                  error: (error, _) => ErrorView(
+                    key: const ValueKey('error'),
+                    error: error,
+                    onRetry: () => ref.invalidate(seasonsProvider(series.id)),
+                  ),
+                  data: (list) {
+                    final seasonId = _seasonToShow(list, next);
+                    if (seasonId == null) {
+                      return const SizedBox.shrink(key: ValueKey('empty'));
+                    }
+                    return Row(
+                      key: const ValueKey('data'),
+                      children: [
+                        Expanded(
+                          child: _SeasonTabs(
+                            seasons: list,
+                            selectedId: seasonId,
+                            onSelect: (id) =>
+                                setState(() => _selectedSeasonId = id),
                           ),
-                          // Il menu della stagione scelta (segnalazioni).
-                          // Sulla TV non c'è: la serie ha il suo "Altro".
-                          if (list.where((s) => s.id == seasonId).firstOrNull
-                              case final season?
-                              when !FormFactor.of(context).tv)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 24),
-                              child: ItemActionsButton(item: season),
-                            ),
-                        ],
-                      ),
-                      // Alla prima apertura gli episodi entrano con la
-                      // scheda (elemento 5): scaglionati solo cambiando
-                      // stagione (spec C §9.3).
-                      _EpisodeList(
-                        seriesId: series.id,
-                        seasonId: seasonId,
-                        highlightId: next?.id,
-                        animate: _selectedSeasonId != null,
-                      ),
-                    ],
-                  );
-                },
+                        ),
+                        // Il menu della stagione scelta (segnalazioni).
+                        // Sulla TV non c'è: la serie ha il suo "Altro".
+                        if (list.where((s) => s.id == seasonId).firstOrNull
+                            case final season?
+                            when !FormFactor.of(context).tv)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 24),
+                            child: ItemActionsButton(item: season),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
+          // Alla prima apertura gli episodi entrano con la scheda (elemento
+          // 6): scaglionati solo cambiando stagione (spec C §9.3).
+          if (shownSeasonId != null && !seasons.hasError)
+            SliverStaggerItem(
+              index: 6,
+              sliver: _EpisodeSliver(
+                seriesId: series.id,
+                seasonId: shownSeasonId,
+                highlightId: next?.id,
+                animate: _selectedSeasonId != null,
+              ),
+            ),
           if (series.people.isNotEmpty)
-            StaggerItem(index: 7, child: CastRow(people: series.people)),
-          StaggerItem(index: 8, child: SimilarRow(itemId: series.id)),
+            SliverToBoxAdapter(
+              child: StaggerItem(
+                index: 7,
+                child: CastRow(people: series.people),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: StaggerItem(index: 8, child: SimilarRow(itemId: series.id)),
+          ),
+          const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
         ],
       ),
     );
@@ -288,8 +301,8 @@ class _SeasonTabsState extends State<_SeasonTabs> {
 /// compaiono subito.
 const _episodeEntranceCount = 10;
 
-class _EpisodeList extends ConsumerWidget {
-  const _EpisodeList({
+class _EpisodeSliver extends ConsumerWidget {
+  const _EpisodeSliver({
     required this.seriesId,
     required this.seasonId,
     required this.highlightId,
@@ -306,24 +319,20 @@ class _EpisodeList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (seriesId: seriesId, seasonId: seasonId);
-    // Chiavi per stagione: al cambio di stagione c'è una dissolvenza
-    // incrociata e poi gli episodi entrano scaglionati.
-    final (state, content) = ref
+    return ref
         .watch(episodesProvider(key))
         .when(
-          loading: () => ('loading', const EpisodeListSkeleton()),
-          error: (error, _) => (
-            'error',
-            ErrorView(
+          loading: () => const SliverToBoxAdapter(child: EpisodeListSkeleton()),
+          error: (error, _) => SliverToBoxAdapter(
+            child: ErrorView(
               error: error,
               onRetry: () => ref.invalidate(episodesProvider(key)),
             ),
           ),
           data: (episodes) {
             if (episodes.isEmpty) {
-              return (
-                'empty',
-                Padding(
+              return SliverToBoxAdapter(
+                child: Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
                     AppLocalizations.of(context).detailNoEpisodes,
@@ -332,31 +341,25 @@ class _EpisodeList extends ConsumerWidget {
                 ),
               );
             }
-            return (
-              'data',
-              StaggerGroup(
-                key: ValueKey('episodes-$seasonId'),
-                play: animate,
-                count: math.min(episodes.length, _episodeEntranceCount),
-                child: Column(
-                  children: [
-                    for (final (i, episode) in episodes.indexed)
-                      StaggerItem(
-                        index: i,
-                        child: EpisodeTile(
-                          episode: episode,
-                          highlighted: episode.id == highlightId,
-                        ),
-                      ),
-                  ],
+            // Chiave per stagione: al cambio di stagione gli episodi
+            // entrano scaglionati.
+            return StaggerGroup(
+              key: ValueKey('episodes-$seasonId'),
+              play: animate,
+              count: math.min(episodes.length, _episodeEntranceCount),
+              child: SliverList.builder(
+                itemCount: episodes.length,
+                itemBuilder: (context, i) => StaggerItem(
+                  index: i,
+                  child: EpisodeTile(
+                    episode: episodes[i],
+                    highlighted: episodes[i].id == highlightId,
+                  ),
                 ),
               ),
             );
           },
         );
-    return WfSwitcher(
-      child: KeyedSubtree(key: ValueKey('$seasonId-$state'), child: content),
-    );
   }
 }
 

@@ -429,6 +429,27 @@ void main() {
     expect(find.text('player e21'), findsOneWidget);
   });
 
+  testWidgets('serie da 40 episodi: Giù arriva fino all\'ultimo', (
+    tester,
+  ) async {
+    library.episodesBySeason['se1'] = [
+      for (var i = 1; i <= 40; i++) _ep('x$i', 'se1', 1, i),
+    ];
+    await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
+    await tester.pumpAndSettle();
+    // Gli episodi sotto lo schermo si costruiscono man mano che il focus
+    // scende.
+    final last = find.textContaining('Episodio 40');
+    expect(last, findsNothing);
+    bool reached() => last.evaluate().isNotEmpty && hasFocus(tester, last);
+    for (var i = 0; i < 50 && !reached(); i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+    }
+    expect(hasFocus(tester, last), isTrue);
+    expect(tester.getCenter(last).dy, inInclusiveRange(0, 540));
+  });
+
   testWidgets('serie: Vota vota la stagione mostrata e segue le schede', (
     tester,
   ) async {

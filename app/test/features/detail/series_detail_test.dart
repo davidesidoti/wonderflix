@@ -6,6 +6,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/detail/item_actions_menu.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/detail/series_detail_view.dart';
 import 'package:wonderflix/features/home/home_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/requests/request_seasons.dart';
@@ -164,6 +165,19 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(episodes('se2').play, isTrue);
+  });
+
+  testWidgets('170 episodi: si costruiscono solo quelli vicini',
+      (tester) async {
+    api.episodesBySeason['se1'] = [
+      for (var i = 1; i <= 170; i++) ep('x$i', 'se1', 1, i)
+    ];
+    await pumpSeries(tester);
+    expect(find.byType(EpisodeTile, skipOffstage: false).evaluate().length,
+        lessThan(40));
+    await tester.scrollUntilVisible(find.textContaining('Episodio 170'), 600,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.textContaining('Episodio 170'), findsOneWidget);
   });
 
   testWidgets('stagione iniziale da parametro', (tester) async {

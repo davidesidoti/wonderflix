@@ -252,6 +252,41 @@ class StaggerItem extends StatelessWidget {
   }
 }
 
+/// Come [StaggerItem] per uno sliver: entra solo in dissolvenza (uno sliver
+/// non si può spostare con un `Transform`).
+class SliverStaggerItem extends StatelessWidget {
+  const SliverStaggerItem({
+    super.key,
+    required this.index,
+    required this.sliver,
+  });
+
+  final int index;
+  final Widget sliver;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<_StaggerScope>();
+    final controller = scope?.controller;
+    if (scope == null || controller == null || index >= scope.group.count) {
+      return sliver;
+    }
+    final interval = staggerInterval(
+      index: index,
+      delay: scope.delay,
+      stagger: scope.group.stagger,
+      item: scope.group.itemDuration,
+      total: scope.total,
+    );
+    return SliverFadeTransition(
+      opacity: controller.drive(CurveTween(
+          curve: Interval(interval.begin, interval.end,
+              curve: WfMotion.emphasized))),
+      sliver: sliver,
+    );
+  }
+}
+
 /// Effetto d'entrata guidato da [progress] (0 → 1; oltre 1 con il
 /// rimbalzo): usato dagli elementi degli scaglionamenti e dei blocchi delle
 /// griglie.
