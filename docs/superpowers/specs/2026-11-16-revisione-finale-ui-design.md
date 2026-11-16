@@ -18,7 +18,7 @@ L'utente ha chiesto una revisione finale, prima della release, delle pagine non 
   - La TV prende i layout del telefono nel player, nella pagina Persona e in Segnala / Info tecniche (`compact` senza `&& !tv`).
   - Quattro campi di testo raggiungibili in TV aprono la tastiera appena prendono il focus: la nota di Segnala, il commento del voto, il messaggio di Consiglia a…, il recupero password.
   - "Riprova" nell'errore del player sembra irraggiungibile col telecomando.
-  - I generi della scheda sono in inglese, e mancano nella tabella delle traduzioni quelli delle serie TMDB ("Sci-Fi & Fantasy", "Action & Adventure"…).
+  - I generi della scheda sono in inglese, e alcuni generi del server mancano nella tabella delle traduzioni ("Crime", "Romance", "Psychological"…).
 - **Cose che mancano.**
   - "Segna come visto" per episodio e per stagione.
   - Tempo che resta e ora di fine nel player; i tasti scritti da qualche parte.
@@ -68,7 +68,9 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
   - letto come oggi, non "quando la vedi";
   - al posto del ⋯ con "Segna da leggere" e "Togli dalla lista", una ✕ sempre visibile (§7.1): il plugin non ha lo stato "letto" per voce.
 - **Amici:** il ⋯ della riga non ha "Invita a guardare". Senza un titolo scelto non c'è niente a cui invitare. "Guarda insieme" sulla riga di chi sta guardando c'è già (`watch_with_friend.dart`), e un party aperto ha già "Invita amici".
-- **Carte e righe d'invito:** "2 nel party" solo se il dato arriva con l'invito (§11).
+- **Carte e righe d'invito:** "2 nel party" solo quando il gruppo è nell'elenco dei party (§11).
+- **Aggiorna metadati:** niente "In corso… / Fatto" (§6.6).
+- **Generi:** la tabella di §3.6 viene dai generi veri del server, non da quelli TMDB citati nella scheda.
 
 ## 3. Regole e pezzi comuni
 
@@ -96,7 +98,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 
 - Largo 380 (oggi 360). Restano come oggi il velo, Esc, il clic fuori e un pannello alla volta.
 - **Titolo** `WfText.display(30)` e una riga sotto che dice di cosa si parla: "2 online" per Amici, locandina e titolo per Consiglia.
-- **Stretto:** le pagine `/friends`, `/inbox`, `/recommend` hanno il titolo nella barra e si chiudono solo con la ←. Il titolo e la ✕ del pannello spariscono.
+- **Stretto (e TV):** le pagine `/friends`, `/inbox`, `/recommend`, `/rate` si chiudono solo con la ← della barra: la ✕ del pannello sparisce, il titolo in Bebas resta in testa alla pagina.
 - **Pulsanti in alto:** stesso ordine ovunque, Watch party · Amici · Notifiche (oggi lo stretto inverte gli ultimi due, `app_shell.dart:226`).
 - **Caricamento:** tre righe grigie con la forma delle righe vere (`ui/skeletons.dart`), non un pannello vuoto.
 - **Errore:** una frase che dice cosa fare e "Riprova".
@@ -124,26 +126,19 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 
 ### 3.6 Generi (`core/jellyfin/genre_labels.dart`)
 
-- Aggiungere i generi TMDB delle serie e i comuni che mancano:
+- Aggiungere i generi del server che restano in inglese. I generi veri, letti da `/Items/Filters2?recursive=true` il 16 novembre, non contengono i nomi TMDB delle serie ("Sci-Fi & Fantasy" e simili non ci sono):
 
   | Server | Italiano |
   |---|---|
-  | Sci-Fi & Fantasy | Fantascienza e fantasy |
-  | Action & Adventure | Azione e avventura |
-  | War & Politics | Guerra e politica |
-  | Crime | Crime |
-  | Fantasy | Fantasy |
-  | Horror | Horror |
+  | Crime | Poliziesco |
   | Romance | Romantico |
-  | Thriller | Thriller |
-  | Western | Western |
-  | Kids | Bambini |
-  | Reality | Reality |
-  | Soap | Soap |
-  | Talk | Talk show |
-  | News | Notizie |
+  | Psychological | Psicologico |
+  | Martial Arts | Arti marziali |
+  | Medical | Medico |
+  | Food | Cucina |
+  | televisione film | Film TV |
 
-- Prima di scriverli, controllare i nomi veri con `/Items/Filters2?recursive=true` sul server: nella tabella vanno solo quelli che esistono.
+- Fantasy, Horror, Thriller, Western, Anime, Ecchi, Mecha e Slice of Life restano uguali in italiano: nessuna voce.
 - `genreServerNames` resta com'è: un genere unito (es. "Fantascienza") manda al server tutti i suoi nomi inglesi.
 
 ## 4. Player e trailer (bozza `player.html`)
@@ -408,7 +403,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
   - "Anche le immagini", attiva solo con "Riscrivi tutto";
   - su una serie, l'avviso "Vale anche per le sue N stagioni e M episodi".
 - Il pulsante ripete la scelta.
-- **Dopo l'avvio:** la finestra resta aperta con "In corso…", poi passa a "Fatto" quando `DateLastRefreshed` del titolo cambia (una lettura ogni 5 s, al massimo 2 minuti; poi "Ancora in corso: puoi chiudere"). Da verificare (§11): se Jellyfin non aggiorna quella data, si resta all'avviso di oggi.
+- **Dopo l'avvio:** come oggi, "Aggiornamento avviato" e ricarica dopo 10 s. Jellyfin non manda `DateLastRefreshed` (letto `null` il 16 novembre), quindi "Fatto" non si può sapere senza il plugin: lo stato "In corso… / Fatto" della bozza resta fuori.
 
 ### 6.7 Locandina e sfondo (`images_dialog.dart`)
 
@@ -467,7 +462,7 @@ Le bozze restano il riferimento visivo. Dove dicono altro, vale la spec:
 - **Letto:** come oggi (il plugin segna lette fino all'ultima voce). Le non lette di questa apertura hanno il pallino e un fondo appena più chiaro fino alla chiusura.
 - **"Svuota tutto"** diventa sul posto "Svuota tutto? Sì, svuota" per 4 s, e svuota la vista scelta.
 - **Novità** (nuovi titoli): restano le 5 righe e "Mostra tutto (N)", con locandina e codice dell'episodio.
-- **Stretto:** la pagina `/inbox` con "Svuota tutto" nella barra.
+- **Stretto:** la pagina `/inbox`, con "Svuota tutto" accanto al titolo come nel pannello.
 - **Vuoto:** "Niente di nuovo. Gli inviti e i consigli degli amici arrivano qui."
 
 ### 7.2 Amici (`friends_panel.dart`)
@@ -670,13 +665,15 @@ Ogni punto ha una strada di riserva che non richiede il plugin.
 
 | Cosa | Come | Se no |
 |---|---|---|
-| "Segna la stagione come vista" segna anche gli episodi | `POST /UserPlayedItems/{seasonId}` su una stagione di prova, poi `UserData` degli episodi | un `POST` per episodio |
-| Jellyfin aggiorna `DateLastRefreshed` a fine refresh | refresh di un titolo e lettura prima/dopo | Aggiorna metadati resta con "Aggiornamento avviato" |
-| Media3 regge `setRate` | prova sulla Fire Stick | Velocità solo fuori dalla TV |
-| L'invito al watch party porta il numero dei presenti | DTO dell'invito | niente "2 nel party" |
-| `/Persons` restituisce `TotalRecordCount` | chiamata di prova | il conteggio delle persone sparisce |
+| "Segna la stagione come vista" segna anche gli episodi | `POST /UserPlayedItems/{seasonId}` nella prova a mano, poi `UserData` degli episodi | un `POST` per episodio |
+| Media3 regge `setRate` | prova a mano sulla Fire Stick | Velocità solo fuori dalla TV |
 | "Riprova" nell'errore del player in TV è irraggiungibile oggi | Fire Stick, video che fallisce | (è il difetto: si corregge comunque) |
-| Generi reali del server | `/Items/Filters2?recursive=true` | si traducono solo quelli presenti |
+
+Già verificati il 16 novembre:
+- **Generi del server:** letti, tabella di §3.6.
+- **`DateLastRefreshed`:** non arriva (§6.6).
+- **`/Persons`:** dà `TotalRecordCount` (629 per "ist").
+- **"N nel party":** l'invito del pannello e la carta hanno il `groupId`, e il gruppo con i suoi membri è nell'elenco dei party (`watch_party_directory.dart`). Il numero si mostra quando il gruppo è nell'elenco, sennò niente.
 
 ## 12. Lasciato a chi costruisce
 
@@ -751,6 +748,4 @@ Un piano per fase. Ogni fase è indipendente e si prova a mano da sola:
 
 ## 14. Release
 
-Esce nella 0.42.0, non ancora pubblicata, insieme a Home, Stasera e Match: una riga per fase nella checklist di `docs/RELEASING.md`. Nessun plugin.
-
-Se i tempi stringono, la fase 1 esce nella 0.42.0 e le altre nella versione dopo. Decide l'utente prima del piano.
+Tutte e sette le fasi escono nella 0.42.0, non ancora pubblicata, insieme a Home, Stasera e Match (scelta dell'utente, 16 novembre). Una riga per fase nella checklist di `docs/RELEASING.md`. Nessun plugin.
