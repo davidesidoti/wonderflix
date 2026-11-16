@@ -27,6 +27,8 @@ class MediaStreamInfo {
     this.language,
     this.title,
     this.displayTitle,
+    this.channels,
+    this.channelLayout,
     this.isDefault = false,
     this.isForced = false,
     this.isExternal = false,
@@ -48,6 +50,8 @@ class MediaStreamInfo {
         language: json['Language'] as String?,
         title: json['Title'] as String?,
         displayTitle: json['DisplayTitle'] as String?,
+        channels: _int(json['Channels']),
+        channelLayout: json['ChannelLayout'] as String?,
         isDefault: json['IsDefault'] as bool? ?? false,
         isForced: json['IsForced'] as bool? ?? false,
         isExternal: json['IsExternal'] as bool? ?? false,
@@ -65,6 +69,10 @@ class MediaStreamInfo {
 
   /// Nome già pronto per i menu (es. "Italiano - AC3 - 5.1 - Predefinito").
   final String? displayTitle;
+
+  /// Canali audio, e come il server li chiama ("5.1", "stereo").
+  final int? channels;
+  final String? channelLayout;
   final bool isDefault;
   final bool isForced;
 

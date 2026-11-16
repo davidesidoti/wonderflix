@@ -7,10 +7,10 @@ void main() {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.playerWatching, 'Stai guardando');
-    expect(it.playerSubtitleSize, 'Dimensione');
+    expect(it.playerSubtitleSizeValue('Normali'), 'Dimensione · Normali');
     expect(it.playerClosePanel, 'Chiudi');
     expect(en.playerWatching, "You're watching");
-    expect(en.playerSubtitleSize, 'Size');
+    expect(en.playerSubtitleSizeValue('Normal'), 'Size · Normal');
     expect(en.playerClosePanel, 'Close');
   });
 }

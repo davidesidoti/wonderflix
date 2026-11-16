@@ -2367,6 +2367,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         onSubtitleScale: (scale) =>
                             unawaited(controller.setSubtitleScale(scale)),
                         onClose: _chrome.closePanel,
+                        item: view.item,
+                        rate: view.rate,
+                        onRate: _inParty
+                            ? null
+                            : (rate) => unawaited(controller.setRate(rate)),
                         // Sulla TV si guarda e basta (niente gestione).
                         onSearchSubtitles: !formFactor.tv &&
                                 ref.watch(canManageSubtitlesProvider)

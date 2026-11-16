@@ -34,10 +34,15 @@ class TvFocusable extends StatefulWidget {
     this.focusNode,
     this.borderRadius = const BorderRadius.all(Radius.circular(6)),
     this.onFocusChange,
+    this.focusScale = tvFocusScale,
   });
 
   final Widget child;
   final VoidCallback? onActivate;
+
+  /// Ingrandimento col focus: più basso per le righe larghe quanto il
+  /// pannello, che sennò ne escono.
+  final double focusScale;
   final bool autofocus;
   final FocusNode? focusNode;
   final BorderRadius borderRadius;
@@ -105,7 +110,7 @@ class _TvFocusableState extends State<TvFocusable> {
         ),
       },
       child: AnimatedScale(
-        scale: _focused ? tvFocusScale : 1,
+        scale: _focused ? widget.focusScale : 1,
         duration: const Duration(milliseconds: 120),
         child: DecoratedBox(
           position: DecorationPosition.foreground,

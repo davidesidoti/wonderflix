@@ -357,7 +357,7 @@ void main() {
     );
     expect(
       tester.getRect(find.byKey(const Key('panel'))),
-      const Rect.fromLTWH(1440 - 360, 0, 360, 900),
+      const Rect.fromLTWH(1440 - 380, 0, 380, 900),
     );
   });
 

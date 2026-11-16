@@ -723,9 +723,9 @@ void main() {
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
     await tester.pumpAndSettle();
-    expect(find.text('English - AAC Stereo'), findsOneWidget);
+    expect(find.text('AAC'), findsOneWidget);
 
-    await tester.tap(find.text('English - AAC Stereo'));
+    await tester.tap(find.text('AAC'));
     await tester.pump();
     expect(engine.selectedAudio.last, '2');
 
@@ -735,7 +735,7 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle(); // il pannello esce scorrendo
-    expect(find.text('English - AAC Stereo'), findsNothing);
+    expect(find.text('AAC'), findsNothing);
     expect(find.text('home'), findsNothing);
     await unmount(tester);
   });
@@ -746,7 +746,7 @@ void main() {
       await pumpPlayer(tester);
       await tester.tap(find.byTooltip('Audio e sottotitoli'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Grandi'));
+      await tester.tap(find.byKey(const ValueKey('subtitle-scale-1.0')));
       await tester.pump();
       expect(engine.subtitleScales.last, 1.0);
       final container = ProviderScope.containerOf(
@@ -756,7 +756,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Chiudi'));
       await tester.pumpAndSettle();
-      expect(find.text('Grandi'), findsNothing);
+      expect(find.byKey(const ValueKey('subtitle-scale-1.0')), findsNothing);
       await unmount(tester);
     },
   );
@@ -779,7 +779,7 @@ void main() {
       await tester.tap(find.text('Cerca sottotitoli'));
       await tester.pumpAndSettle();
       expect(find.byType(Dialog), findsOneWidget);
-      expect(find.text('Dimensione'), findsNothing, reason: 'pannello chiuso');
+      expect(find.textContaining('Dimensione ·'), findsNothing, reason: 'pannello chiuso');
 
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pump();
@@ -882,7 +882,7 @@ void main() {
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
     await tester.pumpAndSettle();
-    expect(find.text('Dimensione'), findsOneWidget);
+    expect(find.textContaining('Dimensione ·'), findsOneWidget);
     expect(find.text('Cerca sottotitoli'), findsNothing);
     await unmount(tester);
   });
@@ -895,7 +895,7 @@ void main() {
     // Il film ha anche il doppio clic: il clic singolo vale dopo 300 ms.
     await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
-    expect(find.text('Dimensione'), findsNothing);
+    expect(find.textContaining('Dimensione ·'), findsNothing);
     expect(
       engine.playing,
       isTrue,
@@ -908,16 +908,16 @@ void main() {
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
     await tester.pumpAndSettle();
-    expect(find.text('Dimensione'), findsOneWidget);
+    expect(find.textContaining('Dimensione ·'), findsOneWidget);
 
     // Un sottotitolo bruciato nel video fa rifare la conversione: la
     // riapertura non riesce e compare lo strato dell'errore.
     engine.failOpens = 1;
-    await tester.tap(find.text('Italiano - PGS - Esterno'));
+    await tester.tap(find.text('PGS · esterno'));
     await tester.pumpAndSettle();
     expect(find.text('Impossibile riprodurre il video'), findsOneWidget);
     expect(
-      find.text('Dimensione'),
+      find.textContaining('Dimensione ·'),
       findsNothing,
       reason: 'il pannello non resta a destra dello strato dell\'errore',
     );
@@ -1647,7 +1647,7 @@ void main() {
     await tester.pumpAndSettle();
     await toCredits(tester);
     expect(
-      find.text('Dimensione'),
+      find.textContaining('Dimensione ·'),
       findsNothing,
       reason: 'all\'inizio dei titoli il pannello si chiude',
     );

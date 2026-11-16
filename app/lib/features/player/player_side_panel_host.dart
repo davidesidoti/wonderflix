@@ -30,8 +30,8 @@ class PlayerSidePanelHost extends StatefulWidget {
   final double width;
   final double maxWidthFraction;
 
-  static const defaultWidth = 360.0;
-  static const defaultMaxWidthFraction = 0.35;
+  static const defaultWidth = 380.0;
+  static const defaultMaxWidthFraction = 0.4;
 
   /// Larghezza sulla TV (spec §4.5): fissa, a 960 la frazione darebbe 336.
   static const tvWidth = 380.0;

@@ -18,6 +18,7 @@ import 'package:wonderflix/features/player/player_extras.dart';
 import 'package:wonderflix/features/player/player_overlay.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
+import 'package:wonderflix/features/player/playback_rate.dart';
 import 'package:wonderflix/features/player/player_settings.dart';
 import 'package:wonderflix/features/player/player_volume.dart';
 import 'package:wonderflix/features/player/tracks_panel.dart';
@@ -269,10 +270,10 @@ void main() {
     await press(tester, LogicalKeyboardKey.select);
     expect(find.byType(TracksPanel), findsOneWidget);
     expect(focusedOn(find.byIcon(LucideIcons.check)), isTrue);
-    expect(focusedOn(find.text('English - AAC Stereo')), isFalse);
+    expect(focusedOn(find.text('AAC')), isFalse);
 
     await press(tester, LogicalKeyboardKey.arrowDown);
-    expect(focusedOn(find.text('English - AAC Stereo')), isTrue);
+    expect(focusedOn(find.text('AAC')), isTrue);
     await press(tester, LogicalKeyboardKey.select);
     expect(engine.selectedAudio.last, '2');
 
@@ -287,8 +288,8 @@ void main() {
     await pumpPlayer(tester);
     await tester.tap(find.byTooltip('Audio e sottotitoli'));
     await tester.pumpAndSettle();
-    expect(find.text('Dimensione'), findsOneWidget);
-    expect(find.text('Ritardo sottotitoli'), findsNothing);
+    expect(find.textContaining('Dimensione ·'), findsOneWidget);
+    expect(find.text('Ritardo dei sottotitoli'), findsNothing);
     await unmount(tester);
   });
 
@@ -430,21 +431,25 @@ void main() {
     }
     await press(tester, LogicalKeyboardKey.select);
     expect(find.byType(TracksPanel), findsOneWidget);
-    // In fondo al pannello: le dimensioni dei sottotitoli.
-    for (var i = 0; i < 12; i++) {
+    // Le dimensioni dei sottotitoli, la più grande in fondo alla fila; sotto
+    // ci sono le velocità, raggiungibili anche loro. La chiave sta sulla
+    // pastiglia, il focus sul nodo dentro.
+    bool onChip(String key) => find
+        .ancestor(of: primaryFocus(), matching: find.byKey(ValueKey(key)))
+        .evaluate()
+        .isNotEmpty;
+    bool onAnyScale() =>
+        subtitleScaleOptions.any((s) => onChip('subtitle-scale-$s'));
+    for (var i = 0; i < 20 && !onAnyScale(); i++) {
       await press(tester, LogicalKeyboardKey.arrowDown);
     }
-    // Le dimensioni vanno a capo: si arriva a "Molto grandi" con ←/→/↓.
-    var reached = false;
-    for (final key in [
-      for (var i = 0; i < 4; i++) LogicalKeyboardKey.arrowRight,
-      LogicalKeyboardKey.arrowDown,
-      for (var i = 0; i < 4; i++) LogicalKeyboardKey.arrowRight,
-    ]) {
-      reached = reached || focusedOn(find.text('Molto grandi'));
-      await press(tester, key);
+    expect(onAnyScale(), isTrue);
+    for (var i = 0; i < 4 && !onChip('subtitle-scale-1.25'); i++) {
+      await press(tester, LogicalKeyboardKey.arrowRight);
     }
-    expect(reached || focusedOn(find.text('Molto grandi')), isTrue);
+    expect(onChip('subtitle-scale-1.25'), isTrue);
+    await press(tester, LogicalKeyboardKey.arrowDown);
+    expect(playbackRates.any((r) => onChip('playback-rate-$r')), isTrue);
     await back(tester);
 
     engine.emitPosition(const Duration(seconds: 20));

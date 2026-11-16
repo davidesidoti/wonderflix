@@ -1141,6 +1141,20 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('party: nel pannello la velocità resta 1×', (tester) async {
+    await pumpPartyPlayer(tester);
+    await tester.tap(find.byTooltip(l.playerAudioAndSubtitles));
+    await tester.pumpAndSettle();
+    expect(find.text(l.playerSpeedPartyNote), findsOneWidget);
+    final two = find.byKey(const ValueKey('playback-rate-2.0'));
+    await tester.ensureVisible(two);
+    await tester.pump();
+    await tester.tap(two, warnIfMissed: false);
+    await tester.pump();
+    expect(engine.rates, isNot(contains(2.0)));
+    await finish(tester);
+  });
+
   testWidgets('chat aperta: ? va al campo, la scheda dei tasti non si apre',
       (tester) async {
     await pumpPartyPlayer(tester);

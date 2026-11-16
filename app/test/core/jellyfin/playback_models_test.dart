@@ -75,4 +75,15 @@ void main() {
     expect(resolveServerUrl(server, 'https://cdn.example.com/s.srt'),
         'https://cdn.example.com/s.srt');
   });
+
+  test('ChannelLayout e Channels dal server', () {
+    final stream = MediaStreamInfo.fromJson({
+      'Index': 1,
+      'Type': 'Audio',
+      'Channels': 6,
+      'ChannelLayout': '5.1',
+    });
+    expect(stream.channels, 6);
+    expect(stream.channelLayout, '5.1');
+  });
 }
