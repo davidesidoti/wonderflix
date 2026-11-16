@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/app_shell.dart';
 import '../../app/motion.dart';
@@ -482,17 +484,48 @@ class EpisodeTile extends ConsumerWidget {
     final userData = watchUserData(ref, episode);
     final progress = userData.progress;
     final runtime = episode.runtime;
-    final index = episode.indexNumber;
+    // Data di calendario in UTC: toLocal() la sposterebbe di un giorno.
+    final premiere = episode.premiereDate;
     final details = [
-      if (runtime != null) formatRuntime(runtime),
-      if (progress != null && runtime != null)
-        l.detailRemaining(formatRuntime(runtime - userData.playbackPosition)),
+      ?episodeCode(episode),
+      if (premiere != null)
+        DateFormat('d MMM y', l.localeName).format(premiere),
+      if (runtime != null) shortDuration(l, runtime),
     ].join(' · ');
     final overview = episode.overview;
     final form = FormFactor.of(context);
     final compact = detailCompact(context);
     final tv = form.tv;
     void play() => unawaited(playItem(context, ref, episode));
+    final actions = [
+      FilterChip(
+        avatar: const Icon(LucideIcons.check, size: 16),
+        showCheckmark: false,
+        label: Text(l.detailActionWatched),
+        selected: userData.played,
+        onSelected: (_) => unawaited(
+          runUserDataAction(
+            context,
+            () => ref
+                .read(userDataOverridesProvider.notifier)
+                .togglePlayed(episode),
+          ),
+        ),
+      ),
+      // Il bottone sta dentro l'InkWell, ma il tocco non ne attiva l'onTap:
+      // vince il riconoscitore del bottone nell'arena.
+      ItemActionsButton(
+        item: episode,
+        extra: [
+          if (userData.playbackPositionTicks > 0)
+            (
+              label: l.resumeHide,
+              onSelected: () =>
+                  unawaited(removeFromResume(context, ref, episode)),
+            ),
+        ],
+      ),
+    ];
 
     final tile = InkWell(
       // Sulla TV il focus è del TvFocusable, non dell'InkWell.
@@ -531,7 +564,7 @@ class EpisodeTile extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    index == null ? episode.name : '$index. ${episode.name}',
+                    episode.name,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   if (details.isNotEmpty) ...[
@@ -544,7 +577,7 @@ class EpisodeTile extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  if (overview != null) ...[
+                  if (overview != null && !compact) ...[
                     const SizedBox(height: 6),
                     Text(
                       overview,
@@ -557,24 +590,12 @@ class EpisodeTile extends ConsumerWidget {
                       ),
                     ),
                   ],
+                  if (compact) Row(children: actions),
                 ],
               ),
             ),
-            // Il bottone sta dentro l'InkWell, ma il tocco non ne attiva
-            // l'onTap: vince il riconoscitore del bottone nell'arena.
-            if (!tv)
-              ItemActionsButton(
-                item: episode,
-                extra: [
-                  if (userData.playbackPositionTicks > 0)
-                    (
-                      label: l.resumeHide,
-                      onSelected: () =>
-                          unawaited(removeFromResume(context, ref, episode)),
-                    ),
-                ],
-              ),
-            if (userData.played)
+            if (!tv && !compact) ...actions,
+            if (tv && userData.played)
               const Padding(
                 padding: EdgeInsets.only(left: 12),
                 child: WatchedBadge(),

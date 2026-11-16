@@ -315,7 +315,7 @@ void main() {
     // Uno per la stagione, uno per l'episodio.
     expect(find.byTooltip('Altre azioni'), findsNWidgets(3));
     final tile = find.ancestor(
-        of: find.text('1. Episodio 1'), matching: find.byType(InkWell));
+        of: find.text('Episodio 1'), matching: find.byType(InkWell));
     final button = find.descendant(
         of: tile.first, matching: find.byTooltip('Altre azioni'));
     expect(button, findsOneWidget);

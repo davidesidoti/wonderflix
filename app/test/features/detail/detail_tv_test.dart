@@ -397,6 +397,12 @@ void main() {
     expect(find.text('Identifica'), findsNothing);
   });
 
+  testWidgets('TV: gli episodi non hanno Visto', (tester) async {
+    await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
+    expect(find.text('Episodio 3'), findsOneWidget);
+    expect(find.byType(FilterChip), findsNothing);
+  });
+
   testWidgets('serie: focus sul principale, Giù alle stagioni, OK le sceglie, '
       'OK su un episodio lo riproduce', (tester) async {
     await pumpDetail(tester, 's1');
@@ -418,12 +424,12 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pump();
     await tester.pump();
-    expect(find.text('1. Episodio 1'), findsOneWidget);
-    expect(find.text('3. Episodio 3'), findsNothing);
+    expect(find.text('Episodio 1'), findsOneWidget);
+    expect(find.text('Episodio 3'), findsNothing);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pump();
-    expect(hasFocus(tester, find.text('1. Episodio 1')), isTrue);
+    expect(hasFocus(tester, find.text('Episodio 1')), isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pumpAndSettle();
     expect(find.text('player e21'), findsOneWidget);

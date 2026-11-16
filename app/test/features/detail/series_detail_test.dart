@@ -96,6 +96,50 @@ void main() {
     expect(find.textContaining('Serie ·'), findsNothing);
   });
 
+  testWidgets('episodio: codice, data, durata e Visto prima del ⋯',
+      (tester) async {
+    api.episodesBySeason['se1'] = [
+      testItem(
+          id: 'e3',
+          name: 'La scatola',
+          kind: ItemKind.episode,
+          seriesId: 's1',
+          seasonId: 'se1',
+          seasonIndex: 1,
+          index: 3,
+          runtimeMinutes: 52,
+          premiereDate: '2025-07-27T00:00:00.0000000Z')
+    ];
+    await pumpSeries(tester);
+    expect(find.text('La scatola'), findsOneWidget);
+    expect(find.text('S1:E3 · 27 lug 2025 · 52 min'), findsOneWidget);
+    final chip = find.widgetWithText(FilterChip, 'Visto');
+    final more = find.byTooltip('Altre azioni').last;
+    expect(tester.getCenter(chip).dx, lessThan(tester.getCenter(more).dx));
+    await tester.tap(chip);
+    await tester.pump();
+    await tester.pump();
+    expect(api.playedCalls, contains(('e3', true)));
+    expect(tester.widget<FilterChip>(chip).selected, isTrue);
+  });
+
+  testWidgets('episodio senza data né durata: nessun punto in più',
+      (tester) async {
+    api.episodesBySeason['se1'] = [
+      testItem(
+          id: 'e3',
+          name: 'La scatola',
+          kind: ItemKind.episode,
+          seriesId: 's1',
+          seasonId: 'se1',
+          seasonIndex: 1,
+          index: 3,
+          runtimeMinutes: null)
+    ];
+    await pumpSeries(tester);
+    expect(find.text('S1:E3'), findsOneWidget);
+  });
+
   testWidgets('prossimo episodio, stagioni ed episodi', (tester) async {
     await pumpSeries(tester);
     expect(find.text('THE LAST OF US'), findsOneWidget);
@@ -103,8 +147,8 @@ void main() {
     expect(find.text('Riprendi S1:E4'), findsOneWidget);
     expect(find.text('Stagione 1'), findsOneWidget);
     expect(find.text('Stagione 2'), findsOneWidget);
-    expect(find.text('3. Episodio 3'), findsOneWidget);
-    expect(find.text('4. Episodio 4'), findsOneWidget);
+    expect(find.text('Episodio 3'), findsOneWidget);
+    expect(find.text('Episodio 4'), findsOneWidget);
     expect(api.nextUpCalls, contains('s1'));
   });
 
@@ -132,8 +176,8 @@ void main() {
     await tester.tap(find.text('Stagione 2'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('1. Episodio 1'), findsOneWidget);
-    expect(find.text('3. Episodio 3'), findsNothing);
+    expect(find.text('Episodio 1'), findsOneWidget);
+    expect(find.text('Episodio 3'), findsNothing);
   });
 
   testWidgets('la linea oro passa sotto la stagione scelta', (tester) async {
@@ -182,7 +226,7 @@ void main() {
 
   testWidgets('stagione iniziale da parametro', (tester) async {
     await pumpSeries(tester, seasonId: 'se2');
-    expect(find.text('1. Episodio 1'), findsOneWidget);
+    expect(find.text('Episodio 1'), findsOneWidget);
   });
 
   testWidgets('nessun NextUp: propone il primo episodio', (tester) async {
@@ -254,7 +298,8 @@ void main() {
       // Segnalazioni spente, utente non admin, niente da riprendere.
       api.nextUpItems = [];
       await pumpSeries(tester, surfaceSize: size, tv: tv);
-      expect(find.text('Visto'), findsOneWidget);
+      // Quello della testata, più uno per ognuno dei 2 episodi fuori dalla TV.
+      expect(find.text('Visto'), findsNWidgets(tv ? 1 : 3));
       expect(find.text('Altro'), findsNothing);
     });
   }
