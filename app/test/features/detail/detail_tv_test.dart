@@ -399,6 +399,7 @@ void main() {
 
   testWidgets('TV: gli episodi non hanno Visto', (tester) async {
     await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
+    await tester.pump(const Duration(seconds: 1));
     expect(find.text('Episodio 3'), findsOneWidget);
     expect(find.byType(FilterChip), findsNothing);
   });
@@ -493,6 +494,41 @@ void main() {
     expect(subject()?.item.id, 'se2');
     expect(subject()?.title, 'The Last of Us · Stagione 2');
     expect(subject()?.mine, isNull);
+  });
+
+  testWidgets('TV: Giù dalle schede va al primo episodio, non ai voti', (
+    tester,
+  ) async {
+    social.itemRatingsById['se1'] = ItemRatings(
+      canRate: true,
+      count: 1,
+      average: 8,
+      friends: [
+        FriendRating(
+          userId: 'u2',
+          name: 'Luigi',
+          score: 8,
+          updatedAt: DateTime.utc(2026, 10, 1),
+        ),
+      ],
+    );
+    await pumpDetail(tester, 's1', surfaceSize: const Size(960, 540));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Voti degli amici · Stagione 1'), findsOneWidget);
+    // Sulla TV si vota con "Vota" della testata: la riga non ha pulsante.
+    expect(find.text('Vota la stagione'), findsNothing);
+    final tab = find.text('Stagione 1');
+    // Giù dal principale cade sulle schede (la geometria decide quale).
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    if (!hasFocus(tester, tab)) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+    }
+    expect(hasFocus(tester, tab), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(hasFocus(tester, find.text('Episodio 3')), isTrue);
   });
 
   testWidgets('serie: con i voti in errore Vota non c\'è', (tester) async {

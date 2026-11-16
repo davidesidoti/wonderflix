@@ -991,6 +991,7 @@
   "ratingRoundUnavailable": "Rating unavailable: you can rate from the title page",
   "ratingCommentHint": "Comment (optional)",
   "ratingFriendsRow": "Friends' ratings",
+  "ratingRateSeason": "Rate the season",
   "ratingFriendsRowSeason": "Friends' ratings · {season}",
   "@ratingFriendsRowSeason": {"placeholders": {"season": {"type": "String"}}},
   "ratingFriendsCount": "{count, plural, =1{1 friend} other{{count} friends}}",

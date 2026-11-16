@@ -10,6 +10,7 @@ import '../../app/app_shell.dart';
 import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
+import '../../core/social/rating_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
@@ -29,6 +30,7 @@ import '../playback/play_launcher.dart';
 import '../ratings/friend_ratings_row.dart';
 import '../ratings/rate_panel.dart';
 import '../reports/reports_banner.dart';
+import '../social/social_providers.dart';
 import 'detail_header.dart';
 import 'detail_providers.dart';
 import 'detail_rows.dart';
@@ -119,26 +121,6 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
             ),
           ),
           SliverToBoxAdapter(child: ReportsBanner(titleId: series.id)),
-          if (shownSeason != null)
-            SliverToBoxAdapter(
-              child: StaggerItem(
-                index: 5,
-                child: FriendRatingsRow(
-                  key: ValueKey(shownSeason.id),
-                  item: shownSeason,
-                  title: l.ratingFriendsRowSeason(shownSeason.name),
-                  onRate: (r) => openRatePanel(
-                    context,
-                    ref,
-                    RateSubject(
-                      item: shownSeason,
-                      title: '${series.name} · ${shownSeason.name}',
-                      mine: r.mine,
-                    ),
-                  ),
-                ),
-              ),
-            ),
           SliverToBoxAdapter(
             child: StaggerItem(
               index: 6,
@@ -158,9 +140,32 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                     if (seasonId == null) {
                       return const SizedBox.shrink(key: ValueKey('empty'));
                     }
-                    return Row(
+                    final tv = FormFactor.of(context).tv;
+                    final current = list
+                        .where((s) => s.id == seasonId)
+                        .firstOrNull;
+                    // Gli stessi voti della riga sotto le schede (una lettura).
+                    final ratings = current == null ||
+                            !ref.watch(
+                              socialAvailabilityProvider.select(
+                                (f) => f.ratings,
+                              ),
+                            )
+                        ? null
+                        : ref.watch(itemRatingsProvider(current.id)).value;
+                    void rate(ItemRatings r) => openRatePanel(
+                      context,
+                      ref,
+                      RateSubject(
+                        item: current!,
+                        title: '${series.name} · ${current.name}',
+                        mine: r.mine,
+                      ),
+                    );
+                    return Column(
                       key: const ValueKey('data'),
                       children: [
+                        Row(children: [
                         Expanded(
                           child: _SeasonTabs(
                             seasons: list,
@@ -171,14 +176,18 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                         ),
                         // Il menu della stagione scelta (visto, segnalazioni).
                         // Sulla TV non c'è: la serie ha il suo "Altro".
-                        if (list.where((s) => s.id == seasonId).firstOrNull
-                            case final season?
-                            when !FormFactor.of(context).tv)
+                        if (current case final season? when !tv)
                           Padding(
                             padding: const EdgeInsets.only(right: 24),
                             child: ItemActionsButton(
                               item: season,
                               extra: [
+                                if (ratings != null &&
+                                    (ratings.canRate || ratings.mine != null))
+                                  (
+                                    label: l.ratingRateSeason,
+                                    onSelected: () => rate(ratings),
+                                  ),
                                 (
                                   label: watchUserData(ref, season).played
                                       ? l.detailSeasonMarkUnwatched
@@ -214,6 +223,14 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                                 ),
                               ],
                             ),
+                          ),
+                        ]),
+                        if (current != null)
+                          SeasonRatingsStrip(
+                            key: ValueKey(current.id),
+                            season: current,
+                            title: l.ratingFriendsRowSeason(current.name),
+                            onRate: rate,
                           ),
                       ],
                     );

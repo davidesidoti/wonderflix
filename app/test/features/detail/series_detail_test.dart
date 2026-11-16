@@ -81,6 +81,10 @@ void main() {
     for (var i = 0; i < 4; i++) {
       await tester.pump();
     }
+    // Il blocco delle stagioni passa da caricamento a dati con una dissolvenza.
+    if (motion == MotionLevel.reduced) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
   }
 
   Future<void> scrollToTicket(WidgetTester tester) => tester.scrollUntilVisible(

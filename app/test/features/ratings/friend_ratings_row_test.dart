@@ -209,28 +209,115 @@ void main() {
       expect(api.calls, isNot(contains('ratings e1')));
     });
 
-    testWidgets('serie: la riga della stagione scelta, prima delle schede',
-        (tester) async {
+    final twoFriends = ItemRatings(
+        canRate: true,
+        count: 2,
+        average: 7.5,
+        friends: [friend('u2', 'Luigi', 7), friend('u3', 'Peach', 8)]);
+
+    Future<void> pumpSeries(WidgetTester tester,
+        {SocialFeatures features = on, ItemRatings? ratings}) async {
       library.itemsById['s1'] =
           testItem(id: 's1', name: 'The Last of Us', kind: ItemKind.series);
       library.seasonsBySeries['s1'] = [
-        testItem(id: 'season1', name: 'Stagione 1', kind: ItemKind.season, index: 1),
-        testItem(id: 'season2', name: 'Stagione 2', kind: ItemKind.season, index: 2),
+        testItem(id: 'se1', name: 'Stagione 1', kind: ItemKind.season, index: 1),
+        testItem(id: 'se2', name: 'Stagione 2', kind: ItemKind.season, index: 2),
       ];
-      api.itemRatingsById['season1'] = withFriend;
-      api.itemRatingsById['season2'] = withFriend;
-      await pumpDetail(tester, 's1');
+      library.episodesBySeason['se1'] = [
+        testItem(
+            id: 'e3',
+            name: 'Episodio 3',
+            kind: ItemKind.episode,
+            seriesId: 's1',
+            seasonId: 'se1',
+            index: 3),
+      ];
+      api.itemRatingsById['se1'] = ratings ?? twoFriends;
+      api.itemRatingsById['se2'] = twoFriends;
+      await pumpApp(
+          tester, Scaffold(body: ItemDetailScreen(itemId: 's1')),
+          overrides: [
+            libraryApiProvider.overrideWithValue(library),
+            ...socialTestOverrides(api, features: features),
+          ]);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
+
+    testWidgets('serie: i voti della stagione stanno sotto le schede',
+        (tester) async {
+      await pumpSeries(tester);
+      final strip = find.byType(SeasonRatingsStrip);
+      expect(strip, findsOneWidget);
+      expect(tester.getTopLeft(strip).dy,
+          greaterThan(tester.getBottomLeft(find.text('Stagione 1')).dy));
+      expect(tester.getTopLeft(strip).dy,
+          lessThan(tester.getTopLeft(find.text('Episodio 3')).dy));
+      expect(find.text('7,5'), findsOneWidget);
       expect(find.text('Voti degli amici · Stagione 1'), findsOneWidget);
-      expect(api.calls, contains('ratings season1'));
-      expect(
-          tester.getTopLeft(find.text('Voti degli amici · Stagione 1')).dy,
-          lessThan(tester.getTopLeft(find.text('Stagione 2')).dy));
+      expect(find.text('Vota la stagione'), findsOneWidget);
+      expect(find.byType(FriendRatingsRow), findsNothing);
+      expect(api.calls, contains('ratings se1'));
       await tester.tap(find.text('Stagione 2'));
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(find.text('Voti degli amici · Stagione 2'), findsOneWidget);
-      expect(api.calls, contains('ratings season2'));
+      expect(api.calls, contains('ratings se2'));
+    });
+
+    testWidgets('serie: Vota la stagione apre il pannello sulla stagione scelta',
+        (tester) async {
+      await pumpSeries(tester);
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(ItemDetailScreen)));
+      container.listen(shellPanelProvider, (_, _) {});
+      await tester.tap(find.text('Vota la stagione'));
+      expect(container.read(shellPanelProvider), ShellPanel.rate);
+      final subject = container.read(rateSubjectProvider)!;
+      expect(subject.item.id, 'se1');
+      expect(subject.title, 'The Last of Us · Stagione 1');
+    });
+
+    testWidgets('serie: il ⋯ della stagione ha Vota la stagione',
+        (tester) async {
+      await pumpSeries(tester);
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(ItemDetailScreen)));
+      container.listen(shellPanelProvider, (_, _) {});
+      await tester.tap(find.byTooltip('Altre azioni').first);
+      await tester.pumpAndSettle();
+      final entry = find.descendant(
+          of: find.byType(PopupMenuItem<Object>),
+          matching: find.text('Vota la stagione'));
+      expect(entry, findsOneWidget);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(container.read(rateSubjectProvider)!.item.id, 'se1');
+    });
+
+    testWidgets('serie: senza amici e senza voto la stagione non si vota',
+        (tester) async {
+      await pumpSeries(
+          tester, ratings: const ItemRatings(canRate: false, count: 0, friends: []));
+      expect(find.byType(SeasonRatingsStrip), findsOneWidget);
+      expect(find.text('Vota la stagione'), findsNothing);
+      await tester.tap(find.byTooltip('Altre azioni').first);
+      await tester.pumpAndSettle();
+      expect(find.byType(PopupMenuItem<Object>), findsWidgets);
+      expect(find.text('Vota la stagione'), findsNothing);
+    });
+
+    testWidgets('senza la funzione dei voti: niente riga e niente voce nel ⋯',
+        (tester) async {
+      await pumpSeries(tester, features: const SocialFeatures(friends: true));
+      expect(find.text('Voti degli amici · Stagione 1'), findsNothing);
+      expect(find.text('Vota la stagione'), findsNothing);
+      await tester.tap(find.byTooltip('Altre azioni').first);
+      await tester.pumpAndSettle();
+      expect(find.text('Vota la stagione'), findsNothing);
+      expect(api.calls, isNot(contains('ratings se1')));
     });
 
     testWidgets('film: Vota apre il pannello sul film', (tester) async {
