@@ -120,11 +120,22 @@ class _PauseScreenState extends State<PauseScreen> {
                   ),
                 ),
               ),
+              // Si ferma sopra la riga del tempo; in una finestra bassa si
+              // rimpicciolisce.
               if (keysCard)
                 const Positioned(
-                    right: PauseScreen.textInset,
-                    top: 96,
-                    child: IgnorePointer(child: PlayerKeysCard())),
+                  right: PauseScreen.textInset,
+                  top: 96,
+                  bottom: 86,
+                  width: PlayerKeysCard.width,
+                  child: IgnorePointer(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: FittedBox(
+                          fit: BoxFit.scaleDown, child: PlayerKeysCard()),
+                    ),
+                  ),
+                ),
               Positioned(
                 left: inset,
                 right: inset,
@@ -251,46 +262,46 @@ class _PauseText extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-          Text(
-            l.playerWatching,
-            style: const TextStyle(
-                color: WfColors.gold, fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+        Text(
+          l.playerWatching,
+          style: const TextStyle(
+              color: WfColors.gold, fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        if (logo != null)
+          SizedBox(
+            height: compact ? compactLogoHeight : logoHeight,
+            width: compact ? compactLogoWidth : logoWidth,
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: WfImage(
+                  image: logo, fit: BoxFit.contain, fallbackIcon: null),
+            ),
+          )
+        else
+          Text(cardTitle(item).toUpperCase(),
+              maxLines: compact ? 1 : 2,
+              overflow: TextOverflow.ellipsis,
+              style: WfText.display(compact ? 32 : 64)),
+        if (episode != null) ...[
           const SizedBox(height: 12),
-          if (logo != null)
-            SizedBox(
-              height: compact ? compactLogoHeight : logoHeight,
-              width: compact ? compactLogoWidth : logoWidth,
-              child: Align(
-                alignment: Alignment.bottomLeft,
-                child: WfImage(
-                    image: logo, fit: BoxFit.contain, fallbackIcon: null),
-              ),
-            )
-          else
-            Text(cardTitle(item).toUpperCase(),
-                maxLines: compact ? 1 : 2,
-                overflow: TextOverflow.ellipsis,
-                style: WfText.display(compact ? 32 : 64)),
-          if (episode != null) ...[
-            const SizedBox(height: 12),
-            Text(episode,
-                maxLines: compact ? 1 : null,
-                overflow: compact ? TextOverflow.ellipsis : null,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          ],
-          if (meta.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(meta, style: const TextStyle(color: WfColors.creamMuted)),
-          ],
-          if (overview != null) ...[
-            const SizedBox(height: 16),
-            Text(overview,
-                maxLines: compact ? 3 : 4,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(height: 1.45)),
-          ],
+          Text(episode,
+              maxLines: compact ? 1 : null,
+              overflow: compact ? TextOverflow.ellipsis : null,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+        ],
+        if (meta.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(meta, style: const TextStyle(color: WfColors.creamMuted)),
+        ],
+        if (overview != null) ...[
+          const SizedBox(height: 16),
+          Text(overview,
+              maxLines: compact ? 3 : 4,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(height: 1.45)),
+        ],
       ],
     );
     return ConstrainedBox(
@@ -313,14 +324,16 @@ class _PauseText extends ConsumerWidget {
                   icon: LucideIcons.play,
                   onPressed: onResume),
               if (keys)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(l.playerResumeOr,
-                        style: const TextStyle(color: WfColors.creamMuted)),
-                    const SizedBox(width: 6),
-                    KeyCap(l.playerKeySpace),
-                  ],
+                IgnorePointer(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(l.playerResumeOr,
+                          style: const TextStyle(color: WfColors.creamMuted)),
+                      const SizedBox(width: 6),
+                      KeyCap(l.playerKeySpace),
+                    ],
+                  ),
                 ),
             ],
           ),

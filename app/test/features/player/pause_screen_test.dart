@@ -197,6 +197,19 @@ void main() {
     expect(find.text('Spazio'), findsOneWidget);
   });
 
+  testWidgets('finestra bassa (1280×640): la scheda resta sopra il tempo',
+      (tester) async {
+    await pumpPause(tester, episode(),
+        visible: true,
+        size: const Size(1280, 640),
+        engine: pausedAt(const Duration(minutes: 23, seconds: 12),
+            const Duration(minutes: 52)));
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byType(PlayerKeysCard)).bottom,
+        lessThan(tester.getRect(find.text('resta 28:48')).top));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('durata ignota: niente resto', (tester) async {
     await pumpPause(tester, episode(),
         visible: true, engine: pausedAt(Duration.zero, Duration.zero));

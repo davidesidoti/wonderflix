@@ -1363,12 +1363,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_queueSearchFocused) return _onQueueSearchKey(event);
     if (_ratingCommentFocused) return _onRatingCommentKey(event);
     if (_onRatingKey(event)) return KeyEventResult.handled;
-    // ? apre e chiude la scheda dei tasti; da una tastiera italiana è
-    // Maiusc+' e il tasto logico non è `question`: conta il carattere.
+    // ? apre e chiude la scheda dei tasti (non su TV e telefono); da una
+    // tastiera italiana è Maiusc+' e il tasto logico non è `question`: conta
+    // il carattere. Il ramo `question` non si simula nei test (flutter_test
+    // non ha il tasto fisico).
+    final form = FormFactor.of(context);
     if (event is KeyDownEvent &&
         (event.character == '?' ||
             event.logicalKey == LogicalKeyboardKey.question) &&
-        !FormFactor.of(context).tv) {
+        !form.tv &&
+        !form.touch) {
       _chrome
         ..keyActivity()
         ..toggleKeysCard();
@@ -2267,24 +2271,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                   ),
                 // Scheda dei tasti aperta con ?: nella pausa c'è già la sua.
-                if (_chrome.keysCard && !_chrome.pauseScreen)
+                // Non ci sta: si rimpicciolisce.
+                if (_chrome.keysCard &&
+                    !_chrome.pauseScreen &&
+                    !formFactor.tv &&
+                    !touch)
                   Positioned.fill(
                     key: const ValueKey('player-keys-card'),
                     child: ExcludeFocus(
-                      child: compact
-                          ? const Align(
-                              alignment: Alignment.topCenter,
-                              child: Padding(
-                                padding: EdgeInsets.fromLTRB(16, 96, 16, 0),
-                                child: PlayerKeysCard(),
-                              ),
-                            )
-                          : const Stack(
-                              children: [
-                                Positioned(
-                                    right: 64, top: 96, child: PlayerKeysCard()),
-                              ],
-                            ),
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                            16, 96, compact ? 16 : 64, 16),
+                        child: Align(
+                          alignment: compact
+                              ? Alignment.topCenter
+                              : Alignment.topRight,
+                          child: const FittedBox(
+                              fit: BoxFit.scaleDown, child: PlayerKeysCard()),
+                        ),
+                      ),
                     ),
                   ),
                 // Riscontro dei tasti e avvisi del watch party (anche dopo

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
@@ -12,6 +13,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/player/playback_service.dart';
 import 'package:wonderflix/features/player/player_chrome.dart';
+import 'package:wonderflix/features/player/player_keys.dart';
 import 'package:wonderflix/features/player/player_pill.dart';
 import 'package:wonderflix/features/player/player_providers.dart';
 import 'package:wonderflix/features/player/player_screen.dart';
@@ -152,6 +154,15 @@ void main() {
 
   // Sul film, a lato dei pulsanti al centro (layout stretto).
   const center = Offset(150, 195);
+
+  testWidgets('tocco: ? non apre la scheda dei tasti', (tester) async {
+    await pumpPlayer(tester, touch: true);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.slash, character: '?');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.slash);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerKeysCard), findsNothing);
+    await unmount(tester);
+  });
 
   testWidgets('tocco: un tocco sul video mostra i controlli e non mette in '
       'pausa', (tester) async {

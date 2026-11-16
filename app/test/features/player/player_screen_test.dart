@@ -93,6 +93,7 @@ void main() {
     bool settle = true,
     List<Override> overrides = const [],
     String route = '/play/e4',
+    Size size = const Size(1440, 900),
   }) async {
     router = GoRouter(
       routes: [
@@ -116,11 +117,10 @@ void main() {
       ],
     );
     addTearDown(router.dispose);
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
     // La vista vera: senza, la `MediaQuery` resta 800x600 (layout stretto).
-    tester.view.physicalSize =
-        const Size(1440, 900) * tester.view.devicePixelRatio;
+    tester.view.physicalSize = size * tester.view.devicePixelRatio;
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       ProviderScope(
@@ -538,6 +538,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(PlayerKeysCard), findsNothing);
     expect(find.text('home'), findsNothing, reason: 'si resta nel player');
+    await unmount(tester);
+  });
+
+  testWidgets('finestra 800×600: la scheda dei tasti sta nello schermo', (
+    tester,
+  ) async {
+    await pumpPlayer(tester, size: const Size(800, 600));
+    await pressQuestion(tester);
+    final card = tester.getRect(find.byType(PlayerKeysCard));
+    expect(card.top, greaterThanOrEqualTo(0));
+    expect(card.left, greaterThanOrEqualTo(0));
+    expect(card.right, lessThanOrEqualTo(800));
+    expect(card.bottom, lessThanOrEqualTo(600));
+    expect(tester.takeException(), isNull);
     await unmount(tester);
   });
 
