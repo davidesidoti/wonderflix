@@ -303,10 +303,16 @@ void main() {
     expect(inField(), isFalse);
   });
 
-  for (final expired in [true, false]) {
+  for (final (scale, expired) in [
+    for (final scale in [1.0, 1.3, 1.5])
+      for (final expired in [true, false]) (scale, expired),
+  ]) {
     testWidgets(
         'TV, Quick Connect (${expired ? 'scaduto, con Ciao' : 'primo accesso'}'
-        '): focus sulla scheda, codice e passi nei 540', (tester) async {
+        ', testo ×$scale): focus sulla scheda, codice e passi nei 540',
+        (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await pumpApp(tester, const LoginScreen(),
           tv: true,
           surfaceSize: const Size(960, 540),
@@ -348,6 +354,42 @@ void main() {
           lessThan(tester.getRect(find.byKey(const Key('login-panel'))).left));
     });
   }
+
+  testWidgets('TV, testo ×1.3: dalla scheda Password Giù arriva ad Accedi '
+      'senza tastiera, tutto nei 540', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pumpRelogin(tester, tv: true, quickConnect: true);
+    await tester.tap(find.widgetWithText(Tab, 'Password'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull);
+
+    bool inField() =>
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<EditableText>() !=
+        null;
+    bool onSubmit() {
+      var found = false;
+      FocusManager.instance.primaryFocus?.context?.visitAncestorElements((e) {
+        found = e.widget.key == const Key('login-submit');
+        return !found;
+      });
+      return found;
+    }
+
+    Focus.of(tester.element(find.widgetWithText(Tab, 'Password')))
+        .requestFocus();
+    await tester.pump();
+    for (var i = 0; i < 3; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(inField(), isFalse);
+    }
+    expect(onSubmit(), isTrue);
+    expect(tester.getRect(find.byKey(const Key('login-submit'))).bottom,
+        lessThanOrEqualTo(540));
+  });
 
   testWidgets('scheda Quick Connect solo se attivo sul server', (tester) async {
     await pumpLogin(tester);

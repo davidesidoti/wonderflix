@@ -156,12 +156,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Lo rimette la scheda qui sotto, se c'è.
     _tabs = null;
 
+    // In TV la pagina non scorre (col testo di sistema grande il pannello non
+    // ha niente di focusabile in fondo): si rimpicciolisce per stare nei 540.
+    Widget fit(Widget content) => tv
+        ? Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+                child: FittedBox(fit: BoxFit.scaleDown, child: content)))
+        : Center(
+            child: SingleChildScrollView(
+                padding: EdgeInsets.all(compact ? 16 : 32), child: content));
+
     final page = Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(compact ? 16 : 32),
+      body: fit(
           // Il logo, poi il pannello (spec C §11.3).
-          child: StaggerGroup(
+          StaggerGroup(
             count: 2,
             child: Flex(
               direction: stacked ? Axis.vertical : Axis.horizontal,
@@ -323,7 +332,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ],
             ),
           ),
-        ),
       ),
     );
     // Sulla TV Indietro non chiude l'app: chiude il recupero, da un'altra
