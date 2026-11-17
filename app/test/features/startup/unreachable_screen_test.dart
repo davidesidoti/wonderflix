@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/app/router.dart';
 import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/auth/auth_service.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -123,7 +124,9 @@ void main() {
     await t.tap(find.text('Riprova ora'));
     await t.pump();
     expect(find.text('Riprovo…'), findsOneWidget);
-    expect(t.widget<WfButton>(retryButton).onPressed, isNull);
+    // Acceso (il focus della TV resta), ma non parte un secondo tentativo.
+    await t.tap(find.text('Riprova ora'));
+    await t.pump();
     // Il conto resta fermo mentre si riprova.
     await t.pump(const Duration(seconds: 20));
     expect(fake.openedProfiles, ['u2']);
@@ -165,6 +168,73 @@ void main() {
     await t.pump();
     expect(Focus.of(t.element(find.text('Riprova ora'))).hasFocus, isTrue);
     expect(t.takeException(), isNull);
+  });
+
+  testWidgets('TV: dopo un tentativo "Riprova ora" ha ancora il focus', (
+    t,
+  ) async {
+    final fake = _SlowRetry();
+    await pumpApp(
+      t,
+      const UnreachableScreen(),
+      overrides: [sessionControllerProvider.overrideWith(() => fake)],
+      tv: true,
+      surfaceSize: const Size(960, 540),
+    );
+    await t.pump();
+    await t.pump(const Duration(seconds: 15));
+    expect(find.text('Riprovo…'), findsOneWidget);
+    expect(Focus.of(t.element(find.text('Riprova ora'))).hasFocus, isTrue);
+    fake.opening.complete();
+    await t.pump();
+    await t.pump();
+    expect(find.text('Riprovo tra 15 s'), findsOneWidget);
+    expect(Focus.of(t.element(find.text('Riprova ora'))).hasFocus, isTrue);
+  });
+
+  testWidgets('dal router: un nuovo motivo non riapre la schermata', (t) async {
+    final fake = FakeSessionController(
+      const SessionUnreachable(reason: UnreachableReason.offline),
+    );
+    await pumpAppRouterOf(
+      t,
+      (ref) => ref.watch(routerProvider),
+      overrides: [sessionControllerProvider.overrideWith(() => fake)],
+    );
+    await t.pump();
+    expect(find.text('Sei offline'), findsOneWidget);
+    await t.pump(const Duration(seconds: 120));
+    expect(find.text('In attesa da 2 min'), findsOneWidget);
+
+    fake.set(const SessionUnreachable(reason: UnreachableReason.starting));
+    await t.pump();
+    await t.pump();
+    expect(find.text('Il server si sta avviando'), findsOneWidget);
+    expect(find.text('In attesa da 2 min'), findsOneWidget);
+  });
+
+  testWidgets('dopo un tentativo la linea torna vuota di colpo', (t) async {
+    await pumpUnreachable(
+      t,
+      const SessionUnreachable(),
+      motion: MotionLevel.full,
+    );
+    double fill() => t
+        .widget<FractionallySizedBox>(
+          find.descendant(
+            of: find.byKey(const Key('retry-line')),
+            matching: find.byType(FractionallySizedBox),
+          ),
+        )
+        .widthFactor!;
+    await t.pump(const Duration(seconds: 14));
+    await t.pump(const Duration(milliseconds: 999));
+    expect(fill(), closeTo(14 / 15, 0.01));
+    await t.pump(const Duration(milliseconds: 1)); // il tentativo
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 16));
+    expect(find.text('Riprovo tra 15 s'), findsOneWidget);
+    expect(fill(), 0);
   });
 
   testWidgets('telefono: pulsanti a tutta larghezza, testo centrato, niente '
@@ -236,7 +306,7 @@ void main() {
     expect(fake.openedProfiles, isEmpty);
   });
 
-  testWidgets('"Cambia profilo" spento mentre si riprova', (t) async {
+  testWidgets('"Cambia profilo" non fa niente mentre si riprova', (t) async {
     final fake = _SlowRetry();
     await pumpApp(
       t,
@@ -246,10 +316,15 @@ void main() {
 
     await t.tap(find.text('Riprova ora'));
     await t.pump();
-    expect(t.widget<WfButton>(switchButton).onPressed, isNull);
+    await t.tap(switchButton);
+    await t.pump();
+    expect(fake.backToProfilesCalls, 0);
 
     fake.opening.complete();
     await t.pump();
-    expect(t.widget<WfButton>(switchButton).onPressed, isNotNull);
+    await t.pump();
+    await t.tap(switchButton);
+    await t.pump();
+    expect(fake.backToProfilesCalls, 1);
   });
 }

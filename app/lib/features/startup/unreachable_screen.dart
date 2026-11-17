@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -30,9 +31,10 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
   /// Secondi al prossimo tentativo automatico.
   int _left = UnreachableScreen.retrySeconds;
 
-  /// Secondi da quando la schermata è aperta: non si azzera a ogni tentativo,
-  /// né quando il motivo cambia.
-  int _waited = 0;
+  /// Quando la schermata si è aperta: l'attesa non si azzera a ogni
+  /// tentativo, né quando il motivo cambia. Con l'orologio e non coi battiti,
+  /// che in una scheda in background rallentano.
+  final DateTime _since = clock.now();
 
   @override
   void initState() {
@@ -48,7 +50,6 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
 
   void _tick() {
     setState(() {
-      _waited++;
       if (!_busy && _left > 0) _left--;
     });
     if (!_busy && _left == 0) unawaited(_retry());
@@ -106,24 +107,30 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
     };
     const muted = TextStyle(color: WfColors.creamMuted, fontSize: 13);
     const tabular = [FontFeature.tabularFigures()];
+    final waitedMinutes = clock.now().difference(_since).inMinutes;
 
     final buttons = [
       WfButton.primary(
         label: l.unreachableRetryNow,
         icon: LucideIcons.refreshCw,
         autofocus: form.tv,
-        onPressed: _busy ? null : _retry,
+        // Sempre acceso: un pulsante spento perde il focus della TV a ogni
+        // tentativo. Durante il tentativo `_retry` non fa niente.
+        onPressed: _retry,
       ),
       // Il profilo scelto non si apre: si può tornare a "Chi guarda?",
       // perché l'errore può essere di quel profilo e "Riprova" non
-      // riuscirebbe mai.
+      // riuscirebbe mai. Durante un tentativo non fa niente: il profilo
+      // potrebbe aprirsi subito dopo.
       if (retryUserId != null)
         WfButton.secondary(
           label: l.profilesSwitch,
           icon: LucideIcons.users,
-          onPressed: _busy
-              ? null
-              : ref.read(sessionControllerProvider.notifier).backToProfiles,
+          onPressed: () {
+            if (!_busy) {
+              ref.read(sessionControllerProvider.notifier).backToProfiles();
+            }
+          },
         ),
     ];
 
@@ -207,11 +214,11 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
                             style: muted.copyWith(fontFeatures: tabular),
                           ),
                         ),
-                        if (_waited >= 120) ...[
+                        if (waitedMinutes >= 2) ...[
                           const SizedBox(width: 12),
                           Flexible(
                             child: Text(
-                              l.unreachableWaiting(_waited ~/ 60),
+                              l.unreachableWaiting(waitedMinutes),
                               textAlign: TextAlign.end,
                               style: muted.copyWith(fontFeatures: tabular),
                             ),
@@ -229,7 +236,11 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
                           begin: 0,
                           end: 1 - _left / UnreachableScreen.retrySeconds,
                         ),
-                        duration: const Duration(seconds: 1),
+                        // Dopo un tentativo torna vuota di colpo, senza
+                        // scorrere all'indietro.
+                        duration: _left == UnreachableScreen.retrySeconds
+                            ? Duration.zero
+                            : const Duration(seconds: 1),
                         builder: (context, value, _) => Container(
                           height: 3,
                           color: WfColors.border,
