@@ -150,6 +150,8 @@
   "searchNoResults": "Nessun risultato per \"{term}\"",
   "@searchNoResults": {"placeholders": {"term": {"type": "String"}}},
   "searchPeople": "Persone",
+  "searchCatalogTerm": "Cerca: “{term}”",
+  "@searchCatalogTerm": {"placeholders": {"term": {"type": "String"}}},
   "myListEmpty": "Qui trovi i film e le serie che salvi con il cuore, nella scheda del titolo o nell'anteprima.",
   "settingsLanguageSystem": "Lingua di sistema",
   "settingsAccount": "Account",

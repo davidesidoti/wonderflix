@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
@@ -26,4 +28,12 @@ void openCatalog(BuildContext context, ItemKind kind,
   };
   context.go(Uri(path: path, queryParameters: query.isEmpty ? null : query)
       .toString());
+}
+
+/// Apre il catalogo di [kind] con la ricerca [term] già scritta
+/// (`/movies?q=…`): con push, così Indietro torna a Cerca coi risultati.
+void openCatalogSearch(BuildContext context, ItemKind kind, String term) {
+  final path = kind == ItemKind.series ? '/series' : '/movies';
+  unawaited(context
+      .push(Uri(path: path, queryParameters: {'q': term}).toString()));
 }

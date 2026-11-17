@@ -61,6 +61,17 @@ void main() {
     expect(container.read(provider).items, hasLength(100));
   });
 
+  test('showGenre con una ricerca la mette nella query, poi la tiene',
+      () async {
+    container.listen(provider, (_, _) {});
+    final controller = container.read(provider.notifier);
+    await controller.showGenre(null, searchTerm: 'ist');
+    expect(api.itemQueries.last.searchTerm, 'ist');
+    await controller.showGenre('Dramma');
+    expect(api.itemQueries.last.searchTerm, 'ist');
+    expect(api.itemQueries.last.genres, isNotEmpty);
+  });
+
   test('showGenre(null) torna a tutto, per data di aggiunta', () async {
     container.listen(provider, (_, _) {});
     await container.read(provider.notifier).showGenre('Horror');

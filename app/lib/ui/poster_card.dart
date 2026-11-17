@@ -22,12 +22,15 @@ import 'wf_image.dart';
 /// righe, e le due righe di una serie. Il testo segue la scala del sistema.
 double catalogCardTextHeight(TextScaler scaler) => 8 + scaler.scale(76);
 
-/// Altezza della cella del catalogo in una griglia larga [extent]: la
-/// locandina cresce con la colonna, il testo no. Stessa conta di colonne di
+/// Colonne della griglia del catalogo larga [extent]: stessa conta di
 /// `SliverGridDelegateWithMaxCrossAxisExtent` (180, spazio 16).
+int catalogColumnCount(double extent) => max(1, (extent / (180 + 16)).ceil());
+
+/// Altezza della cella del catalogo in una griglia larga [extent]: la
+/// locandina cresce con la colonna, il testo no.
 double catalogCellExtent(double extent, TextScaler scaler) {
-  const maxWidth = 180.0, gap = 16.0;
-  final columns = max(1, (extent / (maxWidth + gap)).ceil());
+  const gap = 16.0;
+  final columns = catalogColumnCount(extent);
   final width = (extent - gap * (columns - 1)) / columns;
   return width * 1.5 + catalogCardTextHeight(scaler);
 }

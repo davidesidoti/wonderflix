@@ -44,4 +44,32 @@ void main() {
     await open(ItemKind.series, genre: 'Dramma');
     expect(location(), '/series?genre=Dramma');
   });
+
+  testWidgets('openCatalogSearch apre il catalogo con la ricerca e Indietro '
+      'torna', (tester) async {
+    late BuildContext ctx;
+    final router = GoRouter(initialLocation: '/search', routes: [
+      GoRoute(
+          path: '/:p',
+          builder: (c, s) {
+            ctx = c;
+            return const SizedBox();
+          }),
+    ]);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    String location() =>
+        router.state.uri.toString();
+
+    openCatalogSearch(ctx, ItemKind.movie, 'ist');
+    await tester.pumpAndSettle();
+    expect(location(), '/movies?q=ist');
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(location(), '/search');
+
+    openCatalogSearch(ctx, ItemKind.series, 'l’ist');
+    await tester.pumpAndSettle();
+    expect(Uri.parse(location()).path, '/series');
+    expect(Uri.parse(location()).queryParameters['q'], 'l’ist');
+  });
 }

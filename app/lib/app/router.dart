@@ -240,7 +240,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                       kind: ItemKind.movie,
                       view: CatalogView.parse(
                           state.uri.queryParameters['view']),
-                      genre: state.uri.queryParameters['genre']),
+                      genre: state.uri.queryParameters['genre'],
+                      search: state.uri.queryParameters['q']),
                   underBar: false)),
           GoRoute(
               path: '/series',
@@ -250,7 +251,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   CatalogScreen(
                       key: const ValueKey('series'),
                       kind: ItemKind.series,
-                      genre: state.uri.queryParameters['genre']),
+                      genre: state.uri.queryParameters['genre'],
+                      search: state.uri.queryParameters['q']),
                   underBar: false)),
           GoRoute(
               path: '/mylist',

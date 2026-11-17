@@ -132,6 +132,7 @@
   "searchPrompt": "Type at least 2 letters to search.",
   "searchNoResults": "No results for \"{term}\"",
   "searchPeople": "People",
+  "searchCatalogTerm": "Search: “{term}”",
   "myListEmpty": "This is where the movies and series you save with the heart end up, from a title's page or its preview.",
   "settingsLanguageSystem": "System language",
   "settingsAccount": "Account",

@@ -53,6 +53,7 @@ void main() {
 
   Future<void> pumpCatalog(WidgetTester tester,
       {String? genre,
+      String? search,
       MotionLevel motion = MotionLevel.reduced,
       bool tv = false,
       Size surfaceSize = const Size(1440, 900),
@@ -61,7 +62,9 @@ void main() {
     // antenato Material per i menu).
     await pumpApp(
         tester,
-        Scaffold(body: CatalogScreen(kind: ItemKind.movie, genre: genre)),
+        Scaffold(
+            body: CatalogScreen(
+                kind: ItemKind.movie, genre: genre, search: search)),
         motion: motion,
         tv: tv,
         surfaceSize: surfaceSize,
@@ -211,6 +214,30 @@ void main() {
       expect(find.byType(CatalogBand).hitTestable(), findsOneWidget);
     });
 
+    testWidgets(
+        'con una ricerca: la pastiglia Cerca prende il focus e OK la toglie',
+        (tester) async {
+      await pumpCatalog(tester,
+          search: 'ist', tv: true, surfaceSize: const Size(960, 540));
+      await tester.pump();
+      expect(api.itemQueries.where((q) => q.searchTerm == 'ist'), isNotEmpty);
+      final pill = find.text('Cerca: “ist”');
+      expect(pill, findsOneWidget);
+
+      // Dai generi, giù fino alla pastiglia (dopo gli attrezzi).
+      final pillFocus = find.descendant(
+          of: find.ancestor(of: pill, matching: find.byType(TvFocusable)),
+          matching: focused());
+      for (var i = 0; i < 4 && pillFocus.evaluate().isEmpty; i++) {
+        await key(tester, LogicalKeyboardKey.arrowDown);
+      }
+      expect(pillFocus, findsOneWidget);
+
+      await key(tester, LogicalKeyboardKey.select);
+      expect(pill, findsNothing);
+      expect(api.itemQueries.last.searchTerm, isNull);
+    });
+
     testWidgets('genere sotto la soglia: il focus va su Tutti',
         (tester) async {
       await pumpCatalog(tester,
@@ -230,6 +257,21 @@ void main() {
     await tester.pump();
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Chiudi'), findsOneWidget);
+  });
+
+  testWidgets('il catalogo aperto con ?q mostra il termine nello stretto',
+      (tester) async {
+    await pumpCatalog(tester,
+        search: 'ist', surfaceSize: const Size(390, 780));
+    expect(gridQueries.first.searchTerm, 'ist');
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'ist');
+    expect(find.text('Chiudi'), findsOneWidget);
+
+    await tester.tap(find.text('Chiudi'));
+    await tester.pump();
+    await tester.pump();
+    expect(gridQueries.last.searchTerm, isNull);
   });
 
   testWidgets('?genre=Drama vale Dramma: titolo e filtro in italiano',

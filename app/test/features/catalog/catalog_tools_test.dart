@@ -186,14 +186,13 @@ void main() {
     expect(changes.last.seriesStatus, SeriesStatusFilter.ended);
   });
 
-  testWidgets('stretto: Chiudi toglie la ricerca attiva', (tester) async {
+  testWidgets('stretto: con una ricerca il campo è già aperto, Chiudi la '
+      'toglie', (tester) async {
     final changes = await pump(
       tester,
       query: movies.copyWith(searchTerm: 'dune'),
       size: const Size(390, 800),
     );
-    await tester.tap(find.byTooltip('Cerca tra i film'));
-    await tester.pump();
     expect(find.text('dune'), findsOneWidget);
     await tester.tap(find.text('Chiudi'));
     await tester.pump();

@@ -43,7 +43,9 @@ class _CatalogToolsState extends State<CatalogTools> {
     text: widget.query.searchTerm ?? '',
   );
   Timer? _timer;
-  bool _searchOpen = false;
+
+  /// Aperta da sola se il catalogo arriva con una ricerca (da Cerca).
+  late bool _searchOpen = (widget.query.searchTerm ?? '').isNotEmpty;
 
   bool get _series => widget.kind == ItemKind.series;
 
@@ -52,7 +54,9 @@ class _CatalogToolsState extends State<CatalogTools> {
     super.didUpdateWidget(old);
     // "Azzera filtri" (o chi sta sopra) cambia la ricerca da fuori.
     final term = widget.query.searchTerm ?? '';
-    if (term != (old.query.searchTerm ?? '') && term != _controller.text) {
+    if (term == (old.query.searchTerm ?? '')) return;
+    if (term.isNotEmpty) _searchOpen = true;
+    if (term != _controller.text) {
       _timer?.cancel();
       _controller.text = term;
     }
@@ -247,7 +251,9 @@ class _CatalogToolsState extends State<CatalogTools> {
       return Row(
         spacing: 8,
         children: [
-          Expanded(child: _searchField(l, autofocus: true)),
+          Expanded(
+            child: _searchField(l, autofocus: _controller.text.isEmpty),
+          ),
           TextButton(
             onPressed: _closeSearch,
             child: Text(l.catalogSearchClose),

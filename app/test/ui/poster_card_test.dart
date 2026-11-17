@@ -166,6 +166,12 @@ void main() {
     });
   }
 
+  test('catalogColumnCount: colonne come la griglia del catalogo', () {
+    expect(catalogColumnCount(358), 2); // telefono 390 - 32
+    expect(catalogColumnCount(1216), 7); // 1280 - 64
+    expect(catalogColumnCount(0), 1);
+  });
+
   test('catalogCellExtent: con estensione 0 non divide per zero', () {
     expect(catalogCellExtent(0, TextScaler.noScaling).isFinite, isTrue);
   });

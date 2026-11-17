@@ -34,12 +34,17 @@ class CatalogScreen extends ConsumerStatefulWidget {
       {super.key,
       required this.kind,
       this.view = CatalogView.titles,
-      this.genre});
+      this.genre,
+      this.search});
 
   final ItemKind kind;
 
   /// Genere da mostrare (dal parametro `genre` dell'indirizzo); null: tutti.
   final String? genre;
+
+  /// Ricerca già scritta (dal parametro `q`, aperta da Cerca); null: quella
+  /// di prima.
+  final String? search;
 
   /// Solo per i film. Senza la funzione `collections` del plugin vale come
   /// [CatalogView.titles].
@@ -94,7 +99,7 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
         if (!mounted) return;
         unawaited(ref
             .read(catalogControllerProvider(widget.kind).notifier)
-            .showGenre(_genre));
+            .showGenre(_genre, searchTerm: widget.search));
       }));
 
   @override
@@ -102,7 +107,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     super.didUpdateWidget(oldWidget);
     // go_router riusa la schermata cambiando `?genre=`.
     if (widget.view == CatalogView.titles &&
-        (oldWidget.view != widget.view || oldWidget.genre != widget.genre)) {
+        (oldWidget.view != widget.view ||
+            oldWidget.genre != widget.genre ||
+            oldWidget.search != widget.search)) {
       _showGenre();
     }
   }
@@ -249,6 +256,9 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
                   totals: totals,
                   onChanged: (query) => unawaited(controller.setQuery(query)),
                 ),
+                // In TV la barra non ha il campo: il termine si toglie qui.
+                if (tv && (state.query.searchTerm ?? '').isNotEmpty)
+                  _searchPill(l, state.query, controller),
               ],
             ),
           ),
@@ -301,6 +311,31 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
           else
             grid,
         ],
+      ),
+    );
+  }
+
+  /// "Cerca: “ist”" con la ✕ (TV): OK la toglie e il catalogo torna intero.
+  Widget _searchPill(
+      AppLocalizations l, ItemQuery query, CatalogController controller) {
+    void clear() =>
+        unawaited(controller.setQuery(query.copyWith(searchTerm: null)));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: TvFocusable(
+          onActivate: clear,
+          borderRadius: BorderRadius.circular(999),
+          // Il focus è del TvFocusable, non del chip.
+          child: ExcludeFocus(
+            child: InputChip(
+              label: Text(l.searchCatalogTerm(query.searchTerm!)),
+              onPressed: clear,
+              onDeleted: clear,
+            ),
+          ),
+        ),
       ),
     );
   }
