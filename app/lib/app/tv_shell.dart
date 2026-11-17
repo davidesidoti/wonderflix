@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/tonight/tonight_dialog.dart';
+import '../ui/tv_lanes.dart';
 import 'back_navigation.dart';
 import 'tv_account_menu.dart';
 import 'tv_back.dart';
@@ -103,7 +104,10 @@ class _TvShellState extends ConsumerState<TvShell> {
             null) {
       return KeyEventResult.ignored;
     }
-    if (!primary.focusInDirection(TraversalDirection.left)) {
+    // In una fila di [TvLanes] la prima carta è il bordo: niente salti in
+    // un'altra fila più a sinistra.
+    if (isInTvLane(primary) ||
+        !primary.focusInDirection(TraversalDirection.left)) {
       _sidebar.currentState?.focusEntryFor(GoRouterState.of(context).uri.path);
     }
     return KeyEventResult.handled;

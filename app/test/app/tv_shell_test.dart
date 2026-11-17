@@ -13,6 +13,7 @@ import 'package:wonderflix/features/friends/friends_button.dart';
 import 'package:wonderflix/features/requests/requests_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_button.dart';
 import 'package:wonderflix/ui/tv_focusable.dart';
+import 'package:wonderflix/ui/tv_lanes.dart';
 import 'package:wonderflix/app/shell_bottom_bar.dart';
 
 import '../support/fake_session_controller.dart';
@@ -85,7 +86,36 @@ void main() {
                 ),
               ),
             ),
-            page('/mylist'),
+            // Tre file (come Cerca): la cornice e una carta a 200, sotto
+            // una carta più a sinistra, a 20.
+            page(
+              '/mylist',
+              child: TvLanes(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final (key, left) in [
+                      ('lane-frame', 200.0),
+                      ('lane-card', 200.0),
+                      ('lane-far', 20.0),
+                    ])
+                      TvLane(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: left, top: 20),
+                          child: TvFocusable(
+                            onActivate: () {},
+                            child: SizedBox(
+                              key: Key(key),
+                              width: 100,
+                              height: 40,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
             page('/requests'),
             page(
               '/search',
@@ -480,6 +510,26 @@ void main() {
 
     expect(Focus.of(tester.element(nav('/movies'))).hasPrimaryFocus, isTrue);
   });
+
+  for (final start in ['lane-frame', 'lane-card']) {
+    testWidgets('in una fila di TvLanes Sinistra dalla prima carta ($start) '
+        'va alla barra, non a un\'altra fila', (tester) async {
+      final r = await pumpShell(tester);
+      r.go('/mylist');
+      await tester.pumpAndSettle();
+      Focus.of(tester.element(find.byKey(Key(start)))).requestFocus();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+
+      expect(
+        Focus.of(tester.element(find.byKey(const Key('lane-far')))).hasFocus,
+        isFalse,
+      );
+      expect(Focus.of(tester.element(nav('/mylist'))).hasPrimaryFocus, isTrue);
+    });
+  }
 
   testWidgets('Destra dalla barra torna all\'elemento che aveva il focus', (
     tester,

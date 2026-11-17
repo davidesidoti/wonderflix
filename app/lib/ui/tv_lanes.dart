@@ -75,6 +75,8 @@ class _TvLanesState extends State<TvLanes> {
       // La fila torna all'inizio: la prima carta si costruisce al frame dopo.
       onEnter();
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        // La fila può essere sparita intanto (risultati nuovi).
+        if (target.disposed) return;
         // La più a sinistra: l'ordine dei nodi cambia con le ricostruzioni.
         final first = _nearest(target.traversalDescendants, target.rect.left);
         if (first != null) _focus(first, direction);
@@ -114,6 +116,10 @@ class _TvLanesState extends State<TvLanes> {
       Focus(focusNode: _page, onKeyEvent: _onKey, child: widget.child);
 }
 
+/// [node] sta in una [TvLane]: Sinistra sulla sua prima carta (che [TvLanes]
+/// lascia passare) va alla barra, non in un'altra fila più a sinistra.
+bool isInTvLane(FocusNode node) => node.ancestors.any((n) => n is _LaneNode);
+
 /// Una fila di una [TvLanes]. Con [onEnter] chi arriva da un'altra fila
 /// va alla prima carta, dopo [onEnter] (per esempio la fila torna a 0).
 class TvLane extends StatefulWidget {
@@ -130,6 +136,13 @@ class _LaneNode extends FocusNode {
   _LaneNode() : super(canRequestFocus: false, skipTraversal: true);
 
   TvLane? lane;
+  bool disposed = false;
+
+  @override
+  void dispose() {
+    disposed = true;
+    super.dispose();
+  }
 }
 
 class _TvLaneState extends State<TvLane> {
