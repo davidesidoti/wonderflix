@@ -155,6 +155,9 @@ void main() {
         testItem(id: 'S1', kind: ItemKind.series, tmdbId: 90228),
       ],
       people: [testItem(id: 'p1', kind: ItemKind.person, tmdbId: 5)],
+      movieTotal: 2,
+      seriesTotal: 1,
+      peopleTotal: 1,
     ));
     expect(library.itemIds, {'ee39', 'aaa', 's1'});
     expect(library.movieTmdbIds, {438631});
