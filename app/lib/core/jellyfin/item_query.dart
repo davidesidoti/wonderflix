@@ -32,6 +32,8 @@ class ItemQuery {
     this.includeSortFields = false,
     this.includeProviderIds = false,
     this.includeOverview = false,
+    this.includeSearchFields = false,
+    this.includePeople = false,
   });
 
   final Set<ItemKind> kinds;
@@ -61,6 +63,13 @@ class ItemQuery {
 
   /// Chiede anche `Overview` e `ChildCount` (trama e stagioni del carosello).
   final bool includeOverview;
+
+  /// Chiede anche `OriginalTitle` e `RecursiveItemCount` (quest'ultimo serve a
+  /// `PlayedPercentage` delle serie, quindi al "già iniziato"): la ricerca.
+  final bool includeSearchFields;
+
+  /// Chiede anche `People` (cast e regia), per cercare per nome.
+  final bool includePeople;
 
   /// Valore di [decade] per "Prima" (prima del 1990).
   static const olderDecades = 0;
@@ -104,6 +113,8 @@ class ItemQuery {
         includeSortFields: includeSortFields,
         includeProviderIds: includeProviderIds,
         includeOverview: includeOverview,
+        includeSearchFields: includeSearchFields,
+        includePeople: includePeople,
       );
 
   /// Toglie genere, anno e visti; il resto (tipi, ordinamento, preferiti,
@@ -153,7 +164,11 @@ class ItemQuery {
             : [for (var y = d; y < d + 10; y++) y];
     return {
       ...cardImageParams,
-      if (includeSortFields || includeProviderIds || includeOverview)
+      if (includeSortFields ||
+          includeProviderIds ||
+          includeOverview ||
+          includeSearchFields ||
+          includePeople)
         'fields': [
           cardImageParams['fields'],
           if (includeSortFields)
@@ -161,6 +176,8 @@ class ItemQuery {
           // La data serve al carosello ("nuovo"), senza i campi per ordinare.
           if (includeOverview) 'Overview,ChildCount,DateCreated',
           if (includeProviderIds) 'ProviderIds',
+          if (includeSearchFields) 'OriginalTitle,RecursiveItemCount',
+          if (includePeople) 'People',
         ].join(','),
       'userId': userId,
       'recursive': true,

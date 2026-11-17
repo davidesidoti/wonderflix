@@ -295,15 +295,25 @@ class LibraryApi {
         },
       );
 
-  Future<List<JellyfinItem>> searchPeople(
+  Future<ItemPage> searchPeople(
     String userId,
     String term, {
+    int startIndex = 0,
     int limit = 12,
     CancelToken? cancelToken,
   }) async =>
-      _list(await _http.get('/Persons',
-          query: {'userId': userId, 'searchTerm': term, 'limit': limit},
-          cancelToken: cancelToken));
+      parseJson(
+        await _http.get('/Persons',
+            query: {
+              'userId': userId,
+              'searchTerm': term,
+              'startIndex': startIndex,
+              'limit': limit,
+            },
+            cancelToken: cancelToken),
+        (json) => ItemPage(
+            _items(json), (json['TotalRecordCount'] as num?)?.toInt() ?? 0),
+      );
 
   Future<UserItemData> setFavorite(String userId, String itemId,
           {required bool favorite}) =>

@@ -18,6 +18,12 @@ class FakeLibraryApi implements LibraryApi {
   final Map<String, List<JellyfinItem>> episodesBySeason = {};
   List<JellyfinItem> similarItems = [];
   List<JellyfinItem> people = [];
+
+  /// Totale che [searchPeople] dichiara (default: `people.length`).
+  int? peopleTotal;
+
+  /// Ogni [searchPeople]: termine, partenza, limite.
+  final peopleCalls = <(String term, int startIndex, int limit)>[];
   LibraryFilters libraryFilters = const LibraryFilters();
 
   /// Ultime visioni, per [playHistory].
@@ -296,9 +302,13 @@ class FakeLibraryApi implements LibraryApi {
       _answer(() => filtersByKind[kind] ?? libraryFilters);
 
   @override
-  Future<List<JellyfinItem>> searchPeople(String userId, String term,
-          {int limit = 12, CancelToken? cancelToken}) =>
-      _answer(() => people);
+  Future<ItemPage> searchPeople(String userId, String term,
+      {int startIndex = 0, int limit = 12, CancelToken? cancelToken}) {
+    peopleCalls.add((term, startIndex, limit));
+    return _answer(() => pageOf(
+        people.skip(startIndex).take(limit).toList(),
+        peopleTotal ?? people.length));
+  }
 
   @override
   Future<UserItemData> setFavorite(String userId, String itemId,
@@ -333,6 +343,7 @@ JellyfinItem testItem({
   int? year = 2024,
   int? runtimeMinutes = 120,
   String? overview,
+  String? originalTitle,
   bool played = false,
   bool favorite = false,
   int positionTicks = 0,
@@ -365,6 +376,7 @@ JellyfinItem testItem({
       'ProductionYear': ?year,
       'RunTimeTicks': ?(runtimeMinutes == null ? null : runtimeMinutes * 600000000),
       'Overview': ?overview,
+      'OriginalTitle': ?originalTitle,
       'ImageTags': {'Primary': 'p-$id'},
       'BackdropImageTags': ['b-$id'],
       'UserData': {

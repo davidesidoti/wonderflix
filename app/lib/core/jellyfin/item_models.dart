@@ -210,6 +210,7 @@ class JellyfinItem {
     required this.name,
     required this.kind,
     this.overview,
+    this.originalTitle,
     this.productionYear,
     this.officialRating,
     this.communityRating,
@@ -260,6 +261,7 @@ class JellyfinItem {
       name: json['Name'] as String? ?? '',
       kind: ItemKind.parse(json['Type'] as String?),
       overview: json['Overview'] as String?,
+      originalTitle: json['OriginalTitle'] as String?,
       productionYear: _int(json['ProductionYear']),
       officialRating: json['OfficialRating'] as String?,
       communityRating: _double(json['CommunityRating']),
@@ -306,6 +308,10 @@ class JellyfinItem {
   final String name;
   final ItemKind kind;
   final String? overview;
+
+  /// Titolo nella lingua d'origine. Arriva solo se chiesto
+  /// (`ItemQuery.includeSearchFields`).
+  final String? originalTitle;
   final int? productionYear;
   final String? officialRating;
   final double? communityRating;

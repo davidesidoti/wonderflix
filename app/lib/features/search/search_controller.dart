@@ -80,7 +80,9 @@ class SearchController extends Notifier<SearchState> {
       final results = await Future.wait([
         items(ItemKind.movie),
         items(ItemKind.series),
-        api.searchPeople(userId, term, limit: 12, cancelToken: cancel),
+        api
+            .searchPeople(userId, term, limit: 12, cancelToken: cancel)
+            .then((page) => page.items),
       ]);
       if (!ref.mounted || cancel.isCancelled) return;
       state = SearchState(

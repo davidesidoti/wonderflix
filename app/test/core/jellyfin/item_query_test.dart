@@ -3,6 +3,27 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/jellyfin/item_query.dart';
 
 void main() {
+  test('i campi della ricerca', () {
+    final q = const ItemQuery(
+            kinds: {ItemKind.movie},
+            includeSearchFields: true,
+            includePeople: true)
+        .toQueryParameters(userId: 'u', startIndex: 0, limit: 1);
+    expect((q['fields'] as String).split(','),
+        containsAll(['OriginalTitle', 'RecursiveItemCount', 'People']));
+  });
+
+  test('OriginalTitle arriva nel titolo', () {
+    expect(
+        JellyfinItem.fromJson({
+          'Id': 'm',
+          'Name': 'Maleficent - Signora del male',
+          'Type': 'Movie',
+          'OriginalTitle': 'Maleficent: Mistress of Evil'
+        }).originalTitle,
+        'Maleficent: Mistress of Evil');
+  });
+
   test('parametri di base', () {
     final params = const ItemQuery(kinds: {ItemKind.movie})
         .toQueryParameters(userId: 'u1', startIndex: 100, limit: 50);

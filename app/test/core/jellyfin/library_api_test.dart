@@ -86,10 +86,21 @@ void main() {
     expect(filters.years, isEmpty);
   });
 
-  test('ricerca persone', () async {
-    await api.searchPeople('u1', 'zen', limit: 12);
+  test('ricerca persone: pagina e totale', () async {
+    adapter.handler = (_) => const FakeResponse(200, {
+          'Items': [
+            {'Id': 'p1', 'Name': 'Christian Bale', 'Type': 'Person'}
+          ],
+          'TotalRecordCount': 459,
+        });
+    final page =
+        await api.searchPeople('u1', 'ist', startIndex: 100, limit: 100);
     expect(last().path, '/Persons');
-    expect(last().query['searchTerm'], 'zen');
+    expect(last().query['searchTerm'], 'ist');
+    expect(last().query['startIndex'], 100);
+    expect(last().query['limit'], 100);
+    expect(page.totalCount, 459);
+    expect(page.items.single.name, 'Christian Bale');
   });
 
   test('preferiti e visti: POST per attivare, DELETE per disattivare', () async {
