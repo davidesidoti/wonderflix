@@ -141,6 +141,34 @@ void main() {
       await controller().restore();
       expect(state(), isA<SessionUnreachable>());
     });
+
+    test('Cambia profilo durante restore: il risultato tardivo non riapre',
+        () async {
+      final restored = Completer<RestoreResult>();
+      when(() => auth.restore()).thenAnswer((_) => restored.future);
+      when(() => auth.book).thenReturn(twoProfiles);
+
+      final done = controller().restore();
+      controller().backToProfiles();
+      restored.complete(const RestoredSession(testUser));
+      await done;
+
+      expect(state(), isA<SessionChoosingProfile>());
+    });
+
+    test('Cambia profilo durante restore: un errore tardivo non cambia stato',
+        () async {
+      final restored = Completer<RestoreResult>();
+      when(() => auth.restore()).thenAnswer((_) => restored.future);
+      when(() => auth.book).thenReturn(twoProfiles);
+
+      final done = controller().restore();
+      controller().backToProfiles();
+      restored.completeError(StateError('boom'));
+      await done;
+
+      expect(state(), isA<SessionChoosingProfile>());
+    });
   });
 
   group('openProfile', () {

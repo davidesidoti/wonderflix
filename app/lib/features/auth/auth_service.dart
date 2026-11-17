@@ -119,6 +119,8 @@ class AuthService {
     } else {
       _book = await _store.read();
     }
+    // Lo splash conosce il profilo che si apre prima di `/Users/Me`.
+    onProfilesChanged?.call();
     return switch (_book.profiles.length) {
       0 => const NoStoredSession(),
       1 => await openProfile(_book.profiles.single.userId),
@@ -139,10 +141,16 @@ class AuthService {
       return _book.isEmpty ? const NoStoredSession() : const ChooseProfile();
     }
     _generation++;
+    final generation = _generation;
     _http.setCredentials(
         token: profile.accessToken, deviceId: profile.deviceId);
+    // Superata ("Cambia profilo" dallo splash, un altro profilo, un accesso):
+    // non tocca né il client né lo storage.
+    RestoreResult superseded() =>
+        _book.isEmpty ? const NoStoredSession() : const ChooseProfile();
     try {
       final user = await _api.getMe(quietStatuses: _expiredTokenStatuses);
+      if (generation != _generation) return superseded();
       _activeUserId = profile.userId;
       await _save(_book
           .upsert(profile.copyWith(
@@ -154,10 +162,12 @@ class AuthService {
           .withLast(profile.userId));
       return RestoredSession(user);
     } on UnauthorizedException {
+      if (generation != _generation) return superseded();
       _deactivate();
       await _save(_book.upsert(profile.copyWith(expired: true)));
       return StoredSessionExpired(profile.userId);
     } on ApiException catch (error) {
+      if (generation != _generation) return superseded();
       _deactivate();
       return RestoreServerUnreachable(unreachableReasonOf(error));
     }

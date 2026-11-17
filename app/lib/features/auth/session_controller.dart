@@ -83,14 +83,20 @@ class SessionController extends Notifier<SessionState> {
 
   AuthService get _auth => ref.read(authServiceProvider);
 
+  /// Un risultato che arriva dopo un cambio di stato (per esempio "Cambia
+  /// profilo" dallo splash) si scarta: l'utente ha già scelto altro.
   Future<void> restore() async {
+    final before = state;
+    SessionState next;
     try {
-      _apply(_stateFor(await _auth.restore()));
+      next = _stateFor(await _auth.restore());
     } on Object {
       // Difesa in profondità: nessun errore imprevisto deve bloccare l'avvio
       // sulla schermata di splash.
-      _apply(const SessionUnreachable());
+      next = const SessionUnreachable();
     }
+    if (!ref.mounted || !identical(state, before)) return;
+    _apply(next);
   }
 
   /// Apre un profilo da "Chi guarda?" (spec K §9.4). Un errore imprevisto

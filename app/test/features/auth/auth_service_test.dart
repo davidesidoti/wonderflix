@@ -152,6 +152,51 @@ void main() {
       expect(store.book.byId('u1')!.accessToken, 'tok-u1');
     });
 
+    test('restore fa conoscere i profili prima di /Users/Me', () async {
+      store.book = bookOf([mario]);
+      var changes = 0;
+      service.onProfilesChanged = () => changes++;
+      when(() => anyGetMe(api))
+          .thenAnswer((_) => Completer<JellyfinUser>().future);
+
+      unawaited(service.restore());
+      await pumpEventQueue();
+
+      expect(changes, greaterThanOrEqualTo(1));
+      expect(service.book.byId('u1')!.name, 'Mario');
+    });
+
+    test('un\'apertura superata da deactivate non apre il profilo', () async {
+      store.book = bookOf([mario]);
+      final me = Completer<JellyfinUser>();
+      when(() => anyGetMe(api)).thenAnswer((_) => me.future);
+
+      final result = service.restore();
+      await pumpEventQueue();
+      service.deactivate();
+      me.complete(testUser);
+
+      expect(await result, isA<ChooseProfile>());
+      expect(service.activeUserId, isNull);
+      expect(http.token, isNull);
+      expect(store.book.lastUserId, isNull);
+    });
+
+    test('un 401 arrivato dopo deactivate non segna il profilo scaduto',
+        () async {
+      store.book = bookOf([mario]);
+      final me = Completer<JellyfinUser>();
+      when(() => anyGetMe(api)).thenAnswer((_) => me.future);
+
+      final result = service.restore();
+      await pumpEventQueue();
+      service.deactivate();
+      me.completeError(const UnauthorizedException());
+
+      expect(await result, isA<ChooseProfile>());
+      expect(store.book.byId('u1')!.expired, isFalse);
+    });
+
     test('il motivo dal tipo di errore', () {
       expect(unreachableReasonOf(const ServerUnreachableException()),
           UnreachableReason.offline);

@@ -1,9 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
+import '../../l10n/gen/app_localizations.dart';
+import '../../ui/wf_buttons.dart';
+import '../auth/profiles_state.dart';
+import '../auth/session_controller.dart';
 
 /// Entrata del logo dello splash: comparsa e un solo riflesso oro (spec C
 /// §11.3). Non allunga l'avvio: se la sessione è pronta prima, si va avanti.
@@ -18,21 +24,33 @@ const _sheenPass = Interval(0.45, 1, curve: WfMotion.standard);
 /// Larghezza della fascia del riflesso, in frazione della larghezza del logo.
 const _sheenWidth = 0.35;
 
+/// Dopo questo tempo lo splash dice quale profilo apre e lascia cambiarlo
+/// (spec §9.3): `/Users/Me` può restare appeso.
+const splashSlowAfter = Duration(seconds: 10);
+
 /// Visibile mentre `SessionController.restore()` riparte dai profili salvati:
 /// nessuno → l'accesso, uno → lo apre (`/Users/Me`), più di uno → "Chi
 /// guarda?".
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   /// `null` con le animazioni ridotte: logo fermo.
   AnimationController? _intro;
   bool _decided = false;
+  bool _slow = false;
+  late final Timer _slowTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _slowTimer = Timer(splashSlowAfter, () => setState(() => _slow = true));
+  }
 
   @override
   void didChangeDependencies() {
@@ -49,6 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _slowTimer.cancel();
     _intro?.dispose();
     super.dispose();
   }
@@ -98,6 +117,11 @@ class _SplashScreenState extends State<SplashScreen>
         },
       );
     }
+    final book = ref.watch(profilesProvider).book;
+    final l = AppLocalizations.of(context);
+    final opening = book.byId(book.lastUserId ?? '') ??
+        (book.profiles.length == 1 ? book.profiles.single : null);
+    final name = opening?.name ?? '';
     return Scaffold(
       body: Center(
         child: Column(
@@ -110,6 +134,25 @@ class _SplashScreenState extends State<SplashScreen>
               height: 28,
               child: CircularProgressIndicator(strokeWidth: 2.5),
             ),
+            if (_slow && !book.isEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                name.isEmpty ? l.splashOpeningUnnamed : l.splashOpening(name),
+                textAlign: TextAlign.center,
+                style:
+                    const TextStyle(color: WfColors.creamMuted, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              WfButton.secondary(
+                label: l.profilesSwitch,
+                icon: LucideIcons.users,
+                // In TV nient'altro ha il focus.
+                autofocus: true,
+                onPressed: () => ref
+                    .read(sessionControllerProvider.notifier)
+                    .backToProfiles(),
+              ),
+            ],
           ],
         ),
       ),
