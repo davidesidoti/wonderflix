@@ -78,16 +78,40 @@ void main() {
   testWidgets('Salva spento senza numero; Salva manda e chiude',
       (tester) async {
     final container = await pump(tester);
-    expect(tester.widget<ButtonStyleButton>(button('Salva')).onPressed, isNull);
+    expect(tester.widget<ButtonStyleButton>(button('Salva voto')).onPressed, isNull);
     await tester.tap(find.byKey(const Key('rating-score-7')));
     await tester.pump();
-    await tester.tap(button('Salva'));
+    await tester.tap(button('Salva voto'));
     await tester.pump();
     await tester.pump();
     expect(api.calls, contains('rate m1 7 -'));
     expect(container.read(shellPanelProvider), ShellPanel.none);
     await tester.pump();
     expect(api.calls.where((c) => c == 'ratings m1'), hasLength(2));
+  });
+
+  testWidgets('scala grande in due file e parola del voto', (tester) async {
+    await pump(tester, mine: const MyRating(score: 8));
+    expect(
+        tester.getTopLeft(find.byKey(const Key('rating-score-6'))).dy,
+        greaterThan(
+            tester.getTopLeft(find.byKey(const Key('rating-score-5'))).dy));
+    expect(tester.getSize(find.byKey(const Key('rating-score-1'))).height, 56);
+    expect(find.textContaining('Molto bello'), findsOneWidget);
+  });
+
+  testWidgets('un piede solo: Togli a sinistra, Salva voto a destra',
+      (tester) async {
+    await pump(tester, mine: const MyRating(score: 5));
+    final remove = tester.getCenter(find.text('Togli il mio voto'));
+    final save = tester.getCenter(find.text('Salva voto'));
+    expect(remove.dx, lessThan(save.dx));
+    expect((remove.dy - save.dy).abs(), lessThan(4));
+  });
+
+  testWidgets('la riga del titolo: film con anno', (tester) async {
+    await pump(tester);
+    expect(find.text('Film · 2024'), findsOneWidget);
   });
 
   testWidgets('Togli il mio voto solo con Mine', (tester) async {
@@ -107,14 +131,14 @@ void main() {
   testWidgets('errore: il pannello resta con il motivo', (tester) async {
     final container = await pump(tester, mine: const MyRating(score: 6));
     api.nextFailure = SocialFailure.network;
-    await tester.tap(button('Salva'));
+    await tester.tap(button('Salva voto'));
     await tester.pump();
     await tester.pump();
     expect(find.text('Voto non salvato'), findsOneWidget);
     expect(container.read(shellPanelProvider), ShellPanel.rate);
 
     api.nextFailure = SocialFailure.rateLimited;
-    await tester.tap(button('Salva'));
+    await tester.tap(button('Salva voto'));
     await tester.pump();
     await tester.pump();
     expect(find.text('Troppi voti: riprova più tardi'), findsOneWidget);
@@ -125,13 +149,13 @@ void main() {
   testWidgets('Salva spento durante il salvataggio', (tester) async {
     await pump(tester, mine: const MyRating(score: 6));
     api.ratingGate = Completer<void>();
-    await tester.tap(button('Salva'));
+    await tester.tap(button('Salva voto'));
     await tester.pump();
-    expect(tester.widget<ButtonStyleButton>(button('Salva')).onPressed, isNull);
+    expect(tester.widget<ButtonStyleButton>(button('Salva voto')).onPressed, isNull);
     expect(
         tester.widget<ButtonStyleButton>(button('Togli il mio voto')).onPressed,
         isNull);
-    await tester.tap(button('Salva'), warnIfMissed: false);
+    await tester.tap(button('Salva voto'), warnIfMissed: false);
     await tester.pump();
     expect(api.calls.where((c) => c.startsWith('rate ')), hasLength(1));
     api.ratingGate!.complete();
@@ -161,7 +185,9 @@ void main() {
     // Con un voto scelto "Salva" è acceso.
     await tester.tap(find.byKey(const Key('rating-score-10')));
     await tester.pump();
-    Focus.of(tester.element(find.byKey(const Key('rating-score-10'))))
+    Focus.of(tester.element(find.descendant(
+            of: find.byKey(const Key('rating-score-10')),
+            matching: find.byType(SizedBox))))
         .requestFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);

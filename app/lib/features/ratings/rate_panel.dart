@@ -51,12 +51,8 @@ void openRatePanel(BuildContext context, WidgetRef ref, RateSubject subject) {
   openShellPanel(context, ref, ShellPanel.rate);
 }
 
-/// Locandina (2:3) in alto.
-const _posterWidth = 80.0;
-const _posterHeight = 120.0;
-
-/// Il pannello per votare dalla scheda: numeri, commento, Salva e, se c'è
-/// già un voto, "Togli il mio voto".
+/// Il pannello per votare dalla scheda: numeri, commento e un piede solo con
+/// "Salva voto" e, se c'è già un voto, "Togli il mio voto".
 class RatePanel extends ConsumerStatefulWidget {
   const RatePanel({super.key, required this.subject});
 
@@ -119,6 +115,51 @@ class _RatePanelState extends ConsumerState<RatePanel> {
     if (mounted) setState(() => _busy = false);
   }
 
+  /// Locandina piccola, titolo e sotto la riga dei dati (film: anno;
+  /// stagione: episodi).
+  Widget _titleRow(AppLocalizations l) {
+    final item = widget.subject.item;
+    final year = item.productionYear;
+    final count = item.childCount;
+    final line = switch (item.kind) {
+      ItemKind.movie =>
+        year == null ? l.requestsKindMovie : '${l.requestsKindMovie} · $year',
+      ItemKind.season => count == null ? null : l.detailEpisodes(count),
+      _ => null,
+    };
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 46,
+            height: 69,
+            child: WfImage(image: ref.watch(imageUrlsProvider).poster(item)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.subject.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: WfColors.cream,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+              if (line != null)
+                Text(line,
+                    style: const TextStyle(
+                        color: WfColors.creamMuted, fontSize: 12.5)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -133,82 +174,89 @@ class _RatePanelState extends ConsumerState<RatePanel> {
         children: [
           PanelHeader(
             title: l.ratingYourVote,
+            subtitle: _titleRow(l),
             closeTooltip: l.friendsClose,
             closeFocusNode: _closeFocus,
             onClose: () => ref.read(shellPanelProvider.notifier).close(),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  RatingScorePicker(
+                    large: true,
+                    selected: score,
+                    enabled: !_busy,
+                    onSelect: (n) => setState(() => _score = n),
+                  ),
+                  // Riga sempre presente: scegliere un voto non sposta il resto.
+                  SizedBox(
+                    height: 36,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: score == null
+                          ? null
+                          : Text.rich(TextSpan(
+                              style: const TextStyle(
+                                  color: WfColors.gold,
+                                  fontWeight: FontWeight.w600),
+                              children: [
+                                TextSpan(
+                                    text: '$score',
+                                    style: WfText.display(22,
+                                        color: WfColors.gold)),
+                                TextSpan(text: '  ${ratingWord(l, score)}'),
+                              ],
+                            )),
+                    ),
+                  ),
+                  RatingCommentField(
+                    controller: _comment,
+                    onSubmitted: score == null || _busy ? null : _save,
+                  ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(_error!,
+                          style: const TextStyle(
+                              color: WfColors.error, fontSize: 13)),
+                    ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: WfColors.border))),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    width: _posterWidth,
-                    height: _posterHeight,
-                    child: WfImage(
-                        image: ref.watch(imageUrlsProvider).poster(subject.item)),
+                if (subject.mine != null)
+                  Flexible(
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                          foregroundColor:
+                              WfColors.error.withValues(alpha: 0.85)),
+                      onPressed: _busy
+                          ? null
+                          : () => unawaited(
+                              _run((api) => api.deleteRating(subject.item.id))),
+                      child: Text(l.ratingRemove,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(subject.title,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: WfColors.cream, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                WfButton.primary(
+                  label: l.ratingSave,
+                  icon: LucideIcons.check,
+                  onPressed: score == null || _busy ? null : _save,
                 ),
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: RatingScorePicker(
-              selected: score,
-              enabled: !_busy,
-              onSelect: (n) => setState(() => _score = n),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: RatingCommentField(
-              controller: _comment,
-              onSubmitted: score == null || _busy ? null : _save,
-            ),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text(_error!,
-                  style: const TextStyle(color: WfColors.error, fontSize: 13)),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: WfButton.primary(
-                label: l.ratingSave,
-                icon: LucideIcons.check,
-                onPressed: score == null || _busy ? null : _save,
-              ),
-            ),
-          ),
-          if (subject.mine != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: WfButton.secondary(
-                  label: l.ratingRemove,
-                  icon: LucideIcons.trash2,
-                  onPressed: _busy
-                      ? null
-                      : () => unawaited(
-                          _run((api) => api.deleteRating(subject.item.id))),
-                ),
-              ),
-            ),
-          const Spacer(),
         ],
       ),
     );

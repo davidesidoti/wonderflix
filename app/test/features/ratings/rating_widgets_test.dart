@@ -34,6 +34,22 @@ void main() {
     expect(controller.text.contains('\n'), isFalse);
   });
 
+  test('le parole del voto', () {
+    final l = AppLocalizationsIt();
+    expect([for (var n = 1; n <= 10; n++) ratingWord(l, n)], [
+      'Da evitare',
+      'Da evitare',
+      'Deludente',
+      'Deludente',
+      'Così così',
+      'Così così',
+      'Bello',
+      'Molto bello',
+      'Bellissimo',
+      'Imperdibile',
+    ]);
+  });
+
   test('media con la virgola in italiano', () {
     expect(formatRatingAverage(7.7, 'it'), '7,7');
     expect(formatRatingAverage(8, 'en'), '8.0');
