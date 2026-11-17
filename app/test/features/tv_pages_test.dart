@@ -139,8 +139,40 @@ void main() {
           matching: find.byType(TvFocusable));
       await tester.scrollUntilVisible(find.text('Richiedi'), 200,
           scrollable: find.byType(Scrollable).first);
-      // La locandina e "Richiedi" sotto.
-      expect(requestable, findsNWidgets(2));
+      // Una fermata per carta: la locandina (OK = Richiedi).
+      expect(requestable, findsOneWidget);
+    });
+
+    testWidgets('"Da richiedere": la prima locandina col focus non è tagliata',
+        (tester) async {
+      await pumpSearch(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'dune');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      await tester.scrollUntilVisible(find.text('Richiedi'), 200,
+          scrollable: find.byType(Scrollable).first);
+
+      final poster = find
+          .descendant(
+              of: find.byType(RequestablesSection),
+              matching: find.byType(TvFocusable))
+          .first;
+      Focus.of(tester.element(
+              find.descendant(of: poster, matching: find.byType(AspectRatio))))
+          .requestFocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final viewport = tester.getRect(find
+          .ancestor(of: poster, matching: find.byType(Scrollable))
+          .first);
+      final rect = tester.getRect(poster);
+      // Ingrandita del 5% attorno al centro.
+      final left = rect.left - rect.width * (tvFocusScale - 1) / 2;
+      expect(left - viewport.left, greaterThanOrEqualTo(4));
     });
   });
 

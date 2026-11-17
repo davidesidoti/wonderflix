@@ -52,7 +52,9 @@ class RequestablesSection extends ConsumerWidget {
           subtitle: l.requestsSectionSubtitle,
           titleSize: titleSize,
           topSpacing: 0,
-          side: 0,
+          // Sulla TV aria ai capi: la locandina col focus cresce e ha il
+          // bordo, che la lista taglierebbe.
+          side: form.tv ? tvRowFocusPadding : 0,
           height: size.rowHeight + RequestablePosterCard.statusHeight,
           itemCount: count,
           itemBuilder: builder,

@@ -133,8 +133,8 @@ class _RequestablePosterCardState extends State<RequestablePosterCard> {
   }
 }
 
-/// "+ Richiedi" piccolo col bordo oro; sulla TV si raggiunge sotto la
-/// locandina.
+/// "+ Richiedi" piccolo col bordo oro. Sulla TV è solo un segno: la carta ha
+/// una fermata sola, la locandina, e OK lì vale come Richiedi.
 class _RequestButton extends StatelessWidget {
   const _RequestButton({required this.label, required this.onTap});
 
@@ -143,11 +143,8 @@ class _RequestButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TvFocusable(
-      onActivate: onTap,
-      // Su un bordo oro il focus oro non si vedrebbe: crema.
-      color: tvFocusSideOnGold.color,
-      borderRadius: BorderRadius.circular(4),
+    return Semantics(
+      button: true,
       child: GestureDetector(
         onTap: onTap,
         child: Container(

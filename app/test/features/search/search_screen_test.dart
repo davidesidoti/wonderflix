@@ -843,6 +843,19 @@ void main() {
       expect(prefs.getStringList('search.recent.${testUser.id}'), ['ist']);
     });
 
+    testWidgets('la carta apre la scheda di richiesta e salva il recente',
+        (tester) async {
+      final requests = FakeRequestsApi()
+        ..searchResults['ist'] = [testRequestable(tmdbId: 42, title: 'Fakt ist!')];
+      await pumpResults(tester, FakeLibraryApi(), requests: requests);
+      await search(tester, 'ist');
+
+      await tester.tap(find.text('Fakt ist!'));
+      await tester.pump();
+      expect(location(), '/tmdb/movie/42');
+      expect(prefs.getStringList('search.recent.${testUser.id}'), ['ist']);
+    });
+
     testWidgets('nessun titolo nemmeno su TMDB', (tester) async {
       await pumpResults(tester, FakeLibraryApi(), requests: FakeRequestsApi());
       await search(tester, 'zzz');
