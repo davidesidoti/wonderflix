@@ -99,11 +99,11 @@ void main() {
                 child: TextButton(
                     onPressed: () => taps++, child: const Text('app')))),
         overrides: [updateControllerProvider.overrideWith(() => controller)]);
-    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+    expect(find.text('Aggiornamento necessario'), findsOneWidget);
 
     controller.emit(const UpdateState());
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget,
+    expect(find.text('Aggiornamento necessario'), findsOneWidget,
         reason: 'sta sfumando');
     await tester.tap(find.text('app'), warnIfMissed: false);
     await tester.pumpAndSettle();
@@ -152,7 +152,7 @@ void main() {
             release: testRelease(minVersion: '0.2.0'),
             mandatory: true,
             progress: 0.4));
-    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+    expect(find.text('Aggiornamento necessario'), findsOneWidget);
     expect(find.text('Download in corso… 40%'), findsOneWidget);
     expect(find.text('Più veloce'), findsOneWidget);
     // FilledButton.icon crea una sottoclasse: find.byType non la trova.
@@ -166,6 +166,26 @@ void main() {
             of: find.text('app'), matching: find.byType(IgnorePointer)).first).ignoring,
         isTrue);
   });
+
+  for (final progress in [null, 0.0]) {
+    testWidgets('obbligatorio con avanzamento $progress: barra indeterminata, '
+        'niente 0%', (tester) async {
+      await pumpGate(
+          tester,
+          UpdateState(
+              release: testRelease(minVersion: '0.2.0'),
+              mandatory: true,
+              progress: progress));
+      expect(find.text('Download in corso…'), findsOneWidget);
+      expect(find.textContaining('%'), findsNothing);
+      expect(
+          tester
+              .widget<LinearProgressIndicator>(
+                  find.byType(LinearProgressIndicator))
+              .value,
+          isNull);
+    });
+  }
 
   testWidgets('obbligatorio pronto: "Aggiorna ora" installa', (tester) async {
     await pumpGate(
@@ -229,11 +249,11 @@ void main() {
         mandatory: true,
         installer: installer));
     await tester.pump();
-    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsNothing);
+    expect(find.text('Aggiornamento necessario'), findsNothing);
 
     container.read(playerActiveProvider.notifier).leave();
     await pumpPlayerState(tester);
-    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+    expect(find.text('Aggiornamento necessario'), findsOneWidget);
   });
 
   /// Come in `app.dart`: `UpdateGate` nel `builder` di `MaterialApp.router`,
@@ -292,7 +312,7 @@ void main() {
             release: testRelease(minVersion: '0.2.0'),
             mandatory: true,
             installer: installer));
-    expect(find.text('AGGIORNAMENTO NECESSARIO'), findsOneWidget);
+    expect(find.text('Aggiornamento necessario'), findsOneWidget);
     expect(find.text('Più veloce'), findsOneWidget);
 
     await tester.tap(find.text('Aggiorna ora'));

@@ -53,8 +53,9 @@ class _UpdateBannerState extends State<UpdateBanner> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                Row(
-                  children: [
+                // Sotto 640 il titolo ha una riga per sé, i pulsanti un'altra.
+                LayoutBuilder(builder: (context, box) {
+                  final title = [
                     const Icon(LucideIcons.download, color: WfColors.gold),
                     const SizedBox(width: 12),
                     Expanded(
@@ -63,11 +64,12 @@ class _UpdateBannerState extends State<UpdateBanner> {
                         style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    if (notes.isNotEmpty)
-                      TextButton(
-                        onPressed: () => setState(() => _notesOpen = !_notesOpen),
-                        child: Text(l.updateWhatsNew),
-                      ),
+                  ];
+                  final notesButton = TextButton(
+                    onPressed: () => setState(() => _notesOpen = !_notesOpen),
+                    child: Text(l.updateWhatsNew),
+                  );
+                  final actions = [
                     TextButton(
                         onPressed: widget.onLater, child: Text(l.updateLater)),
                     const SizedBox(width: 8),
@@ -76,8 +78,28 @@ class _UpdateBannerState extends State<UpdateBanner> {
                       icon: LucideIcons.rotateCw,
                       onPressed: widget.onRestart,
                     ),
-                  ],
-                ),
+                  ];
+                  if (box.maxWidth >= 640) {
+                    return Row(children: [
+                      ...title,
+                      if (notes.isNotEmpty) notesButton,
+                      ...actions,
+                    ]);
+                  }
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: title),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        if (notes.isNotEmpty) notesButton,
+                        const Spacer(),
+                        ...actions,
+                      ]),
+                    ],
+                  );
+                }),
               ],
             ),
           ),

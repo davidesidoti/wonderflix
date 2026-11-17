@@ -41,8 +41,7 @@ class MandatoryUpdateScreen extends StatelessWidget {
               children: [
                 const Icon(LucideIcons.download, color: WfColors.gold, size: 40),
                 const SizedBox(height: 16),
-                Text(l.updateRequiredTitle.toUpperCase(),
-                    style: WfText.display(36)),
+                Text(l.updateRequiredTitle, style: WfText.display(36)),
                 const SizedBox(height: 8),
                 Text(l.updateRequiredBody(release.version.toString()),
                     style: const TextStyle(color: WfColors.creamMuted)),
@@ -59,9 +58,13 @@ class MandatoryUpdateScreen extends StatelessWidget {
                   Text(l.updateDownloadFailed,
                       style: const TextStyle(color: WfColors.error))
                 else if (!update.ready) ...[
-                  LinearProgressIndicator(value: progress),
+                  // A 0% la barra gira: "0%" direbbe che non si muove niente.
+                  LinearProgressIndicator(
+                      value: progress == 0 ? null : progress),
                   const SizedBox(height: 8),
-                  Text(l.updateDownloading(((progress ?? 0) * 100).round())),
+                  Text(progress == null || progress == 0
+                      ? l.updateDownloadingStarted
+                      : l.updateDownloading((progress * 100).round())),
                 ],
                 const SizedBox(height: 16),
                 // Chiavi diverse: il pulsante si ricrea quando diventa
