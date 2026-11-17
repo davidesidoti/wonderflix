@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/error_text.dart';
@@ -10,13 +11,17 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/reports/report_models.dart';
 import '../../core/reports/reports_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/dialog_item_poster.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/rune_limit.dart';
 import '../../ui/tv_text_field_frame.dart';
 import '../../ui/wf_buttons.dart';
+import '../../ui/wf_choice_tile.dart';
 import '../../ui/wf_dialog.dart';
+import '../../ui/wf_dialog_parts.dart';
 import '../auth/password_login_form.dart';
 import '../auth/session_controller.dart';
+import '../library/item_labels.dart';
 import 'report_labels.dart';
 import 'reports_providers.dart';
 
@@ -65,42 +70,20 @@ List<ReportTarget> reportTargets(AppLocalizations l, JellyfinItem item) {
   };
 }
 
-/// "Serie · S1 E2 “Nome”" per un episodio, "Serie · Stagione 2" per una
-/// stagione, il nome per gli altri.
-String _contentLine(AppLocalizations l, JellyfinItem item) {
-  final series = item.seriesName;
-  final parts = switch (item.kind) {
-    ItemKind.episode => [
-        series,
-        [
-          reportLevelLabel(l, ReportItemType.episode,
-              season: item.parentIndexNumber, episode: item.indexNumber),
-          '“${item.name}”',
-        ].where((part) => part.isNotEmpty).join(' '),
-      ],
-    ItemKind.season => [
-        series,
-        reportLevelLabel(l, ReportItemType.season, season: item.indexNumber),
-      ],
-    _ => [item.name],
-  };
-  return [
-    for (final part in parts)
-      if (part != null && part.isNotEmpty) part,
-  ].join(' · ');
-}
-
 /// "Segnala un problema" su [item] (spec R §7.3). La nota e il tipo vanno
 /// agli admin; a segnalazione inviata mostra lo snackbar.
 Future<void> showReportDialog(BuildContext context, JellyfinItem item) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
   final l = AppLocalizations.of(context);
+  final host = GlobalKey();
   final sent = await showWfDialog<bool>(
     context,
     semanticLabel: l.reportDialogTitle,
+    compactTitle: l.reportDialogTitle,
     // In TV la finestra resta una finestra: una pagina intera non serve.
     fullPageWhenCompact: !FormFactor.of(context).tv,
-    builder: (_) => _ReportDialog(item: item),
+    builder: (_) => _ReportDialog(key: host, item: item),
+    footer: (_) => WfHostFooter(host: host),
   );
   if (sent == true) {
     messenger?.showSnackBar(SnackBar(content: Text(l.reportSent)));
@@ -108,7 +91,7 @@ Future<void> showReportDialog(BuildContext context, JellyfinItem item) async {
 }
 
 class _ReportDialog extends ConsumerStatefulWidget {
-  const _ReportDialog({required this.item});
+  const _ReportDialog({super.key, required this.item});
 
   final JellyfinItem item;
 
@@ -116,7 +99,8 @@ class _ReportDialog extends ConsumerStatefulWidget {
   ConsumerState<_ReportDialog> createState() => _ReportDialogState();
 }
 
-class _ReportDialogState extends ConsumerState<_ReportDialog> {
+class _ReportDialogState extends ConsumerState<_ReportDialog>
+    with WfFooterHost<_ReportDialog> {
   final _note = TextEditingController();
   final _noteFocus = FocusNode(debugLabel: 'report-note');
   List<ReportTarget>? _targets;
@@ -239,103 +223,169 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
     }
   }
 
+  /// Una modifica tua: la nota scritta o cambiata, non quella precompilata.
+  int get _changes {
+    if (_busy) return 0;
+    final note = _note.text.trim();
+    return note.isNotEmpty && note != _prefilled?.trim() ? 1 : 0;
+  }
+
+  @override
+  Widget buildFooter(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return WfDialogFooter(
+      note: _type == null ? l.reportPickType : null,
+      cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      primary: WfButton.primary(
+        label: _duplicate != null ? l.reportUpdate : l.reportSend,
+        icon: LucideIcons.send,
+        onPressed: _busy || _type == null ? null : () => unawaited(_submit()),
+      ),
+    );
+  }
+
+  Widget _question(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      );
+
+  Widget _typeTiles(AppLocalizations l, bool oneColumn) {
+    Widget tile(ReportType type) => WfChoiceTile(
+          title: reportTypeLabel(l, type),
+          description: reportTypeExample(l, type),
+          icon: reportTypeIcon(type),
+          selected: type == _type,
+          onTap: _busy ? null : () => _selectType(type),
+        );
+    const types = ReportType.values;
+    if (oneColumn) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final type in types) ...[
+            tile(type),
+            if (type != types.last) const SizedBox(height: 8),
+          ],
+        ],
+      );
+    }
+    return Column(
+      children: [
+        for (var i = 0; i < types.length; i += 2) ...[
+          if (i > 0) const SizedBox(height: 8),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: tile(types[i])),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: i + 1 < types.length
+                        ? tile(types[i + 1])
+                        : const SizedBox.shrink()),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _duplicateBox(AppLocalizations l, ItemReport report) {
+    final date = DateFormat('d MMMM', l.localeName).format(
+      report.createdAt.toLocal(),
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: WfColors.gold.withValues(alpha: 0.08),
+        border: Border.all(color: WfColors.gold.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(LucideIcons.info, size: 16, color: WfColors.gold),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(l.reportAlreadySent(date),
+                  style: const TextStyle(fontSize: 12.5)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final targets = _targets!;
     final noteLength = _note.text.runes.length;
-    final content = SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l.reportDialogTitle,
-              style:
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          Text(_contentLine(l, widget.item),
-              style: const TextStyle(color: WfColors.creamMuted)),
-          const SizedBox(height: 16),
-          if (targets.length > 1) ...[
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final (i, target) in targets.indexed)
-                  ChoiceChip(
-                    label: Text(target.label),
-                    selected: i == _target,
-                    onSelected: _busy ? null : (_) => _selectTarget(i),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
+    final duplicate = _duplicate;
+    final form = FormFactor.of(context);
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        WfDialogHeader(
+          title: l.reportDialogTitle,
+          subtitle: itemContextLine(l, widget.item),
+          leading: DialogItemPoster(itemId: widget.item.id),
+        ),
+        const SizedBox(height: 20),
+        if (targets.length > 1) ...[
+          _question(l.reportAskTarget),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final type in ReportType.values)
+              for (final (i, target) in targets.indexed)
                 ChoiceChip(
-                  label: Text(reportTypeLabel(l, type)),
-                  selected: type == _type,
-                  onSelected: _busy ? null : (_) => _selectType(type),
+                  label: Text(target.label),
+                  selected: i == _target,
+                  onSelected: _busy ? null : (_) => _selectTarget(i),
                 ),
             ],
           ),
-          if (_duplicate != null) ...[
-            const SizedBox(height: 12),
-            Text(l.reportAlreadySent,
-                style: const TextStyle(color: WfColors.creamMuted)),
-          ],
           const SizedBox(height: 16),
-          TvTextFieldFrame(
+        ],
+        _question(l.reportAskType),
+        _typeTiles(l, form.compact && !form.tv),
+        if (duplicate != null) ...[
+          const SizedBox(height: 12),
+          _duplicateBox(l, duplicate),
+        ],
+        const SizedBox(height: 16),
+        TvTextFieldFrame(
+          focusNode: _noteFocus,
+          child: TextField(
+            controller: _note,
             focusNode: _noteFocus,
-            child: TextField(
-              controller: _note,
-              focusNode: _noteFocus,
-              enabled: !_busy,
-              minLines: 3,
-              maxLines: 6,
-              inputFormatters: [capRunes(reportNoteMaxLength)],
-              decoration: InputDecoration(
-                hintText: l.reportNoteHint,
-                counterText: noteLength >= _counterFrom
-                    ? '$noteLength/$reportNoteMaxLength'
-                    : '',
-              ),
+            enabled: !_busy,
+            minLines: 3,
+            maxLines: 6,
+            inputFormatters: [capRunes(reportNoteMaxLength)],
+            decoration: InputDecoration(
+              hintText: l.reportNoteHint,
+              counterText: noteLength >= _counterFrom
+                  ? '$noteLength/$reportNoteMaxLength'
+                  : '',
             ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            ErrorBanner(_error!),
-          ],
-          const SizedBox(height: 24),
-          // Wrap: con i testi lunghi i bottoni vanno a capo, non escono.
-          Wrap(
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              TextButton(
-                onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                child: Text(MaterialLocalizations.of(context)
-                    .cancelButtonLabel),
-              ),
-              WfButton.primary(
-                label: l.reportSend,
-                icon: LucideIcons.send,
-                onPressed: _busy || _type == null
-                    ? null
-                    : () => unawaited(_submit()),
-              ),
-            ],
-          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 12),
+          ErrorBanner(_error!),
         ],
-      ),
+      ],
     );
     // Esc e il clic fuori non chiudono la finestra durante l'invio.
-    return PopScope(canPop: !_busy, child: content);
+    return WfDiscardGuard(
+      changes: _changes,
+      child: PopScope(canPop: !_busy, child: content),
+    );
   }
 }

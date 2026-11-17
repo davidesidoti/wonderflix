@@ -110,7 +110,7 @@ void main() {
     expect(it.itemActionReport, 'Segnala un problema…');
     expect(it.itemActionSubtitles, 'Sottotitoli…');
     expect(it.reportLevelSeason(2), 'Stagione 2');
-    expect(it.reportLevelEpisode(1, 4), 'S1 E4');
+    expect(it.reportLevelEpisode(1, 4), 'S1:E4');
     expect(it.reportSent, 'Segnalazione inviata agli admin');
     expect(it.reportLimitReached,
         'Hai già 20 segnalazioni aperte: aspetta che gli admin ne chiudano qualcuna');
@@ -130,7 +130,7 @@ void main() {
     expect(en.reportsBannerTitle(3), contains('3'));
     expect(en.subtitlesDownloads(1), '1 download');
     expect(en.subtitlesDownloads(3), '3 downloads');
-    expect(en.reportLevelEpisode(1, 4), 'S1 E4');
+    expect(en.reportLevelEpisode(1, 4), 'S1:E4');
     expect(en.reportLevelSeason(2), 'Season 2');
   });
 }

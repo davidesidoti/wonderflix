@@ -46,7 +46,7 @@ void main() {
     await pumpCard(tester);
 
     expect(find.text(it.adminReportsTitle), findsOneWidget);
-    expect(find.text('Dark · S1 E2 · Sottotitoli'), findsOneWidget);
+    expect(find.text('Dark · S1:E2 · Sottotitoli'), findsOneWidget);
     expect(
       find.text('Luigi · ${adminTimeLabel(report.createdAt, clock.now(), it)}'),
       findsOneWidget,

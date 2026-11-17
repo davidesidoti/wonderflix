@@ -104,7 +104,7 @@ void main() {
 
     expect(find.text(it.reportsBannerTitle(2)), findsOneWidget);
     expect(find.text('Luigi'), findsOneWidget);
-    expect(find.text('S1 E2 · Sottotitoli'), findsOneWidget);
+    expect(find.text('S1:E2 · Sottotitoli'), findsOneWidget);
     expect(find.text('Fuori sincrono'), findsOneWidget);
     expect(find.text('Anna'), findsOneWidget);
     expect(find.text('Tutta la serie · Titolo o informazioni'), findsOneWidget);

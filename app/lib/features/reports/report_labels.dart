@@ -1,7 +1,10 @@
+import 'package:flutter/widgets.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
 import '../../core/reports/report_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 
-/// "Tutta la serie", "Stagione 2", "S2 E3"; vuoto per un film o quando
+/// "Tutta la serie", "Stagione 2", "S2:E3"; vuoto per un film o quando
 /// mancano i numeri.
 String reportLevelLabel(
   AppLocalizations l,
@@ -41,3 +44,20 @@ String reportTitleLine(
       reportLevelLabel(l, itemType, season: season, episode: episode),
       if (type != null) reportTypeLabel(l, type),
     ].where((part) => part.isNotEmpty).join(' · ');
+
+/// L'icona del riquadro di un tipo di problema.
+IconData reportTypeIcon(ReportType type) => switch (type) {
+      ReportType.subtitles => LucideIcons.captions,
+      ReportType.metadata => LucideIcons.fileText,
+      ReportType.audioVideo => LucideIcons.monitorPlay,
+      ReportType.other => LucideIcons.messageSquare,
+    };
+
+/// Gli esempi sotto il nome del tipo, nel riquadro.
+String reportTypeExample(AppLocalizations l, ReportType type) =>
+    switch (type) {
+      ReportType.subtitles => l.reportTypeExampleSubtitles,
+      ReportType.metadata => l.reportTypeExampleMetadata,
+      ReportType.audioVideo => l.reportTypeExampleAudioVideo,
+      ReportType.other => l.reportTypeExampleOther,
+    };

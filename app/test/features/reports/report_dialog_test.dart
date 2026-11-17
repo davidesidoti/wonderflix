@@ -10,6 +10,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/reports/report_dialog.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/l10n/gen/app_localizations_it.dart';
+import 'package:wonderflix/ui/wf_choice_tile.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -122,7 +123,7 @@ void main() {
         'episodio ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
         (tester) async {
           await open(tester, episode(), surfaceSize: size);
-          expect(find.byType(ChoiceChip), findsNWidgets(3 + 4));
+          expect(find.byType(ChoiceChip), findsNWidgets(3));
           expect(tester.takeException(), isNull);
         },
       );
@@ -143,8 +144,9 @@ void main() {
       await open(tester, episode());
 
       expect(find.text('Segnala un problema'), findsOneWidget);
-      expect(find.text('Dark · S1 E2 “Pilot”'), findsOneWidget);
-      expect(find.byType(ChoiceChip), findsNWidgets(3 + 4));
+      expect(find.text('Dark · S1:E2 Pilot'), findsOneWidget);
+      expect(find.byType(WfChoiceTile), findsNWidgets(4));
+      expect(find.byType(ChoiceChip), findsNWidgets(3));
       expect(
         tester
             .widget<ChoiceChip>(
@@ -158,8 +160,119 @@ void main() {
     testWidgets('un film non ha la riga dei livelli', (tester) async {
       await open(tester, testItem(id: 'm1', name: 'Dune'));
 
-      expect(find.text('Dune'), findsOneWidget);
-      expect(find.byType(ChoiceChip), findsNWidgets(4));
+      expect(find.textContaining('Dune · Film'), findsOneWidget);
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.byType(WfChoiceTile), findsNWidgets(4));
+      expect(find.text('Su cosa?'), findsNothing);
+    });
+
+    testWidgets('testa con la riga dell\'episodio e le due domande', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        testItem(
+          id: 'e9',
+          name: 'La scatola',
+          kind: ItemKind.episode,
+          seriesId: 's1',
+          seriesName: 'L\'Istituto',
+          seasonId: 'se1',
+          seasonIndex: 1,
+          index: 4,
+        ),
+      );
+
+      expect(find.text('L\'Istituto · S1:E4 La scatola'), findsOneWidget);
+      expect(find.text('Su cosa?'), findsOneWidget);
+      expect(find.text('Che problema c\'è?'), findsOneWidget);
+      expect(
+        find.text('Mancano, sono fuori sincrono, lingua sbagliata'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('senza tipo il piede lo dice e Invia è spento', (tester) async {
+      await open(tester, testItem(id: 'm1'));
+      expect(find.text('Scegli che problema c\'è'), findsOneWidget);
+      expect(submitEnabled(tester), isFalse);
+
+      await tester.tap(find.text('Sottotitoli'));
+      await tester.pump();
+
+      expect(find.text('Scegli che problema c\'è'), findsNothing);
+      expect(submitEnabled(tester), isTrue);
+    });
+
+    testWidgets(
+      'doppione: il riquadro spiega e il pulsante dice Aggiorna la segnalazione',
+      (tester) async {
+        api.mineById['m1'] = [
+          testReport(
+            itemId: 'm1',
+            createdAt: DateTime.utc(2026, 11, 14, 12),
+            itemType: ReportItemType.movie,
+          ),
+        ];
+        await open(tester, testItem(id: 'm1'));
+
+        await tester.tap(find.text('Sottotitoli'));
+        await tester.pump();
+
+        expect(find.textContaining('il 14 novembre'), findsOneWidget);
+        expect(find.text('Aggiorna la segnalazione'), findsOneWidget);
+        expect(find.text('Invia segnalazione'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'nota scritta: Esc chiede; nota precompilata intatta: Esc chiude',
+      (tester) async {
+        await open(tester, testItem(id: 'm1'));
+        await tester.enterText(find.byType(TextField), 'x');
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Buttare la modifica?'), findsOneWidget);
+        await tester.tap(find.text('Butta'));
+        await tester.pumpAndSettle();
+        expect(find.text('Che problema c\'è?'), findsNothing);
+
+        api.mineById['m1'] = [
+          testReport(
+            itemId: 'm1',
+            note: 'vecchia',
+            itemType: ReportItemType.movie,
+          ),
+        ];
+        await tester.tap(find.text('apri'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Sottotitoli'));
+        await tester.pump();
+        expect(find.text('vecchia'), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Buttare la modifica?'), findsNothing);
+        expect(find.text('Che problema c\'è?'), findsNothing);
+      },
+    );
+
+    testWidgets('telefono: i riquadri in colonna', (
+      tester,
+    ) async {
+      await open(tester, testItem(id: 'm1'), surfaceSize: const Size(390, 780));
+      final first = tester.getTopLeft(find.text('Sottotitoli'));
+      final second = tester.getTopLeft(find.text('Titolo o informazioni'));
+      expect(second.dy, greaterThan(first.dy));
+      expect(second.dx, first.dx);
+    });
+
+    testWidgets('largo: i riquadri in due colonne', (tester) async {
+      await open(tester, testItem(id: 'm1'));
+      final first = tester.getTopLeft(find.text('Sottotitoli'));
+      final second = tester.getTopLeft(find.text('Titolo o informazioni'));
+      expect(second.dy, first.dy);
+      expect(second.dx, greaterThan(first.dx));
     });
 
     testWidgets('Invia spento finché non si sceglie il tipo', (tester) async {
@@ -337,8 +450,8 @@ void main() {
       Focus.of(
         tester.element(
           find.descendant(
-            of: find.byType(ChoiceChip).last,
-            matching: find.byType(Text),
+            of: find.byType(WfChoiceTile).last,
+            matching: find.byType(AnimatedScale),
           ),
         ),
       ).requestFocus();

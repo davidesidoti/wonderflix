@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/reports/report_models.dart';
 import 'package:wonderflix/features/reports/report_labels.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
@@ -7,10 +8,10 @@ import 'package:wonderflix/l10n/gen/app_localizations.dart';
 void main() {
   final l = lookupAppLocalizations(const Locale('it'));
 
-  test('episodio S2 E3', () {
+  test('episodio S2:E3', () {
     expect(
         reportLevelLabel(l, ReportItemType.episode, season: 2, episode: 3),
-        'S2 E3');
+        'S2:E3');
   });
 
   test('stagione 0 è Speciali', () {
@@ -37,7 +38,7 @@ void main() {
             season: 2,
             episode: 3,
             type: ReportType.subtitles),
-        'Dark · S2 E3 · Sottotitoli');
+        'Dark · S2:E3 · Sottotitoli');
   });
 
   test('episodio senza numeri: solo titolo e tipo', () {
@@ -47,6 +48,17 @@ void main() {
             itemType: ReportItemType.episode,
             type: ReportType.audioVideo),
         'Dark · Audio o video');
+  });
+
+  test('icone ed esempi dei quattro tipi', () {
+    expect(reportTypeIcon(ReportType.subtitles), LucideIcons.captions);
+    expect(reportTypeIcon(ReportType.metadata), LucideIcons.fileText);
+    expect(reportTypeIcon(ReportType.audioVideo), LucideIcons.monitorPlay);
+    expect(reportTypeIcon(ReportType.other), LucideIcons.messageSquare);
+    expect(reportTypeExample(l, ReportType.metadata),
+        'Nome, trama o locandina sbagliati');
+    expect(reportTypeExample(l, ReportType.other),
+        'Qualcos\'altro: scrivilo nella nota');
   });
 
   test('tipo sconosciuto: Altro', () {
