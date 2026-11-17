@@ -35,9 +35,21 @@ void main() {
                 child: ItemActionsButton(
                   item: testItem(id: 'm1', name: 'Film'),
                   extra: [
-                    (label: 'Voce A', icon: LucideIcons.plus, onSelected: () {}),
-                    (label: 'Voce B', icon: LucideIcons.plus, onSelected: () {}),
-                    (label: 'Voce C', icon: LucideIcons.plus, onSelected: () => picked = true),
+                    (
+                      label: 'Voce A',
+                      icon: LucideIcons.plus,
+                      onSelected: () {},
+                    ),
+                    (
+                      label: 'Voce B',
+                      icon: LucideIcons.plus,
+                      onSelected: () {},
+                    ),
+                    (
+                      label: 'Voce C',
+                      icon: LucideIcons.plus,
+                      onSelected: () => picked = true,
+                    ),
                   ],
                 ),
               ),
@@ -292,8 +304,9 @@ void main() {
         of: find.text('Info tecniche…'),
         matching: find.byType(PopupMenuItem<Object>));
     expect(tester.widget<PopupMenuItem<Object>>(info).height, 44);
+    final button = find.byType(ItemActionsButton);
     expect(tester.getBottomLeft(info).dy,
-        lessThanOrEqualTo(tester.getTopLeft(find.byType(ItemActionsButton)).dy));
+        lessThanOrEqualTo(tester.getTopLeft(button).dy));
     // Il primo elemento selezionabile ha il focus all'apertura.
     final first = find.ancestor(
         of: find.text('Togli da Continua a guardare'),

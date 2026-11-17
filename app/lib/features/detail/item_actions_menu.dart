@@ -140,7 +140,9 @@ class _TvEntryState extends State<_TvEntry> {
     super.initState();
     if (widget.first) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) FocusScope.of(context).nextFocus();
+        if (!mounted) return;
+        final scope = FocusScope.of(context);
+        if (scope.focusedChild == null) scope.nextFocus();
       });
     }
   }
@@ -255,12 +257,15 @@ class ItemActionsButton extends ConsumerWidget {
           PopupMenuItem<Object>(
             enabled: false,
             height: _groupHeaderHeight,
-            child: Text(
-              name,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: WfColors.creamMuted,
+            child: Semantics(
+              header: true,
+              child: Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: WfColors.creamMuted,
+                ),
               ),
             ),
           ),
