@@ -76,9 +76,9 @@ double detailBackdropHeight(BuildContext context) => detailCompact(context)
 /// [tvDetailPeek], più del bordo che lo schermo può tagliare (48 dp).
 const detailHeaderTextBottom = 28.0;
 
-/// Elementi della scheda che entrano scaglionati: 5 della testata (logo,
-/// dati, generi, trama, pulsanti) e le righe sotto.
-const detailEntranceCount = 9;
+/// Elementi della scheda che entrano scaglionati: 4 della testata (titolo,
+/// dati, trama, pulsanti) e le righe sotto.
+const detailEntranceCount = 8;
 
 /// Esegue [action] (La mia lista, Visto, ...); se fallisce, l'errore in un
 /// avviso.
@@ -93,6 +93,29 @@ Future<void> runUserDataAction(
   } on Object catch (error) {
     messenger.showSnackBar(SnackBar(content: Text(describeError(l, error))));
   }
+}
+
+/// Segna [target] come visto o da vedere e fa rileggere "Prossimo" (anche
+/// senza websocket). Per una stagione o la serie ([seriesId] e [seasonId] di
+/// quella mostrata) il server cambia anche gli episodi: si rileggono, senza
+/// le modifiche locali di prima, e con loro "Riprendi" e il Visto della serie.
+Future<void> togglePlayedAndRefresh(
+  WidgetRef ref,
+  JellyfinItem target, {
+  String? seriesId,
+  String? seasonId,
+}) async {
+  final overrides = ref.read(userDataOverridesProvider.notifier);
+  final key = seriesId == null || seasonId == null
+      ? null
+      : (seriesId: seriesId, seasonId: seasonId);
+  final episodes = key == null ? null : ref.read(episodesProvider(key)).value;
+  await overrides.togglePlayed(target);
+  if (key != null) {
+    overrides.forget([for (final e in episodes ?? const []) e.id]);
+    ref.invalidate(episodesProvider(key));
+  }
+  ref.read(userDataRevisionProvider.notifier).bump();
 }
 
 /// Parte alta di una scheda: logo o titolo, dati, trama, azioni. Lo sfondo
@@ -285,7 +308,15 @@ class DetailHeader extends ConsumerWidget {
       selected: userData.played,
       tooltip: userData.played ? l.actionMarkUnwatched : l.actionMarkWatched,
       onPressed: () => unawaited(
-        runUserDataAction(context, () => overrides.togglePlayed(item)),
+        runUserDataAction(
+          context,
+          () => togglePlayedAndRefresh(
+            ref,
+            item,
+            seriesId: item.kind == ItemKind.series ? item.id : null,
+            seasonId: rated?.item.id,
+          ),
+        ),
       ),
     );
     // Quanto manca, sotto il primario (non sulla TV).
@@ -337,6 +368,26 @@ class DetailHeader extends ConsumerWidget {
           )
         : null;
     final nextUp = _nextUpAction(context, ref, l);
+    // Sulla TV il ⋯ della stagione non c'è: lo stesso Visto sta nell'"Altro".
+    final shownSeason = item.kind == ItemKind.series && tv ? rated?.item : null;
+    final ExtraItemAction? seasonPlayed = shownSeason == null
+        ? null
+        : (
+            label: watchUserData(ref, shownSeason).played
+                ? l.detailSeasonMarkUnwatched
+                : l.detailSeasonMarkWatched,
+            onSelected: () => unawaited(
+              runUserDataAction(
+                context,
+                () => togglePlayedAndRefresh(
+                  ref,
+                  shownSeason,
+                  seriesId: item.id,
+                  seasonId: shownSeason.id,
+                ),
+              ),
+            ),
+          );
     final resume = _resumeAction(context, ref, l);
     final kicker = detailKicker(item, l);
     // "Altro" con la parola (telefono e TV) solo se il ⋯ ha voci: senza,
@@ -399,7 +450,7 @@ class DetailHeader extends ConsumerWidget {
         ],
         const SizedBox(height: 20),
         StaggerItem(
-          index: 4,
+          index: 3,
           child: Focus(
             canRequestFocus: false,
             skipTraversal: true,
@@ -536,7 +587,11 @@ class DetailHeader extends ConsumerWidget {
                           ),
                           label: l.recommendButton,
                         ),
-                      ?labeledMore([?resume, ?nextUp]),
+                      ?labeledMore([
+                        ?resume,
+                        ?nextUp,
+                        ?seasonPlayed,
+                      ]),
                     ],
                   )
                 : Column(

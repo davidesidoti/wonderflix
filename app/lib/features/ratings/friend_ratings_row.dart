@@ -149,7 +149,7 @@ class SeasonRatingsStrip extends ConsumerWidget {
             onPressed: onRate == null ? null : () => onRate!(data),
           );
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: compact ? 16 : 24),
+      margin: EdgeInsets.symmetric(horizontal: compact ? 16 : 32),
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: WfColors.surface)),

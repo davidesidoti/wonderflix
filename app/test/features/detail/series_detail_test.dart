@@ -449,13 +449,15 @@ void main() {
     ('telefono', Size(390, 780), false),
     ('TV', Size(960, 540), true),
   ]) {
-    testWidgets('$name: con il ⋯ vuoto niente "Altro"', (tester) async {
+    testWidgets('$name: con il ⋯ vuoto niente "Altro" (TV: solo la stagione)',
+        (tester) async {
       // Segnalazioni spente, utente non admin, niente da riprendere.
       api.nextUpItems = [];
       await pumpSeries(tester, surfaceSize: size, tv: tv);
       // Quello della testata, più uno per ognuno dei 2 episodi fuori dalla TV.
       expect(find.text('Visto'), findsNWidgets(tv ? 1 : 3));
-      expect(find.text('Altro'), findsNothing);
+      // Sulla TV l'"Altro" resta: ha il Visto della stagione mostrata.
+      expect(find.text('Altro'), tv ? findsOneWidget : findsNothing);
     });
   }
 
@@ -588,6 +590,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Segna la stagione come vista'), findsOneWidget);
     expect(find.text('Segna la stagione come da vedere'), findsNothing);
+  });
+
+  testWidgets('Visto della serie nella testata: gli episodi si rileggono',
+      (tester) async {
+    await pumpSeries(tester);
+    final before = api.episodesCalls.where((id) => id == 'se1').length;
+    await tester.tap(find.byTooltip('Segna come visto').first);
+    await tester.pumpAndSettle();
+    expect(api.playedCalls, contains(('s1', true)));
+    expect(api.episodesCalls.where((id) => id == 'se1').length,
+        greaterThan(before));
+  });
+
+  testWidgets('Visto di un episodio: "Prossimo" si rilegge', (tester) async {
+    await pumpSeries(tester);
+    final before = api.nextUpCalls.length;
+    final tile = find.byWidgetPredicate(
+        (w) => w is EpisodeTile && w.episode.id == 'e3');
+    await tester.tap(
+        find.descendant(of: tile, matching: find.widgetWithText(FilterChip, 'Visto')));
+    await tester.pumpAndSettle();
+    expect(api.playedCalls, contains(('e3', false)));
+    expect(api.nextUpCalls.length, greaterThan(before));
   });
 
   testWidgets('menu "⋯": senza episodio in Prossimi episodi nessuna voce',

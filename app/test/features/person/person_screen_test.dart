@@ -5,6 +5,7 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/person/person_screen.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/wf_image.dart';
@@ -12,6 +13,7 @@ import 'package:wonderflix/ui/wf_image.dart';
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -75,6 +77,7 @@ void main() {
     Size size = const Size(1440, 900),
     bool tv = false,
     bool scaffold = true,
+    bool requests = true,
   }) async {
     final api = FakeLibraryApi()
       ..itemsById['p9'] = testItem(
@@ -92,6 +95,8 @@ void main() {
           libraryApiProvider.overrideWithValue(api),
           sessionControllerProvider
               .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
+          socialAvailabilityProvider.overrideWith(() =>
+              FakeSocialAvailability(SocialFeatures(requests: requests))),
         ]);
     await tester.pump();
     await tester.pump();
@@ -104,6 +109,14 @@ void main() {
     expect(find.text('Su WonderFlix'), findsNothing);
     expect(find.text('Nessun suo titolo è sul server.'), findsOneWidget);
     expect(find.text('Cerca in Richieste'), findsOneWidget);
+  });
+
+  testWidgets('senza titoli e senza Seerr: niente invito a Richieste',
+      (tester) async {
+    await pumpPerson(tester, requests: false);
+
+    expect(find.text('Nessun suo titolo è sul server.'), findsOneWidget);
+    expect(find.text('Cerca in Richieste'), findsNothing);
   });
 
   testWidgets('biografia lunga: 4 righe e Altro, anche senza Scaffold',

@@ -10,12 +10,14 @@ import 'package:wonderflix/features/collections/collection_screen.dart';
 import 'package:wonderflix/features/detail/detail_backdrop.dart';
 import 'package:wonderflix/features/detail/detail_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/skeletons.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
@@ -42,7 +44,7 @@ void main() {
   });
 
   Future<void> pumpCollection(WidgetTester tester,
-      {Size surfaceSize = const Size(1440, 1400)}) async {
+      {Size surfaceSize = const Size(1440, 1400), bool requests = true}) async {
     await pumpApp(
         tester, const Scaffold(body: CollectionScreen(collectionId: 'c1')),
         surfaceSize: surfaceSize,
@@ -50,6 +52,8 @@ void main() {
           libraryApiProvider.overrideWithValue(api),
           sessionControllerProvider.overrideWith(
               () => FakeSessionController(const SessionSignedIn(testUser))),
+          socialAvailabilityProvider.overrideWith(() =>
+              FakeSocialAvailability(SocialFeatures(requests: requests))),
         ]);
     await tester.pump();
     await tester.pump();
@@ -101,6 +105,15 @@ void main() {
         find.text('Nessun film di questa saga è sul server. '
             'Puoi chiederli in Richieste.'),
         findsOneWidget);
+  });
+
+  testWidgets('saga vuota senza Seerr: niente Richieste nella frase',
+      (tester) async {
+    api.itemsByCollection['c1'] = [];
+    await pumpCollection(tester, requests: false);
+    expect(find.text('Nessun film di questa saga è sul server.'),
+        findsOneWidget);
+    expect(find.textContaining('Richieste'), findsNothing);
   });
 
   testWidgets('stretto: la griglia parte a 16', (tester) async {

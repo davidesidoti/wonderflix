@@ -673,6 +673,7 @@
   "collectionFilmCount": "{count, plural, =1{1 movie} other{{count} movies}}",
   "collectionWatched": "{count, plural, other{{count} watched}}",
   "collectionEmptyHint": "None of this saga's films are on the server. You can ask for them in Requests.",
+  "collectionEmptyPlain": "None of this saga's films are on the server.",
   "collectionPartOf": "Part of: {name}",
   "collectionThisMovie": "This movie",
   "collectionPlay": "Play \"{title}\"",

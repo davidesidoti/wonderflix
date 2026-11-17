@@ -354,6 +354,17 @@ void main() {
     expect(prefs.nextUpHidden, {'s1': 'e4'});
   });
 
+  testWidgets('serie: il menu Altro segna la stagione mostrata come vista', (
+    tester,
+  ) async {
+    await pumpDetail(tester, 's1');
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Segna la stagione come vista'));
+    await tester.pumpAndSettle();
+    expect(library.playedCalls, contains(('se1', true)));
+  });
+
   testWidgets('serie: il menu Altro toglie da Continua a guardare '
       'l\'episodio da riprendere', (tester) async {
     await pumpDetail(

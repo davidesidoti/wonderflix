@@ -123,7 +123,7 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
           SliverToBoxAdapter(child: ReportsBanner(titleId: series.id)),
           SliverToBoxAdapter(
             child: StaggerItem(
-              index: 6,
+              index: 5,
               child: WfSwitcher(
                 child: seasons.when(
                   // Piccolo: la lista finta degli episodi sta sotto, al
@@ -178,7 +178,9 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                             // Sulla TV non c'è: la serie ha il suo "Altro".
                             if (current case final season? when !tv)
                               Padding(
-                                padding: const EdgeInsets.only(right: 24),
+                                padding: EdgeInsets.only(
+                                  right: detailCompact(context) ? 8 : 24,
+                                ),
                                 child: ItemActionsButton(
                                   item: season,
                                   extra: [
@@ -194,35 +196,15 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                                           ? l.detailSeasonMarkUnwatched
                                           : l.detailSeasonMarkWatched,
                                       onSelected: () => unawaited(
-                                        runUserDataAction(context, () async {
-                                          final key = (
+                                        runUserDataAction(
+                                          context,
+                                          () => togglePlayedAndRefresh(
+                                            ref,
+                                            season,
                                             seriesId: series.id,
                                             seasonId: season.id,
-                                          );
-                                          final overrides = ref.read(
-                                            userDataOverridesProvider.notifier,
-                                          );
-                                          final episodes = ref
-                                              .read(episodesProvider(key))
-                                              .value;
-                                          await overrides.togglePlayed(season);
-                                          // Il server ha cambiato gli episodi:
-                                          // si rileggono, senza le modifiche
-                                          // locali di prima, e con loro "Riprendi"
-                                          // e il Visto della serie.
-                                          overrides.forget([
-                                            for (final e
-                                                in episodes ?? const [])
-                                              e.id,
-                                          ]);
-                                          ref.invalidate(episodesProvider(key));
-                                          ref
-                                              .read(
-                                                userDataRevisionProvider
-                                                    .notifier,
-                                              )
-                                              .bump();
-                                        }),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -247,10 +229,10 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
           if (seasonList == null && !seasons.hasError)
             const SliverToBoxAdapter(child: EpisodeListSkeleton(count: 2)),
           // Alla prima apertura gli episodi entrano con la scheda (elemento
-          // 6): scaglionati solo cambiando stagione (spec C §9.3).
+          // 5): scaglionati solo cambiando stagione (spec C §9.3).
           if (shownSeasonId != null && !seasons.hasError)
             SliverStaggerItem(
-              index: 6,
+              index: 5,
               sliver: _EpisodeSliver(
                 seriesId: series.id,
                 seasonId: shownSeasonId,
@@ -261,12 +243,12 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
           if (series.people.isNotEmpty)
             SliverToBoxAdapter(
               child: StaggerItem(
-                index: 7,
+                index: 6,
                 child: CastRow(people: series.people),
               ),
             ),
           SliverToBoxAdapter(
-            child: StaggerItem(index: 8, child: SimilarRow(itemId: series.id)),
+            child: StaggerItem(index: 7, child: SimilarRow(itemId: series.id)),
           ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
         ],
@@ -368,8 +350,11 @@ class _SeasonTabsState extends State<_SeasonTabs> {
     final selectedId = widget.selectedId;
     final tv = FormFactor.of(context).tv;
     final l = AppLocalizations.of(context);
+    final side = detailCompact(context) ? 16.0 : 32.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+      // Il testo della scheda parte dove partono testata, striscia ed
+      // episodi: il margine laterale meno l'8 della scheda.
+      padding: EdgeInsets.fromLTRB(side - 8, 8, side - 8, 8),
       // La linea oro sta dentro al riquadro che scorre: va con le schede.
       child: SingleChildScrollView(
         key: _viewportKey,
@@ -531,9 +516,7 @@ class EpisodeTile extends ConsumerWidget {
         onSelected: (_) => unawaited(
           runUserDataAction(
             context,
-            () => ref
-                .read(userDataOverridesProvider.notifier)
-                .togglePlayed(episode),
+            () => togglePlayedAndRefresh(ref, episode),
           ),
         ),
       ),

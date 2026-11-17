@@ -10,6 +10,8 @@ import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/detail/item_detail_screen.dart';
+import 'package:wonderflix/features/detail/series_detail_view.dart';
+import 'package:wonderflix/ui/wf_image.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/library/user_data.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -216,7 +218,9 @@ void main() {
         friends: [friend('u2', 'Luigi', 7), friend('u3', 'Peach', 8)]);
 
     Future<void> pumpSeries(WidgetTester tester,
-        {SocialFeatures features = on, ItemRatings? ratings}) async {
+        {SocialFeatures features = on,
+        ItemRatings? ratings,
+        Size surfaceSize = const Size(1440, 900)}) async {
       library.itemsById['s1'] =
           testItem(id: 's1', name: 'The Last of Us', kind: ItemKind.series);
       library.seasonsBySeries['s1'] = [
@@ -236,6 +240,7 @@ void main() {
       api.itemRatingsById['se2'] = twoFriends;
       await pumpApp(
           tester, Scaffold(body: ItemDetailScreen(itemId: 's1')),
+          surfaceSize: surfaceSize,
           overrides: [
             libraryApiProvider.overrideWithValue(library),
             ...socialTestOverrides(api, features: features),
@@ -243,6 +248,25 @@ void main() {
       for (var i = 0; i < 5; i++) {
         await tester.pump();
       }
+    }
+
+    // Il telefono è alto: gli episodi, in una lista a pezzi, devono essere
+    // costruiti.
+    for (final size in [const Size(390, 1800), const Size(1440, 900)]) {
+      testWidgets('serie ${size.width.toInt()}: schede, voti ed episodi '
+          'partono dallo stesso bordo', (tester) async {
+        await pumpSeries(tester, surfaceSize: size);
+        final tab = tester.getTopLeft(find.text('Stagione 1', findRichText: true)).dx;
+        final strip =
+            tester.getTopLeft(find.text('Voti degli amici · Stagione 1')).dx;
+        final episode = tester
+            .getTopLeft(find.descendant(
+                of: find.byType(EpisodeTile).first,
+                matching: find.byType(WfImage)))
+            .dx;
+        expect(strip, closeTo(tab, 1));
+        expect(episode, closeTo(tab, 1));
+      });
     }
 
     testWidgets('serie: i voti della stagione stanno sotto le schede',
@@ -352,7 +376,7 @@ void main() {
     });
   });
 
-  test('la scheda ha nove elementi', () {
-    expect(detailEntranceCount, 9);
+  test('la scheda ha otto elementi', () {
+    expect(detailEntranceCount, 8);
   });
 }

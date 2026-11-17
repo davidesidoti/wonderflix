@@ -796,6 +796,7 @@
   "collectionWatched": "{count, plural, =1{1 visto} other{{count} visti}}",
   "@collectionWatched": {"placeholders": {"count": {"type": "int"}}},
   "collectionEmptyHint": "Nessun film di questa saga è sul server. Puoi chiederli in Richieste.",
+  "collectionEmptyPlain": "Nessun film di questa saga è sul server.",
   "collectionPartOf": "Fa parte di: {name}",
   "@collectionPartOf": {"placeholders": {"name": {"type": "String"}}},
   "collectionThisMovie": "Questo film",

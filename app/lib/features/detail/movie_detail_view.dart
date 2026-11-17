@@ -62,7 +62,7 @@ class MovieDetailView extends ConsumerWidget {
           // Un episodio aperto da solo non ha la riga (si vota la stagione).
           if (item.kind == ItemKind.movie)
             StaggerItem(
-              index: 5,
+              index: 4,
               child: FriendRatingsRow(
                 item: item,
                 onRate: (r) => openRatePanel(context,
@@ -70,9 +70,9 @@ class MovieDetailView extends ConsumerWidget {
               ),
             ),
           if (item.people.isNotEmpty)
-            StaggerItem(index: 6, child: CastRow(people: item.people)),
-          StaggerItem(index: 7, child: CollectionRows(itemId: item.id)),
-          StaggerItem(index: 8, child: SimilarRow(itemId: item.id)),
+            StaggerItem(index: 5, child: CastRow(people: item.people)),
+          StaggerItem(index: 6, child: CollectionRows(itemId: item.id)),
+          StaggerItem(index: 7, child: SimilarRow(itemId: item.id)),
         ],
       ),
     );

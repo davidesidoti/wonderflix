@@ -23,6 +23,7 @@ import '../detail/header_parallax.dart';
 import '../detail/primary_action.dart';
 import '../library/user_data.dart';
 import '../playback/play_launcher.dart';
+import '../requests/requests_providers.dart';
 import 'collections_logic.dart';
 import 'collections_providers.dart';
 
@@ -274,7 +275,9 @@ class CollectionHeader extends ConsumerWidget {
             index: 1,
             child: Text(
                 list.isEmpty
-                    ? l.collectionEmptyHint
+                    ? (ref.watch(requestsAvailableProvider)
+                        ? l.collectionEmptyHint
+                        : l.collectionEmptyPlain)
                     : '${l.collectionFilmCount(list.length)} · '
                         '${l.collectionWatched(watched)}',
                 style: const TextStyle(color: WfColors.creamMuted)),

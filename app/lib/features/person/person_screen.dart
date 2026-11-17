@@ -20,6 +20,7 @@ import '../../ui/wf_image.dart';
 import '../detail/detail_providers.dart';
 import '../library/library_providers.dart';
 import '../requests/requests_navigation.dart';
+import '../requests/requests_providers.dart';
 
 /// Film e serie del server in cui compare la persona, dal più recente.
 final filmographyProvider =
@@ -164,12 +165,14 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
                             Text(l.personNoTitles,
                                 style:
                                     const TextStyle(color: WfColors.creamMuted)),
-                            const SizedBox(height: 16),
-                            WfButton.secondary(
-                              label: l.personSearchRequests,
-                              icon: LucideIcons.search,
-                              onPressed: () => openRequests(context),
-                            ),
+                            if (ref.watch(requestsAvailableProvider)) ...[
+                              const SizedBox(height: 16),
+                              WfButton.secondary(
+                                label: l.personSearchRequests,
+                                icon: LucideIcons.search,
+                                onPressed: () => openRequests(context),
+                              ),
+                            ],
                           ],
                         ),
                       ),
