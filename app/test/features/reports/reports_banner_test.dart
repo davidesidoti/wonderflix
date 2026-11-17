@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/reports/report_models.dart';
 import 'package:wonderflix/core/reports/reports_api.dart';
+import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/item_edit/item_edit_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
@@ -13,6 +14,7 @@ import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -84,6 +86,18 @@ void main() {
 
   Finder button(String label) => find.text(label);
 
+  Finder fixedAction() => find.widgetWithText(WfButton, it.reportFixedAction);
+
+  /// Il primario della finestra: ripete il titolo.
+  Finder primary(String title) => find.widgetWithText(WfButton, title);
+
+  Future<void> openCannotFix(WidgetTester tester, {int row = 0}) async {
+    await tester.tap(find.byTooltip(it.itemActionsMenu).at(row));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(it.reportCannotFixAction));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('solo le segnalazioni di quel titolo, con livello e nota', (
     tester,
   ) async {
@@ -102,14 +116,57 @@ void main() {
     ]);
     await pumpBanner(tester);
 
-    expect(find.text(it.reportsBannerTitle(2)), findsOneWidget);
-    expect(find.text('Luigi'), findsOneWidget);
-    expect(find.text('S1:E2 · Sottotitoli'), findsOneWidget);
-    expect(find.text('Fuori sincrono'), findsOneWidget);
-    expect(find.text('Anna'), findsOneWidget);
+    expect(find.text(it.reportsOpenTitle), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.textContaining('Luigi'), findsOneWidget);
+    expect(find.text('S1:E2 Pilot · Sottotitoli'), findsOneWidget);
+    expect(find.text('“Fuori sincrono”'), findsOneWidget);
+    expect(find.textContaining('Anna'), findsOneWidget);
     expect(find.text('Tutta la serie · Titolo o informazioni'), findsOneWidget);
     expect(find.text(it.reportNoNote), findsOneWidget);
-    expect(find.text('Carlo'), findsNothing);
+    expect(find.textContaining('Carlo'), findsNothing);
+  });
+
+  testWidgets('elenco della Cabina con una sola azione in evidenza', (
+    tester,
+  ) async {
+    api.reports.addAll([
+      testReport(id: 'r1', userName: 'Luigi'),
+      testReport(id: 'r2', userName: 'Anna', type: ReportType.audioVideo),
+    ]);
+    await pumpBanner(tester);
+
+    expect(find.text('Segnalazioni aperte'), findsOneWidget);
+    expect(find.byType(AdminList), findsOneWidget);
+    expect(find.byType(WfLamp), findsNWidgets(2));
+    expect(fixedAction(), findsNWidgets(2));
+    final buttons = tester.widgetList<WfButton>(find.byType(WfButton));
+    expect(buttons.any((b) => b.primary), isFalse);
+    expect(find.text(it.reportCannotFixAction), findsNothing);
+
+    await tester.tap(find.byTooltip(it.itemActionsMenu).first);
+    await tester.pumpAndSettle();
+    expect(find.text(it.reportCannotFixAction), findsOneWidget);
+  });
+
+  testWidgets(
+      'la finestra mostra la segnalazione e il pulsante ripete il titolo',
+      (tester) async {
+    api.reports.add(testReport(note: "Dal minuto 12 l'audio è sfasato"));
+    await pumpBanner(tester);
+
+    await tester.tap(fixedAction());
+    await tester.pumpAndSettle();
+    // Nel riquadro della finestra e nell'elenco sotto.
+    expect(find.text("“Dal minuto 12 l'audio è sfasato”"), findsNWidgets(2));
+    expect(find.text(it.reportTypeSubtitles), findsOneWidget);
+    expect(find.text('Conferma'), findsNothing);
+
+    await tester.tap(primary(it.reportResolveFixedTitle));
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['all', 'resolve r1 Fixed -', 'all']);
+    expect(find.text(it.reportClosed), findsOneWidget);
   });
 
   testWidgets('niente per chi non è admin', (tester) async {
@@ -131,11 +188,11 @@ void main() {
     api.reports.add(testReport());
     await pumpBanner(tester);
 
-    await tester.tap(button(it.reportFixed));
+    await tester.tap(fixedAction());
     await tester.pumpAndSettle();
-    expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
+    expect(find.text(it.reportResolveFixedTitle), findsNWidgets(2));
     await tester.enterText(find.byType(TextField), '  Sottotitoli aggiornati ');
-    await tester.tap(button(it.reportResolveConfirm));
+    await tester.tap(primary(it.reportResolveFixedTitle));
     await tester.pumpAndSettle();
 
     expect(api.calls, [
@@ -144,17 +201,16 @@ void main() {
       'all',
     ]);
     expect(find.text(it.reportResolveFixedTitle), findsNothing);
-    expect(find.text('Luigi'), findsNothing);
+    expect(find.textContaining('Luigi'), findsNothing);
   });
 
   testWidgets('Non sistemabile senza nota', (tester) async {
     api.reports.add(testReport());
     await pumpBanner(tester);
 
-    await tester.tap(button(it.reportCannotFix));
-    await tester.pumpAndSettle();
-    expect(find.text(it.reportResolveCannotFixTitle), findsOneWidget);
-    await tester.tap(button(it.reportResolveConfirm));
+    await openCannotFix(tester);
+    expect(find.text(it.reportResolveCannotFixTitle), findsNWidgets(2));
+    await tester.tap(primary(it.reportResolveCannotFixTitle));
     await tester.pumpAndSettle();
 
     expect(api.calls, ['all', 'resolve r1 CannotFix -', 'all']);
@@ -172,16 +228,17 @@ void main() {
       api.reports.removeWhere((report) => report.id == 'r1');
       api.nextFailure = ReportsFailure.closed;
 
-      await tester.tap(button(it.reportFixed).first);
+      await tester.tap(fixedAction().first);
       await tester.pumpAndSettle();
-      await tester.tap(button(it.reportResolveConfirm));
+      await tester.tap(primary(it.reportResolveFixedTitle));
       await tester.pumpAndSettle();
 
       expect(find.text(it.reportAlreadyClosed), findsOneWidget);
+      expect(find.text(it.reportClosed), findsNothing);
       expect(find.text(it.reportResolveFixedTitle), findsNothing);
-      expect(find.text('Luigi'), findsNothing);
-      expect(find.text('Anna'), findsOneWidget);
-      expect(find.text(it.reportsBannerTitle(1)), findsOneWidget);
+      expect(find.textContaining('Luigi'), findsNothing);
+      expect(find.textContaining('Anna'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
     },
   );
 
@@ -190,13 +247,13 @@ void main() {
     await pumpBanner(tester);
     api.nextFailure = ReportsFailure.network;
 
-    await tester.tap(button(it.reportFixed));
+    await tester.tap(fixedAction());
     await tester.pumpAndSettle();
-    await tester.tap(button(it.reportResolveConfirm));
+    await tester.tap(primary(it.reportResolveFixedTitle));
     await tester.pumpAndSettle();
 
-    expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
-    expect(find.text('Luigi'), findsOneWidget);
+    expect(find.text(it.reportResolveFixedTitle), findsWidgets);
+    expect(find.textContaining('Luigi'), findsWidgets);
   });
 
   testWidgets(
@@ -287,19 +344,20 @@ void main() {
     Future<void> openThenVanish(WidgetTester tester) async {
       api.reports.add(testReport());
       await pumpBanner(tester);
-      await tester.tap(button(it.reportFixed));
+      await tester.tap(fixedAction());
       await tester.pumpAndSettle();
       api.reports.clear();
       events.add(inboxChangedReceived());
       shown.value = false;
       await tester.pumpAndSettle();
-      expect(find.text('Luigi'), findsNothing, reason: 'riquadro tolto');
-      expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
+      expect(find.textContaining('Luigi · '), findsNothing,
+          reason: 'riquadro tolto');
+      expect(find.text(it.reportResolveFixedTitle), findsNWidgets(2));
     }
 
-    testWidgets('Conferma chiama resolve una volta e chiude', (tester) async {
+    testWidgets('Il primario chiama resolve una volta e chiude', (tester) async {
       await openThenVanish(tester);
-      await tester.tap(button(it.reportResolveConfirm));
+      await tester.tap(primary(it.reportResolveFixedTitle));
       await tester.pumpAndSettle();
 
       // Il provider è rimasto vivo: la finestra l'ha tenuto vivo, nessun notifier nuovo.
@@ -314,7 +372,7 @@ void main() {
     ) async {
       await openThenVanish(tester);
       api.nextFailure = ReportsFailure.closed;
-      await tester.tap(button(it.reportResolveConfirm));
+      await tester.tap(primary(it.reportResolveFixedTitle));
       await tester.pumpAndSettle();
 
       expect(
@@ -331,13 +389,13 @@ void main() {
     await pumpBanner(tester);
     api.nextFailure = ReportsFailure.forbidden;
 
-    await tester.tap(button(it.reportFixed));
+    await tester.tap(fixedAction());
     await tester.pumpAndSettle();
-    await tester.tap(button(it.reportResolveConfirm));
+    await tester.tap(primary(it.reportResolveFixedTitle));
     await tester.pumpAndSettle();
 
     expect(find.text(it.reportNoPermission), findsOneWidget);
-    expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
+    expect(find.text(it.reportResolveFixedTitle), findsNWidgets(2));
     expect(session.refreshUserCalls, 1);
   });
 
@@ -347,9 +405,9 @@ void main() {
       (tester) async {
         api.reports.add(testReport());
         await pumpBanner(tester, surfaceSize: size);
-        await tester.tap(button(it.reportFixed));
+        await tester.tap(fixedAction());
         await tester.pumpAndSettle();
-        expect(find.text(it.reportResolveFixedTitle), findsOneWidget);
+        expect(find.text(it.reportResolveFixedTitle), findsWidgets);
         await tester.enterText(find.byType(TextField), 'x' * 460);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);

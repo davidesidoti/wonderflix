@@ -32,14 +32,15 @@ const _keys = [
   'inboxReportFixed',
   'inboxReportCannotFix',
   'inboxReportUnknownTitle',
-  'reportsBannerTitle',
-  'reportFixed',
-  'reportCannotFix',
+  'reportsOpenTitle',
+  'reportOpen',
+  'reportFixedAction',
+  'reportCannotFixAction',
+  'reportClosed',
   'reportNoNote',
   'reportResolveFixedTitle',
   'reportResolveCannotFixTitle',
   'reportResolveNoteHint',
-  'reportResolveConfirm',
   'reportAlreadyClosed',
   'reportShortcutSubtitles',
   'adminReportsTitle',
@@ -117,17 +118,14 @@ void main() {
     expect(it.inboxReportPending('Luigi'), 'Luigi ha segnalato un problema');
     expect(it.inboxReportFixed('Dark'), 'Problema sistemato su Dark');
     expect(it.inboxReportCannotFix('Dark'), 'Non è stato possibile sistemare Dark');
-    expect(it.reportsBannerTitle(1), 'Segnalazione aperta · 1');
-    expect(it.reportsBannerTitle(3), 'Segnalazioni aperte · 3');
+    expect(it.reportsOpenTitle, 'Segnalazioni aperte');
     expect(it.subtitlesDownloads(1), '1 download');
     expect(it.subtitlesDownloads(3), '3 download');
     expect(it.subtitlesWaiting, 'Aspetto che Jellyfin aggiunga la traccia…');
     expect(it.mediaInfoVersion('4K'), 'Versione: 4K');
     expect(it.mediaInfoChannels(6), '6 canali');
 
-    expect(en.reportsBannerTitle(1), isNot(en.reportsBannerTitle(3)));
-    expect(en.reportsBannerTitle(1), contains('1'));
-    expect(en.reportsBannerTitle(3), contains('3'));
+    expect(en.reportsOpenTitle, 'Open reports');
     expect(en.subtitlesDownloads(1), '1 download');
     expect(en.subtitlesDownloads(3), '3 downloads');
     expect(en.reportLevelEpisode(1, 4), 'S1:E4');

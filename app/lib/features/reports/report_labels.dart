@@ -45,6 +45,25 @@ String reportTitleLine(
       if (type != null) reportTypeLabel(l, type),
     ].where((part) => part.isNotEmpty).join(' · ');
 
+/// "S1:E4 La scatola · Sottotitoli", "Stagione 1 · …", "Tutta la serie · …";
+/// per un film solo il tipo. Con [withType] falso, senza il tipo.
+String reportSubjectLine(
+  AppLocalizations l,
+  ItemReport r, {
+  bool withType = true,
+}) {
+  final level = reportLevelLabel(
+    l,
+    r.itemType,
+    season: r.seasonNumber,
+    episode: r.episodeNumber,
+  );
+  return [
+    r.itemType == ReportItemType.episode ? '$level ${r.itemName}'.trim() : level,
+    if (withType) reportTypeLabel(l, r.type),
+  ].where((part) => part.isNotEmpty).join(' · ');
+}
+
 /// L'icona del riquadro di un tipo di problema.
 IconData reportTypeIcon(ReportType type) => switch (type) {
       ReportType.subtitles => LucideIcons.captions,

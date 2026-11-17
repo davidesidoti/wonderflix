@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -9,8 +10,11 @@ import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/json_fields.dart';
 import '../../core/reports/report_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
+import '../admin/admin_kit.dart';
+import '../admin/admin_time.dart';
 import '../item_edit/edit_metadata_dialog.dart';
 import '../item_edit/identify_dialog.dart';
 import '../subtitles/subtitles_dialog.dart';
@@ -36,23 +40,16 @@ class ReportsBanner extends ConsumerWidget {
     ];
     if (key.isEmpty || reports.isEmpty) return const SizedBox.shrink();
     final l = AppLocalizations.of(context);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(32, 0, 32, 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: WfColors.surface,
-        border: Border.all(color: WfColors.gold),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    final side = FormFactor.of(context).compact ? 16.0 : 32.0;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(side, 0, side, 16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l.reportsBannerTitle(reports.length),
-              style: const TextStyle(
-                  color: WfColors.gold,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
-          for (final report in reports) _ReportRow(report: report),
+          AdminSectionTitle(title: l.reportsOpenTitle, count: reports.length),
+          AdminList(children: [
+            for (final report in reports) _ReportRow(report: report),
+          ]),
         ],
       ),
     );
@@ -73,99 +70,131 @@ class _ReportRow extends ConsumerWidget {
 
   final ItemReport report;
 
+  Widget? _shortcut(BuildContext context, AppLocalizations l) {
+    Widget button(String label, IconData icon, Future<void> Function() open) =>
+        TextButton.icon(
+          onPressed: () => unawaited(open()),
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+        );
+    return switch (reportShortcut(report)) {
+      ReportShortcut.identify => button(
+          l.reportShortcutIdentify,
+          LucideIcons.search,
+          () => showIdentifyDialog(
+            context,
+            itemId: report.itemId,
+            kind: _kindOf(report.itemType),
+          ),
+        ),
+      ReportShortcut.editMetadata => button(
+          l.reportShortcutEdit,
+          LucideIcons.pencil,
+          () => showEditMetadataDialog(
+            context,
+            itemId: report.itemId,
+            kind: _kindOf(report.itemType),
+          ),
+        ),
+      ReportShortcut.subtitles => button(
+          l.reportShortcutSubtitles,
+          LucideIcons.captions,
+          () => showSubtitlesDialog(
+            context,
+            itemId: report.itemId,
+            title: reportTitleLine(l,
+                title: report.titleName,
+                itemType: report.itemType,
+                season: report.seasonNumber,
+                episode: report.episodeNumber),
+          ),
+        ),
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    final compact = FormFactor.of(context).compact;
     final note = report.note;
-    final shortcut = reportShortcut(report);
+    final hasNote = note != null && note.isNotEmpty;
+    final info = Row(
+      children: [
+        WfLamp(state: LampState.attention, label: l.reportOpen),
+        const SizedBox(width: 12),
+        UserAvatar.lookup(
+            userId: report.userId, name: report.userName, size: 32),
+        const SizedBox(width: 12),
+        // Nome, note e nomi sono testo dell'utente o della libreria.
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  '${report.userName} · '
+                  '${adminTimeLabel(report.createdAt, clock.now(), l)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(reportSubjectLine(l, report),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(hasNote ? '“$note”' : l.reportNoNote,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: WfColors.creamMuted, fontSize: 12.5)),
+            ],
+          ),
+        ),
+      ],
+    );
+    final actions = [
+      ?_shortcut(context, l),
+      WfButton.secondary(
+        label: l.reportFixedAction,
+        icon: LucideIcons.check,
+        onPressed: () => unawaited(
+            showResolveReportDialog(context, report, ReportOutcome.fixed)),
+      ),
+      PopupMenuButton<ReportOutcome>(
+        tooltip: l.itemActionsMenu,
+        icon: const Icon(LucideIcons.ellipsis, color: WfColors.cream),
+        onSelected: (outcome) =>
+            unawaited(showResolveReportDialog(context, report, outcome)),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+              value: ReportOutcome.cannotFix,
+              child: Text(l.reportCannotFixAction)),
+        ],
+      ),
+    ];
     return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          UserAvatar.lookup(
-              userId: report.userId, name: report.userName, size: 32),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(14),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Nome e nota sono testo dell'utente: sempre testo semplice.
-                Text(report.userName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(
-                    reportTitleLine(l,
-                        title: '',
-                        itemType: report.itemType,
-                        season: report.seasonNumber,
-                        episode: report.episodeNumber,
-                        type: report.type),
-                    style: const TextStyle(color: WfColors.creamMuted)),
-                const SizedBox(height: 4),
-                Text(note != null && note.isNotEmpty ? note : l.reportNoNote,
-                    style: note != null && note.isNotEmpty
-                        ? null
-                        : const TextStyle(color: WfColors.creamMuted)),
+                info,
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: [
-                    WfButton.primary(
-                      label: l.reportFixed,
-                      icon: LucideIcons.check,
-                      onPressed: () => unawaited(showResolveReportDialog(
-                          context, report, ReportOutcome.fixed)),
-                    ),
-                    WfButton.secondary(
-                      label: l.reportCannotFix,
-                      icon: LucideIcons.x,
-                      onPressed: () => unawaited(showResolveReportDialog(
-                          context, report, ReportOutcome.cannotFix)),
-                    ),
-                    if (shortcut == ReportShortcut.identify)
-                      WfButton.secondary(
-                        label: l.reportShortcutIdentify,
-                        icon: LucideIcons.search,
-                        onPressed: () => unawaited(showIdentifyDialog(
-                          context,
-                          itemId: report.itemId,
-                          kind: _kindOf(report.itemType),
-                        )),
-                      ),
-                    if (shortcut == ReportShortcut.editMetadata)
-                      WfButton.secondary(
-                        label: l.reportShortcutEdit,
-                        icon: LucideIcons.pencil,
-                        onPressed: () => unawaited(showEditMetadataDialog(
-                          context,
-                          itemId: report.itemId,
-                          kind: _kindOf(report.itemType),
-                        )),
-                      ),
-                    if (shortcut == ReportShortcut.subtitles)
-                      WfButton.secondary(
-                        label: l.reportShortcutSubtitles,
-                        icon: LucideIcons.captions,
-                        onPressed: () => unawaited(showSubtitlesDialog(
-                          context,
-                          itemId: report.itemId,
-                          title: reportTitleLine(l,
-                              title: report.titleName,
-                              itemType: report.itemType,
-                              season: report.seasonNumber,
-                              episode: report.episodeNumber),
-                        )),
-                      ),
-                  ],
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: actions,
                 ),
               ],
+            )
+          : Row(
+              children: [
+                Expanded(child: info),
+                const SizedBox(width: 16),
+                for (final (i, action) in actions.indexed) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  action,
+                ],
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }
