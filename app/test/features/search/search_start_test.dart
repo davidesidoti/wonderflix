@@ -10,6 +10,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/requests/requests_providers.dart';
 import 'package:wonderflix/features/search/search_screen.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -110,6 +111,63 @@ void main() {
     await tester.pump();
     expect(find.text('Ricerche recenti'), findsNothing);
     expect(prefs.getStringList('search.recent.${testUser.id}'), isEmpty);
+  });
+
+  testWidgets('svuotare il campo non rilegge generi e aggiunti e tiene Serie',
+      (tester) async {
+    await pumpSearch(tester);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Serie'));
+    await tester.pump();
+    await tester.pump();
+    int latestCalls() => api.itemQueries
+        .where((q) => q.sort == CatalogSort.dateAdded)
+        .length;
+    final filters = api.filtersCalls.length;
+    final latest = latestCalls();
+
+    await tester.enterText(find.byType(TextField), 'dune');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(find.text('Prova con un genere'), findsNothing);
+    await tester.tap(find.byTooltip('Svuota'));
+    await tester.pump();
+
+    expect(find.text('Aggiunti di recente'), findsOneWidget);
+    expect(
+        tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, 'Serie'))
+            .selected,
+        isTrue);
+    expect(api.filtersCalls.length, filters);
+    expect(latestCalls(), latest);
+  });
+
+  testWidgets('generi delle serie in errore: restano Film e Serie',
+      (tester) async {
+    api.filtersErrors[ItemKind.series] = Exception('giù');
+    await pumpSearch(tester);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Serie'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Prova con un genere'), findsOneWidget);
+    expect(find.byType(ActionChip), findsNothing);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Film'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.widgetWithText(ActionChip, 'Dramma'), findsOneWidget);
+  });
+
+  testWidgets('aggiunti di recente: una fila intera sopra lo schermo del '
+      'telefono', (tester) async {
+    api.onItems = (query, start, limit) => query.sort == CatalogSort.dateAdded &&
+            query.kinds.contains(ItemKind.movie)
+        ? pageOf([for (var i = 0; i < 8; i++) testItem(id: 'm$i', name: 'M$i')])
+        : pageOf([]);
+    await pumpApp(tester, const Scaffold(body: SearchScreen()),
+        overrides: overrides(), surfaceSize: const Size(900, 1000));
+    await tester.pump();
+    // 868 px di griglia: cinque colonne del catalogo.
+    expect(find.byType(PosterCard), findsNWidgets(5));
   });
 
   testWidgets('Serie e poi un genere aprono il catalogo Serie col genere',

@@ -298,8 +298,18 @@ class FakeLibraryApi implements LibraryApi {
   }
 
   @override
-  Future<LibraryFilters> filters(String userId, ItemKind kind) =>
-      _answer(() => filtersByKind[kind] ?? libraryFilters);
+  Future<LibraryFilters> filters(String userId, ItemKind kind) {
+    filtersCalls.add(kind);
+    final failure = filtersErrors[kind];
+    if (failure != null) return Future.error(failure);
+    return _answer(() => filtersByKind[kind] ?? libraryFilters);
+  }
+
+  /// Ogni [filters], per tipo.
+  final filtersCalls = <ItemKind>[];
+
+  /// Per tipo: [filters] lancia questo errore.
+  final filtersErrors = <ItemKind, Object>{};
 
   @override
   Future<ItemPage> searchPeople(String userId, String term,

@@ -25,23 +25,30 @@ class SearchStart extends ConsumerStatefulWidget {
   ConsumerState<SearchStart> createState() => _SearchStartState();
 }
 
-class _SearchStartState extends ConsumerState<SearchStart> {
+class _SearchStartState extends ConsumerState<SearchStart>
+    with AutomaticKeepAliveClientMixin {
   ItemKind _kind = ItemKind.movie;
 
-  /// Dopo un cambio di tipo i generi nuovi si leggono senza far sparire il
-  /// blocco (e le due pastiglie).
+  /// Dopo un cambio di tipo il blocco (e le due pastiglie) resta anche
+  /// mentre i generi si leggono o se la lettura fallisce.
   bool _switched = false;
+
+  /// Nella lista dei risultati scorsa resta viva: i provider non si
+  /// rileggono quando si svuota il campo.
+  @override
+  bool get wantKeepAlive => true;
 
   static const _head = TextStyle(fontSize: 15, fontWeight: FontWeight.w600);
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l = AppLocalizations.of(context);
     final form = FormFactor.of(context);
     final recent = ref.watch(recentSearchesProvider);
     final filters = ref.watch(catalogFiltersProvider(_kind));
     final latest = _latest();
-    final showGenres = !filters.hasError && (filters.hasValue || _switched);
+    final showGenres = filters.hasValue || _switched;
     final blocks = [
       if (recent.isNotEmpty) _recent(l, recent),
       if (showGenres) _genres(l, filters.value?.genres ?? const []),
@@ -160,7 +167,8 @@ class _SearchStartState extends ConsumerState<SearchStart> {
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
             final width = constraints.maxWidth;
-            final count = form.compact && !form.tv
+            // Sul telefono due file da due; più largo una fila intera.
+            final count = !form.tv && MediaQuery.sizeOf(context).width < 600
                 ? 4
                 : catalogColumnCount(width);
             final shown = items.take(count).toList();

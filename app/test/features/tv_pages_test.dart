@@ -100,6 +100,25 @@ void main() {
       expect(fieldFocused(tester), isTrue);
     });
 
+    testWidgets('l\'azione della tastiera (anche Indietro che la chiude) non '
+        'apre niente e non salva', (tester) async {
+      await pumpSearch(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'dune');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(tester.takeException(), isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('search.recent.${testUser.id}'), isNull);
+    });
+
     testWidgets('risultati e "Da richiedere" sono focalizzabili',
         (tester) async {
       await pumpSearch(tester);

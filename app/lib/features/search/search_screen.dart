@@ -112,6 +112,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         padding: EdgeInsets.symmetric(horizontal: side),
         child: child);
     final results = _results(context, l, state, hasSagas: sagas.isNotEmpty);
+    final starting = state.term.length < SearchController.minLength;
     return ListView(
       controller: _scroll,
       padding: EdgeInsets.only(top: form.compact ? 16 : 24, bottom: 32),
@@ -119,12 +120,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         padded(_searchField(context, l)),
         const SizedBox(height: 24),
         padded(SagasSearchSection(sagas: sagas)),
-        // Fuori dal [WfSwitcher]: la pagina d'inizio non resta a sfumare
-        // sotto i risultati.
-        if (state.term.length < SearchController.minLength)
-          SearchStart(onRecent: _searchRecent, side: side)
-        else
-          WfSwitcher(child: padded(results)),
+        // Sempre montata (nascosta mentre si cerca): generi, aggiunti di
+        // recente e Film/Serie restano quando si svuota il campo. Fuori dal
+        // [WfSwitcher]: non resta a sfumare sotto i risultati.
+        Offstage(
+          offstage: !starting,
+          child: ExcludeFocus(
+              excluding: !starting,
+              child: SearchStart(onRecent: _searchRecent, side: side)),
+        ),
+        if (!starting) WfSwitcher(child: padded(results)),
         padded(RequestablesSection(library: _libraryMatches(state))),
       ],
     );
@@ -193,9 +198,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         controller: _text,
         autofocus: !tv,
         focusNode: _fieldFocus,
-        textInputAction: TextInputAction.search,
+        // Sulla TV chiudere la tastiera con Indietro manda l'azione: niente
+        // Invio lì (lo decide il Task 11).
+        textInputAction: tv ? null : TextInputAction.search,
         onChanged: _setTerm,
-        onSubmitted: _submit,
+        onSubmitted: tv ? null : _submit,
         style: const TextStyle(fontSize: 18),
         decoration: InputDecoration(
           hintText: l.searchHint,
