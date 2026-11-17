@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/search/search_best.dart';
@@ -10,6 +11,7 @@ import 'package:wonderflix/l10n/gen/app_localizations_it.dart';
 
 import '../../support/library_fakes.dart';
 import '../../support/pump_app.dart';
+import '../../support/test_data.dart';
 
 void main() {
   final AppLocalizations it = AppLocalizationsIt();
@@ -60,7 +62,8 @@ void main() {
       rich.text.visitChildren((span) {
         if (span is TextSpan &&
             span.style?.decoration == TextDecoration.underline &&
-            span.style?.decorationColor == WfColors.gold) {
+            span.style?.decorationColor == WfColors.gold &&
+            span.style?.decorationThickness == 2) {
           underlined.add(span.text!);
         }
         return true;
@@ -158,21 +161,192 @@ void main() {
     expect(without.height, withFacts.height);
   });
 
-  testWidgets('la tessera della persona: nome e titoli', (tester) async {
-    var opened = 0;
-    await pumpApp(
-      tester,
-      Scaffold(
-        body: SearchPersonTile(
-          person: nolan,
-          facts: nolanFacts,
-          term: 'nol',
-          onOpened: () => opened++,
+  /// [child] come pagina `/`, con la scheda e il player come pagine di prova.
+  Future<GoRouter> pumpRouted(WidgetTester tester, Widget child) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => Scaffold(body: child),
         ),
+        GoRoute(
+          path: '/item/:id',
+          builder: (context, state) =>
+              Scaffold(body: Text('scheda ${state.pathParameters['id']}')),
+        ),
+        GoRoute(
+          path: '/person/:id',
+          builder: (context, state) =>
+              Scaffold(body: Text('persona ${state.pathParameters['id']}')),
+        ),
+        GoRoute(
+          path: '/play/:id',
+          builder: (context, state) =>
+              Scaffold(body: Text('player ${state.pathParameters['id']}')),
+        ),
+      ],
+    );
+    await pumpAppRouter(
+      tester,
+      router,
+      overrides: [clientInfoProvider.overrideWithValue(testClientInfo)],
+    );
+    await tester.pump();
+    return router;
+  }
+
+  testWidgets('la tessera della persona: nome, titoli, si apre', (
+    tester,
+  ) async {
+    var opened = 0;
+    await pumpRouted(
+      tester,
+      SearchPersonTile(
+        person: nolan,
+        facts: nolanFacts,
+        term: 'nol',
+        onOpened: () => opened++,
       ),
     );
     expect(richNamed(tester, 'Christopher Nolan'), isNotNull);
     expect(find.text('10 titoli'), findsOneWidget);
+    await tester.tap(find.text('10 titoli'));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+    expect(find.text('persona p2'), findsOneWidget);
+  });
+
+  testWidgets('la tessera non cambia altezza quando arrivano i dati', (
+    tester,
+  ) async {
+    Widget tile(PersonFacts? facts) => Align(
+      alignment: Alignment.topLeft,
+      child: SearchPersonTile(
+        key: const ValueKey('tile'),
+        person: nolan,
+        facts: facts,
+        term: 'nol',
+        onOpened: () {},
+      ),
+    );
+    await pumpApp(tester, Scaffold(body: tile(null)));
+    final before = tester.getSize(find.byKey(const ValueKey('tile')));
+    await pumpApp(tester, Scaffold(body: tile(nolanFacts)));
+    expect(tester.getSize(find.byKey(const ValueKey('tile'))), before);
+  });
+
+  testWidgets('Riproduci chiama onOpened prima di aprire il player', (
+    tester,
+  ) async {
+    final film = testItem(id: 'm1', name: 'Dune');
+    final locations = <String>[];
+    late GoRouter router;
+    String location() =>
+        router.routerDelegate.currentConfiguration.last.matchedLocation;
+    router = await pumpRouted(
+      tester,
+      SearchBestCard(
+        item: film,
+        term: 'dun',
+        onOpened: () => locations.add(location()),
+      ),
+    );
+    await tester.tap(find.text('Riproduci'));
+    await tester.pumpAndSettle();
+    expect(locations, ['/']);
+    expect(find.text('player m1'), findsOneWidget);
+  });
+
+  testWidgets('persona senza dati: stessa altezza, nessuna riga di dati', (
+    tester,
+  ) async {
+    Widget card(PersonFacts? facts) => Align(
+      alignment: Alignment.topLeft,
+      child: SearchBestCard(
+        key: const ValueKey('card'),
+        item: nolan,
+        term: 'nol',
+        facts: facts,
+        onOpened: () {},
+      ),
+    );
+    await pumpApp(tester, Scaffold(body: card(null)));
+    expect(find.textContaining('titoli'), findsNothing);
+    expect(find.text('Scheda'), findsOneWidget);
+    final before = tester.getSize(find.byKey(const ValueKey('card')));
+    await pumpApp(tester, Scaffold(body: card(nolanFacts)));
+    expect(tester.getSize(find.byKey(const ValueKey('card'))), before);
+  });
+
+  testWidgets('un termine assente dal nome: nessuna sottolineatura', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: SearchBestCard(item: istituto, term: 'zzz', onOpened: () {}),
+      ),
+    );
+    expect(find.text("L'Istituto"), findsOneWidget);
+  });
+
+  testWidgets('in TV la carta è larga 520', (tester) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SearchBestCard(
+            key: const ValueKey('card'),
+            item: istituto,
+            term: 'ist',
+            onOpened: () {},
+            tv: true,
+          ),
+        ),
+      ),
+      surfaceSize: const Size(960, 540),
+      tv: true,
+    );
+    expect(tester.getSize(find.byKey(const ValueKey('card'))).width, 520);
+  });
+
+  testWidgets('a 390 px col testo a 1,5 la carta cresce senza traboccare', (
+    tester,
+  ) async {
+    final long = testItem(
+      id: 's2',
+      name: "L'Istituto delle cose perdute e ritrovate",
+      kind: ItemKind.series,
+      year: 2025,
+      childCount: 12,
+      genres: ['Thriller', 'Drama'],
+      rating: 7.5,
+      overview: istituto.overview,
+    );
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: ListView(
+              children: [
+                SearchBestCard(item: long, term: 'ist', onOpened: () {}),
+              ],
+            ),
+          ),
+        ),
+      ),
+      surfaceSize: const Size(390, 800),
+    );
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getSize(find.byType(SearchBestCard)).height,
+      greaterThan(240),
+    );
   });
 
   testWidgets('aprire dalla carta chiama onOpened', (tester) async {

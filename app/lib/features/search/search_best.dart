@@ -151,13 +151,14 @@ class SearchBestCard extends ConsumerWidget {
                   label,
                   const SizedBox(height: 6),
                   name,
-                  if (facts != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _personFactsLine(l, facts),
-                      style: _muted.copyWith(fontFeatures: _tabular),
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  // Una riga anche mentre i dati arrivano: la carta non salta.
+                  Text(
+                    facts == null ? ' ' : _personFactsLine(l, facts),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: _muted.copyWith(fontFeatures: _tabular),
+                  ),
                   const SizedBox(height: 16),
                   WfButton.primary(
                     label: l.searchOpenDetails,
@@ -173,99 +174,131 @@ class SearchBestCard extends ConsumerWidget {
     } else {
       final rating = item.communityRating;
       final overview = item.overview;
-      content = Stack(
-        fit: StackFit.expand,
-        children: [
-          WfImage(image: urls.backdrop(item)),
-          // Il velo da sinistra del carosello.
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [WfColors.bg, Color(0xCC0A0A0A), Colors.transparent],
-                stops: [0, 0.35, 0.75],
+      // Alta almeno 240/280, di più se il testo non ci sta (nome su due
+      // righe, testo grande).
+      content = ConstrainedBox(
+        constraints: BoxConstraints(minHeight: compact ? 240 : 280),
+        child: Stack(
+          alignment: Alignment.bottomLeft,
+          children: [
+            Positioned.fill(child: WfImage(image: urls.backdrop(item))),
+            // Il velo da sinistra del carosello.
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      WfColors.bg,
+                      Color(0xCC0A0A0A),
+                      Colors.transparent,
+                    ],
+                    stops: [0, 0.35, 0.75],
+                  ),
+                ),
               ),
             ),
-          ),
-          Positioned(
-            left: compact ? 16 : 28,
-            right: compact ? 16 : null,
-            bottom: compact ? 16 : 24,
-            width: compact ? null : 560,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                label,
-                const SizedBox(height: 6),
-                name,
-                const SizedBox(height: 8),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: [
-                          item.kind == ItemKind.series
-                              ? l.navSeries
-                              : l.navMovies,
-                          heroMeta(item, l),
-                        ].where((part) => part.isNotEmpty).join(' · '),
-                      ),
-                      if (rating != null)
-                        TextSpan(
-                          text:
-                              '  ★ ${formatRatingAverage(rating, l.localeName)}',
-                          style: const TextStyle(
-                            color: WfColors.gold,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                    ],
-                  ),
-                  style: _muted.copyWith(fontFeatures: _tabular),
-                ),
-                if (overview != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    overview,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: _muted.copyWith(height: 1.45),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    WfButton.primary(
-                      label: l.actionPlay,
-                      icon: LucideIcons.play,
-                      onPressed: () {
-                        onOpened();
-                        unawaited(playItem(context, ref, item));
-                      },
+            // Nello stretto il testo prende tutta la larghezza: velo dal basso.
+            if (compact)
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        WfColors.bg,
+                        Color(0xBF0A0A0A),
+                        Color(0x0D0A0A0A),
+                      ],
+                      stops: [0, 0.45, 1],
                     ),
-                    WfButton.secondary(
-                      label: l.searchOpenDetails,
-                      icon: LucideIcons.info,
-                      onPressed: () => _open(context),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: compact
+                  ? const EdgeInsets.fromLTRB(16, 24, 16, 16)
+                  : const EdgeInsets.fromLTRB(28, 24, 28, 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: compact ? double.infinity : 560,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    label,
+                    const SizedBox(height: 6),
+                    name,
+                    const SizedBox(height: 8),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: [
+                              item.kind == ItemKind.series
+                                  ? l.navSeries
+                                  : l.navMovies,
+                              heroMeta(item, l),
+                            ].where((part) => part.isNotEmpty).join(' · '),
+                          ),
+                          if (rating != null)
+                            TextSpan(
+                              text:
+                                  '  ★ ${formatRatingAverage(rating, l.localeName)}',
+                              style: const TextStyle(
+                                color: WfColors.gold,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                        ],
+                      ),
+                      style: _muted.copyWith(fontFeatures: _tabular),
+                    ),
+                    if (overview != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        overview,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: _muted.copyWith(height: 1.45),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        WfButton.primary(
+                          label: l.actionPlay,
+                          icon: LucideIcons.play,
+                          onPressed: () {
+                            onOpened();
+                            unawaited(playItem(context, ref, item));
+                          },
+                        ),
+                        WfButton.secondary(
+                          label: l.searchOpenDetails,
+                          icon: LucideIcons.info,
+                          onPressed: () => _open(context),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
 
     final card = ClipRRect(
       borderRadius: BorderRadius.circular(10),
-      child: person
-          ? content
-          : SizedBox(height: compact ? 240 : 280, child: content),
+      child: content,
     );
-    // shortcut: 520 fissi nella fila della TV; da rivedere se la fila cambia.
+    // shortcut: larghezza fissa 520 nella fila della TV, da legare alla fila
+    // se la sua altezza o le altre carte cambiano.
     return tv ? SizedBox(width: 520, child: card) : card;
   }
 }
@@ -396,23 +429,25 @@ class _PersonRow extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (facts != null)
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            if (role != null) TextSpan(text: '$role · '),
+                    // Senza dati una riga vuota: il nome non si sposta.
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          if (facts == null) const TextSpan(text: ' '),
+                          if (role != null) TextSpan(text: '$role · '),
+                          if (facts != null)
                             TextSpan(
                               text: facts.knownFor.name,
                               style: const TextStyle(
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _muted.copyWith(fontSize: 12.5),
+                        ],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _muted.copyWith(fontSize: 12.5),
+                    ),
                   ],
                 ),
               ),
@@ -460,33 +495,35 @@ class SearchPersonTile extends ConsumerWidget {
 
     return TvFocusable(
       onActivate: open,
-      child: GestureDetector(
-        onTap: open,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: SizedBox(
-            width: 96,
-            child: Column(
-              children: [
-                _personPhoto(ref, person, 72),
-                const SizedBox(height: 8),
-                highlightedName(
-                  person.name,
-                  term,
-                  const TextStyle(fontSize: 12.5),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-                if (facts != null)
+      child: Semantics(
+        button: true,
+        child: GestureDetector(
+          onTap: open,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: SizedBox(
+              width: 96,
+              child: Column(
+                children: [
+                  _personPhoto(ref, person, 72),
+                  const SizedBox(height: 8),
+                  highlightedName(
+                    person.name,
+                    term,
+                    const TextStyle(fontSize: 12.5),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
                   Text(
-                    l.searchPersonTitles(facts.titles),
+                    facts == null ? ' ' : l.searchPersonTitles(facts.titles),
                     style: _muted.copyWith(
                       fontSize: 11.5,
                       fontFeatures: _tabular,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
