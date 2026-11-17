@@ -113,7 +113,7 @@ void main() {
       tester,
     ) async {
       await pump(tester, tv: true);
-      final row = find.byType(Checkbox);
+      final row = find.text('Peach');
       // All'apertura il fuoco parte già dalla prima riga: lo si toglie.
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
@@ -125,7 +125,7 @@ void main() {
     testWidgets('fuori dalla TV nessun bordo largo 2', (tester) async {
       await pump(tester, tv: false);
       await _focus(tester, find.text('Peach'));
-      expect(_ring(tester, find.byType(Checkbox)), isNull);
+      expect(_ring(tester, find.text('Peach')), isNull);
     });
   });
 

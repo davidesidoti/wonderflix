@@ -224,8 +224,10 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
   Future<MatchFailure?> invite(List<String> userIds) async {
     final current = state;
     if (current == null || current.closed) return MatchFailure.closed;
+    final ref = this.ref;
     try {
       await _api.invite(current.roomId, userIds);
+      if (!ref.mounted) return null;
       // La sala può essere cambiata durante l'attesa.
       final now = state;
       if (now != null && now.roomId == current.roomId) {
