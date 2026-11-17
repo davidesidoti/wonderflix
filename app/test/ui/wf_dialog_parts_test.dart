@@ -10,6 +10,33 @@ import 'package:wonderflix/ui/wf_dialog_parts.dart';
 import '../support/pump_app.dart';
 
 void main() {
+  testWidgets('una nota di errore è rossa e ha l\'icona di avviso', (t) async {
+    Widget footer(bool error) => Scaffold(
+      body: WfDialogFooter(
+        note: 'Il server non è raggiungibile',
+        noteIsError: error,
+        primary: WfButton.primary(
+          label: 'Salva',
+          icon: LucideIcons.check,
+          onPressed: () {},
+        ),
+      ),
+    );
+    await pumpApp(t, footer(true));
+    expect(
+      t.widget<Text>(find.text('Il server non è raggiungibile')).style!.color,
+      WfColors.error,
+    );
+    expect(find.byIcon(LucideIcons.circleAlert), findsOneWidget);
+
+    await pumpApp(t, footer(false));
+    expect(
+      t.widget<Text>(find.text('Il server non è raggiungibile')).style!.color,
+      WfColors.creamMuted,
+    );
+    expect(find.byIcon(LucideIcons.circleAlert), findsNothing);
+  });
+
   testWidgets('il piede ha la nota a sinistra, Annulla e il primario', (
     t,
   ) async {
@@ -64,7 +91,11 @@ void main() {
     );
   });
 
-  Future<void> openGuarded(WidgetTester t, int changes) async {
+  Future<void> openGuarded(
+    WidgetTester t,
+    int changes, {
+    bool blocked = false,
+  }) async {
     await pumpApp(
       t,
       Scaffold(
@@ -73,7 +104,13 @@ void main() {
             onPressed: () => showWfDialog<void>(
               context,
               builder: (_) =>
-                  WfDiscardGuard(changes: changes, child: const Text('corpo')),
+                  WfDiscardGuard(
+                    changes: changes,
+                    child: PopScope(
+                      canPop: !blocked,
+                      child: const Text('corpo'),
+                    ),
+                  ),
             ),
             child: const Text('apri'),
           ),
@@ -117,6 +154,15 @@ void main() {
     await t.tap(find.text('Butta'));
     await t.pumpAndSettle();
     expect(find.text('corpo'), findsNothing);
+  });
+
+  testWidgets('senza modifiche e pop bloccato da un altro PopScope: nessuna '
+      'domanda', (t) async {
+    await openGuarded(t, 0, blocked: true);
+    await t.sendKeyEvent(LogicalKeyboardKey.escape);
+    await t.pumpAndSettle();
+    expect(find.text('corpo'), findsOneWidget);
+    expect(find.text('Butta'), findsNothing);
   });
 
   testWidgets('senza modifiche Esc chiude subito', (t) async {

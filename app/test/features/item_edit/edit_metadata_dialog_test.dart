@@ -13,6 +13,7 @@ import 'package:wonderflix/features/item_edit/item_edit_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
+import 'package:wonderflix/ui/wf_dialog_parts.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -474,6 +475,66 @@ void main() {
       expect(textOf(tester, 'Titolo'), 'Dark');
       expect(find.textContaining('non è raggiungibile'), findsNothing);
       expect(find.text('Dark · Serie · 2017'), findsOneWidget);
+    });
+
+    testWidgets('Esc durante il salvataggio: nessuna domanda, poi si chiude', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.enterText(field('Titolo'), 'Dark 2');
+      await tester.pump();
+      final gate = api.gate = Completer<void>();
+      await tester.tap(save());
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text(it.discardChangesTitle(1)), findsNothing);
+      expect(field('Titolo'), findsOneWidget);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(field('Titolo'), findsNothing);
+      expect(api.lastUpdate!['Name'], 'Dark 2');
+    });
+
+    testWidgets('anno e data svuotati e genere doppio non contano', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.enterText(field('Anno'), '');
+      await tester.enterText(field('Data di uscita'), '');
+      await tester.enterText(field('Aggiungi un genere'), 'Drammatico');
+      await tester.pump();
+      expect(saveEnabled(tester), isFalse);
+      expect(find.textContaining(RegExp(r'^\d+ modific')), findsNothing);
+    });
+
+    testWidgets('calendario con una data fuori intervallo', (tester) async {
+      await open(tester);
+      await tester.enterText(field('Data di uscita'), '01/01/1800');
+      await tester.pump();
+      await tester.tap(find.byTooltip(it.editPickDate));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+    });
+
+    testWidgets('gli errori nel piede sono in rosso', (tester) async {
+      await open(tester);
+      await tester.enterText(field('Titolo'), 'Dark 2');
+      await tester.pump();
+      expect(
+        tester.widget<WfDialogFooter>(find.byType(WfDialogFooter)).noteIsError,
+        isFalse,
+      );
+      api.nextFailure = const ServerUnreachableException();
+      await tester.tap(save());
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<WfDialogFooter>(find.byType(WfDialogFooter)).noteIsError,
+        isTrue,
+      );
     });
 
     testWidgets('etichetta dei generi e suggerimento delle cartelle', (

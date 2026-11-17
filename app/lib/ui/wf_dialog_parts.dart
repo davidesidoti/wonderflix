@@ -62,12 +62,16 @@ class WfDialogFooter extends StatelessWidget {
   const WfDialogFooter({
     super.key,
     this.note,
+    this.noteIsError = false,
     this.cancelLabel,
     this.onCancel,
     required this.primary,
   });
 
   final String? note;
+
+  /// La nota è un errore: in rosso, con l'icona di avviso.
+  final bool noteIsError;
   final String? cancelLabel;
   final VoidCallback? onCancel;
   final Widget primary;
@@ -99,7 +103,26 @@ class WfDialogFooter extends StatelessWidget {
           builder: (context, constraints) => Row(
             children: [
               if (note != null) ...[
-                Expanded(child: Text(note!, style: _muted)),
+                Expanded(
+                  child: noteIsError
+                      ? Row(
+                          children: [
+                            const Icon(
+                              LucideIcons.circleAlert,
+                              size: 16,
+                              color: WfColors.error,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                note!,
+                                style: _muted.copyWith(color: WfColors.error),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(note!, style: _muted),
+                ),
                 const SizedBox(width: 16),
               ] else
                 const Spacer(),
@@ -133,7 +156,8 @@ class WfDiscardGuard extends StatelessWidget {
     return PopScope<Object?>(
       canPop: changes == 0,
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
+        // Con 0 modifiche il pop lo ha bloccato un altro PopScope: niente domanda.
+        if (didPop || changes == 0) return;
         final l = AppLocalizations.of(context);
         final discard = await showWfConfirmDialog(
           context,

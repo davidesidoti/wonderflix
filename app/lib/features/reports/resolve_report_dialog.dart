@@ -141,6 +141,7 @@ class _ResolveDialogState extends ConsumerState<_ResolveDialog>
     return WfDialogFooter(
       // Un errore resta visibile anche con il corpo scorso.
       note: _error,
+      noteIsError: _error != null,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
       primary: WfButton.primary(
         label: _title,

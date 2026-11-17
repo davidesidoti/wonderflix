@@ -301,11 +301,17 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog>
   }
 
   Future<void> _pickDate() async {
+    final first = DateTime(1850);
+    final last = DateTime(2200);
+    final written = parseItalianDate(_date.text);
+    // showDatePicker non accetta una data fuori dal suo intervallo.
+    final inRange =
+        written != null && !written.isBefore(first) && !written.isAfter(last);
     final picked = await showDatePicker(
       context: context,
-      initialDate: parseItalianDate(_date.text) ?? DateTime.now(),
-      firstDate: DateTime(1850),
-      lastDate: DateTime(2200),
+      initialDate: inRange ? written : DateTime.now(),
+      firstDate: first,
+      lastDate: last,
     );
     if (picked == null || !mounted) return;
     setState(() => _date.text = formatItalianDate(picked));
@@ -337,9 +343,14 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog>
     if (o == null) return 0;
     final genres = (o['Genres'] as List?)?.cast<String>() ?? const [];
     final locks = _originalLocks(o);
+    final pending = _newGenre.text.trim();
     return [
-      for (final (controller, before) in _texts(o)) controller.text != before,
-      _newGenre.text.trim().isNotEmpty ||
+      for (final (controller, before) in _texts(o))
+        // Anno e data svuotati non si mandano: restano com'erano.
+        controller.text != before &&
+            !((controller == _year || controller == _date) &&
+                controller.text.trim().isEmpty),
+      (pending.isNotEmpty && !_genres.contains(pending)) ||
           jsonEncode(_genres) != jsonEncode(genres),
       _rating != (o['OfficialRating'] as String? ?? ''),
       _lockAll != (o['LockData'] == true),
@@ -423,6 +434,7 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog>
     final changes = _changes;
     final loadError = _loadError;
     return WfDialogFooter(
+      noteIsError: _error != null || loadError != null,
       // Gli errori restano visibili anche con il corpo scorso.
       note:
           _error ??
@@ -544,8 +556,9 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog>
       );
     }
     // Esc e il clic fuori non chiudono la finestra durante il salvataggio.
+    // Durante il salvataggio Esc non chiede niente: il PopScope lo blocca.
     return WfDiscardGuard(
-      changes: _changes,
+      changes: _busy ? 0 : _changes,
       child: PopScope(
         canPop: !_busy,
         child: Column(
