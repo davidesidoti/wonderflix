@@ -100,7 +100,8 @@ class _SubtitlesDialogState extends ConsumerState<_SubtitlesDialog> {
   @override
   void initState() {
     super.initState();
-    unawaited(_controller.searchOnOpen());
+    // Dopo il primo build: Riverpod non accetta scritture durante initState.
+    unawaited(Future.microtask(_controller.searchOnOpen));
   }
 
   void _added(bool added) {
@@ -130,10 +131,12 @@ class _SubtitlesDialogState extends ConsumerState<_SubtitlesDialog> {
     final controller = _controller;
     final confirmed = await showWfConfirmDialog(
       context,
-      title: l.subtitlesDeleteTrackTitle(
-        _trackLanguage(track, l),
-        codecLabel(track.codec),
-      ),
+      title: codecLabel(track.codec).isEmpty
+          ? l.subtitlesDeleteTrackTitleNoCodec(_trackLanguage(track, l))
+          : l.subtitlesDeleteTrackTitle(
+              _trackLanguage(track, l),
+              codecLabel(track.codec),
+            ),
       message: l.subtitlesDeleteMessage,
       confirmLabel: l.subtitlesDelete,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
@@ -158,19 +161,27 @@ class _SubtitlesDialogState extends ConsumerState<_SubtitlesDialog> {
           onDownload: (subtitle) async =>
               _added(await _controller.download(subtitle)),
         ),
-        _NoticeLine(state: state),
+        _NoticeLine(
+          state: state,
+          onRetry: () => unawaited(_controller.search()),
+        ),
       ],
     );
+    final language = languageName(state.language, l.localeName);
     final upload = _UploadPanel(
-      language: languageName(state.language, l.localeName),
+      // In italiano la lingua in mezzo alla frase va minuscola.
+      language: l.localeName.startsWith('it')
+          ? language.toLowerCase()
+          : language,
       forced: _forced,
       hearingImpaired: _hearingImpaired,
       onForced: (value) => setState(() => _forced = value),
       onHearingImpaired: (value) => setState(() => _hearingImpaired = value),
       onUpload: busy ? null : () => unawaited(_upload()),
     );
+    // La ricerca si può lasciare a metà: bloccano solo scarico e caricamento.
     return PopScope(
-      canPop: !busy,
+      canPop: state.busyId == null && !state.uploading,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -292,7 +303,8 @@ class _SearchSection extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         // Con l'avviso "waiting" la rotella è già nell'avviso.
-        if (state.searching ||
+        if (state.preparing ||
+            state.searching ||
             (state.uploading && state.notice != SubtitlesNotice.waiting))
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
@@ -508,9 +520,12 @@ class _Spinner extends StatelessWidget {
 
 /// Lo stato dell'ultima operazione, sotto i risultati.
 class _NoticeLine extends StatelessWidget {
-  const _NoticeLine({required this.state});
+  const _NoticeLine({required this.state, required this.onRetry});
 
   final SubtitlesState state;
+
+  /// "Riprova" di una ricerca non riuscita.
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -540,6 +555,24 @@ class _NoticeLine extends StatelessWidget {
         child: Text(
           l.subtitlesTrackSoon,
           style: const TextStyle(color: WfColors.creamMuted),
+        ),
+      ),
+      SubtitlesNotice.searchFailed => Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            Expanded(
+              child: ErrorBanner(
+                describeError(l, state.error ?? const Object()),
+              ),
+            ),
+            const SizedBox(width: 12),
+            WfButton.secondary(
+              label: l.retry,
+              icon: LucideIcons.refreshCw,
+              onPressed: onRetry,
+            ),
+          ],
         ),
       ),
       final failure => Padding(

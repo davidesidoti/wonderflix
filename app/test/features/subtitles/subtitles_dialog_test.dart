@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/media_info_models.dart';
 import 'package:wonderflix/core/subtitles/subtitle_models.dart';
+import 'package:wonderflix/core/subtitles/subtitles_api.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/settings/language_preferences.dart';
@@ -240,6 +241,11 @@ void main() {
       ..config['SubtitleLanguagePreference'] = 'eng';
     await open(tester, config: config, settle: false);
     expect(api.calls, isEmpty, reason: 'aspetta la preferenza');
+    expect(
+      find.byKey(const ValueKey('subtitles-progress')),
+      findsOneWidget,
+      reason: "anche durante l'attesa la rotella",
+    );
 
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
@@ -374,7 +380,7 @@ void main() {
 
     for (final text in [
       'Carica un file',
-      'Hai già un .srt o un .ass? Lo aggiungo in Italiano.',
+      'Hai già un .srt o un .ass? Lo aggiungo in italiano.',
       'Forzati',
       'Solo cartelli e battute in altre lingue',
       'Per non udenti',
@@ -449,9 +455,36 @@ void main() {
     expect(find.byKey(progress), findsNothing);
   });
 
-  testWidgets('mentre cerca la finestra non si chiude', (tester) async {
+  testWidgets("Esc durante la ricerca dell'apertura chiude la finestra", (
+    tester,
+  ) async {
     final gate = api.gate = Completer<void>();
     await open(tester, settle: false);
+    expect(api.calls, ['search e1 ita -']);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Tracce presenti'), findsNothing);
+
+    // La risposta arriva a finestra chiusa: nessuna scrittura, nessun errore.
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mentre carica la finestra non si chiude', (tester) async {
+    await open(
+      tester,
+      picked: PickedSubtitleFile(
+        name: 'Dark.srt',
+        length: 1,
+        read: () async => Uint8List.fromList([1]),
+      ),
+    );
+    final gate = api.gate = Completer<void>();
+    await tester.tap(find.text('Scegli il file…'));
+    await tester.pump();
+    await tester.pump();
 
     await tester.tap(find.text('Chiudi'));
     await tester.pump();
@@ -459,10 +492,39 @@ void main() {
     expect(find.text('Tracce presenti'), findsOneWidget);
 
     gate.complete();
+    await tester.pump(subtitlePollTimeout);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Chiudi'));
+  });
+
+  testWidgets('una ricerca non riuscita ha Riprova', (tester) async {
+    api.nextFailure = SubtitlesFailure.unavailable;
+    api.results.add(testSubtitle(id: 'a', name: 'Alfa'));
+    await open(tester);
+    expect(row('a'), findsNothing);
+
+    await tester.tap(find.text('Riprova'));
     await tester.pumpAndSettle();
-    expect(find.text('Tracce presenti'), findsNothing);
+
+    expect(api.calls, ['search e1 ita -', 'search e1 ita -']);
+    expect(row('a'), findsOneWidget);
+    expect(find.text('Riprova'), findsNothing);
+  });
+
+  testWidgets('una traccia esterna senza codec', (tester) async {
+    library.mediaInfoById['e1'] = testMediaInfo(
+      subtitles: const [
+        SubtitleTrack(index: 3, language: 'ita', isExternal: true),
+      ],
+    );
+    await open(tester, user: testAdmin);
+    expect(find.text('file esterno'), findsOneWidget);
+
+    await tester.tap(find.text('Elimina…'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Eliminare i sottotitoli Italiano (file esterno)?'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('la rotella compare durante il caricamento', (tester) async {

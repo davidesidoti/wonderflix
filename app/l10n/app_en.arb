@@ -1117,6 +1117,7 @@
   "subtitlesForcedHint": "Only signs and lines in other languages",
   "subtitlesHearingImpairedHint": "With sounds and speaker names",
   "subtitlesDeleteTrackTitle": "Delete the {language} subtitles ({codec}, external file)?",
+  "subtitlesDeleteTrackTitleNoCodec": "Delete the {language} subtitles (external file)?",
   "subtitlesDeleteMessage": "The subtitle file will be deleted from the server.",
   "subtitlesFileTypes": "Subtitles",
   "subtitlesNextPlayback": "The subtitle will be available from the next playback",

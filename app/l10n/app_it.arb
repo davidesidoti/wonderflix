@@ -1284,6 +1284,8 @@
   "subtitlesHearingImpairedHint": "Con rumori e nomi di chi parla",
   "subtitlesDeleteTrackTitle": "Eliminare i sottotitoli {language} ({codec}, file esterno)?",
   "@subtitlesDeleteTrackTitle": {"placeholders": {"language": {"type": "String"}, "codec": {"type": "String"}}},
+  "subtitlesDeleteTrackTitleNoCodec": "Eliminare i sottotitoli {language} (file esterno)?",
+  "@subtitlesDeleteTrackTitleNoCodec": {"placeholders": {"language": {"type": "String"}}},
   "subtitlesDeleteMessage": "Il file del sottotitolo verrà cancellato dal server.",
   "subtitlesFileTypes": "Sottotitoli",
   "subtitlesNextPlayback": "Il sottotitolo sarà disponibile dalla prossima riproduzione",

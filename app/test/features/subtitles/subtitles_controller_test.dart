@@ -106,17 +106,20 @@ void main() {
     }
   });
 
-  test('una preferenza arrivata dopo la ricerca non cambia la lingua', () async {
-    config.config['SubtitleLanguagePreference'] = 'eng';
-    mount();
+  test(
+    'una preferenza arrivata dopo la ricerca non cambia la lingua',
+    () async {
+      config.config['SubtitleLanguagePreference'] = 'eng';
+      mount();
 
-    final searching = controller().search();
-    await container.read(languagePreferencesProvider.future);
-    await searching;
+      final searching = controller().search();
+      await container.read(languagePreferencesProvider.future);
+      await searching;
 
-    expect(state().language, 'ita', reason: 'i risultati sono in italiano');
-    expect(api.calls, ['search e1 ita -']);
-  });
+      expect(state().language, 'ita', reason: 'i risultati sono in italiano');
+      expect(api.calls, ['search e1 ita -']);
+    },
+  );
 
   test('search ordina i risultati', () async {
     mount();
@@ -243,7 +246,7 @@ void main() {
 
     await controller().search();
 
-    expect(state().notice, SubtitlesNotice.error);
+    expect(state().notice, SubtitlesNotice.searchFailed);
     expect(state().error, isA<SubtitlesException>());
     expect(session.refreshUserCalls, 0);
   });
@@ -486,19 +489,22 @@ void main() {
       expect(api.calls, ['search e1 ita -']);
     });
 
-    test("una lingua scelta durante l'attesa vale, con una sola ricerca", () async {
-      config.config['SubtitleLanguagePreference'] = 'eng';
-      final gate = config.gate = Completer<void>();
-      mount();
+    test(
+      "una lingua scelta durante l'attesa vale, con una sola ricerca",
+      () async {
+        config.config['SubtitleLanguagePreference'] = 'eng';
+        final gate = config.gate = Completer<void>();
+        mount();
 
-      final opening = controller().searchOnOpen();
-      await controller().setLanguage('fre');
-      gate.complete();
-      await opening;
+        final opening = controller().searchOnOpen();
+        await controller().setLanguage('fre');
+        gate.complete();
+        await opening;
 
-      expect(api.calls, ['search e1 fre -']);
-      expect(state().language, 'fre');
-    });
+        expect(api.calls, ['search e1 fre -']);
+        expect(state().language, 'fre');
+      },
+    );
   });
 
   test('setLanguage rilancia la ricerca nella lingua nuova', () async {
@@ -509,4 +515,28 @@ void main() {
 
     expect(api.calls, ['search e1 ita -', 'search e1 eng -']);
   });
+
+  test(
+    "con un'operazione in corso la ricerca dell'apertura parte dopo",
+    () async {
+      config.config['SubtitleLanguagePreference'] = 'eng';
+      final preferences = config.gate = Completer<void>();
+      mount(user: testAdmin);
+
+      final opening = controller().searchOnOpen();
+      expect(state().preparing, isTrue);
+      final deleteGate = api.gate = Completer<void>();
+      final deleting = controller().delete(_external(5));
+      preferences.complete();
+      await opening;
+      expect(state().preparing, isFalse);
+      expect(api.calls, ['delete e1 5'], reason: 'la ricerca aspetta');
+
+      deleteGate.complete();
+      await deleting;
+      await pumpEventQueue();
+
+      expect(api.calls, ['delete e1 5', 'search e1 eng -']);
+    },
+  );
 }

@@ -37,6 +37,9 @@ enum SubtitlesNotice {
   fileTooLarge,
   noPermission,
   error,
+
+  /// La ricerca non è riuscita: l'avviso ha "Riprova".
+  searchFailed,
   waiting,
   trackAdded,
   trackSoon,
@@ -47,6 +50,7 @@ const _keep = Object();
 class SubtitlesState {
   const SubtitlesState({
     required this.language,
+    this.preparing = false,
     this.searching = false,
     this.results,
     this.busyId,
@@ -57,6 +61,9 @@ class SubtitlesState {
 
   /// Codice a tre lettere, una chiave di `playbackLanguages`.
   final String language;
+
+  /// La ricerca dell'apertura aspetta la preferenza di lingua.
+  final bool preparing;
   final bool searching;
 
   /// `null` finché non si è cercato.
@@ -67,12 +74,13 @@ class SubtitlesState {
   final bool uploading;
   final SubtitlesNotice notice;
 
-  /// Con [SubtitlesNotice.error], la causa.
+  /// Con [SubtitlesNotice.error] e [SubtitlesNotice.searchFailed], la causa.
   final Object? error;
 
   /// `results`, `busyId` e `error` si azzerano passando `null`.
   SubtitlesState copyWith({
     String? language,
+    bool? preparing,
     bool? searching,
     Object? results = _keep,
     Object? busyId = _keep,
@@ -81,6 +89,7 @@ class SubtitlesState {
     Object? error = _keep,
   }) => SubtitlesState(
     language: language ?? this.language,
+    preparing: preparing ?? this.preparing,
     searching: searching ?? this.searching,
     results: identical(results, _keep)
         ? this.results
@@ -100,6 +109,10 @@ class SubtitlesController extends Notifier<SubtitlesState> {
   final String itemId;
   bool _languageChosen = false;
   bool _deleting = false;
+
+  /// La ricerca dell'apertura ha trovato un'operazione in corso: parte
+  /// quando finisce.
+  bool _searchPending = false;
   Timer? _timer;
   late SessionController _session;
 
@@ -130,9 +143,11 @@ class SubtitlesController extends Notifier<SubtitlesState> {
 
   /// La ricerca dell'apertura: aspetta la preferenza di lingua (al massimo
   /// [languagePreferenceWait]; un errore vale "nessuna preferenza") e cerca
-  /// una volta. Una lingua scelta nell'attesa ha già cercato.
+  /// una volta. Una lingua scelta nell'attesa ha già cercato; con
+  /// un'operazione in corso la ricerca parte quando finisce.
   Future<void> searchOnOpen() async {
     final ref = this.ref;
+    state = state.copyWith(preparing: true);
     LanguagePreferences? preferences;
     try {
       preferences = await ref
@@ -141,9 +156,22 @@ class SubtitlesController extends Notifier<SubtitlesState> {
     } on Object {
       preferences = null;
     }
-    if (!ref.mounted || _languageChosen) return;
+    if (!ref.mounted) return;
+    state = state.copyWith(preparing: false);
+    if (_languageChosen) return;
     state = state.copyWith(language: _initialLanguage(preferences));
+    if (_busy) {
+      _searchPending = true;
+      return;
+    }
     await search();
+  }
+
+  /// La ricerca dell'apertura rimandata, finita l'operazione in corso.
+  void _runPendingSearch() {
+    if (!_searchPending || _busy || !ref.mounted) return;
+    _searchPending = false;
+    unawaited(search());
   }
 
   /// Cambia lingua e cerca di nuovo.
@@ -175,7 +203,7 @@ class SubtitlesController extends Notifier<SubtitlesState> {
         error: null,
       );
     } on Object catch (error) {
-      _fail(ref, error, SubtitlesNotice.error);
+      _fail(ref, error, SubtitlesNotice.searchFailed);
     }
   }
 
@@ -230,6 +258,7 @@ class SubtitlesController extends Notifier<SubtitlesState> {
       _fail(ref, error, SubtitlesNotice.error);
     } finally {
       _deleting = false;
+      _runPendingSearch();
     }
   }
 
@@ -266,6 +295,8 @@ class SubtitlesController extends Notifier<SubtitlesState> {
     } on Object catch (error) {
       _fail(ref, error, failure);
       return false;
+    } finally {
+      _runPendingSearch();
     }
   }
 
