@@ -14,10 +14,10 @@ import '../../core/social/inbox_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/panel_header.dart';
+import '../../ui/sender_avatar.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/bold_spans.dart';
-import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
 import '../match/match_actions.dart';
@@ -31,7 +31,9 @@ import 'inbox_account_row.dart';
 import 'inbox_alert_rows.dart';
 import 'inbox_controller.dart';
 import 'inbox_request_rows.dart';
+import 'inbox_row.dart';
 import 'inbox_time.dart';
+import 'notification_text.dart';
 
 /// Esegue un'azione sulla cassetta; se non riesce lo dice con una snackbar
 /// (spec G §8).
@@ -45,10 +47,6 @@ Future<void> runInboxAction(
 }
 
 const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 13);
-const _timeStyle = TextStyle(color: WfColors.creamMuted, fontSize: 12);
-
-/// Lo stesso gruppo, con o senza trattini e maiuscole.
-String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
 
 /// Contenuto del pannello "Notifiche" (spec G §7.5–7.6): intestazione con
 /// Svuota, voci dalla più recente.
@@ -60,15 +58,6 @@ class InboxPanel extends ConsumerStatefulWidget {
 
   /// Per quanto resta "Conferma" dopo "Svuota".
   static const clearConfirmFor = Duration(seconds: 4);
-
-  /// Larghezza della miniatura dell'invito e dell'icona dell'annuncio.
-  static const leadingSize = 40.0;
-
-  /// Altezza della miniatura dell'invito (locandina 2:3).
-  static const posterHeight = 60.0;
-
-  /// Lato del pallino delle voci non lette.
-  static const dotSize = 8.0;
 
   /// Righe delle novità prima di "Mostra tutto".
   static const newTitlesPreview = 5;
@@ -244,9 +233,30 @@ class _Entries extends ConsumerWidget {
   }
 }
 
-/// Una voce: pallino (se evidenziata), miniatura o icona, contenuto, ×
-/// (visibile al passaggio del mouse e col fuoco).
-class _EntryTile extends ConsumerStatefulWidget {
+/// La frase tutta in grassetto (voci senza un nome da evidenziare).
+TextSpan _strong(String text) => boldSpans(text, [text]);
+
+/// L'azione a destra della riga ("Unisciti", "Apri").
+Widget _rowAction(
+        {Key? key, required String label, required VoidCallback? onPressed}) =>
+    TextButton(
+      key: key,
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: WfColors.gold,
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+
+/// Il testo sotto la frase: il messaggio, la nota, il dettaglio.
+Widget _below(String text) =>
+    Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, style: _mutedStyle);
+
+/// Una voce sulla riga comune (spec §7.1): chi la manda, la frase, l'ora e
+/// l'azione a destra; la riga intera fa quello che fa l'azione.
+class _EntryTile extends ConsumerWidget {
   const _EntryTile({
     super.key,
     required this.entry,
@@ -259,377 +269,211 @@ class _EntryTile extends ConsumerStatefulWidget {
   final String time;
 
   @override
-  ConsumerState<_EntryTile> createState() => _EntryTileState();
-}
-
-class _EntryTileState extends ConsumerState<_EntryTile> {
-  bool _hovered = false;
-  bool _focused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    final entry = widget.entry;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: InboxPanel.dotSize,
-              child: widget.highlighted
-                  ? Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Container(
-                        key: Key('inbox-unread-${entry.id}'),
-                        width: InboxPanel.dotSize,
-                        height: InboxPanel.dotSize,
-                        decoration: const BoxDecoration(
-                            color: WfColors.gold, shape: BoxShape.circle),
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 8),
-            switch (entry) {
-              InviteEntry() => _InvitePoster(entry: entry),
-              AnnouncementEntry() => const _AnnouncementIcon(),
-              NewTitlesEntry() => const _NewTitlesIcon(),
-              RequestAvailableEntry() => const InboxRequestIcon(
-                  icon: LucideIcons.clapperboard, size: InboxPanel.leadingSize),
-              RequestPendingEntry() => const InboxRequestIcon(
-                  icon: LucideIcons.inbox, size: InboxPanel.leadingSize),
-              ContactReminderEntry() => const InboxRequestIcon(
-                  icon: LucideIcons.shieldCheck, size: InboxPanel.leadingSize),
-              RecommendationEntry() => _ItemPoster(itemId: entry.itemId),
-              MatchInviteEntry() => const InboxRequestIcon(
-                  icon: LucideIcons.heartHandshake,
-                  size: InboxPanel.leadingSize),
-              ReportPendingEntry() => _reportLeading(
-                  entry.titleId, LucideIcons.flag),
-              ReportResolvedEntry() => _reportLeading(
-                  entry.titleId,
-                  entry.outcome == ReportOutcome.fixed
-                      ? LucideIcons.circleCheck
-                      : LucideIcons.circleAlert),
-              AlertedEntry() => InboxRequestIcon(
-                  icon: alertIconOf(entry), size: InboxPanel.leadingSize),
-            },
-            const SizedBox(width: 12),
-            Expanded(
-              child: switch (entry) {
-                InviteEntry() =>
-                  _InviteContent(entry: entry, time: widget.time),
-                AnnouncementEntry() =>
-                  _AnnouncementContent(entry: entry, time: widget.time),
-                NewTitlesEntry() =>
-                  _NewTitlesContent(entry: entry, time: widget.time),
-                RequestAvailableEntry() => InboxRequestContent(
-                    key: Key('inbox-request-${entry.id}'),
-                    text: l.inboxRequestAvailable(
-                        inboxRequestTitle(l, entry.title, entry.seasons)),
-                    time: widget.time,
-                    onOpen: () {
-                      final itemId = entry.itemId;
-                      if (itemId != null) {
-                        openItemById(context, itemId);
-                      } else {
-                        // Senza titolo in libreria: le richieste di chi guarda,
-                        // dove c'è quella arrivata (anche per un admin con
-                        // altre in attesa).
-                        openRequests(context, tab: RequestsTab.mine);
-                      }
-                    },
-                  ),
-                RequestPendingEntry() => InboxRequestContent(
-                    key: Key('inbox-request-${entry.id}'),
-                    text: inboxRequestPendingText(
-                        l, entry.requesterName, entry.title, entry.seasons),
-                    time: widget.time,
-                    onOpen: () => openRequests(context, tab: RequestsTab.pending),
-                  ),
-                ContactReminderEntry() => InboxContactReminderContent(
-                    key: Key('inbox-contact-reminder-${entry.id}'),
-                    channels: entry.channels,
-                    time: widget.time,
-                  ),
-                RecommendationEntry() => _RecommendationContent(
-                    key: Key('inbox-recommendation-${entry.id}'),
-                    entry: entry,
-                    time: widget.time),
-                MatchInviteEntry() =>
-                  _MatchInviteContent(entry: entry, time: widget.time),
-                ReportPendingEntry() => _ReportContent(
-                    key: Key('inbox-report-${entry.id}'),
-                    titleId: entry.titleId,
-                    itemId: entry.itemId,
-                    itemType: entry.itemType,
-                    first: boldSpans(
-                        l.inboxReportPending(entry.fromName), [entry.fromName]),
-                    second: reportTitleLine(l,
-                        title: entry.title,
-                        itemType: entry.itemType,
-                        season: entry.seasonNumber,
-                        episode: entry.episodeNumber,
-                        type: entry.reportType),
-                    time: widget.time),
-                ReportResolvedEntry() => _ReportContent(
-                    key: Key('inbox-report-${entry.id}'),
-                    titleId: entry.titleId,
-                    itemId: entry.itemId,
-                    itemType: entry.itemType,
-                    first: TextSpan(
-                        text: _reportResolvedText(l, entry.outcome, entry.title)),
-                    second: switch (entry.text) {
-                      final String note => l.inboxRecommendationMessage(note),
-                      null => null,
-                    },
-                    time: widget.time),
-                AlertedEntry() => InboxAlertContent(
-                    key: Key('inbox-alert-${entry.id}'),
-                    entry: entry,
-                    time: widget.time),
-              },
-            ),
-            Focus(
-              canRequestFocus: false,
-              skipTraversal: true,
-              onFocusChange: (focused) => setState(() => _focused = focused),
-              child: Opacity(
-                opacity:
-                    _hovered || _focused || FormFactor.of(context).touch ? 1 : 0,
-                // Nascosta resta per i lettori di schermo.
-                alwaysIncludeSemantics: true,
-                child: IconButton(
-                  tooltip: l.inboxRemove,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(LucideIcons.x,
-                      size: 16, color: WfColors.creamMuted),
-                  onPressed: () => unawaited(runInboxAction(
-                      context,
-                      () => ref
-                          .read(inboxControllerProvider.notifier)
-                          .remove(entry.id))),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InvitePoster extends ConsumerWidget {
-  const _InvitePoster({required this.entry});
-
-  final InviteEntry entry;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final imageId = entry.imageItemId;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: SizedBox(
-        width: InboxPanel.leadingSize,
-        height: InboxPanel.posterHeight,
-        child: WfImage(
-          image: imageId == null
-              ? null
-              : ref.watch(imageUrlsProvider).primaryOf(imageId),
-        ),
-      ),
-    );
-  }
-}
-
-/// La locandina di un titolo noto solo per id (un consiglio, spec N §7.5).
-class _ItemPoster extends ConsumerWidget {
-  const _ItemPoster({required this.itemId});
-
-  final String itemId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: InboxPanel.leadingSize,
-          height: InboxPanel.posterHeight,
-          child: WfImage(image: ref.watch(imageUrlsProvider).primaryOf(itemId)),
-        ),
-      );
-}
-
-class _AnnouncementIcon extends StatelessWidget {
-  const _AnnouncementIcon();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: InboxPanel.leadingSize,
-        height: InboxPanel.leadingSize,
-        decoration: const BoxDecoration(
-            color: WfColors.surfaceHigh, shape: BoxShape.circle),
-        child: const Icon(LucideIcons.megaphone,
-            size: 18, color: WfColors.gold),
-      );
-}
-
-class _NewTitlesIcon extends StatelessWidget {
-  const _NewTitlesIcon();
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: InboxPanel.leadingSize,
-        height: InboxPanel.leadingSize,
-        decoration: const BoxDecoration(
-            color: WfColors.surfaceHigh, shape: BoxShape.circle),
-        child: const Icon(LucideIcons.sparkles,
-            size: 18, color: WfColors.gold),
-      );
-}
-
-/// Consiglio: "Luigi ti consiglia Dune (2021)", il messaggio, l'ora. Il clic
-/// chiude il pannello e apre il titolo (spec N §7.5; piano 20b, decisione 1).
-class _RecommendationContent extends ConsumerWidget {
-  const _RecommendationContent(
-      {super.key, required this.entry, required this.time});
-
-  final RecommendationEntry entry;
-  final String time;
-
-  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final text = entry.text;
-    return SizedBox(
-      width: double.infinity,
-      child: InkWell(
-        onTap: () {
-          ref.read(shellPanelProvider.notifier).close();
-          openItemById(context, entry.itemId);
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(
-                  boldSpans(
-                      l.inboxRecommendation(entry.fromName, entry.title),
-                      [entry.fromName]),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: WfColors.cream)),
-              if (text != null)
-                Text(l.inboxRecommendationMessage(text),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: _mutedStyle),
-              const SizedBox(height: 4),
-              Text(time, style: _timeStyle),
-            ],
-          ),
+    final entry = this.entry;
+    void remove() => unawaited(runInboxAction(context,
+        () => ref.read(inboxControllerProvider.notifier).remove(entry.id)));
+
+    /// Con [open], "Apri" a destra; la riga e "Apri" chiudono il pannello e
+    /// poi vanno dove dice [open].
+    InboxRow row({
+      required Widget leading,
+      required InlineSpan sentence,
+      Widget? below,
+      void Function()? open,
+      Key? openKey,
+    }) {
+      final onOpen = open == null
+          ? null
+          : () {
+              ref.read(shellPanelProvider.notifier).close();
+              open();
+            };
+      return InboxRow(
+        highlighted: highlighted,
+        leading: leading,
+        sentence: sentence,
+        below: below,
+        meta: time,
+        action: onOpen == null
+            ? null
+            : _rowAction(label: l.inboxOpen, onPressed: onOpen),
+        onOpen: onOpen,
+        openKey: openKey,
+        onRemove: remove,
+      );
+    }
+
+    InboxRow alertRow(AlertedEntry entry) {
+      final text = notificationTextOf(entry, l);
+      return row(
+        openKey: Key('inbox-alert-${entry.id}'),
+        leading: SystemAvatar(
+          icon: alertIconOf(entry),
+          alarm: entry is DiskAlmostFullEntry,
+          posterItemId: switch (entry) {
+            RequestApprovedEntry(:final itemId) ||
+            RequestDeclinedEntry(:final itemId) =>
+              itemId,
+            _ => null,
+          },
         ),
-      ),
-    );
+        sentence: _strong(text.title),
+        below: text.body.isEmpty ? null : _below(text.body),
+        open: () => context.go(text.route),
+      );
+    }
+
+    return switch (entry) {
+      InviteEntry() => _InviteRow(
+          entry: entry, highlighted: highlighted, time: time, onRemove: remove),
+      MatchInviteEntry() => _MatchInviteRow(
+          entry: entry, highlighted: highlighted, time: time, onRemove: remove),
+      RecommendationEntry() => row(
+          openKey: Key('inbox-recommendation-${entry.id}'),
+          leading:
+              SenderAvatar(name: entry.fromName, posterItemId: entry.itemId),
+          sentence: boldSpans(
+              l.inboxRecommendation(entry.fromName, entry.title),
+              [entry.fromName, entry.title]),
+          below: switch (entry.text) {
+            final String text => _below(l.inboxRecommendationMessage(text)),
+            null => null,
+          },
+          open: () => openItemById(context, entry.itemId),
+        ),
+      RequestPendingEntry() => row(
+          openKey: Key('inbox-request-${entry.id}'),
+          leading: entry.requesterName.trim().isEmpty
+              ? const SystemAvatar(icon: LucideIcons.inbox)
+              : SenderAvatar(name: entry.requesterName.trim()),
+          sentence: boldSpans(
+              inboxRequestPendingText(
+                  l, entry.requesterName, entry.title, entry.seasons),
+              [entry.requesterName.trim(), entry.title]),
+          open: () => openRequests(context, tab: RequestsTab.pending),
+        ),
+      ReportPendingEntry() => row(
+          openKey: Key('inbox-report-${entry.id}'),
+          leading:
+              SenderAvatar(name: entry.fromName, posterItemId: entry.titleId),
+          sentence: boldSpans(
+              l.inboxReportPending(entry.fromName), [entry.fromName]),
+          below: _below(reportTitleLine(l,
+              title: entry.title,
+              itemType: entry.itemType,
+              season: entry.seasonNumber,
+              episode: entry.episodeNumber,
+              type: entry.reportType)),
+          open: _reportOpener(
+              context, entry.titleId, entry.itemId, entry.itemType),
+        ),
+      RequestAvailableEntry() => row(
+          openKey: Key('inbox-request-${entry.id}'),
+          leading: SystemAvatar(
+              icon: LucideIcons.clapperboard, posterItemId: entry.itemId),
+          sentence: boldSpans(
+              l.inboxRequestAvailable(
+                  inboxRequestTitle(l, entry.title, entry.seasons)),
+              [entry.title]),
+          open: () {
+            final itemId = entry.itemId;
+            if (itemId != null) {
+              openItemById(context, itemId);
+            } else {
+              // Senza titolo in libreria: le richieste di chi guarda, dove
+              // c'è quella arrivata (anche per un admin con altre in attesa).
+              openRequests(context, tab: RequestsTab.mine);
+            }
+          },
+        ),
+      ReportResolvedEntry() => row(
+          openKey: Key('inbox-report-${entry.id}'),
+          leading: SystemAvatar(
+              icon: entry.outcome == ReportOutcome.fixed
+                  ? LucideIcons.circleCheck
+                  : LucideIcons.circleAlert,
+              posterItemId: entry.titleId),
+          sentence: _reportResolvedSentence(l, entry.outcome, entry.title),
+          below: switch (entry.text) {
+            final String note => _below(l.inboxRecommendationMessage(note)),
+            null => null,
+          },
+          open: _reportOpener(
+              context, entry.titleId, entry.itemId, entry.itemType),
+        ),
+      ContactReminderEntry() => row(
+          openKey: Key('inbox-contact-reminder-${entry.id}'),
+          leading: const SystemAvatar(icon: LucideIcons.shieldCheck),
+          sentence: _strong(l.inboxContactReminderTitle),
+          below: _below(inboxContactReminderText(l, entry.channels)),
+          open: () => context.go('/settings'),
+        ),
+      AlertedEntry() => alertRow(entry),
+      AnnouncementEntry() => row(
+          leading: const SystemAvatar(icon: LucideIcons.megaphone),
+          sentence: _strong(l.inboxAnnouncement),
+          below: SelectableText(entry.text,
+              style: const TextStyle(color: WfColors.cream)),
+        ),
+      NewTitlesEntry() => row(
+          leading: const SystemAvatar(icon: LucideIcons.sparkles),
+          sentence: _strong(l.inboxNewTitles(_newTitlesSummary(l, entry))),
+          below: _NewTitlesLines(entry: entry),
+        ),
+    };
   }
 }
 
-/// La locandina del titolo segnalato; se il titolo non c'è più, un'icona
-/// per lo stato della segnalazione.
-Widget _reportLeading(String? titleId, IconData icon) => titleId != null
-    ? _ItemPoster(itemId: titleId)
-    : InboxRequestIcon(icon: icon, size: InboxPanel.leadingSize);
+/// La segnalazione apre il titolo: la stagione segnalata sulla sua scheda,
+/// gli altri sulla serie o sul film (piano 24b, decisione 4); senza titolo,
+/// niente.
+void Function()? _reportOpener(BuildContext context, String? titleId,
+        String itemId, ReportItemType? itemType) =>
+    titleId == null
+        ? null
+        : () {
+            if (itemType == ReportItemType.season) {
+              context.push('/item/$titleId?season=$itemId');
+            } else {
+              openItemById(context, titleId);
+            }
+          };
 
-/// "Problema sistemato su Dark"; senza titolo, "un titolo".
-String _reportResolvedText(
+/// "Problema sistemato su **Dark**"; senza titolo, "un titolo".
+TextSpan _reportResolvedSentence(
     AppLocalizations l, ReportOutcome outcome, String title) {
   final name = title.isEmpty ? l.inboxReportUnknownTitle : title;
-  return switch (outcome) {
-    ReportOutcome.fixed => l.inboxReportFixed(name),
-    ReportOutcome.cannotFix => l.inboxReportCannotFix(name),
-  };
+  return boldSpans(
+      switch (outcome) {
+        ReportOutcome.fixed => l.inboxReportFixed(name),
+        ReportOutcome.cannotFix => l.inboxReportCannotFix(name),
+      },
+      [name]);
 }
 
-/// Segnalazione (aperta o chiusa): due righe e l'ora. Il clic chiude il
-/// pannello e apre il titolo: la stagione segnalata sulla sua scheda, gli
-/// altri sulla serie o sul film (piano 24b, decisione 4); senza titolo, solo
-/// la chiusura.
-class _ReportContent extends ConsumerWidget {
-  const _ReportContent({
-    super.key,
-    required this.titleId,
-    required this.itemId,
-    required this.itemType,
-    required this.first,
-    required this.second,
+/// Invito al party (spec §7.1): Unisciti finché il party è nell'elenco e
+/// non ci sei; la riga fa lo stesso. Sotto, quanti sono nel party, "Ci sei
+/// già" o "Party finito".
+class _InviteRow extends ConsumerStatefulWidget {
+  const _InviteRow({
+    required this.entry,
+    required this.highlighted,
     required this.time,
+    required this.onRemove,
   });
 
-  final String? titleId;
-  final String itemId;
-  final ReportItemType? itemType;
-  final TextSpan first;
-  final String? second;
-  final String time;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final second = this.second;
-    return SizedBox(
-      width: double.infinity,
-      child: InkWell(
-        onTap: () {
-          ref.read(shellPanelProvider.notifier).close();
-          final titleId = this.titleId;
-          if (titleId == null) return;
-          if (itemType == ReportItemType.season) {
-            context.push('/item/$titleId?season=$itemId');
-          } else {
-            openItemById(context, titleId);
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(first,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: WfColors.cream)),
-              if (second != null)
-                Text(second,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: _mutedStyle),
-              const SizedBox(height: 4),
-              Text(time, style: _timeStyle),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Invito: chi, cosa e Unisciti finché il party c'è (spec G §7.6).
-class _InviteContent extends ConsumerStatefulWidget {
-  const _InviteContent({required this.entry, required this.time});
-
   final InviteEntry entry;
+  final bool highlighted;
   final String time;
+  final VoidCallback onRemove;
 
   @override
-  ConsumerState<_InviteContent> createState() => _InviteContentState();
+  ConsumerState<_InviteRow> createState() => _InviteRowState();
 }
 
-class _InviteContentState extends ConsumerState<_InviteContent> {
+class _InviteRowState extends ConsumerState<_InviteRow> {
   /// Un ingresso partito da questa voce è in corso: un secondo clic non deve
   /// farne un altro (la sessione, già "in ingresso", risponderebbe subito di
   /// sì e il pannello si chiuderebbe prima dell'esito vero).
@@ -657,80 +501,65 @@ class _InviteContentState extends ConsumerState<_InviteContent> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final entry = widget.entry;
-    final groupId = _normalizeId(entry.groupId);
-    final inGroupId = ref.watch(watchPartySessionProvider
-        .select((s) => s.inGroup ? s.group?.id : null));
+    final current = ref.watch(watchPartySessionProvider
+        .select((s) => s.inGroup ? s.group : null));
+    final inside =
+        current != null && listedGroup([current], entry.groupId) != null;
     // L'invito rende il party visibile finché esiste: se è nell'elenco, si
     // può entrare.
-    final listed = ref.watch(watchPartyDirectoryProvider
-        .select((groups) => groups.any((g) => _normalizeId(g.id) == groupId)));
-    final Widget action;
-    if (inGroupId != null && _normalizeId(inGroupId) == groupId) {
-      action = Text(l.inboxAlreadyIn,
-          maxLines: 1, overflow: TextOverflow.ellipsis, style: _mutedStyle);
-    } else if (listed) {
-      action = TextButton(
-        key: Key('inbox-join-${entry.id}'),
-        onPressed: _joining ? null : () => unawaited(_join()),
-        style: TextButton.styleFrom(
-          foregroundColor: WfColors.gold,
-          visualDensity: VisualDensity.compact,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-        ),
-        child: Text(l.watchPartyJoin),
-      );
+    final group = ref.watch(watchPartyDirectoryProvider
+        .select((groups) => listedGroup(groups, entry.groupId)));
+    final canJoin = group != null && !inside;
+    final join = canJoin && !_joining ? () => unawaited(_join()) : null;
+    final String meta;
+    if (inside) {
+      meta = '${widget.time} · ${l.inboxAlreadyIn}';
+    } else if (group == null) {
+      meta = '${widget.time} · ${l.inboxPartyEnded}';
+    } else if (group.participants.isEmpty) {
+      meta = widget.time;
     } else {
-      action = Text(l.inboxPartyEnded,
-          maxLines: 1, overflow: TextOverflow.ellipsis, style: _mutedStyle);
+      meta = '${widget.time} · ${l.partyMembers(group.participants.length)}';
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Il nome di chi invita in evidenza (spec G §7.6).
-        Text.rich(
-            boldSpans(l.inboxInviteFrom(entry.fromName), [entry.fromName]),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: _mutedStyle),
-        Text(entry.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: WfColors.cream, fontWeight: FontWeight.w600)),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // L'ora e lo stato si dividono lo spazio (testi lunghi, font
-            // grandi), lo stato ne ha di più; l'azione resta a destra.
-            Flexible(
-              child: Text(widget.time,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _timeStyle),
-            ),
-            Flexible(flex: 2, child: action),
-          ],
-        ),
-      ],
+    return InboxRow(
+      highlighted: widget.highlighted,
+      leading:
+          SenderAvatar(name: entry.fromName, posterItemId: entry.imageItemId),
+      sentence: boldSpans(l.notifInviteTitle(entry.fromName, entry.title),
+          [entry.fromName, entry.title]),
+      meta: meta,
+      action: canJoin
+          ? _rowAction(
+              key: Key('inbox-join-${entry.id}'),
+              label: l.watchPartyJoin,
+              onPressed: join)
+          : null,
+      onOpen: join,
+      onRemove: widget.onRemove,
     );
   }
 }
 
-/// Invito al match: chi invita e "Unisciti" (spec P §7.2). Il plugin dice
-/// se la sala c'è ancora: un no diventa un avviso con il motivo.
-class _MatchInviteContent extends ConsumerStatefulWidget {
-  const _MatchInviteContent({required this.entry, required this.time});
+/// Invito al Match: chi invita e "Unisciti", che apre la sala (spec P §7.2).
+/// Il plugin dice se la sala c'è ancora: un no diventa un avviso col motivo.
+class _MatchInviteRow extends ConsumerStatefulWidget {
+  const _MatchInviteRow({
+    required this.entry,
+    required this.highlighted,
+    required this.time,
+    required this.onRemove,
+  });
 
   final MatchInviteEntry entry;
+  final bool highlighted;
   final String time;
+  final VoidCallback onRemove;
 
   @override
-  ConsumerState<_MatchInviteContent> createState() =>
-      _MatchInviteContentState();
+  ConsumerState<_MatchInviteRow> createState() => _MatchInviteRowState();
 }
 
-class _MatchInviteContentState extends ConsumerState<_MatchInviteContent> {
+class _MatchInviteRowState extends ConsumerState<_MatchInviteRow> {
   /// Un ingresso partito da questa voce è in corso (come per i party).
   bool _joining = false;
 
@@ -750,81 +579,43 @@ class _MatchInviteContentState extends ConsumerState<_MatchInviteContent> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final entry = widget.entry;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text.rich(
-            boldSpans(l.matchInviteFrom(entry.fromName), [entry.fromName]),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: _mutedStyle),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Flexible(
-              child: Text(widget.time,
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: _timeStyle),
-            ),
-            TextButton(
-              key: Key('inbox-match-join-${entry.id}'),
-              onPressed: _joining ? null : () => unawaited(_join()),
-              style: TextButton.styleFrom(
-                foregroundColor: WfColors.gold,
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              child: Text(l.watchPartyJoin),
-            ),
-          ],
-        ),
-      ],
+    final join = _joining ? null : () => unawaited(_join());
+    return InboxRow(
+      highlighted: widget.highlighted,
+      leading: SenderAvatar(
+          name: entry.fromName, badge: LucideIcons.heartHandshake),
+      sentence: boldSpans(
+          l.notifMatchInviteTitle(entry.fromName), [entry.fromName]),
+      meta: widget.time,
+      action: _rowAction(
+          key: Key('inbox-match-join-${entry.id}'),
+          label: l.watchPartyJoin,
+          onPressed: join),
+      onOpen: join,
+      onRemove: widget.onRemove,
     );
   }
 }
 
-/// Annuncio dell'admin: etichetta e testo intero, selezionabile.
-class _AnnouncementContent extends StatelessWidget {
-  const _AnnouncementContent({required this.entry, required this.time});
+/// "4 film, 4 episodi".
+String _newTitlesSummary(AppLocalizations l, NewTitlesEntry entry) => [
+      if (entry.movies.isNotEmpty) l.inboxMovies(entry.movies.length),
+      if (entry.episodeCount > 0) l.inboxEpisodes(entry.episodeCount),
+    ].join(', ');
 
-  final AnnouncementEntry entry;
-  final String time;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(l.inboxAnnouncement,
-            style: const TextStyle(
-                color: WfColors.gold,
-                fontSize: 12,
-                fontWeight: FontWeight.w600)),
-        const SizedBox(height: 2),
-        SelectableText(entry.text,
-            style: const TextStyle(color: WfColors.cream)),
-        const SizedBox(height: 4),
-        Text(time, style: _timeStyle),
-      ],
-    );
-  }
-}
-
-/// Novità (spec G §7.6): riepilogo, le prime righe e "Mostra tutto". Una
-/// riga apre la scheda del film o della serie e chiude il pannello.
-class _NewTitlesContent extends ConsumerStatefulWidget {
-  const _NewTitlesContent({required this.entry, required this.time});
+/// Le righe delle novità (spec §7.1), con la locandina: le prime 5 e
+/// "Mostra tutto". Una riga apre la scheda del film o della serie e chiude
+/// il pannello.
+class _NewTitlesLines extends ConsumerStatefulWidget {
+  const _NewTitlesLines({required this.entry});
 
   final NewTitlesEntry entry;
-  final String time;
 
   @override
-  ConsumerState<_NewTitlesContent> createState() => _NewTitlesContentState();
+  ConsumerState<_NewTitlesLines> createState() => _NewTitlesLinesState();
 }
 
-class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
+class _NewTitlesLinesState extends ConsumerState<_NewTitlesLines> {
   bool _expanded = false;
 
   /// Fuoco della prima riga svelata da "Mostra tutto": il bottone sparisce e
@@ -854,10 +645,7 @@ class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final entry = widget.entry;
-    final summary = [
-      if (entry.movies.isNotEmpty) l.inboxMovies(entry.movies.length),
-      if (entry.episodeCount > 0) l.inboxEpisodes(entry.episodeCount),
-    ].join(', ');
+    final urls = ref.watch(imageUrlsProvider);
     final lines = [
       for (final movie in entry.movies)
         (
@@ -880,10 +668,6 @@ class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(l.inboxNewTitles(summary),
-            style: const TextStyle(
-                color: WfColors.cream, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 2),
         for (final (index, line) in shown.indexed)
           // Largo quanto il pannello: si tocca anche a destra del titolo.
           SizedBox(
@@ -895,10 +679,25 @@ class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
               onTap: () => _open(line.id),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text(line.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: _mutedStyle),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: SizedBox(
+                        width: 24,
+                        height: 36,
+                        child: WfImage(image: urls.primaryOf(line.id)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(line.text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _mutedStyle),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -913,8 +712,6 @@ class _NewTitlesContentState extends ConsumerState<_NewTitlesContent> {
             child: Text(l.inboxShowAll(lines.length)),
           ),
         if (entry.more > 0) Text(l.inboxMore(entry.more), style: _mutedStyle),
-        const SizedBox(height: 4),
-        Text(widget.time, style: _timeStyle),
       ],
     );
   }

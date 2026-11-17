@@ -5,6 +5,8 @@ import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/features/inbox/notification_text.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
+import '../../support/social_fakes.dart';
+
 void main() {
   final it = lookupAppLocalizations(const Locale('it'));
   final en = lookupAppLocalizations(const Locale('en'));
@@ -19,6 +21,17 @@ void main() {
     final t = notificationTextOf(e, en);
     return (t.title, t.body, t.route);
   }
+
+  test('toast dell\'invito: la stessa frase', () {
+    final text = notificationTextOf(
+        testInvite(fromName: 'Luigi', title: 'Dune'), it);
+    expect(text.title, 'Luigi ti invita a guardare Dune');
+    expect(text.body, '');
+    expect(notificationTextOf(testMatchInviteEntry(fromName: 'Luigi'), it).title,
+        'Luigi ti invita a un Match');
+    expect(notificationTextOf(testInvite(fromName: 'Luigi', title: 'Dune'), en)
+        .title, 'Luigi invites you to watch Dune');
+  });
 
   test('DownloadNeedsYou, in italiano e in inglese', () {
     final e = DownloadNeedsYouEntry(

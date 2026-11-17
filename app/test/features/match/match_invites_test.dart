@@ -131,7 +131,7 @@ void main() {
 
     events.add(matchInviteReceived('r2', 'Luigi'));
     await tester.pumpAndSettle();
-    expect(find.text('Luigi ti invita a un match'), findsOneWidget);
+    expect(find.text('Luigi ti invita a un Match'), findsOneWidget);
 
     await tester.tap(find.text('Unisciti'));
     await tester.pumpAndSettle();

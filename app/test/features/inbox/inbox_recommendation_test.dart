@@ -87,6 +87,16 @@ void main() {
     expect(container.read(shellPanelProvider), ShellPanel.none);
   });
 
+  testWidgets('consiglio: Apri a destra apre il titolo', (tester) async {
+    final container = await pumpPanel(tester, [testRecommendationEntry()]);
+
+    await tester.tap(find.text('Apri'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('scheda m1'), findsOneWidget);
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+  });
+
   testWidgets('consiglio senza messaggio: niente riga del messaggio',
       (tester) async {
     await pumpPanel(tester, [testRecommendationEntry(text: null)]);

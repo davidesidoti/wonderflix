@@ -85,7 +85,7 @@ class MatchInviteCard extends ConsumerWidget {
           : InviteCardFrame(
               key: const Key('match-invite'),
               icon: LucideIcons.heartHandshake,
-              title: l.matchInviteFrom(invite.fromName),
+              title: l.notifMatchInviteTitle(invite.fromName),
               onDismiss: invites.dismiss,
               onJoin: () {
                 invites.dismiss();

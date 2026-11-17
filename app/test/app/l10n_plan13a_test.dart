@@ -14,7 +14,11 @@ void main() {
     expect(it.inboxUnavailable, 'Notifiche non disponibili');
     expect(it.inboxActionFailed,
         'Non è stato possibile aggiornare le notifiche');
-    expect(it.inboxInviteFrom('Luigi'), 'Luigi ti invita a guardare');
+    expect(it.notifInviteTitle('Luigi', 'Dune'),
+        'Luigi ti invita a guardare Dune');
+    expect(it.notifMatchInviteTitle('Luigi'), 'Luigi ti invita a un Match');
+    expect(it.partyMembers(1), '1 nel party');
+    expect(it.partyMembers(2), '2 nel party');
     expect(it.inboxAlreadyIn, 'Ci sei già');
     expect(it.inboxPartyEnded, 'Party finito');
     expect(it.inboxAnnouncement, 'Annuncio');
@@ -30,7 +34,10 @@ void main() {
     expect(en.inboxEmpty, 'No notifications');
     expect(en.inboxUnavailable, 'Notifications unavailable');
     expect(en.inboxActionFailed, "Couldn't update notifications");
-    expect(en.inboxInviteFrom('Luigi'), 'Luigi invited you to watch');
+    expect(en.notifInviteTitle('Luigi', 'Dune'),
+        'Luigi invites you to watch Dune');
+    expect(en.notifMatchInviteTitle('Luigi'), 'Luigi invites you to a Match');
+    expect(en.partyMembers(2), '2 in the party');
     expect(en.inboxAlreadyIn, "You're in it");
     expect(en.inboxPartyEnded, 'Party ended');
     expect(en.inboxAnnouncement, 'Announcement');

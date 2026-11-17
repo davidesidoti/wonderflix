@@ -83,8 +83,23 @@ void main() {
     match.rooms['r2'] = testMatchState(roomId: 'r2', creatorId: 'u2', creatorName: 'Luigi');
     final container = await pumpPanel(tester, [testMatchInviteEntry()]);
 
-    expect(find.textContaining('Luigi ti invita a un match'), findsOneWidget);
+    expect(find.text('Luigi ti invita a un Match'), findsOneWidget);
+    expect(find.byKey(const Key('sender-badge')), findsOneWidget);
     await tester.tap(find.byKey(const Key('inbox-match-join-mi1')));
+    await tester.pumpAndSettle();
+
+    expect(match.calls, ['join r2']);
+    expect(find.text('pagina r2'), findsOneWidget);
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+  });
+
+  testWidgets('Match: "Luigi ti invita a un Match", la riga entra nella sala',
+      (tester) async {
+    match.rooms['r2'] =
+        testMatchState(roomId: 'r2', creatorId: 'u2', creatorName: 'Luigi');
+    final container = await pumpPanel(tester, [testMatchInviteEntry()]);
+
+    await tester.tap(find.text('Luigi ti invita a un Match'));
     await tester.pumpAndSettle();
 
     expect(match.calls, ['join r2']);

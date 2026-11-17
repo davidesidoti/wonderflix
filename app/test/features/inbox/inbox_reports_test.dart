@@ -172,19 +172,29 @@ void main() {
     expect(find.textContaining('«'), findsNothing);
   });
 
-  testWidgets('titolo sparito: testo con "un titolo" e nessuna navigazione',
-      (tester) async {
+  testWidgets('titolo sparito: testo con "un titolo", niente Apri e la riga '
+      'non apre', (tester) async {
     final container = await pumpPanel(tester, [
       _resolved(titleId: null, itemType: null, title: ''),
     ]);
 
     expect(find.text('Problema sistemato su un titolo'), findsOneWidget);
     expect(find.byType(WfImage), findsNothing);
+    expect(find.text('Apri'), findsNothing);
 
     await tester.tap(find.byKey(const Key('inbox-report-q1')));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('scheda'), findsNothing);
-    expect(container.read(shellPanelProvider), ShellPanel.none);
+    expect(container.read(shellPanelProvider), ShellPanel.inbox);
+  });
+
+  testWidgets('Apri sulla voce pending apre la serie', (tester) async {
+    await pumpPanel(tester, [_pending()]);
+
+    await tester.tap(find.text('Apri'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('scheda s1 null'), findsOneWidget);
   });
 }

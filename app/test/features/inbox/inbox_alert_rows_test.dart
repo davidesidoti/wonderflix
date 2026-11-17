@@ -13,6 +13,7 @@ import 'package:wonderflix/features/library/server_events_binding.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 import 'package:wonderflix/ui/form_factor.dart';
+import 'package:wonderflix/ui/sender_avatar.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/pump_app.dart';
@@ -148,6 +149,19 @@ void main() {
           id: 'a1', seq: 1, createdAt: _at, read: false, title: 'Dune (2021)'),
     ]);
     expect(find.byIcon(LucideIcons.clapperboard), findsNWidgets(2));
+  });
+
+  testWidgets('spazio quasi pieno: cerchio rosso', (tester) async {
+    await pumpPanel(tester, [
+      DiskAlmostFullEntry(
+          id: 'a7', seq: 2, createdAt: _at, read: false, percent: 93),
+      RestartPendingEntry(id: 'a10', seq: 1, createdAt: _at, read: false),
+    ]);
+    expect(find.byWidgetPredicate((w) => w is SystemAvatar && w.alarm),
+        findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is SystemAvatar && !w.alarm),
+        findsOneWidget);
+    expect(find.text('Apri'), findsNWidgets(2));
   });
 
   testWidgets('nel layout stretto (360) il testo va a capo senza overflow',

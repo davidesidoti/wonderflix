@@ -113,7 +113,7 @@ class _InboxRowState extends State<InboxRow> {
                                 ),
                               ),
                             ),
-                            ?action,
+                            if (action != null) Flexible(child: action),
                           ],
                         ),
                       ],

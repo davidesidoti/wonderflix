@@ -39,8 +39,8 @@ NotificationText _build(InboxEntry entry, AppLocalizations l) {
       NotificationText(title: title, body: body, route: route);
   const admin = '/admin?tab=';
   return switch (entry) {
-    InviteEntry() => text(l.notifInviteTitle(entry.fromName), entry.title,
-        '/inbox'),
+    InviteEntry() =>
+      text(l.notifInviteTitle(entry.fromName, entry.title), '', '/inbox'),
     AnnouncementEntry() =>
       text(l.notifAnnouncementTitle, entry.text, '/inbox'),
     NewTitlesEntry() => text(

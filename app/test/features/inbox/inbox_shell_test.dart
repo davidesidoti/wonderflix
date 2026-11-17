@@ -89,7 +89,11 @@ void main() {
     expect(find.byKey(const Key('inbox-panel')), findsOneWidget);
     expect(api.calls, contains('read 3'));
     expect(badge('1'), findsNothing);
-    expect(find.byKey(const Key('inbox-unread-a1')), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('inbox-a1')),
+            matching: find.byKey(const Key('inbox-unread'))),
+        findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();

@@ -17,6 +17,7 @@ import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
+import 'package:wonderflix/ui/sender_avatar.dart';
 
 import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
@@ -115,7 +116,7 @@ void main() {
     Opacity removeOpacity() => tester.widget<Opacity>(find
         .ancestor(of: find.byTooltip('Togli dalla lista'), matching: find.byType(Opacity))
         .first);
-    expect(removeOpacity().opacity, 0);
+    expect(removeOpacity().opacity, 0.4);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(mouse.removePointer);
     await mouse.addPointer(location: Offset.zero);
@@ -130,21 +131,6 @@ void main() {
     await tester.pump();
     expect(api.calls, contains('remove-entry a1'));
     expect(find.text('Stasera manutenzione'), findsNothing);
-  });
-
-  testWidgets('tocco: la × delle notifiche è visibile', (tester) async {
-    api.inboxSnapshot = InboxSnapshot(
-        entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
-    await pumpPanel(tester, touch: true);
-    expect(
-        tester
-            .widget<Opacity>(find
-                .ancestor(
-                    of: find.byTooltip('Togli dalla lista'),
-                    matching: find.byType(Opacity))
-                .first)
-            .opacity,
-        1);
   });
 
   testWidgets('× non riuscita: lo dice', (tester) async {
@@ -169,11 +155,12 @@ void main() {
           createdAt: fiveMinutesAgo()),
     ], unread: 2);
     await pumpPanel(tester, parties: [testGroup()]);
-    expect(find.text('Luigi ti invita a guardare'), findsNWidgets(2));
-    expect(find.text('Dune'), findsOneWidget);
+    expect(find.text('Luigi ti invita a guardare Dune'), findsOneWidget);
+    expect(find.text('Luigi ti invita a guardare Alien'), findsOneWidget);
     expect(find.byKey(const Key('inbox-join-i1')), findsOneWidget);
     expect(find.byKey(const Key('inbox-join-i2')), findsNothing);
-    expect(find.text('Party finito'), findsOneWidget);
+    expect(find.text('5 min fa · 1 nel party'), findsOneWidget);
+    expect(find.text('5 min fa · Party finito'), findsOneWidget);
   });
 
   testWidgets('invito: Unisciti entra e chiude il pannello; poi "Ci sei già"',
@@ -191,7 +178,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(syncPlay.calls, contains('join g1'));
     expect(container.read(shellPanelProvider), ShellPanel.none);
-    expect(find.text('Ci sei già'), findsOneWidget);
+    expect(find.text('5 min fa · Ci sei già'), findsOneWidget);
     expect(find.byKey(const Key('inbox-join-i1')), findsNothing);
 
     await container.read(watchPartySessionProvider.notifier).leave();
@@ -211,8 +198,11 @@ void main() {
     container.read(shellPanelProvider.notifier).open(ShellPanel.inbox);
     await tester.pump();
     await tester.pump();
-    expect(find.byKey(const Key('inbox-unread-a2')), findsOneWidget);
-    expect(find.byKey(const Key('inbox-unread-a1')), findsNothing);
+    Finder dotOf(String id) => find.descendant(
+        of: find.byKey(ValueKey('inbox-$id')),
+        matching: find.byKey(const Key('inbox-unread')));
+    expect(dotOf('a2'), findsOneWidget);
+    expect(dotOf('a1'), findsNothing);
     expect(api.calls, contains('read 2'));
   });
 
@@ -243,11 +233,12 @@ void main() {
 
   /// Un invito per il gruppo `g1` nell'elenco e il pannello Notifiche aperto
   /// (come lo apre la barra).
-  Future<ProviderContainer> pumpInvite(WidgetTester tester) async {
+  Future<ProviderContainer> pumpInvite(WidgetTester tester,
+      {List<GroupInfo>? parties}) async {
     api.inboxSnapshot = InboxSnapshot(entries: [
       testInvite(id: 'i1', groupId: 'g1', createdAt: fiveMinutesAgo()),
     ], unread: 1);
-    await pumpPanel(tester, parties: [testGroup()]);
+    await pumpPanel(tester, parties: parties ?? [testGroup()]);
     final container = containerOf(tester);
     container.listen(shellPanelProvider, (_, _) {});
     container.read(shellPanelProvider.notifier).open(ShellPanel.inbox);
@@ -275,7 +266,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(joinCalls(), 1);
     expect(container.read(shellPanelProvider), ShellPanel.none);
-    expect(find.text('Ci sei già'), findsOneWidget);
+    expect(find.text('5 min fa · Ci sei già'), findsOneWidget);
 
     await container.read(watchPartySessionProvider.notifier).leave();
     await tester.pump();
@@ -304,17 +295,19 @@ void main() {
         isNotNull);
   });
 
-  testWidgets('invito: il nome di chi invita è in grassetto', (tester) async {
+  testWidgets('invito: il nome di chi invita e il titolo sono in grassetto',
+      (tester) async {
     api.inboxSnapshot = InboxSnapshot(entries: [
       testInvite(id: 'i1', groupId: 'g1', createdAt: fiveMinutesAgo()),
     ], unread: 1);
     await pumpPanel(tester, parties: [testGroup()]);
-    expect(find.text('Luigi ti invita a guardare'), findsOneWidget);
+    expect(find.text('Luigi ti invita a guardare Dune'), findsOneWidget);
 
     final texts = tester.widgetList<RichText>(find.descendant(
         of: find.byKey(const ValueKey('inbox-i1')),
         matching: find.byType(RichText)));
     var boldName = false;
+    var boldTitle = false;
     var plainRest = false;
     for (final rich in texts) {
       rich.text.visitChildren((span) {
@@ -322,13 +315,17 @@ void main() {
         if (span.text == 'Luigi' && span.style?.fontWeight == FontWeight.w600) {
           boldName = true;
         }
-        if (span.text == ' ti invita a guardare' && span.style == null) {
+        if (span.text == 'Dune' && span.style?.fontWeight == FontWeight.w600) {
+          boldTitle = true;
+        }
+        if (span.text == ' ti invita a guardare ' && span.style == null) {
           plainRest = true;
         }
         return true;
       });
     }
     expect(boldName, isTrue);
+    expect(boldTitle, isTrue);
     expect(plainRest, isTrue);
   });
 
@@ -345,7 +342,7 @@ void main() {
     await pumpPanel(tester,
         parties: [testGroup()], width: 300, textScale: 2);
     expect(find.byKey(const Key('inbox-join-i1')), findsOneWidget);
-    expect(find.text('Party finito'), findsOneWidget);
+    expect(find.text('5 min fa · Party finito'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -358,8 +355,8 @@ void main() {
     Opacity removeOpacity() => tester.widget<Opacity>(find
         .ancestor(of: find.byTooltip('Togli dalla lista'), matching: find.byType(Opacity))
         .first);
-    expect(removeOpacity().opacity, 0);
-    for (var i = 0; i < 6 && removeOpacity().opacity == 0; i++) {
+    expect(removeOpacity().opacity, 0.4);
+    for (var i = 0; i < 6 && removeOpacity().opacity < 1; i++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
     }
@@ -378,7 +375,7 @@ void main() {
     api.inboxSnapshot = InboxSnapshot(
         entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
     await pumpPanel(tester);
-    // Trasparente finché non ha il mouse o il fuoco, ma il nodo c'è.
+    // Attenuata finché non ha il mouse o il fuoco, ma il nodo c'è.
     final node = tester.getSemantics(find.byTooltip('Togli dalla lista'));
     expect(node.getSemanticsData().tooltip, 'Togli dalla lista');
     semantics.dispose();
@@ -415,6 +412,12 @@ void main() {
         reason: 'sesta riga, nascosta');
     expect(find.text('…e altri 7 titoli'), findsOneWidget);
     expect(find.text('5 min fa'), findsOneWidget);
+    // Ogni riga con la sua locandina 24×36; le novità non hanno "Apri".
+    expect(
+        find.byWidgetPredicate(
+            (w) => w is SizedBox && w.width == 24 && w.height == 36),
+        findsNWidgets(InboxPanel.newTitlesPreview));
+    expect(find.text('Apri'), findsNothing);
 
     await tester.tap(find.text('Mostra tutto (6)'));
     await tester.pump();
@@ -569,5 +572,72 @@ void main() {
       expect(text.overflow, TextOverflow.ellipsis, reason: id);
     }
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('invito: avatar con la locandina, frase unica, "2 nel party"',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testInvite(fromName: 'Luigi', title: 'Dune', createdAt: fiveMinutesAgo()),
+    ], unread: 1);
+    await pumpPanel(tester,
+        parties: [testGroup(id: 'g1', participants: ['Luigi', 'Peach'])]);
+    expect(find.text('Luigi ti invita a guardare Dune', findRichText: true),
+        findsOneWidget);
+    expect(find.text('5 min fa · 2 nel party'), findsOneWidget);
+    expect(find.byType(SenderAvatar), findsOneWidget);
+    expect(find.byKey(const Key('sender-poster')), findsOneWidget);
+    expect(find.text('Unisciti'), findsOneWidget);
+  });
+
+  testWidgets('invito a un party finito: la riga non apre niente',
+      (tester) async {
+    final container = await pumpInvite(tester, parties: const []);
+    expect(find.text('5 min fa · Party finito'), findsOneWidget);
+    expect(find.text('Unisciti'), findsNothing);
+    await tester.tap(find.text('Luigi ti invita a guardare Dune'));
+    await tester.pumpAndSettle();
+    expect(syncPlay.calls, isEmpty);
+    expect(container.read(shellPanelProvider), ShellPanel.inbox);
+  });
+
+  testWidgets('invito: toccare la riga entra come Unisciti', (tester) async {
+    final container = await pumpInvite(tester);
+    await tester.tap(find.text('Luigi ti invita a guardare Dune'));
+    await tester.pumpAndSettle();
+    expect(syncPlay.calls, contains('join g1'));
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+
+    await container.read(watchPartySessionProvider.notifier).leave();
+    await tester.pump();
+  });
+
+  testWidgets('annuncio: niente azione, la riga non apre', (tester) async {
+    api.inboxSnapshot = InboxSnapshot(
+        entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
+    await pumpPanel(tester);
+    expect(find.text('Apri'), findsNothing);
+    expect(find.byWidgetPredicate((w) => w is SystemAvatar && !w.alarm),
+        findsOneWidget);
+    expect(
+        tester
+            .widget<InkWell>(find
+                .ancestor(
+                    of: find.text('Annuncio'), matching: find.byType(InkWell))
+                .first)
+            .onTap,
+        isNull);
+  });
+
+  testWidgets('richiesta in attesa: avatar di chi chiede, senza nome il '
+      'cerchio del sistema; Apri su tutte e due', (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testRequestPending(id: 'p1', seq: 2, createdAt: fiveMinutesAgo()),
+      testRequestPending(
+          id: 'p2', seq: 1, requesterName: '', createdAt: fiveMinutesAgo()),
+    ], unread: 2);
+    await pumpPanel(tester);
+    expect(find.byType(SenderAvatar), findsOneWidget);
+    expect(find.byType(SystemAvatar), findsOneWidget);
+    expect(find.text('Apri'), findsNWidgets(2));
   });
 }
