@@ -133,11 +133,13 @@ void main() {
           find.descendant(
               of: find.byType(PosterCard), matching: find.byType(TvFocusable)),
           findsOneWidget);
-      expect(
-          find.descendant(
-              of: find.byType(RequestablesSection),
-              matching: find.byType(TvFocusable)),
-          findsOneWidget);
+      // Sotto il miglior risultato e la griglia: fuori dalla zona costruita.
+      final requestable = find.descendant(
+          of: find.byType(RequestablesSection),
+          matching: find.byType(TvFocusable));
+      await tester.scrollUntilVisible(requestable, 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(requestable, findsOneWidget);
     });
   });
 

@@ -11,7 +11,7 @@ void main() {
     expect(it.detailSeasons(1), '1 stagione');
     expect(it.detailSeasons(3), '3 stagioni');
     expect(it.catalogCount(250), '250 titoli');
-    expect(it.searchNoResults('dune'), 'Nessun risultato per "dune"');
+    expect(it.searchSeeAllMoviesCount(15), 'Vedi tutti i 15 film');
     expect(en.detailSeasons(2), '2 seasons');
     expect(en.settingsVersion('1.0.0'), 'Version 1.0.0');
   });

@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'form_factor.dart';
-import 'poster_card.dart' show catalogCellExtent;
+import 'poster_card.dart' show catalogCellExtent, catalogColumnCount;
 import 'shimmer.dart';
 import 'states.dart';
 
@@ -190,7 +190,8 @@ class PosterGridSkeleton extends StatelessWidget {
   }
 }
 
-/// Risultati della ricerca: una sezione di locandine.
+/// Risultati della ricerca: una sezione, con una fila della griglia del
+/// catalogo.
 class SearchResultsSkeleton extends StatelessWidget {
   const SearchResultsSkeleton({super.key});
 
@@ -201,13 +202,29 @@ class SearchResultsSkeleton extends StatelessWidget {
           children: [
             const SkeletonBox(width: 140, height: 24),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 16,
-              runSpacing: 24,
-              children: [
-                for (var i = 0; i < 6; i++)
-                  const SkeletonBox(width: 150, height: 225),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) => GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 180,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 24,
+                  mainAxisExtent: catalogCellExtent(
+                      constraints.maxWidth, MediaQuery.textScalerOf(context)),
+                ),
+                itemCount: catalogColumnCount(constraints.maxWidth),
+                itemBuilder: (context, i) => const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: SkeletonBox()),
+                    SizedBox(height: 8),
+                    SkeletonBox(width: 110, height: 12),
+                    SizedBox(height: 6),
+                    SkeletonBox(width: 40, height: 10),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
