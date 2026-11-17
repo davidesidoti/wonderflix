@@ -114,10 +114,11 @@ void main() {
     expect(api.calls, ['rawItem i1', 'searchRemote i1 Series Dark Matter']);
     expect(find.text('Dark Serie'), findsOneWidget);
     expect(find.text('Altro titolo'), findsOneWidget);
-    expect(find.textContaining('2017'), findsWidgets);
-    expect(find.textContaining('TheMovieDb'), findsOneWidget);
-    // La locandina c'è solo per il risultato che ha un indirizzo.
-    expect(find.byType(WfImage), findsOneWidget);
+    expect(find.text('2017 · TheMovieDb'), findsOneWidget);
+    // La locandina c'è solo per il risultato che ha un indirizzo (l'altra è
+    // quella del titolo nella testa).
+    expect(find.byType(WfImage), findsNWidgets(2));
+    expect(find.textContaining('Una trama'), findsNothing);
   });
 
   testWidgets('nessun risultato', (tester) async {
@@ -128,23 +129,110 @@ void main() {
     expect(find.text(it.identifyNoResults), findsOneWidget);
   });
 
-  testWidgets('conferma senza la casella di sblocco se non ci sono blocchi', (
+  testWidgets('senza blocchi niente riga di sblocco', (tester) async {
+    await open(tester);
+    await searchAndChoose(tester);
+
+    expect(find.text(it.identifyReplaceImages), findsOneWidget);
+    expect(find.textContaining('Sblocca'), findsNothing);
+    expect(find.text(it.identifyApply), findsOneWidget);
+  });
+
+  testWidgets('sblocco spento di serie, coi campi nominati', (tester) async {
+    api.items['l2'] = testRawItem(id: 'l2', lockedFields: ['Name', 'Overview']);
+    await open(tester, id: 'l2');
+    await searchAndChoose(tester);
+
+    const label = 'Sblocca i 2 campi modificati a mano (Titolo, Trama)';
+    expect(find.text(label), findsOneWidget);
+    expect(
+      tester.widget<SwitchListTile>(find.widgetWithText(SwitchListTile, label)).value,
+      isFalse,
+    );
+    await tester.tap(find.text(it.identifyApply));
+    await tester.pumpAndSettle();
+    expect(api.calls, isNot(contains('updateItem l2')));
+    expect(api.calls.last, 'applyIdentify l2 true');
+  });
+
+  testWidgets('LockData senza campi: Sblocca il titolo bloccato, spento', (
+    tester,
+  ) async {
+    api.items['l3'] = testRawItem(id: 'l3', lockData: true);
+    await open(tester, id: 'l3');
+    await searchAndChoose(tester);
+
+    expect(find.text(it.identifyUnlockAll), findsOneWidget);
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.widgetWithText(SwitchListTile, it.identifyUnlockAll),
+          )
+          .value,
+      isFalse,
+    );
+    await tester.tap(find.text(it.identifyApply));
+    await tester.pumpAndSettle();
+    expect(api.calls, isNot(contains('updateItem l3')));
+  });
+
+  testWidgets('il risultato attuale è segnato', (tester) async {
+    await open(tester);
+    await tester.tap(find.text(it.identifySearch));
+    await tester.pumpAndSettle();
+    // Solo "Dark Serie" ha lo stesso id TheMovieDb del titolo.
+    expect(find.text(it.identifyCurrent), findsOneWidget);
+  });
+
+  testWidgets('Ora e Dopo nella stessa vista, nessun Annulla che torna '
+      'indietro', (tester) async {
+    await open(tester);
+    await searchAndChoose(tester);
+
+    expect(find.text(it.identifyNow), findsOneWidget);
+    expect(find.text(it.identifyAfter), findsOneWidget);
+    expect(find.text(it.identifyNewImages), findsOneWidget);
+    expect(find.text('Altro titolo'), findsOneWidget);
+
+    await tester.tap(find.text('Annulla'));
+    await tester.pumpAndSettle();
+    expect(find.text(it.identifyApply), findsNothing);
+    expect(find.text('Altro titolo'), findsNothing);
+  });
+
+  testWidgets('senza "Sostituisci le immagini" Dopo tiene le immagini di Ora', (
     tester,
   ) async {
     await open(tester);
     await searchAndChoose(tester);
+    await tester.tap(find.text(it.identifyReplaceImages));
+    await tester.pump();
 
-    expect(find.text(it.identifyConfirm('Dark Serie (2017)')), findsOneWidget);
-    expect(find.text(it.identifyReplaceImages), findsOneWidget);
-    expect(find.text(it.identifyUnlock), findsNothing);
-    expect(find.text(it.identifyApply), findsOneWidget);
+    expect(find.text(it.identifyNewImages), findsNothing);
+    expect(find.text(it.identifyImages), findsNWidgets(2));
+  });
+
+  testWidgets('telefono: i biglietti in una seconda pagina con Indietro', (
+    tester,
+  ) async {
+    await open(tester, surfaceSize: const Size(390, 780));
+    await searchAndChoose(tester);
+
+    expect(find.text(it.identifyAfter), findsOneWidget);
+    expect(find.text('Altro titolo'), findsNothing);
+
+    await tester.tap(find.text(it.navBack));
+    await tester.pumpAndSettle();
+    expect(find.text('Altro titolo'), findsOneWidget);
+    expect(find.text(it.identifyAfter), findsNothing);
   });
 
   testWidgets('sblocco: updateItem con LockData false e LockedFields vuoti, '
       'poi apply', (tester) async {
     await open(tester, id: 'l1');
     await searchAndChoose(tester);
-    expect(find.text(it.identifyUnlock), findsOneWidget);
+    await tester.tap(find.text(it.identifyUnlockFields(1, 'Titolo')));
+    await tester.pump();
 
     await tester.tap(find.text(it.identifyApply));
     await tester.pumpAndSettle();
@@ -168,7 +256,6 @@ void main() {
   ) async {
     await open(tester, id: 'l1');
     await searchAndChoose(tester);
-    await tester.tap(find.text(it.identifyUnlock));
     await tester.tap(find.text(it.identifyReplaceImages));
     await tester.pump();
 
@@ -227,24 +314,13 @@ void main() {
     expect(find.text(it.identifyApply), findsNothing);
   });
 
-  testWidgets('senza immagini la conferma non le nomina', (tester) async {
-    await open(tester);
-    await searchAndChoose(tester);
-    await tester.tap(find.text(it.identifyReplaceImages));
-    await tester.pump();
-
-    expect(
-      find.text(it.identifyConfirmNoImages('Dark Serie (2017)')),
-      findsOneWidget,
-    );
-    expect(find.text(it.identifyConfirm('Dark Serie (2017)')), findsNothing);
-  });
-
   testWidgets('rete giù durante lo sblocco: errore, non "sta lavorando"', (
     tester,
   ) async {
     await open(tester, id: 'l1');
     await searchAndChoose(tester);
+    await tester.tap(find.text(it.identifyUnlockFields(1, 'Titolo')));
+    await tester.pump();
     final before = revision(tester);
     api.nextFailure = const ServerUnreachableException();
 
@@ -302,15 +378,6 @@ void main() {
     expect(find.text(it.identifyDone), findsNothing);
   });
 
-  testWidgets('Annulla nella conferma torna ai risultati', (tester) async {
-    await open(tester);
-    await searchAndChoose(tester);
-    await tester.tap(find.text('Annulla'));
-    await tester.pumpAndSettle();
-    expect(find.text('Altro titolo'), findsOneWidget);
-    expect(find.text(it.identifyApply), findsNothing);
-  });
-
   for (final size in const [Size(390, 844), Size(844, 390)]) {
     testWidgets(
       'telefono ${size.width.toInt()}x${size.height.toInt()}: nessun overflow',
@@ -337,4 +404,26 @@ void main() {
       },
     );
   }
+
+  test('isCurrentMatch: un id uguale, senza maiuscole; vuoti no', () {
+    RemoteSearchResult r(Map<String, dynamic> ids) =>
+        RemoteSearchResult.fromJson({'Name': 'x', 'ProviderIds': ids});
+    final item = {
+      'ProviderIds': {'Tmdb': '', 'Imdb': 'tt123'},
+    };
+    expect(isCurrentMatch(item, r({'Imdb': 'TT123'})), isTrue);
+    expect(isCurrentMatch(item, r({'Tmdb': ''})), isFalse);
+    expect(isCurrentMatch(item, r({'Imdb': 'tt999'})), isFalse);
+    expect(isCurrentMatch(const {}, r({'Imdb': 'tt123'})), isFalse);
+  });
+
+  test('lockedFieldLabels nomina i campi', () {
+    expect(
+      lockedFieldLabels(it, {
+        'LockedFields': ['Name', 'Overview', 'Genres', 'OfficialRating'],
+      }),
+      ['Titolo', 'Trama', 'Generi', 'Classificazione per età'],
+    );
+    expect(lockedFieldLabels(it, const {}), isEmpty);
+  });
 }

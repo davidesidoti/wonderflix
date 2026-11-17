@@ -14,9 +14,9 @@ class WfButton extends StatelessWidget {
     required this.onPressed,
     this.autofocus = false,
     this.overlay,
+    this.iconWidget,
   })  : primary = true,
         small = false,
-        iconWidget = null,
         alignment = null,
         dense = false,
         gold = false;

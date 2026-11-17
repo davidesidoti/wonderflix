@@ -39,10 +39,7 @@ const _keys = [
   'identifyTvdb',
   'identifySearch',
   'identifyNoResults',
-  'identifyConfirm',
-  'identifyConfirmNoImages',
   'identifyReplaceImages',
-  'identifyUnlock',
   'identifyApply',
   'identifyWorking',
   'identifyDone',
@@ -89,19 +86,12 @@ void main() {
 
   test('testi italiani e segnaposto', () {
     final it = lookupAppLocalizations(const Locale('it'));
-    final en = lookupAppLocalizations(const Locale('en'));
     expect(it.itemActionRefresh, 'Aggiorna metadati…');
     expect(it.editLockAllHint,
         'Un aggiornamento dei metadati non cambierà niente di questo titolo');
-    expect(it.identifyConfirm('Dark'),
-        'Sostituire metadati e immagini con quelli di Dark?');
     expect(it.identifyStillWorking,
         'Jellyfin sta ancora lavorando: ricarica tra poco');
     expect(it.imagesFileTooLarge, 'Il file supera 10 MB');
-    expect(it.identifyConfirmNoImages('Dark'),
-        'Sostituire i metadati con quelli di Dark?');
     expect(it.editLockAllHintFolder, contains('stagioni ed episodi'));
-    expect(en.identifyConfirm('Dark'), contains('Dark'));
-    expect(en.identifyConfirmNoImages('Dark'), contains('Dark'));
   });
 }
