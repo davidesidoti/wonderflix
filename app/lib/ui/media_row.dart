@@ -48,6 +48,7 @@ class MediaRow extends StatefulWidget {
     this.titleSize = 24,
     this.topSpacing = 24,
     this.side,
+    this.subtitle,
   });
 
   final String title;
@@ -77,6 +78,9 @@ class MediaRow extends StatefulWidget {
 
   /// Margine laterale; senza, 16 nello stretto e 32 altrove.
   final double? side;
+
+  /// Una riga grigia sotto il titolo (per esempio quella di "Da richiedere").
+  final String? subtitle;
 
   @override
   State<MediaRow> createState() => _MediaRowState();
@@ -328,6 +332,14 @@ class _MediaRowState extends State<MediaRow> {
               ),
             ),
           ),
+          if (widget.subtitle case final subtitle?)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: side),
+              child: Text(
+                subtitle,
+                style: const TextStyle(color: WfColors.creamMuted),
+              ),
+            ),
           if (wrapTrailing && widget.trailing != null)
             Padding(
               padding: EdgeInsets.fromLTRB(side, 8, side, 0),

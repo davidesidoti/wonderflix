@@ -137,7 +137,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         if (!starting)
           padded(SearchResultsView(
               state: state, sagas: sagas, onOpened: _remember)),
-        padded(RequestablesSection(library: _libraryMatches(state))),
+        padded(RequestablesSection(
+            library: _libraryMatches(state),
+            term: state.term,
+            onOpened: _remember)),
       ],
     );
   }

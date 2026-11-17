@@ -7,9 +7,11 @@ void main() {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.requestsSectionTitle, 'Da richiedere');
-    expect(it.requestsSectionSubtitle, 'Non sono ancora su WonderFlix');
+    expect(it.requestsSectionSubtitle,
+        "Trovati su TMDB, non ancora su WonderFlix: chiedili all'admin");
+    expect(en.requestsSectionSubtitle,
+        'Found on TMDB, not on WonderFlix yet: ask the admin');
     expect(it.requestsSeerrDown, 'Seerr non risponde');
-    expect(it.requestsBadgeOnWonderflix, 'Su WonderFlix');
     expect(it.requestsRequestSeasons(1), 'Richiedi 1 stagione');
     expect(it.requestsRequestSeasons(3), 'Richiedi 3 stagioni');
     expect(it.requestsSeasonLine(2, 1), 'Stagione 2 · 1 episodio');

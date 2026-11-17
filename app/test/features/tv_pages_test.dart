@@ -137,9 +137,10 @@ void main() {
       final requestable = find.descendant(
           of: find.byType(RequestablesSection),
           matching: find.byType(TvFocusable));
-      await tester.scrollUntilVisible(requestable, 200,
+      await tester.scrollUntilVisible(find.text('Richiedi'), 200,
           scrollable: find.byType(Scrollable).first);
-      expect(requestable, findsOneWidget);
+      // La locandina e "Richiedi" sotto.
+      expect(requestable, findsNWidgets(2));
     });
   });
 

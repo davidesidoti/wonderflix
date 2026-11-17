@@ -124,12 +124,11 @@ void main() {
     await search(tester, 'dune');
 
     expect(find.text('Da richiedere'), findsOneWidget);
-    expect(find.text('Non sono ancora su WonderFlix'), findsOneWidget);
     expect(find.text('Dune - Parte due'), findsOneWidget);
     expect(find.text('Dune: Prophecy'), findsOneWidget);
     expect(find.text('Richiesto'), findsOneWidget);
-    // "Film" è il titolo della sezione della libreria e l'etichetta della card.
-    expect(find.text('Film'), findsNWidgets(2));
+    expect(find.text('Film · 2024'), findsOneWidget);
+    expect(find.text('Serie · 2024'), findsOneWidget);
     // Dune c'è due volte, nella libreria: miglior risultato e card.
     expect(find.text('Dune'), findsNWidgets(2));
     expect(requests.searchLanguages, ['it']);
@@ -178,6 +177,8 @@ void main() {
     requests
       ..failure = null
       ..searchResults['dune'] = [testRequestable(title: 'Dune - Parte due')];
+    await tester.ensureVisible(find.text('Riprova'));
+    await tester.pump();
     await tester.tap(find.text('Riprova'));
     await tester.pump();
     await tester.pump();
@@ -542,6 +543,8 @@ void main() {
         GoRoute(path: '/item/:id', builder: (_, _) => const SizedBox()),
         GoRoute(path: '/movies', builder: (_, _) => const SizedBox()),
         GoRoute(path: '/series', builder: (_, _) => const SizedBox()),
+        GoRoute(
+            path: '/tmdb/:type/:id', builder: (_, _) => const SizedBox()),
       ]);
     });
 
@@ -778,6 +781,66 @@ void main() {
       expect(find.text('Da richiedere'), findsOneWidget);
       expect(tester.getTopLeft(find.text(sentence)).dy,
           lessThan(tester.getTopLeft(find.text('Da richiedere')).dy));
+    });
+
+    testWidgets('le carte dicono Richiedi o lo stato', (tester) async {
+      final requests = FakeRequestsApi()
+        ..searchResults['ist'] = [
+          testRequestable(tmdbId: 1, title: 'Fakt ist!'),
+          testRequestable(tmdbId: 2, status: TitleStatus.pending),
+          testRequestable(
+              tmdbId: 3, title: 'Odissea', status: TitleStatus.processing),
+          testRequestable(
+              tmdbId: 4,
+              type: RequestMediaType.tv,
+              status: TitleStatus.partial),
+          testRequestable(tmdbId: 5, status: TitleStatus.available),
+        ];
+      await pumpResults(tester, FakeLibraryApi(), requests: requests);
+      await search(tester, 'ist');
+
+      expect(find.text('Richiedi'), findsOneWidget);
+      expect(find.text('Richiesto'), findsOneWidget);
+      expect(find.text('In arrivo'), findsOneWidget);
+      expect(find.text('In parte'), findsOneWidget);
+      expect(
+          find.text(
+              "Trovati su TMDB, non ancora su WonderFlix: chiedili all'admin"),
+          findsOneWidget);
+      expect(find.text('Su WonderFlix'), findsNothing);
+      expect(find.byKey(const ValueKey('requestable-movie-5')), findsNothing);
+    });
+
+    testWidgets('una fila sola', (tester) async {
+      final requests = FakeRequestsApi()
+        ..searchResults['ist'] = [
+          for (var i = 1; i <= 12; i++) testRequestable(tmdbId: i, title: 'T$i'),
+        ];
+      await pumpResults(tester, FakeLibraryApi(), requests: requests);
+      await search(tester, 'ist');
+
+      final cards = find.byWidgetPredicate((w) =>
+          w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('requestable-movie-'));
+      expect(cards, findsWidgets);
+      final dys = {
+        for (final e in cards.evaluate())
+          tester.getTopLeft(find.byWidget(e.widget)).dy,
+      };
+      expect(dys, hasLength(1));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Richiedi apre la scheda di richiesta', (tester) async {
+      final requests = FakeRequestsApi()
+        ..searchResults['ist'] = [testRequestable(tmdbId: 42, title: 'Fakt ist!')];
+      await pumpResults(tester, FakeLibraryApi(), requests: requests);
+      await search(tester, 'ist');
+
+      await tester.tap(find.text('Richiedi'));
+      await tester.pump();
+      expect(location(), '/tmdb/movie/42');
+      expect(prefs.getStringList('search.recent.${testUser.id}'), ['ist']);
     });
 
     testWidgets('nessun titolo nemmeno su TMDB', (tester) async {

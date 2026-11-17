@@ -128,11 +128,15 @@ class LibraryMatches {
   }
 }
 
-/// I titoli da mostrare in "Da richiedere" (spec I §8.3): senza quelli che
-/// la ricerca nella libreria ha già trovato ([library]).
+/// I titoli da mostrare in "Da richiedere" (spec I §8.3, revisione §8.2):
+/// senza quelli che la ricerca nella libreria ha già trovato ([library]),
+/// quelli senza locandina e quelli già tutti su WonderFlix.
 List<RequestableTitle> visibleRequestables(
         List<RequestableTitle> titles, LibraryMatches library) =>
     [
       for (final title in titles)
-        if (!library.contains(title)) title,
+        if ((title.posterPath ?? '').isNotEmpty &&
+            title.status != TitleStatus.available &&
+            !library.contains(title))
+          title,
     ];

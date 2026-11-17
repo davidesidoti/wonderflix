@@ -113,14 +113,26 @@ void main() {
     final titles = [
       testRequestable(
           tmdbId: 1,
-          status: TitleStatus.available,
+          status: TitleStatus.partial,
           jellyfinItemId: 'ee39bef06f503dd0e9dbd20593df417f'),
-      testRequestable(tmdbId: 2, status: TitleStatus.available, jellyfinItemId: 'aaa'),
+      testRequestable(tmdbId: 2, status: TitleStatus.partial, jellyfinItemId: 'aaa'),
       testRequestable(tmdbId: 3),
     ];
     final library =
         LibraryMatches(itemIds: {'EE39BEF06F503DD0E9DBD20593DF417F'.toLowerCase()});
     expect(visibleRequestables(titles, library).map((t) => t.tmdbId), [2, 3]);
+  });
+
+  test('niente titoli senza locandina né già su WonderFlix', () {
+    final titles = [
+      testRequestable(tmdbId: 1),
+      testRequestable(tmdbId: 2, poster: false),
+      testRequestable(tmdbId: 3, status: TitleStatus.available),
+    ];
+    expect(
+        visibleRequestables(titles, const LibraryMatches())
+            .map((t) => t.tmdbId),
+        [1]);
   });
 
   test('senza id Jellyfin da Seerr, il titolo si riconosce da id TMDB e tipo',

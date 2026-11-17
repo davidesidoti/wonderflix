@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/motion.dart';
 import '../../app/theme.dart';
@@ -8,34 +9,31 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/tv_focusable.dart';
 import '../../ui/wf_image.dart';
+import '../search/search_best.dart';
 
-/// L'etichetta di una card "Da richiedere" (spec I §9.1).
-String requestableBadge(AppLocalizations l, RequestableTitle title) =>
-    switch (title.status) {
-      TitleStatus.none => title.mediaType == RequestMediaType.movie
-          ? l.requestsKindMovie
-          : l.requestsKindSeries,
-      TitleStatus.pending => l.requestsBadgeRequested,
-      TitleStatus.processing => l.requestsBadgeComing,
-      TitleStatus.partial => l.requestsBadgePartial,
-      TitleStatus.available => l.requestsBadgeOnWonderflix,
-    };
-
-/// Locandina 2:3 di un titolo di Seerr (spec I §9.1): immagine di TMDB,
-/// etichetta in alto a sinistra, titolo e anno. Come `PosterCard` ma senza
-/// l'anteprima al passaggio del mouse.
+/// Locandina 2:3 di un titolo di Seerr (spec §8.2): immagine di TMDB, sotto
+/// il titolo (col termine sottolineato), "Film · 2026" e lo stato: il
+/// pulsante "Richiedi" o, se qualcuno l'ha già chiesto, una riga in oro. Come
+/// `PosterCard` ma senza l'anteprima al passaggio del mouse.
 class RequestablePosterCard extends StatefulWidget {
   const RequestablePosterCard({
     super.key,
     required this.title,
     required this.onTap,
     this.width = 150,
+    this.term = '',
     this.autofocus = false,
   });
+
+  /// Spazio della riga dello stato sotto anno e tipo (aria compresa).
+  static const statusHeight = 32.0;
 
   final RequestableTitle title;
   final VoidCallback onTap;
   final double width;
+
+  /// Il termine cercato, sottolineato nel titolo.
+  final String term;
 
   /// Sulla TV la card prende il focus all'apertura della pagina.
   final bool autofocus;
@@ -52,6 +50,9 @@ class _RequestablePosterCardState extends State<RequestablePosterCard> {
     final l = AppLocalizations.of(context);
     final title = widget.title;
     final year = title.year;
+    final kind = title.mediaType == RequestMediaType.movie
+        ? l.requestsKindMovie
+        : l.requestsKindSeries;
     return SizedBox(
       width: widget.width,
       child: MouseRegion(
@@ -68,45 +69,108 @@ class _RequestablePosterCardState extends State<RequestablePosterCard> {
                 onActivate: widget.onTap,
                 autofocus: widget.autofocus,
                 child: AspectRatio(
-                aspectRatio: 2 / 3,
-                child: AnimatedContainer(
-                  duration: WfMotion.fast,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                        color: _hover ? WfColors.gold : Colors.transparent,
-                        width: 2),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        WfImage(image: TmdbImages.poster(title.posterPath)),
-                        Positioned(
-                          top: 6,
-                          left: 6,
-                          child: RequestBadge(
-                            label: requestableBadge(l, title),
-                            highlighted: title.status != TitleStatus.none,
-                          ),
-                        ),
-                      ],
+                  aspectRatio: 2 / 3,
+                  child: AnimatedContainer(
+                    duration: WfMotion.fast,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                          color: _hover ? WfColors.gold : Colors.transparent,
+                          width: 2),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(5),
+                      child: WfImage(image: TmdbImages.poster(title.posterPath)),
                     ),
                   ),
                 ),
-                ),
               ),
               const SizedBox(height: 8),
-              Text(title.title,
+              highlightedName(
+                  title.title,
+                  widget.term,
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+              Text(year == null ? kind : '$kind · $year',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13.5)),
-              if (year != null)
-                Text('$year',
+                      color: WfColors.creamMuted, fontSize: 12)),
+              const SizedBox(height: 6),
+              _status(l, title.status),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _status(AppLocalizations l, TitleStatus status) {
+    final (icon, label) = switch (status) {
+      TitleStatus.pending => (LucideIcons.check, l.requestsBadgeRequested),
+      TitleStatus.processing => (LucideIcons.clock, l.requestsBadgeComing),
+      TitleStatus.partial => (LucideIcons.circleDashed, l.requestsBadgePartial),
+      // "Su WonderFlix" non arriva qui (`visibleRequestables`).
+      TitleStatus.none || TitleStatus.available => (null, l.requestsRequest),
+    };
+    if (icon == null) return _RequestButton(label: label, onTap: widget.onTap);
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: WfColors.gold),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: WfColors.gold,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
+  }
+}
+
+/// "+ Richiedi" piccolo col bordo oro; sulla TV si raggiunge sotto la
+/// locandina.
+class _RequestButton extends StatelessWidget {
+  const _RequestButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return TvFocusable(
+      onActivate: onTap,
+      // Su un bordo oro il focus oro non si vedrebbe: crema.
+      color: tvFocusSideOnGold.color,
+      borderRadius: BorderRadius.circular(4),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 26,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: WfColors.gold),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(LucideIcons.plus, size: 14, color: WfColors.gold),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        color: WfColors.creamMuted, fontSize: 12)),
+                        color: WfColors.gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
         ),

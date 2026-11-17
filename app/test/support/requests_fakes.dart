@@ -214,13 +214,14 @@ RequestableTitle testRequestable({
   int? year = 2024,
   TitleStatus status = TitleStatus.none,
   String? jellyfinItemId,
+  bool poster = true,
 }) =>
     RequestableTitle(
       mediaType: type,
       tmdbId: tmdbId,
       title: title,
       year: year,
-      posterPath: '/p$tmdbId.jpg',
+      posterPath: poster ? '/p$tmdbId.jpg' : null,
       status: status,
       jellyfinItemId: jellyfinItemId,
     );
