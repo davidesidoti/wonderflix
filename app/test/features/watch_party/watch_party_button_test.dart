@@ -446,7 +446,7 @@ void main() {
   });
 
   testWidgets('Invita amici: lista mai letta e plugin che non risponde, '
-      '"Amici non disponibili"', (tester) async {
+      'amici non disponibili', (tester) async {
     final social = FakeSocialApi();
     await pumpWithPlugin(tester, social);
     social.nextFailure = SocialFailure.network;
@@ -454,7 +454,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Invita amici'));
     await tester.pumpAndSettle();
-    expect(find.text('Amici non disponibili'), findsOneWidget);
+    expect(
+        find.text(
+            'Non riesco a leggere gli amici. Controlla la connessione e riprova.'),
+        findsOneWidget);
     expect(find.text('Nessun amico da invitare'), findsNothing);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();

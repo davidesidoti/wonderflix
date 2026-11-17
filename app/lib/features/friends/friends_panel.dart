@@ -13,11 +13,11 @@ import '../../ui/form_factor.dart';
 import '../../ui/panel_header.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
+import '../../ui/user_avatar.dart';
 import '../../ui/wf_menus.dart';
 import '../match/match_actions.dart';
 import '../match/match_entry.dart';
 import '../social/social_providers.dart';
-import '../watch_party/party_badge.dart';
 import '../watch_party/watch_party_actions.dart';
 import '../watch_party/watch_party_providers.dart';
 import '../watch_party/watch_party_session.dart';
@@ -54,6 +54,9 @@ Future<void> runFriendAction(
 }
 
 const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 13);
+
+const _sectionStyle = TextStyle(
+    color: WfColors.creamMuted, fontSize: 12, fontWeight: FontWeight.w600);
 
 /// Contenuto del pannello Amici (spec F §8.3): ricerca, "Ho un codice" (con
 /// la funzione `parties` del plugin), richieste, amici.
@@ -99,6 +102,24 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final searching = ref.watch(friendSearchProvider.select((s) => s.active));
+    final busy = ref.watch(friendSearchProvider.select((s) => s.searching));
+    final online = ref.watch(friendsControllerProvider.select((s) => s.loaded
+        ? s.snapshot.friends.where((friend) => friend.online).length
+        : null));
+    final parties =
+        ref.watch(socialAvailabilityProvider.select((f) => f.parties));
+    final match = ref.watch(matchEntryProvider)
+        ? TextButton.icon(
+            key: const Key('friends-match'),
+            onPressed: () {
+              ref.read(shellPanelProvider.notifier).close();
+              unawaited(openMatchRoom(context, ref));
+            },
+            icon: const Icon(LucideIcons.heartHandshake, size: 16),
+            label: Text(l.friendsOpenMatch),
+            style: TextButton.styleFrom(foregroundColor: WfColors.gold),
+          )
+        : null;
     return Material(
       key: const Key('friends-panel'),
       color: WfColors.surface,
@@ -108,6 +129,13 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
         children: [
           PanelHeader(
             title: l.friendsTitle,
+            subtitle: online == null
+                ? null
+                : Text(l.friendsOnlineCount(online),
+                    style: const TextStyle(
+                        color: WfColors.creamMuted,
+                        fontSize: 13,
+                        fontFeatures: [FontFeature.tabularFigures()])),
             closeTooltip: l.friendsClose,
             onClose: () => ref.read(shellPanelProvider.notifier).close(),
           ),
@@ -120,40 +148,41 @@ class _FriendsPanelState extends ConsumerState<FriendsPanel> {
               decoration: InputDecoration(
                 hintText: l.friendsSearchHint,
                 prefixIcon: const Icon(LucideIcons.search, size: 18),
+                suffixIcon: busy
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : null,
                 isDense: true,
               ),
               onChanged: (text) =>
                   ref.read(friendSearchProvider.notifier).setQuery(text),
             ),
           ),
-          if (ref.watch(matchEntryProvider))
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 20, 0),
-                child: TextButton.icon(
-                  key: const Key('friends-match'),
-                  onPressed: () {
-                    ref.read(shellPanelProvider.notifier).close();
-                    unawaited(openMatchRoom(context, ref));
-                  },
-                  icon: const Icon(LucideIcons.heartHandshake, size: 16),
-                  label: Text(l.matchTitle),
-                  style: TextButton.styleFrom(foregroundColor: WfColors.gold),
-                ),
-              ),
-            ),
-          if (ref.watch(socialAvailabilityProvider.select((f) => f.parties)))
-            // Durante una ricerca i risultati prendono il suo posto (spec F
-            // §8.3); un codice scritto a metà resta.
-            Visibility(
-              visible: !searching,
-              maintainState: true,
-              child: const _PartyCodeEntry(),
-            ),
           Expanded(
             child: searching ? const _SearchResults() : const _FriendLists(),
           ),
+          // Il piede: le strade per entrare a guardare (spec §7.2). Durante
+          // una ricerca restano solo i risultati; un codice scritto a metà
+          // resta.
+          if (parties || match != null)
+            Visibility(
+              visible: !searching,
+              maintainState: true,
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: WfColors.border))),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                  child: parties
+                      ? _PartyCodeEntry(beside: match)
+                      : Align(alignment: Alignment.centerLeft, child: match),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -170,7 +199,10 @@ class _PartyCodeFocusNode extends FocusNode {
 
 /// "Ho un codice" (spec F §9.4): un campo per entrare in un party privato.
 class _PartyCodeEntry extends ConsumerStatefulWidget {
-  const _PartyCodeEntry();
+  const _PartyCodeEntry({this.beside});
+
+  /// Accanto a "Ho un codice" nel piede ("Apri un Match").
+  final Widget? beside;
 
   @override
   ConsumerState<_PartyCodeEntry> createState() => _PartyCodeEntryState();
@@ -252,22 +284,22 @@ class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     if (!_open) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 20, 4),
-          child: TextButton.icon(
+      return Wrap(
+        spacing: 8,
+        children: [
+          TextButton.icon(
             focusNode: _buttonFocus,
             onPressed: _show,
             icon: const Icon(LucideIcons.ticket, size: 16),
             label: Text(l.partyHaveCode),
             style: TextButton.styleFrom(foregroundColor: WfColors.gold),
           ),
-        ),
+          ?widget.beside,
+        ],
       );
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -296,6 +328,8 @@ class _PartyCodeEntryState extends ConsumerState<_PartyCodeEntry> {
                   style:
                       const TextStyle(color: WfColors.error, fontSize: 12)),
             ),
+          if (widget.beside case final beside?)
+            Padding(padding: const EdgeInsets.only(top: 4), child: beside),
         ],
       ),
     );
@@ -309,8 +343,10 @@ class _SearchResults extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final search = ref.watch(friendSearchProvider);
+    // Una riga grigia mentre cerca: il risultato non è finito.
+    const pending = PanelRowsSkeleton(rows: 1);
     if (search.results.isEmpty) {
-      if (search.searching) return const SizedBox.shrink();
+      if (search.searching) return pending;
       return _Note(switch (search.failure) {
         null => l.friendsSearchEmpty,
         SocialFailure.rateLimited => l.friendsTooMany,
@@ -327,12 +363,14 @@ class _SearchResults extends ConsumerWidget {
             name: result.name,
             trailing: _SearchAction(result: result),
           ),
+        if (search.searching) pending,
       ],
     );
   }
 }
 
-/// Azione su un risultato della ricerca, secondo la relazione.
+/// Azione su un risultato della ricerca, secondo la relazione: le stesse
+/// parole delle sezioni del pannello.
 class _SearchAction extends ConsumerWidget {
   const _SearchAction({required this.result});
 
@@ -344,25 +382,14 @@ class _SearchAction extends ConsumerWidget {
     final friends = ref.read(friendsControllerProvider.notifier);
     // Dopo l'azione la ricerca si ripete da sola: gli amici vengono riletti
     // e `FriendSearch` ascolta la lista (la relazione è cambiata).
-    void run(Future<SocialFailure?> Function() action) =>
-        unawaited(runFriendAction(context, action));
     final id = result.userId;
     return switch (result.relation) {
       FriendRelation.none => _ActionButton(
-          label: l.friendsAdd, onPressed: () => run(() => friends.request(id))),
-      FriendRelation.incoming => _ActionButton(
-          label: l.friendsAccept,
-          onPressed: () => run(() => friends.accept(id))),
-      FriendRelation.outgoing => Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(l.friendsSent, style: _mutedStyle),
-            _ActionButton(
-                label: l.friendsCancel,
-                muted: true,
-                onPressed: () => run(() => friends.cancel(id))),
-          ],
-        ),
+          label: l.friendsAdd,
+          onPressed: () =>
+              unawaited(runFriendAction(context, () => friends.request(id)))),
+      FriendRelation.incoming => _RequestActions(userId: id, incoming: true),
+      FriendRelation.outgoing => _RequestActions(userId: id, incoming: false),
       FriendRelation.friend => Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -375,11 +402,20 @@ class _SearchAction extends ConsumerWidget {
   }
 }
 
-class _FriendLists extends ConsumerWidget {
+/// Le sezioni (spec §7.2), ognuna solo se non vuota: "Da rispondere",
+/// "Online", "Offline" e in fondo "Richieste inviate", chiusa.
+class _FriendLists extends ConsumerStatefulWidget {
   const _FriendLists();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FriendLists> createState() => _FriendListsState();
+}
+
+class _FriendListsState extends ConsumerState<_FriendLists> {
+  bool _outgoingOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final friendsState = ref.watch(friendsControllerProvider);
     final controller = ref.read(friendsControllerProvider.notifier);
@@ -399,60 +435,113 @@ class _FriendLists extends ConsumerWidget {
       );
     }
     final snapshot = friendsState.snapshot;
-    final requests = snapshot.incoming.length + snapshot.outgoing.length;
     final friends = sortFriends(snapshot.friends);
-    void run(Future<SocialFailure?> Function() action) =>
-        unawaited(runFriendAction(context, action));
+    if (friends.isEmpty &&
+        snapshot.incoming.isEmpty &&
+        snapshot.outgoing.isEmpty) {
+      return _Note(l.friendsEmpty);
+    }
+    Widget friendRow(FriendEntry friend) =>
+        _FriendRow(key: ValueKey('friend-${friend.userId}'), friend: friend);
+    final online = [for (final f in friends) if (f.online) friendRow(f)];
+    final offline = [for (final f in friends) if (!f.online) friendRow(f)];
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
-        if (requests > 0) ...[
-          _SectionTitle(l.friendsRequests(requests)),
+        if (snapshot.incoming.isNotEmpty) ...[
+          // Lo stesso numero del badge.
+          _SectionTitle(l.friendsIncoming(friendsState.incomingCount)),
           for (final person in snapshot.incoming)
             _PersonRow(
               key: ValueKey('incoming-${person.userId}'),
               userId: person.userId,
               name: person.name,
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _ActionButton(
-                      label: l.friendsAccept,
-                      onPressed: () =>
-                          run(() => controller.accept(person.userId))),
-                  _ActionButton(
-                      label: l.friendsDecline,
-                      muted: true,
-                      onPressed: () =>
-                          run(() => controller.decline(person.userId))),
-                ],
-              ),
-            ),
-          for (final person in snapshot.outgoing)
-            _PersonRow(
-              key: ValueKey('outgoing-${person.userId}'),
-              userId: person.userId,
-              name: person.name,
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(l.friendsPending, style: _mutedStyle),
-                  _ActionButton(
-                      label: l.friendsCancel,
-                      muted: true,
-                      onPressed: () =>
-                          run(() => controller.cancel(person.userId))),
-                ],
-              ),
+              trailing: _RequestActions(userId: person.userId, incoming: true),
             ),
         ],
-        _SectionTitle(l.friendsTitle),
-        if (friends.isEmpty)
-          _Note(l.friendsEmpty)
-        else
-          for (final friend in friends)
-            _FriendRow(key: ValueKey('friend-${friend.userId}'), friend: friend),
+        if (online.isNotEmpty) ...[_SectionTitle(l.friendsOnline), ...online],
+        if (offline.isNotEmpty) ...[
+          _SectionTitle(l.friendsOffline),
+          ...offline,
+        ],
+        if (snapshot.outgoing.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: WfColors.border))),
+            child: Semantics(
+              expanded: _outgoingOpen,
+              child: InkWell(
+                key: const Key('friends-outgoing-toggle'),
+                onTap: () => setState(() => _outgoingOpen = !_outgoingOpen),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(l.friendsOutgoing(snapshot.outgoing.length),
+                            style: _sectionStyle),
+                      ),
+                      Icon(
+                          _outgoingOpen
+                              ? LucideIcons.chevronUp
+                              : LucideIcons.chevronDown,
+                          size: 16,
+                          color: WfColors.creamMuted),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_outgoingOpen)
+            for (final person in snapshot.outgoing)
+              _PersonRow(
+                key: ValueKey('outgoing-${person.userId}'),
+                userId: person.userId,
+                name: person.name,
+                trailing:
+                    _RequestActions(userId: person.userId, incoming: false),
+              ),
+        ],
       ],
+    );
+  }
+}
+
+/// Una richiesta d'amicizia: "Accetta" / "Rifiuta" per chi ti ha scritto,
+/// "In attesa" / "Annulla" per chi hai invitato tu.
+class _RequestActions extends ConsumerWidget {
+  const _RequestActions({required this.userId, required this.incoming});
+
+  final String userId;
+  final bool incoming;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final friends = ref.read(friendsControllerProvider.notifier);
+    void run(Future<SocialFailure?> Function() action) =>
+        unawaited(runFriendAction(context, action));
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: incoming
+          ? [
+              _ActionButton(
+                  label: l.friendsAccept,
+                  onPressed: () => run(() => friends.accept(userId))),
+              _ActionButton(
+                  label: l.friendsDecline,
+                  muted: true,
+                  onPressed: () => run(() => friends.decline(userId))),
+            ]
+          : [
+              Text(l.friendsPending, style: _mutedStyle),
+              _ActionButton(
+                  label: l.friendsCancel,
+                  muted: true,
+                  onPressed: () => run(() => friends.cancel(userId))),
+            ],
     );
   }
 }
@@ -528,6 +617,7 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final friend = widget.friend;
+    final canMatch = ref.watch(matchEntryProvider);
     final Widget menu = _confirm != null
         ? _ActionButton(
             key: const Key('friend-remove-confirm'),
@@ -541,10 +631,21 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
             icon: const Icon(LucideIcons.ellipsis,
                 size: 18, color: WfColors.creamMuted),
             popUpAnimationStyle: wfPopUpAnimation(context),
-            onSelected: (_) => _askConfirm(),
+            onSelected: (value) {
+              if (value != 'match') return _askConfirm();
+              ref.read(shellPanelProvider.notifier).close();
+              unawaited(openMatchRoomInviting(context, ref, friend.userId));
+            },
             itemBuilder: (context) => [
+              if (canMatch) ...[
+                PopupMenuItem<String>(
+                    value: 'match', child: Text(l.friendsInviteToMatch)),
+                const PopupMenuDivider(),
+              ],
               PopupMenuItem<String>(
-                  value: 'remove', child: Text(l.friendsRemove)),
+                  value: 'remove',
+                  child: Text(l.friendsRemove,
+                      style: const TextStyle(color: WfColors.error))),
             ],
           );
     final party = friend.party;
@@ -576,7 +677,9 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
           ? l.friendsInParty(party.title)
           : nowPlaying != null
               ? friendNowPlayingText(l, nowPlaying)
-              : null,
+              : friend.online
+                  ? null
+                  : l.friendsOffline,
       trailing: showJoin || showWatch
           ? Row(
               mainAxisSize: MainAxisSize.min,
@@ -639,7 +742,8 @@ class _PersonRow extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                MemberAvatar(name: name, userId: userId),
+                UserAvatar.lookup(
+                    userId: userId, name: name, size: 32, muted: true),
                 if (status == true)
                   Positioned(
                     right: -1,
@@ -728,8 +832,7 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-        child: Text(text,
-            style: const TextStyle(color: WfColors.creamMuted, fontSize: 12)),
+        child: Text(text, style: _sectionStyle),
       );
 }
 

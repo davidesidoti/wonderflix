@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/features/match/match_entry.dart';
+import 'package:wonderflix/features/friends/friends_controller.dart';
+import 'package:wonderflix/ui/skeletons.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
@@ -27,9 +33,13 @@ import '../../support/pump_app.dart';
 import '../../support/social_fakes.dart';
 import '../../support/watch_party_fakes.dart';
 
-/// Il titolo di sezione (12 px): "Amici" è anche il titolo del pannello.
-Finder sectionTitle(String text) => find.byWidgetPredicate(
-    (w) => w is Text && w.data == text && w.style?.fontSize == 12);
+/// Il titolo di sezione (12 px, 600): "Offline" è anche la scritta sotto il
+/// nome.
+Finder sectionTitle(String text) => find.byWidgetPredicate((w) =>
+    w is Text &&
+    w.data == text &&
+    w.style?.fontSize == 12 &&
+    w.style?.fontWeight == FontWeight.w600);
 
 void main() {
   late FakeSocialApi api;
@@ -37,7 +47,8 @@ void main() {
   setUp(() => api = FakeSocialApi());
 
   Future<void> pumpPanel(WidgetTester tester,
-      {List<Override> overrides = const []}) async {
+      {List<Override> overrides = const [],
+      SocialFeatures features = const SocialFeatures(friends: true)}) async {
     await pumpApp(
       tester,
       const Scaffold(
@@ -46,7 +57,10 @@ void main() {
           child: SizedBox(width: FriendsPanel.width, child: FriendsPanel()),
         ),
       ),
-      overrides: [...socialTestOverrides(api), ...overrides],
+      overrides: [
+        ...socialTestOverrides(api, features: features),
+        ...overrides
+      ],
     );
     // Il primo caricamento parte da un microtask.
     await tester.pump();
@@ -65,8 +79,10 @@ void main() {
     expect(y('Luigi'), lessThan(y('daisy')));
     expect(y('daisy'), lessThan(y('Zelda')));
     expect(find.byKey(const Key('online-dot')), findsOneWidget);
-    expect(sectionTitle('Amici'), findsOneWidget);
-    expect(find.textContaining('Richieste'), findsNothing);
+    expect(sectionTitle('Online'), findsOneWidget);
+    expect(sectionTitle('Offline'), findsOneWidget);
+    expect(find.textContaining('Da rispondere'), findsNothing);
+    expect(find.textContaining('Richieste inviate'), findsNothing);
   });
 
   testWidgets('un amico con un\'immagine la mostra, cercato per id; il '
@@ -108,8 +124,12 @@ void main() {
     await tester.pump();
     expect(urls.toSet(), {
       'https://media.example.com/UserImage?userId=u3&tag=t3',
-      'https://media.example.com/UserImage?userId=u4&tag=t4',
-    });
+    }, reason: 'Richieste inviate è chiusa');
+    await tester.tap(find.byKey(const Key('friends-outgoing-toggle')));
+    await tester.pump();
+    await tester.pump(AvatarDirectory.defaultBatchDelay);
+    await tester.pump();
+    expect(urls, contains('https://media.example.com/UserImage?userId=u4&tag=t4'));
 
     await tester.enterText(find.byKey(const Key('friends-search')), 'lu');
     await tester.pump(FriendSearch.debounce);
@@ -121,7 +141,7 @@ void main() {
 
   testWidgets('nessun amico: invito a cercare', (tester) async {
     await pumpPanel(tester);
-    expect(find.text('Nessun amico ancora. Cerca qualcuno per nome qui sopra.'),
+    expect(find.text('Non hai ancora amici. Cerca qualcuno per nome qui sopra.'),
         findsOneWidget);
   });
 
@@ -131,7 +151,9 @@ void main() {
       outgoing: [testPerson('u4', 'Daisy')],
     );
     await pumpPanel(tester);
-    expect(find.text('Richieste (2)'), findsOneWidget);
+    expect(find.text('Da rispondere (1)'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('friends-outgoing-toggle')));
+    await tester.pump();
     expect(find.text('In attesa'), findsOneWidget);
 
     await tester.tap(find.text('Accetta'));
@@ -162,11 +184,16 @@ void main() {
     Finder inRow(String userId, String text) => find.descendant(
         of: find.byKey(ValueKey('search-$userId')), matching: find.text(text));
     expect(inRow('u2', 'Aggiungi'), findsOneWidget);
-    expect(inRow('u6', 'Inviata'), findsOneWidget);
+    expect(inRow('u6', 'In attesa'), findsOneWidget);
     expect(inRow('u6', 'Annulla'), findsOneWidget);
     expect(inRow('u7', 'Accetta'), findsOneWidget);
+    expect(inRow('u7', 'Rifiuta'), findsOneWidget);
     expect(inRow('u8', 'Amici'), findsOneWidget);
-    expect(sectionTitle('Amici'), findsNothing, reason: 'liste nascoste');
+    expect(find.descendant(
+            of: find.byKey(const ValueKey('search-u8')),
+            matching: find.byIcon(LucideIcons.check)),
+        findsOneWidget);
+    expect(sectionTitle('Online'), findsNothing, reason: 'liste nascoste');
 
     await tester.tap(inRow('u2', 'Aggiungi'));
     await tester.pump();
@@ -184,7 +211,10 @@ void main() {
     await tester.enterText(find.byKey(const Key('friends-search')), 'zz');
     await tester.pump(FriendSearch.debounce);
     await tester.pump();
-    expect(find.text('Nessun utente trovato'), findsOneWidget);
+    expect(
+        find.text(
+            'Nessuno si chiama così. Controlla il nome o chiedi il suo codice.'),
+        findsOneWidget);
   });
 
   testWidgets('rimozione: conferma per 4 s', (tester) async {
@@ -214,7 +244,10 @@ void main() {
     api.nextFailure = SocialFailure.network;
     await pumpPanel(tester);
     await tester.pump();
-    expect(find.text('Amici non disponibili'), findsOneWidget);
+    expect(
+        find.text(
+            'Non riesco a leggere gli amici. Controlla la connessione e riprova.'),
+        findsOneWidget);
 
     api.snapshot = FriendsSnapshot(friends: [testFriend('u2', 'Luigi')]);
     await tester.tap(find.text('Riprova'));
@@ -230,6 +263,171 @@ void main() {
     await tester.tap(find.text('Accetta'));
     await tester.pumpAndSettle();
     expect(find.text('Troppe richieste, riprova più tardi'), findsOneWidget);
+  });
+
+  testWidgets('testa con gli online e sezioni nell\'ordine', (t) async {
+    api.snapshot = FriendsSnapshot(
+        friends: [
+          testFriend('u2', 'sara', online: true),
+          testFriend('u3', 'CaptainC'),
+        ],
+        incoming: [testPerson('u4', 'luca88')],
+        outgoing: [testPerson('u5', 'marta')]);
+    await pumpPanel(t);
+    expect(find.text('1 online'), findsOneWidget);
+    final order = [
+      'Da rispondere (1)',
+      'Online',
+      'Offline',
+      'Richieste inviate (1)'
+    ].map((s) => t.getTopLeft(sectionTitle(s)).dy).toList();
+    expect(order, [...order]..sort());
+    expect(find.text('marta'), findsNothing, reason: 'Richieste inviate è chiusa');
+    await t.tap(find.byKey(const Key('friends-outgoing-toggle')));
+    await t.pump();
+    expect(find.text('marta'), findsOneWidget);
+    expect(find.text('In attesa'), findsOneWidget);
+    expect(find.text('Annulla'), findsOneWidget);
+  });
+
+  testWidgets('Da rispondere ha lo stesso numero del badge', (t) async {
+    api.snapshot = FriendsSnapshot(incoming: [
+      testPerson('u4', 'luca88'),
+      testPerson('u6', 'pia'),
+    ], outgoing: [
+      testPerson('u5', 'marta'),
+      testPerson('u7', 'ugo'),
+      testPerson('u8', 'eva'),
+    ]);
+    await pumpPanel(t);
+    final container =
+        ProviderScope.containerOf(t.element(find.byType(FriendsPanel)));
+    expect(container.read(friendsControllerProvider).incomingCount, 2);
+    expect(find.text('Da rispondere (2)'), findsOneWidget);
+    expect(find.text('Richieste inviate (3)'), findsOneWidget);
+  });
+
+  testWidgets('offline: la scritta sotto il nome; avatar da 32', (t) async {
+    api.snapshot = FriendsSnapshot(friends: [testFriend('u3', 'CaptainC')]);
+    await pumpPanel(t);
+    final row = find
+        .ancestor(of: find.text('CaptainC'), matching: find.byType(Row))
+        .first;
+    expect(find.descendant(of: row, matching: find.text('Offline')),
+        findsOneWidget);
+    expect(t.getSize(find.byType(UserAvatar).first), const Size(32, 32));
+  });
+
+  testWidgets('⋯: Invita a un Match e Rimuovi in rosso, niente Invita a '
+      'guardare', (t) async {
+    api.snapshot =
+        FriendsSnapshot(friends: [testFriend('u2', 'sara', online: true)]);
+    await pumpPanel(t, overrides: [matchEntryProvider.overrideWithValue(true)]);
+    await t.tap(find.byTooltip('Altre azioni'));
+    await t.pumpAndSettle();
+    expect(find.text('Invita a un Match'), findsOneWidget);
+    expect(find.byType(PopupMenuDivider), findsOneWidget);
+    expect(t.widget<Text>(find.text('Rimuovi dagli amici')).style?.color,
+        WfColors.error);
+    expect(find.text('Invita a guardare'), findsNothing);
+  });
+
+  testWidgets('⋯ senza Match: solo Rimuovi', (t) async {
+    api.snapshot =
+        FriendsSnapshot(friends: [testFriend('u2', 'sara', online: true)]);
+    await pumpPanel(t);
+    await t.tap(find.byTooltip('Altre azioni'));
+    await t.pumpAndSettle();
+    expect(find.text('Invita a un Match'), findsNothing);
+    expect(find.byType(PopupMenuDivider), findsNothing);
+    expect(find.text('Rimuovi dagli amici'), findsOneWidget);
+  });
+
+  testWidgets('piede: Ho un codice e Apri un Match in fondo, non in cima',
+      (t) async {
+    api.snapshot = FriendsSnapshot(friends: [testFriend('u3', 'CaptainC')]);
+    await pumpPanel(t,
+        features: const SocialFeatures(friends: true, parties: true),
+        overrides: [matchEntryProvider.overrideWithValue(true)]);
+    final name = t.getTopLeft(find.text('CaptainC')).dy;
+    expect(t.getTopLeft(find.text('Apri un Match')).dy, greaterThan(name));
+    expect(t.getTopLeft(find.text('Ho un codice')).dy, greaterThan(name));
+  });
+
+  testWidgets('ricerca: rotellina e riga grigia mentre cerca, poi le parole '
+      'giuste', (t) async {
+    api.snapshot = FriendsSnapshot(friends: [testFriend('u3', 'CaptainC')]);
+    api.searchResults['ca'] = [
+      testSearchResult('u4', 'Carla', FriendRelation.incoming),
+      testSearchResult('u5', 'Carlo', FriendRelation.outgoing),
+      testSearchResult('u3', 'CaptainC', FriendRelation.friend),
+    ];
+    await pumpPanel(t,
+        features: const SocialFeatures(friends: true, parties: true),
+        overrides: [matchEntryProvider.overrideWithValue(true)]);
+    await t.enterText(find.byKey(const Key('friends-search')), 'ca');
+    await t.pump();
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('friends-search')),
+            matching: find.byType(CircularProgressIndicator)),
+        findsOneWidget);
+    expect(find.byType(PanelRowsSkeleton), findsOneWidget);
+    expect(find.text('Ho un codice'), findsNothing);
+    expect(find.text('Apri un Match'), findsNothing);
+
+    await t.pump(FriendSearch.debounce);
+    await t.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(PanelRowsSkeleton), findsNothing);
+    Finder inRow(String userId, String text) => find.descendant(
+        of: find.byKey(ValueKey('search-$userId')), matching: find.text(text));
+    expect(inRow('u4', 'Accetta'), findsOneWidget);
+    expect(inRow('u4', 'Rifiuta'), findsOneWidget);
+    expect(inRow('u5', 'In attesa'), findsOneWidget);
+    expect(inRow('u5', 'Annulla'), findsOneWidget);
+    expect(inRow('u3', 'Amici'), findsOneWidget);
+
+    await t.tap(inRow('u4', 'Rifiuta'));
+    await t.pump();
+    expect(api.calls, contains('decline u4'));
+  });
+
+  testWidgets('nome lungo, testo a 1,5, larga 380: niente overflow',
+      (t) async {
+    api.snapshot = const FriendsSnapshot(friends: [
+      FriendEntry(
+        userId: 'u2',
+        name: 'Bartolomeo Bartolomeo Bartolomeo Bartolomeo Bartolo',
+        online: true,
+        party: FriendParty(groupId: 'g1', title: 'Il Signore degli Anelli'),
+      ),
+    ]);
+    await pumpApp(
+      t,
+      const MediaQuery(
+        data: MediaQueryData(
+            size: Size(380, 800), textScaler: TextScaler.linear(1.5)),
+        child: Scaffold(
+          body: SizedBox(width: FriendsPanel.width, child: FriendsPanel()),
+        ),
+      ),
+      surfaceSize: const Size(380, 800),
+      overrides: [
+        ...socialTestOverrides(api,
+            features: const SocialFeatures(friends: true, parties: true)),
+        syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+        partyChannelApiProvider
+            .overrideWithValue(FakePartyChannelApi()..install()),
+        matchEntryProvider.overrideWithValue(true),
+      ],
+    );
+    await t.pump();
+    expect(t.takeException(), isNull);
+    expect(find.byKey(const Key('friend-join-u2')), findsOneWidget);
+    expect(t.getTopRight(find.byTooltip('Altre azioni')).dx,
+        lessThanOrEqualTo(380));
+    expect(t.getTopRight(find.text('Unisciti')).dx, lessThanOrEqualTo(380));
   });
 
   group('party', () {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/app/shell_panels.dart';
+import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/friends/friends_panel.dart';
 import 'package:wonderflix/features/match/match_providers.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -14,9 +15,10 @@ import '../../support/social_fakes.dart';
 import '../../support/watch_party_fakes.dart';
 
 void main() {
-  testWidgets('"Match del film" nel pannello Amici apre una sala e chiude il '
-      'pannello', (tester) async {
-    final match = FakeMatchApi();
+  late FakeSocialApi social;
+  late FakeMatchApi match;
+
+  Future<ProviderContainer> pumpPanel(WidgetTester tester) async {
     final router = GoRouter(routes: [
       GoRoute(
         path: '/',
@@ -32,7 +34,7 @@ void main() {
           builder: (_, state) => Text('pagina ${state.pathParameters['id']}')),
     ]);
     await pumpAppRouter(tester, router, overrides: [
-      ...socialTestOverrides(FakeSocialApi(),
+      ...socialTestOverrides(social,
           features: const SocialFeatures(friends: true, match: true)),
       matchApiProvider.overrideWithValue(match),
       syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
@@ -44,11 +46,37 @@ void main() {
     container.listen(shellPanelProvider, (_, _) {});
     container.read(shellPanelProvider.notifier).open(ShellPanel.friends);
     await tester.pump();
+    return container;
+  }
 
+  setUp(() {
+    social = FakeSocialApi();
+    match = FakeMatchApi();
+  });
+
+  testWidgets('"Apri un Match" nel pannello Amici apre una sala e chiude il '
+      'pannello', (tester) async {
+    final container = await pumpPanel(tester);
     await tester.tap(find.byKey(const Key('friends-match')));
     await tester.pumpAndSettle();
 
     expect(match.calls, ['open']);
+    expect(find.text('pagina r1'), findsOneWidget);
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+  });
+
+  testWidgets('"Invita a un Match" dal ⋯ apre la sala e invita l\'amico',
+      (tester) async {
+    social.snapshot =
+        FriendsSnapshot(friends: [testFriend('u2', 'sara', online: true)]);
+    final container = await pumpPanel(tester);
+    await tester.pump();
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invita a un Match'));
+    await tester.pumpAndSettle();
+
+    expect(match.calls, ['open', 'invite r1 u2']);
     expect(find.text('pagina r1'), findsOneWidget);
     expect(container.read(shellPanelProvider), ShellPanel.none);
   });

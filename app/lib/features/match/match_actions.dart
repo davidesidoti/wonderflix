@@ -34,6 +34,24 @@ String matchFailureText(AppLocalizations l, MatchFailure failure) =>
 Future<bool> openMatchRoom(BuildContext context, WidgetRef ref) =>
     _enter(context, ref, (controller) => controller.open());
 
+/// "Invita a un Match" dal ⋯ di un amico (spec §7.2): apre una sala come
+/// [openMatchRoom], poi invita [userId]. Se l'invito non riesce la sala resta
+/// aperta con la sua pagina e l'avviso dice perché. `true` se la sala è
+/// aperta.
+Future<bool> openMatchRoomInviting(
+    BuildContext context, WidgetRef ref, String userId) async {
+  // Il ⋯ del pannello sparisce mentre la sala si apre.
+  final l = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final controller = ref.read(matchRoomProvider.notifier);
+  if (!await openMatchRoom(context, ref)) return false;
+  final failure = await controller.invite([userId]);
+  if (failure != null) {
+    messenger?.showSnackBar(SnackBar(content: Text(matchFailureText(l, failure))));
+  }
+  return true;
+}
+
 /// "Unisciti" a un invito: entra nella sala e apre la sua pagina.
 Future<bool> joinMatchRoom(
     BuildContext context, WidgetRef ref, String roomId) {
