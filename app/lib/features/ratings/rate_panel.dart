@@ -234,21 +234,24 @@ class _RatePanelState extends ConsumerState<RatePanel> {
                 border: Border(top: BorderSide(color: WfColors.border))),
             child: Row(
               children: [
-                if (subject.mine != null)
-                  Flexible(
-                    child: TextButton(
-                      style: TextButton.styleFrom(
-                          foregroundColor:
-                              WfColors.error.withValues(alpha: 0.85)),
-                      onPressed: _busy
-                          ? null
-                          : () => unawaited(
-                              _run((api) => api.deleteRating(subject.item.id))),
-                      child: Text(l.ratingRemove,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                    ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: subject.mine == null
+                        ? const SizedBox.shrink()
+                        : TextButton(
+                            style: TextButton.styleFrom(
+                                foregroundColor:
+                                    WfColors.error.withValues(alpha: 0.85)),
+                            onPressed: _busy
+                                ? null
+                                : () => unawaited(_run((api) =>
+                                    api.deleteRating(subject.item.id))),
+                            child: Text(l.ratingRemove,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
                   ),
-                const Spacer(),
+                ),
                 WfButton.primary(
                   label: l.ratingSave,
                   icon: LucideIcons.check,

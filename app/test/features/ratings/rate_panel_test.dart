@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/shell_panels.dart';
+import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/social/rating_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/ratings/friend_ratings_row.dart';
@@ -24,7 +25,11 @@ void main() {
   setUp(() => api = FakeSocialApi()..install(features: const {}));
 
   Future<ProviderContainer> pump(WidgetTester tester,
-      {MyRating? mine, bool tv = false, Size? size}) async {
+      {MyRating? mine,
+      bool tv = false,
+      Size? size,
+      double width = 360,
+      JellyfinItem? item}) async {
     await pumpApp(
       tester,
       tv: tv,
@@ -33,12 +38,12 @@ void main() {
         body: Align(
           alignment: Alignment.centerRight,
           child: SizedBox(
-            width: 360,
+            width: width,
             child: Consumer(builder: (context, ref, _) {
               ref.watch(itemRatingsProvider('m1'));
               return RatePanel(
                   subject: RateSubject(
-                      item: testItem(id: 'm1', name: 'Dune'),
+                      item: item ?? testItem(id: 'm1', name: 'Dune'),
                       title: 'Dune',
                       mine: mine));
             }),
@@ -78,7 +83,8 @@ void main() {
   testWidgets('Salva spento senza numero; Salva manda e chiude',
       (tester) async {
     final container = await pump(tester);
-    expect(tester.widget<ButtonStyleButton>(button('Salva voto')).onPressed, isNull);
+    final save = tester.widget<ButtonStyleButton>(button('Salva voto'));
+    expect(save.onPressed, isNull);
     await tester.tap(find.byKey(const Key('rating-score-7')));
     await tester.pump();
     await tester.tap(button('Salva voto'));
@@ -107,6 +113,27 @@ void main() {
     final save = tester.getCenter(find.text('Salva voto'));
     expect(remove.dx, lessThan(save.dx));
     expect((remove.dy - save.dy).abs(), lessThan(4));
+  });
+
+  testWidgets('a 380 px "Togli il mio voto" prende tutto lo spazio libero',
+      (tester) async {
+    await pump(tester, mine: const MyRating(score: 5), width: 380);
+    final remove = tester.getSize(find.ancestor(
+        of: find.text('Togli il mio voto'),
+        matching: find.byType(TextButton)));
+    final save = tester.getSize(button('Salva voto'));
+    // 380 - 2 * 20 di margine: niente Spacer che dimezza lo spazio.
+    expect(remove.width + save.width, closeTo(340, 1));
+  });
+
+  testWidgets('la riga del titolo: stagione con episodi', (tester) async {
+    await pump(tester,
+        item: testItem(
+            id: 'm1',
+            name: 'Stagione 2',
+            kind: ItemKind.season,
+            childCount: 8));
+    expect(find.text('8 episodi'), findsOneWidget);
   });
 
   testWidgets('la riga del titolo: film con anno', (tester) async {
@@ -151,7 +178,8 @@ void main() {
     api.ratingGate = Completer<void>();
     await tester.tap(button('Salva voto'));
     await tester.pump();
-    expect(tester.widget<ButtonStyleButton>(button('Salva voto')).onPressed, isNull);
+    final save = tester.widget<ButtonStyleButton>(button('Salva voto'));
+    expect(save.onPressed, isNull);
     expect(
         tester.widget<ButtonStyleButton>(button('Togli il mio voto')).onPressed,
         isNull);
