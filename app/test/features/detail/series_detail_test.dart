@@ -371,7 +371,11 @@ void main() {
     expect(find.byType(EpisodeTile, skipOffstage: false).evaluate().length,
         lessThan(40));
     await tester.scrollUntilVisible(find.textContaining('Episodio 170'), 600,
-        scrollable: find.byType(Scrollable).first);
+        scrollable: find
+            .ancestor(
+                of: find.byType(EpisodeTile).first,
+                matching: find.byType(Scrollable))
+            .first);
     expect(find.textContaining('Episodio 170'), findsOneWidget);
   });
 

@@ -30,7 +30,7 @@ void main() {
     expect(it.ratingFriendsCount(3), '3 amici');
     expect(it.ratingNoFriendsYet, 'Ancora nessun voto degli amici');
     expect(it.ratingMine(8), 'Il tuo voto: 8');
-    expect(it.ratingSave, 'Salva');
+    expect(it.ratingSave, 'Salva voto');
     expect(it.ratingRemove, 'Togli il mio voto');
     expect(it.ratingNotSaved, 'Voto non salvato');
     expect(it.ratingTooMany, 'Troppi voti: riprova più tardi');
