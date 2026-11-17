@@ -34,6 +34,26 @@ class _SlowOpen extends FakeSessionController {
   }
 }
 
+/// Profili che "Rimuovi" toglie davvero.
+class _RemovingProfiles extends FixedProfiles {
+  _RemovingProfiles(super.initial);
+
+  void remove(String userId) =>
+      state = ProfilesState(book: state.book.remove(userId));
+}
+
+class _RemovingSession extends FakeSessionController {
+  _RemovingSession(this.profiles) : super(const SessionChoosingProfile());
+
+  final _RemovingProfiles profiles;
+
+  @override
+  Future<void> removeProfile(String userId) async {
+    await super.removeProfile(userId);
+    profiles.remove(userId);
+  }
+}
+
 void main() {
   late FakeSessionController session;
 
@@ -447,7 +467,7 @@ void main() {
 
   testWidgets('sotto le carte il conto dei profili', (tester) async {
     await pumpProfiles(tester, [mario, luigi]);
-    expect(find.text('2 profili su 5 su questo PC'), findsOneWidget);
+    expect(find.text('2 di 5 profili su questo PC'), findsOneWidget);
   });
 
   testWidgets('con 5 profili il "+" lascia il posto al limite', (tester) async {
@@ -470,7 +490,7 @@ void main() {
       (tester) async {
     await pumpProfiles(tester, [mario, luigi],
         overrides: [deviceKindProvider.overrideWithValue(DeviceKind.browser)]);
-    expect(find.text('2 profili su 5 su questo browser'), findsOneWidget);
+    expect(find.text('2 di 5 profili su questo browser'), findsOneWidget);
     await tester.tap(find.text('Gestisci profili'));
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('profile-remove-u2')));
@@ -577,6 +597,44 @@ void main() {
         hasFocus(tester, buttonIcon('profile-remove-u2')) ||
             hasFocus(tester, buttonIcon('profile-image-u2')),
         isTrue);
+  });
+
+  testWidgets(
+      'TV, Gestisci profili: dopo Rimuovi il focus va alla carta dopo, '
+      'dall\'ultima a quella prima', (tester) async {
+    final profiles = _RemovingProfiles(ProfilesState(
+        book: const ProfileBook()
+            .upsert(mario)
+            .upsert(luigi)
+            .upsert(testProfile(userId: 'u3', name: 'Peach'))));
+    await pumpApp(tester, const ProfilesScreen(),
+        surfaceSize: const Size(960, 540),
+        tv: true,
+        overrides: [
+          sessionControllerProvider.overrideWith(
+              () => _RemovingSession(profiles)),
+          profilesProvider.overrideWith(() => profiles),
+        ]);
+    await tester.pump();
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+
+    Future<void> remove(String key) async {
+      Focus.of(tester.element(buttonIcon(key))).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(
+          of: find.byType(Dialog), matching: find.text('Rimuovi')));
+      await tester.pumpAndSettle();
+    }
+
+    await remove('profile-remove-u1');
+    expect(find.text('Mario'), findsNothing);
+    expect(hasFocus(tester, buttonIcon('profile-remove-u2')), isTrue);
+    await remove('profile-remove-u3');
+    expect(find.text('Peach'), findsNothing);
+    expect(hasFocus(tester, buttonIcon('profile-remove-u2')), isTrue);
   });
 
   for (final scale in [1.0, 1.3]) {

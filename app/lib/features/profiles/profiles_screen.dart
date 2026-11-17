@@ -123,7 +123,27 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
       cancelLabel: l.profilesCancel,
     );
     if (!confirmed || !mounted) return;
+    // In TV il focus era sul Rimuovi che sparisce: va a quello della carta
+    // accanto, o a "Fine".
+    final profiles = ref.read(profilesProvider).book.profiles;
+    final at = profiles.indexWhere((p) => p.userId == profile.userId);
+    final next = (profiles.elementAtOrNull(at + 1) ??
+            (at > 0 ? profiles[at - 1] : null))
+        ?.userId;
     await _session.removeProfile(profile.userId);
+    if (!mounted || !FormFactor.of(context).tv) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      FocusNode? button(Key key) => _scope.traversalDescendants
+          .where((n) =>
+              n.context?.findAncestorWidgetOfExactType<WfButton>()?.key == key)
+          .firstOrNull;
+      (button(ValueKey('profile-remove-$next')) ??
+              button(const ValueKey('profiles-manage-button')))
+          ?.requestFocus();
+    });
+    // La carta può essere già sparita: un frame serve lo stesso.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   final _scope = FocusScopeNode(debugLabel: 'profiles');
@@ -241,7 +261,8 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
                                 ProfileBook.maxProfiles, device))
                           else if (!book.isEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(top: 16),
+                              padding:
+                                  EdgeInsets.only(top: form.compact ? 16 : 28),
                               child: Text(
                                   l.profilesCount(book.profiles.length,
                                       ProfileBook.maxProfiles, device),
@@ -261,6 +282,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
                         key: const ValueKey('profiles-manage'),
                         index: 3,
                         child: WfButton.secondary(
+                          key: const ValueKey('profiles-manage-button'),
                           label: _managing ? l.profilesDone : l.profilesManage,
                           icon:
                               _managing ? LucideIcons.check : LucideIcons.pencil,
@@ -367,7 +389,8 @@ class _ProfileCard extends StatelessWidget {
                           height: sizes.avatar,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: WfColors.bg.withValues(alpha: _openingScrimAlpha),
+                            color: WfColors.bg
+                                .withValues(alpha: _openingScrimAlpha),
                           ),
                         ),
                         const SizedBox(
@@ -551,7 +574,7 @@ class _LimitNote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(top: 16),
+        margin: EdgeInsets.only(top: FormFactor.of(context).compact ? 16 : 28),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
           color: WfColors.surface,

@@ -61,8 +61,8 @@ void main() {
         'Rimuovere Luigi da questo browser?');
     expect(it.profilesRemoveTitle('Luigi', 'phone'),
         'Rimuovere Luigi da questo telefono?');
-    expect(it.profilesCount(4, 5, 'pc'), '4 profili su 5 su questo PC');
-    expect(it.profilesCount(1, 5, 'tv'), '1 profilo su 5 su questa TV');
+    expect(it.profilesCount(4, 5, 'pc'), '4 di 5 profili su questo PC');
+    expect(it.profilesCount(1, 5, 'tv'), '1 di 5 profili su questa TV');
     expect(it.profilesFull(5, 'tv'),
         '5 profili su questa TV: rimuovine uno per aggiungerne un altro.');
     expect(en.profilesRemoveTitle('Luigi', 'phone'),
