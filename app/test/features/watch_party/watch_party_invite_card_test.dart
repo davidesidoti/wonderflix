@@ -2,17 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
+import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
+import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 import '../../support/watch_party_fakes.dart';
 
@@ -36,7 +41,8 @@ void main() {
   tearDown(() => events.close());
 
   Future<void> pumpCard(WidgetTester tester,
-          {MotionLevel motion = MotionLevel.reduced}) =>
+          {MotionLevel motion = MotionLevel.reduced,
+          List<Override> extra = const []}) =>
       pumpApp(
         tester,
         const Scaffold(
@@ -49,6 +55,7 @@ void main() {
           watchPartyEventsProvider.overrideWithValue(events.stream),
           sessionControllerProvider.overrideWith(
               () => FakeSessionController(const SessionSignedIn(testUser))),
+          ...extra,
         ],
       );
 
@@ -68,9 +75,10 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('la X chiude l\'invito', (tester) async {
+  testWidgets('"Più tardi" chiude l\'invito; nessuna X', (tester) async {
     await pumpCard(tester);
-    await tester.tap(find.byTooltip('Chiudi'));
+    expect(find.byTooltip('Chiudi'), findsNothing);
+    await tester.tap(find.text('Più tardi'));
     await tester.pump();
     expect(invites.dismissed, 1);
     // La card sparisce in dissolvenza (`fast` con le animazioni ridotte):
@@ -82,7 +90,7 @@ void main() {
 
   testWidgets('l\'invito che sparisce non riceve più clic', (tester) async {
     await pumpCard(tester);
-    await tester.tap(find.byTooltip('Chiudi'));
+    await tester.tap(find.text('Più tardi'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Unisciti'), findsOneWidget, reason: 'sta sfumando');
     await tester.tap(find.text('Unisciti'), warnIfMissed: false);
@@ -106,13 +114,43 @@ void main() {
         .position
         .value;
     expect(slide().dx, greaterThan(0));
-    await tester.pumpAndSettle();
+    // Non pumpAndSettle: la barretta dei 10 s scorre ancora.
+    await tester.pump(WfMotion.medium);
     expect(slide(), Offset.zero);
 
-    await tester.tap(find.byTooltip('Chiudi'));
+    await tester.tap(find.text('Più tardi'));
     await tester.pump();
     expect(card, findsOneWidget, reason: 'sta ancora sfumando');
     await tester.pumpAndSettle();
     expect(card, findsNothing);
+  });
+
+  testWidgets(
+      'invito di un amico: frase unica, locandina dalla cassetta, 2 nel party',
+      (tester) async {
+    final social = FakeSocialApi()
+      ..inboxSnapshot = InboxSnapshot(entries: [testInvite(groupId: 'g1')]);
+    final listed = testGroup(
+        id: 'g1', name: 'Davide · Dune', participants: ['Davide', 'Peach']);
+    invites = FakeWatchPartyInvites();
+    await pumpCard(tester, extra: [
+      socialApiProvider.overrideWithValue(social),
+      socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+          const SocialFeatures(friends: true, parties: true, inbox: true))),
+      watchPartyDirectoryProvider
+          .overrideWith(() => FakeWatchPartyDirectory([listed])),
+    ]);
+    invites.show(dune, invitedBy: 'Luigi');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Luigi ti invita a guardare Dune', findRichText: true),
+        findsOneWidget);
+    expect(find.text('2 nel party'), findsOneWidget);
+    expect(find.byKey(const Key('sender-poster')), findsOneWidget);
+    expect(find.text('Unisciti'), findsOneWidget);
+    await tester.tap(find.text('Più tardi'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('watch-party-invite')), findsNothing);
+    expect(social.calls.where((c) => c.startsWith('remove-entry')), isEmpty);
   });
 }

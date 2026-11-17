@@ -4,10 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../core/social/inbox_models.dart';
 import '../../core/social/social_models.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/bold_spans.dart';
+import '../../ui/sender_avatar.dart';
 import '../auth/session_controller.dart';
+import '../inbox/inbox_controller.dart';
 import '../player/player_active.dart';
 import '../social/social_providers.dart';
 import 'invite_card_frame.dart';
@@ -41,20 +45,17 @@ class WatchPartyInvite {
 }
 
 /// Invito a un watch party appena nato (spec B §5.8): l'ultimo gruppo nuovo
-/// comparso nell'elenco, per [showFor]. I gruppi della prima lettura dopo
+/// comparso nell'elenco; la carta si chiude da sola. I gruppi della prima lettura dopo
 /// il login non sono inviti, né quelli in cui siamo stati. Niente inviti
 /// dentro un gruppo (o entrando), con il player aperto o senza il permesso
 /// di entrare.
 class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
-  static const showFor = Duration(seconds: 10);
-
   /// Gruppi dell'ultima lettura; `null` prima della prima.
   Set<String>? _known;
 
   /// Gruppi in cui siamo entrati o che abbiamo creato: usciti noi, gli
   /// altri possono restarci, e la lettura dopo non deve proporli.
   final _visited = <String>{};
-  Timer? _timer;
 
   @override
   WatchPartyInvite? build() {
@@ -62,7 +63,6 @@ class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
         .select((s) => s is SessionSignedIn ? s.user.id : null));
     _known = null;
     _visited.clear();
-    _timer = null;
     // Spec F §9.6: con la funzione `parties` le schede le annuncia il
     // plugin; senza, nascono dal confronto tra due letture dell'elenco.
     // Finché le funzioni non sono note niente: l'elenco di Jellyfin non è
@@ -86,13 +86,10 @@ class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
     ref.listen(watchPartySessionProvider.select((s) => s.phase), (_, phase) {
       if (phase != WatchPartyPhase.none) dismiss();
     });
-    ref.onDispose(() => _timer?.cancel());
     return null;
   }
 
   void dismiss() {
-    _timer?.cancel();
-    _timer = null;
     if (ref.mounted) state = null;
   }
 
@@ -135,7 +132,7 @@ class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
         mode: mode,
       );
 
-  /// Mostra [invite] per [showFor], con le regole di sempre: non per i
+  /// Mostra [invite], con le regole di sempre: non per i
   /// gruppi già visitati, non dentro un gruppo o entrando, non con il player
   /// aperto, non senza il permesso di entrare.
   void _offer(WatchPartyInvite invite) {
@@ -145,9 +142,8 @@ class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
         ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) {
       return;
     }
-    _timer?.cancel();
     state = invite;
-    _timer = Timer(showFor, dismiss);
+    ref.read(newestInviteProvider.notifier).set(InviteKind.party);
   }
 }
 
@@ -155,33 +151,69 @@ final watchPartyInvitesProvider =
     NotifierProvider<WatchPartyInvites, WatchPartyInvite?>(
         WatchPartyInvites.new);
 
-/// Scheda dell'invito, in alto a destra nella shell (spec C §11.4).
+/// Scheda dell'invito, in alto a destra nella shell (spec §7.4).
 class WatchPartyInviteCard extends ConsumerWidget {
   const WatchPartyInviteCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
     final invite = ref.watch(watchPartyInvitesProvider);
-    final invites = ref.read(watchPartyInvitesProvider.notifier);
-    final names = invite == null ? null : partyNameParts(invite.group);
     return InviteCardSlot(
       id: invite?.group.id,
-      card: invite == null
-          ? null
-          : InviteCardFrame(
-              key: const Key('watch-party-invite'),
-              icon: LucideIcons.users,
-              title: invite.invitedBy != null
-                  ? l.partyInviteTitle(invite.invitedBy!)
-                  : l.watchPartyInviteTitle(names!.host),
-              subtitle: names!.title,
-              onDismiss: invites.dismiss,
-              onJoin: () {
-                invites.dismiss();
-                unawaited(joinWatchParty(context, ref, invite.group.id));
-              },
-            ),
+      card: invite == null ? null : _card(context, ref, invite),
+    );
+  }
+
+  Widget _card(BuildContext context, WidgetRef ref, WatchPartyInvite invite) {
+    final l = AppLocalizations.of(context);
+    final invites = ref.read(watchPartyInvitesProvider.notifier);
+    final names = partyNameParts(invite.group);
+    final invitedBy = invite.invitedBy;
+    final Widget leading;
+    final InlineSpan sentence;
+    final String? detail;
+    if (invitedBy == null) {
+      leading = SenderAvatar(name: names.host, badge: LucideIcons.users);
+      sentence = boldSpans(l.watchPartyInviteTitle(names.host), [names.host]);
+      detail = names.title;
+    } else {
+      final groupId = invite.group.id;
+      // La locandina dall'invito nella cassetta, se c'è.
+      final poster = ref.watch(inboxControllerProvider.select((s) {
+        for (final entry in s.snapshot.entries) {
+          if (entry is InviteEntry &&
+              _normalizeId(entry.groupId) == _normalizeId(groupId)) {
+            return entry.imageItemId;
+          }
+        }
+        return null;
+      }));
+      final members = ref.watch(watchPartyDirectoryProvider.select((groups) =>
+          listedGroup(groups, groupId)?.participants.length ?? 0));
+      leading = SenderAvatar(
+          name: invitedBy,
+          posterItemId: poster,
+          badge: poster == null ? LucideIcons.users : null);
+      sentence = boldSpans(l.notifInviteTitle(invitedBy, names.title),
+          [invitedBy, names.title]);
+      detail = members > 0 ? l.partyMembers(members) : null;
+    }
+    return InviteCardFrame(
+      key: const Key('watch-party-invite'),
+      leading: leading,
+      sentence: sentence,
+      detail: detail,
+      primaryLabel: l.watchPartyJoin,
+      primaryIcon: LucideIcons.play,
+      onPrimary: () {
+        invites.dismiss();
+        unawaited(joinWatchParty(context, ref, invite.group.id));
+      },
+      secondaryLabel: l.inviteLater,
+      secondaryIcon: LucideIcons.clock,
+      onSecondary: invites.dismiss,
+      newest: ref.watch(newestInviteProvider) == InviteKind.party,
+      onTimeout: invites.dismiss,
     );
   }
 }

@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:wonderflix/app/shell_panels.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/social_models.dart';
 import 'package:wonderflix/features/friends/friend_request_notices.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
 
 import '../../support/social_fakes.dart';
 
@@ -29,36 +31,43 @@ void main() {
     return c;
   }
 
-  test('mostra la richiesta per 10 s', () {
+  test('la richiesta resta finché la carta non la chiude', () {
     fakeAsync((async) {
       final c = container();
       async.flushMicrotasks();
       events.add(friendRequestReceived('u2', 'Luigi'));
       async.flushMicrotasks();
       expect(c.read(friendRequestNoticesProvider)?.fromName, 'Luigi');
-      async.elapse(FriendRequestNotices.showFor);
+      expect(c.read(newestInviteProvider), InviteKind.friend);
+      async.elapse(inviteCardShowFor);
+      expect(c.read(friendRequestNoticesProvider), isNotNull);
+      c.read(friendRequestNoticesProvider.notifier).dismiss();
       expect(c.read(friendRequestNoticesProvider), isNull);
     });
   });
 
-  test('una richiesta più recente sostituisce la precedente e riavvia i 10 s',
-      () {
+  test('aprire il pannello Amici toglie la carta', () {
     fakeAsync((async) {
       final c = container();
       async.flushMicrotasks();
       events.add(friendRequestReceived('u2', 'Luigi'));
       async.flushMicrotasks();
-      async.elapse(const Duration(seconds: 6));
-      expect(c.read(friendRequestNoticesProvider)?.fromName, 'Luigi');
+      expect(c.read(friendRequestNoticesProvider), isNotNull);
+      c.read(shellPanelProvider.notifier).open(ShellPanel.friends);
+      async.flushMicrotasks();
+      expect(c.read(friendRequestNoticesProvider), isNull);
+    });
+  });
 
+  test('una richiesta più recente sostituisce la precedente', () {
+    fakeAsync((async) {
+      final c = container();
+      async.flushMicrotasks();
+      events.add(friendRequestReceived('u2', 'Luigi'));
+      async.flushMicrotasks();
       events.add(friendRequestReceived('u3', 'Peach'));
       async.flushMicrotasks();
       expect(c.read(friendRequestNoticesProvider)?.fromName, 'Peach');
-      // 12 s dalla prima richiesta, 6 dalla seconda: il timer è ripartito.
-      async.elapse(const Duration(seconds: 6));
-      expect(c.read(friendRequestNoticesProvider)?.fromName, 'Peach');
-      async.elapse(const Duration(seconds: 4));
-      expect(c.read(friendRequestNoticesProvider), isNull);
     });
   });
 

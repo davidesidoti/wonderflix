@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/app_shell.dart';
 import 'package:wonderflix/app/page_transitions.dart';
 import 'package:wonderflix/app/providers.dart';
@@ -175,7 +174,14 @@ void main() {
     await pumpShell(tester);
     events.add(friendRequestReceived('u3', 'Peach'));
     await tester.pumpAndSettle();
-    expect(find.text('Peach vuole essere tuo amico'), findsOneWidget);
+    expect(find.text('Peach vuole essere tuo amico', findRichText: true),
+        findsOneWidget);
+    expect(find.text('Rifiuta'), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('friend-request-card')),
+            matching: find.byTooltip('Chiudi')),
+        findsNothing);
 
     await tester.tap(find.descendant(
         of: find.byKey(const Key('friend-request-card')),
@@ -203,8 +209,9 @@ void main() {
     final card = find.byKey(const Key('friend-request-card'));
     expect(find.descendant(of: card, matching: find.byType(UserAvatar)),
         findsOneWidget);
-    expect(find.descendant(of: card, matching: find.byIcon(LucideIcons.userPlus)),
-        findsNothing);
+    // Il simbolo della richiesta sta nell'angolo dell'avatar.
+    expect(find.descendant(of: card, matching: find.byKey(const Key('sender-badge'))),
+        findsOneWidget);
     expect(urls, contains('https://media.example.com/UserImage?userId=u3&tag=t3'));
   });
 

@@ -988,11 +988,18 @@ void main() {
           body: Align(
             alignment: Alignment.topRight,
             child: InviteCardFrame(
-              icon: Icons.group,
-              title: 'Garg ti invita a guardare "$longName"',
-              subtitle: 'Serata con un nome piuttosto lungo davvero',
-              onDismiss: () {},
-              onJoin: () {},
+              leading: const SizedBox.square(dimension: 40),
+              sentence:
+                  TextSpan(text: 'Garg ti invita a guardare "$longName"'),
+              detail: 'Serata con un nome piuttosto lungo davvero',
+              primaryLabel: 'Unisciti',
+              primaryIcon: Icons.play_arrow,
+              onPrimary: () {},
+              secondaryLabel: 'Più tardi',
+              secondaryIcon: Icons.schedule,
+              onSecondary: () {},
+              newest: true,
+              onTimeout: () {},
             ),
           ),
         ),

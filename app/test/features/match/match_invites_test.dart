@@ -12,6 +12,7 @@ import 'package:wonderflix/features/match/match_providers.dart';
 import 'package:wonderflix/features/match/match_room_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
+import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -40,7 +41,7 @@ void main() {
         syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
       ];
 
-  test('un invito resta 10 s; non con il player aperto né dentro una sala', () {
+  test('un invito resta finché la carta non lo chiude; non con il player aperto né dentro una sala', () {
     fakeAsync((async) {
       final container = ProviderContainer(overrides: overrides(), retry: (_, _) => null);
       addTearDown(container.dispose);
@@ -50,7 +51,10 @@ void main() {
       events.add(matchInviteReceived('r2', 'Luigi'));
       async.flushMicrotasks();
       expect(container.read(matchInvitesProvider)?.roomId, 'r2');
-      async.elapse(MatchInvites.showFor);
+      async.elapse(inviteCardShowFor);
+      expect(container.read(matchInvitesProvider), isNotNull,
+          reason: 'il conto alla rovescia sta nella carta');
+      container.read(matchInvitesProvider.notifier).dismiss();
       expect(container.read(matchInvitesProvider), isNull);
 
       container.read(playerActiveProvider.notifier).enter();
@@ -131,7 +135,10 @@ void main() {
 
     events.add(matchInviteReceived('r2', 'Luigi'));
     await tester.pumpAndSettle();
-    expect(find.text('Luigi ti invita a un Match'), findsOneWidget);
+    expect(find.text('Luigi ti invita a un Match', findRichText: true),
+        findsOneWidget);
+    expect(find.text('Più tardi'), findsOneWidget);
+    expect(find.byTooltip('Chiudi'), findsNothing);
 
     await tester.tap(find.text('Unisciti'));
     await tester.pumpAndSettle();

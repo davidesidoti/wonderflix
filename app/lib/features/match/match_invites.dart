@@ -6,6 +6,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/bold_spans.dart';
+import '../../ui/sender_avatar.dart';
 import '../auth/session_controller.dart';
 import '../player/player_active.dart';
 import '../social/social_providers.dart';
@@ -15,21 +17,14 @@ import '../watch_party/watch_party_session.dart';
 import 'match_actions.dart';
 import 'match_room_controller.dart';
 
-/// Invito a una sala del match appena arrivato (spec P §7.2): per
-/// [showFor]; non con il player aperto né stando già in una sala. Si vede un
-/// invito alla volta (piano 22b, decisione 6).
+/// Invito a una sala del match appena arrivato (spec P §7.2), finché la
+/// carta non si chiude; non con il player aperto né stando già in una sala.
+/// Si vede un invito alla volta (piano 22b, decisione 6).
 class MatchInvites extends Notifier<MatchInviteEvent?> {
-  static const showFor = Duration(seconds: 10);
-
-  Timer? _timer;
-
   @override
   MatchInviteEvent? build() {
     ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
-    _timer?.cancel();
-    _timer = null;
-    ref.onDispose(() => _timer?.cancel());
     if (!ref.watch(socialAvailabilityProvider.select((f) => f.match))) {
       return null;
     }
@@ -48,8 +43,6 @@ class MatchInvites extends Notifier<MatchInviteEvent?> {
   }
 
   void dismiss() {
-    _timer?.cancel();
-    _timer = null;
     if (ref.mounted) state = null;
   }
 
@@ -60,9 +53,8 @@ class MatchInvites extends Notifier<MatchInviteEvent?> {
     // Dentro un watch party (o mentre ci si entra) l'invito non si mostra.
     if (ref.read(watchPartySessionProvider).phase != WatchPartyPhase.none) return;
     ref.read(watchPartyInvitesProvider.notifier).dismiss();
-    _timer?.cancel();
     state = event;
-    _timer = Timer(showFor, dismiss);
+    ref.read(newestInviteProvider.notifier).set(InviteKind.match);
   }
 }
 
@@ -84,13 +76,21 @@ class MatchInviteCard extends ConsumerWidget {
           ? null
           : InviteCardFrame(
               key: const Key('match-invite'),
-              icon: LucideIcons.heartHandshake,
-              title: l.notifMatchInviteTitle(invite.fromName),
-              onDismiss: invites.dismiss,
-              onJoin: () {
+              leading: SenderAvatar(
+                  name: invite.fromName, badge: LucideIcons.heartHandshake),
+              sentence: boldSpans(
+                  l.notifMatchInviteTitle(invite.fromName), [invite.fromName]),
+              primaryLabel: l.watchPartyJoin,
+              primaryIcon: LucideIcons.play,
+              onPrimary: () {
                 invites.dismiss();
                 unawaited(joinMatchRoom(context, ref, invite.roomId));
               },
+              secondaryLabel: l.inviteLater,
+              secondaryIcon: LucideIcons.clock,
+              onSecondary: invites.dismiss,
+              newest: ref.watch(newestInviteProvider) == InviteKind.match,
+              onTimeout: invites.dismiss,
             ),
     );
   }

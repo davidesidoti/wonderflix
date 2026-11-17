@@ -10,6 +10,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/player/player_active.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
+import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
@@ -71,18 +72,17 @@ void main() {
 
   GroupInfo? invite() => container.read(watchPartyInvitesProvider)?.group;
 
-  test('i gruppi della prima lettura non sono inviti; uno nuovo sì, per 10 s',
-      () {
+  test('i gruppi della prima lettura non sono inviti; uno nuovo sì', () {
     fakeAsync((async) {
       mount();
       groups(async, [g1]);
       expect(invite(), isNull);
       groups(async, [g1, g2, g3]);
       expect(invite()?.id, 'g3', reason: 'il più recente');
-      async.elapse(const Duration(seconds: 9));
+      expect(container.read(newestInviteProvider), InviteKind.party);
+      // Il conto alla rovescia sta nella carta.
+      async.elapse(inviteCardShowFor);
       expect(invite()?.id, 'g3');
-      async.elapse(const Duration(seconds: 1));
-      expect(invite(), isNull);
       container.dispose();
     });
   });
@@ -218,7 +218,10 @@ void main() {
       events.add(partyInviteReceived('g8', 'Peach · Up', 'Peach'));
       async.flushMicrotasks();
       expect(container.read(watchPartyInvitesProvider)!.invitedBy, 'Peach');
-      async.elapse(WatchPartyInvites.showFor);
+      // Il conto alla rovescia sta nella carta: lo stato resta.
+      async.elapse(inviteCardShowFor);
+      expect(invite(), isNotNull);
+      container.read(watchPartyInvitesProvider.notifier).dismiss();
       expect(invite(), isNull);
     });
   });

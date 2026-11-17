@@ -2,27 +2,28 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/shell_panels.dart';
 import '../../core/social/social_models.dart';
 import '../auth/session_controller.dart';
 import '../player/player_active.dart';
 import '../social/social_providers.dart';
+import '../watch_party/invite_card_frame.dart';
 import 'friends_controller.dart';
 
 /// Richiesta di amicizia appena arrivata, per la scheda in alto a destra
-/// (spec F §8.4): per [showFor], non con il player aperto. Il numero
-/// sull'icona Amici resta comunque.
+/// (spec F §8.4), finché la carta non si chiude; non con il player aperto.
+/// Il numero sull'icona Amici resta comunque.
 class FriendRequestNotices extends Notifier<FriendRequestEvent?> {
-  static const showFor = Duration(seconds: 10);
-
-  Timer? _timer;
+  /// Il pannello Amici, ascoltato solo con una carta in vista: un ascolto
+  /// fisso terrebbe vivo il pannello anche senza la shell.
+  ProviderSubscription<ShellPanel>? _panel;
 
   @override
   FriendRequestEvent? build() {
     ref.watch(sessionControllerProvider
         .select((s) => s is SessionSignedIn ? s.user.id : null));
-    _timer?.cancel();
-    _timer = null;
-    ref.onDispose(() => _timer?.cancel());
+    // Le sottoscrizioni della build di prima sono già chiuse.
+    _panel = null;
     if (!ref.watch(socialAvailabilityProvider.select((f) => f.friends))) {
       return null;
     }
@@ -47,16 +48,20 @@ class FriendRequestNotices extends Notifier<FriendRequestEvent?> {
   }
 
   void dismiss() {
-    _timer?.cancel();
-    _timer = null;
+    _panel?.close();
+    _panel = null;
     if (ref.mounted) state = null;
   }
 
   void _show(FriendRequestEvent event) {
     if (ref.read(playerActiveProvider)) return;
-    _timer?.cancel();
     state = event;
-    _timer = Timer(showFor, dismiss);
+    ref.read(newestInviteProvider.notifier).set(InviteKind.friend);
+    // Il pannello Amici mostra la richiesta: la carta (che con il movimento
+    // ridotto non si chiude da sola) se ne va.
+    _panel ??= ref.listen(shellPanelProvider, (_, panel) {
+      if (panel == ShellPanel.friends) dismiss();
+    });
   }
 }
 

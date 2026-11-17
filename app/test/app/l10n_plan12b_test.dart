@@ -27,7 +27,6 @@ void main() {
     expect(it.partyInvited, 'Invitato');
     expect(it.partyInviteSent('Luigi'), 'Invito mandato a Luigi');
     expect(it.partyNoFriendsToInvite, 'Nessun amico da invitare');
-    expect(it.partyInviteTitle('Luigi'), 'Luigi ti invita');
     expect(en.friendsInParty('Dune'), 'In a watch party: Dune');
     expect(en.partyModePublic, 'Public');
     expect(en.partyModePublicHint, 'Everyone sees it and gets notified');
@@ -50,6 +49,5 @@ void main() {
     expect(en.partyInvited, 'Invited');
     expect(en.partyInviteSent('Luigi'), 'Invite sent to Luigi');
     expect(en.partyNoFriendsToInvite, 'No friends to invite');
-    expect(en.partyInviteTitle('Luigi'), 'Luigi invites you');
   });
 }

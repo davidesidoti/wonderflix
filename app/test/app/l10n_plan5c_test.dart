@@ -11,7 +11,6 @@ void main() {
     expect(en.watchPartyInviteTitle('Davide'), 'Davide started a watch party');
     expect(it.watchPartyInParty, 'Nel watch party');
     expect(it.watchPartyBackToPlayer, 'Torna al player');
-    expect(it.watchPartyDismiss, 'Chiudi');
     expect(it.watchPartyNoticeEnded, 'Il watch party è terminato');
     expect(en.watchPartyNoticeEnded, 'The watch party has ended');
     expect(it.watchPartyNoticeRemoved, 'Non sei più nel watch party');
