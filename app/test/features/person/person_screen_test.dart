@@ -6,6 +6,7 @@ import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/person/person_screen.dart';
 import 'package:wonderflix/ui/media_row.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -132,10 +133,23 @@ void main() {
 
     expect(find.byType(MediaRow), findsOneWidget);
     expect(find.byType(SliverGrid), findsNothing);
+    // Sullo stesso bordo della foto (il nome le sta accanto), corpo 28.
+    final rowTitle = find.text('Su WonderFlix');
+    expect(tester.getTopLeft(rowTitle).dx,
+        tester.getTopLeft(find.byType(WfImage).first).dx);
+    expect(tester.widget<Text>(rowTitle).style!.fontSize, 28);
     Focus.of(tester.element(find.text(longBio)), scopeOk: true).nextFocus();
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.select);
     await tester.pump();
     expect(tester.widget<Text>(find.text(longBio)).maxLines, isNull);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    final focused = FocusManager.instance.primaryFocus!.context!;
+    expect(
+        find.ancestor(
+            of: find.byElementPredicate((e) => e == focused),
+            matching: find.byType(PosterCard)),
+        findsOneWidget);
   });
 }

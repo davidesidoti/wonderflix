@@ -47,6 +47,7 @@ class MediaRow extends StatefulWidget {
     this.count,
     this.titleSize = 24,
     this.topSpacing = 24,
+    this.side,
   });
 
   final String title;
@@ -73,6 +74,9 @@ class MediaRow extends StatefulWidget {
   /// Corpo del titolo e aria sopra la riga.
   final double titleSize;
   final double topSpacing;
+
+  /// Margine laterale; senza, 16 nello stretto e 32 altrove.
+  final double? side;
 
   @override
   State<MediaRow> createState() => _MediaRowState();
@@ -224,7 +228,7 @@ class _MediaRowState extends State<MediaRow> {
   Widget build(BuildContext context) {
     final animate = widget.animateEntrance;
     final form = FormFactor.of(context);
-    final side = form.compact ? 16.0 : 32.0;
+    final side = widget.side ?? (form.compact ? 16.0 : 32.0);
     // La TV è `compact` ma ha la riga larga: il trailing resta in intestazione.
     final wrapTrailing = form.compact && !form.tv;
     Widget list = ListView.separated(

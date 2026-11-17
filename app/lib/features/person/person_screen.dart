@@ -180,6 +180,8 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
                         SliverToBoxAdapter(
                           child: MediaRow(
                             title: l.personOnServer,
+                            side: 32,
+                            titleSize: 28,
                             height: rowPosterSize(context).rowHeight,
                             itemCount: items.length,
                             itemBuilder: (context, i) => PosterCard(
