@@ -7,8 +7,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../app/tv_back.dart';
+import '../../core/platform/device_kind.dart';
 import '../../core/storage/profile_store.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
@@ -17,11 +19,34 @@ import '../auth/profiles_state.dart';
 import '../auth/session_controller.dart';
 import 'avatar_dialog.dart';
 
-/// Diametro dell'avatar di un profilo in "Chi guarda?" (spec K §9.4).
-const profileAvatarSize = 120.0;
+/// Diametro dell'avatar di un profilo in "Chi guarda?" su desktop (spec
+/// §9.1).
+const profileAvatarSize = 132.0;
 
-/// Larghezza di una card di "Chi guarda?".
-const _cardWidth = 150.0;
+/// Le misure di "Chi guarda?" per forma: lato del logo (è quadrato), misura
+/// del titolo, diametro dell'avatar, larghezza di una carta e spazio tra le
+/// carte.
+typedef _Sizes = ({
+  double logo,
+  double title,
+  double avatar,
+  double card,
+  double spacing,
+});
+
+const _Sizes _desktop = (
+  logo: 140,
+  title: 56,
+  avatar: profileAvatarSize,
+  card: 150,
+  spacing: 24,
+);
+
+/// Due colonne a 390 px.
+const _Sizes _phone =
+    (logo: 96, title: 40, avatar: 96, card: 140, spacing: 16);
+
+const _Sizes _tv = (logo: 96, title: 44, avatar: 100, card: 128, spacing: 24);
 
 /// Opacità dell'avatar di un profilo scaduto.
 const _expiredOpacity = 0.45;
@@ -33,9 +58,6 @@ const _openingScrimAlpha = 0.55;
 // Misure verticali: con queste "Chi guarda?" sta tutta nella finestra più
 // piccola (1024×640, circa 600 px utili) senza scorrere, anche con un
 // profilo scaduto ("Accedi di nuovo" sotto il nome).
-
-/// Lato del logo (è quadrato).
-const _logoSize = 140.0;
 
 /// Margine intorno al contenuto.
 const _padding = 24.0;
@@ -88,7 +110,8 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     final l = AppLocalizations.of(context);
     final confirmed = await showWfConfirmDialog(
       context,
-      title: l.profilesRemoveTitle(_displayName(l, profile)),
+      title: l.profilesRemoveTitle(
+          _displayName(l, profile), ref.read(deviceKindProvider).name),
       message: l.profilesRemoveBody,
       confirmLabel: l.profilesRemove,
       cancelLabel: l.profilesCancel,
@@ -104,6 +127,9 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     final l = AppLocalizations.of(context);
     final book = ref.watch(profilesProvider.select((p) => p.book));
     final idle = _opening == null;
+    final device = ref.watch(deviceKindProvider).name;
+    final form = FormFactor.of(context);
+    final sizes = form.tv ? _tv : (form.compact ? _phone : _desktop);
     // Il fuoco parte dall'ultimo profilo usato, altrimenti dal primo: Invio
     // lo apre subito.
     final last = book.lastUserId;
@@ -137,38 +163,62 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
                       // Con l'altezza fissa niente scatto quando l'immagine
                       // arriva.
                       child: Image.asset('assets/brand/logo.png',
-                          width: _logoSize, height: _logoSize),
+                          width: sizes.logo, height: sizes.logo),
                     ),
                     const SizedBox(height: _gap),
                     StaggerItem(
                       index: 1,
-                      child: Text(l.profilesTitle, style: WfText.display(48)),
+                      child: Text(l.profilesTitle,
+                          style: WfText.display(sizes.title)),
                     ),
                     const SizedBox(height: _titleGap),
                     StaggerItem(
                       index: 2,
-                      child: Wrap(
-                        spacing: 24,
-                        runSpacing: 24,
-                        alignment: WrapAlignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (final profile in book.profiles)
-                            _ProfileCard(
-                              key: ValueKey('profile-${profile.userId}'),
-                              profile: profile,
-                              managing: _managing,
-                              opening: _opening == profile.userId,
-                              autofocus: !_managing &&
-                                  profile.userId == focusUserId,
-                              onOpen: _managing
-                                  ? null
-                                  : () => unawaited(_open(profile)),
-                              onRemove: () => unawaited(_remove(profile)),
+                          Wrap(
+                            spacing: sizes.spacing,
+                            runSpacing: sizes.spacing,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              for (final profile in book.profiles)
+                                _ProfileCard(
+                                  key: ValueKey('profile-${profile.userId}'),
+                                  profile: profile,
+                                  sizes: sizes,
+                                  managing: _managing,
+                                  opening: _opening == profile.userId,
+                                  autofocus: !_managing &&
+                                      profile.userId == focusUserId,
+                                  onOpen: _managing
+                                      ? null
+                                      : () => unawaited(_open(profile)),
+                                  onRemove: () => unawaited(_remove(profile)),
+                                ),
+                              if (!book.isFull && !_managing)
+                                _AddProfileCard(
+                                    key: const ValueKey('profile-add'),
+                                    sizes: sizes,
+                                    onTap: idle ? _session.addProfile : null),
+                            ],
+                          ),
+                          if (book.isFull)
+                            _LimitNote(l.profilesFull(
+                                ProfileBook.maxProfiles, device))
+                          else if (!book.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Text(
+                                  l.profilesCount(book.profiles.length,
+                                      ProfileBook.maxProfiles, device),
+                                  style: const TextStyle(
+                                      color: WfColors.creamMuted,
+                                      fontSize: 12.5,
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures()
+                                      ])),
                             ),
-                          if (!book.isFull && !_managing)
-                            _AddProfileCard(
-                                key: const ValueKey('profile-add'),
-                                onTap: idle ? _session.addProfile : null),
                         ],
                       ),
                     ),
@@ -213,6 +263,7 @@ class _ProfileCard extends StatelessWidget {
   const _ProfileCard({
     super.key,
     required this.profile,
+    required this.sizes,
     required this.managing,
     required this.opening,
     required this.autofocus,
@@ -221,6 +272,7 @@ class _ProfileCard extends StatelessWidget {
   });
 
   final StoredProfile profile;
+  final _Sizes sizes;
   final bool managing;
   final bool opening;
   final bool autofocus;
@@ -238,7 +290,7 @@ class _ProfileCard extends StatelessWidget {
       label: name,
       hint: profile.expired ? l.profilesSignInAgain : null,
       child: SizedBox(
-        width: _cardWidth,
+        width: sizes.card,
         child: InkWell(
           onTap: onOpen,
           autofocus: autofocus,
@@ -260,7 +312,7 @@ class _ProfileCard extends StatelessWidget {
                         child: UserAvatar(
                           userId: profile.userId,
                           name: profile.name,
-                          size: profileAvatarSize,
+                          size: sizes.avatar,
                           imageTag: profile.imageTag,
                         ),
                       ),
@@ -268,8 +320,8 @@ class _ProfileCard extends StatelessWidget {
                     if (opening) ...[
                       Container(
                         key: ValueKey('profile-opening-${profile.userId}'),
-                        width: profileAvatarSize,
-                        height: profileAvatarSize,
+                        width: sizes.avatar,
+                        height: sizes.avatar,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: WfColors.bg.withValues(alpha: _openingScrimAlpha),
@@ -347,8 +399,10 @@ class _ProfileCard extends StatelessWidget {
 
 /// "Aggiungi profilo": un cerchio con il più.
 class _AddProfileCard extends StatelessWidget {
-  const _AddProfileCard({super.key, required this.onTap});
+  const _AddProfileCard(
+      {super.key, required this.sizes, required this.onTap});
 
+  final _Sizes sizes;
   final VoidCallback? onTap;
 
   @override
@@ -359,7 +413,7 @@ class _AddProfileCard extends StatelessWidget {
       button: true,
       label: label,
       child: SizedBox(
-        width: _cardWidth,
+        width: sizes.card,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
@@ -372,8 +426,8 @@ class _AddProfileCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: profileAvatarSize,
-                    height: profileAvatarSize,
+                    width: sizes.avatar,
+                    height: sizes.avatar,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(color: WfColors.border, width: 2),
@@ -393,4 +447,34 @@ class _AddProfileCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Con 5 profili, al posto del "+": perché non se ne aggiungono altri.
+class _LimitNote extends StatelessWidget {
+  const _LimitNote(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: WfColors.surface,
+          border: Border.all(color: WfColors.border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.info, size: 17, color: WfColors.gold),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(text,
+                  style: const TextStyle(
+                      color: WfColors.creamMuted, fontSize: 13.5)),
+            ),
+          ],
+        ),
+      );
 }

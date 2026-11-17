@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/theme.dart';
+import 'package:wonderflix/core/platform/device_kind.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/profiles/profiles_screen.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
 import '../../support/avatar_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -425,5 +427,63 @@ void main() {
     expect(find.text('Premi di nuovo Indietro per uscire'), findsNothing);
     gate.complete();
     await tester.pump();
+  });
+
+  testWidgets('sotto le carte il conto dei profili', (tester) async {
+    await pumpProfiles(tester, [mario, luigi]);
+    expect(find.text('2 profili su 5 su questo PC'), findsOneWidget);
+  });
+
+  testWidgets('con 5 profili il "+" lascia il posto al limite', (tester) async {
+    await pumpProfiles(tester, [
+      for (var i = 1; i <= ProfileBook.maxProfiles; i++)
+        testProfile(userId: 'u$i', name: 'P$i'),
+    ]);
+    const limit =
+        '5 profili su questo PC: rimuovine uno per aggiungerne un altro.';
+    expect(find.text('Aggiungi profilo'), findsNothing);
+    expect(find.text(limit), findsOneWidget);
+    expect(find.textContaining('su 5'), findsNothing);
+    // Anche in "Gestisci profili".
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+    expect(find.text(limit), findsOneWidget);
+  });
+
+  testWidgets('nel browser la rimozione dice "da questo browser"',
+      (tester) async {
+    await pumpProfiles(tester, [mario, luigi],
+        overrides: [deviceKindProvider.overrideWithValue(DeviceKind.browser)]);
+    expect(find.text('2 profili su 5 su questo browser'), findsOneWidget);
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('profile-remove-u2')));
+    await tester.pumpAndSettle();
+    expect(find.text('Rimuovere Luigi da questo browser?'), findsOneWidget);
+  });
+
+  testWidgets('telefono: due carte per riga, avatar 96, nomi lunghi con ellissi',
+      (tester) async {
+    await pumpProfiles(
+      tester,
+      [
+        testProfile(userId: 'u1', name: 'Bartolomeo Massimiliano Ferdinando'),
+        luigi,
+        testProfile(userId: 'u3', name: 'Peach'),
+        testProfile(userId: 'u4', name: 'Toad'),
+      ],
+      surfaceSize: const Size(390, 780),
+    );
+    Offset cardAt(String id) =>
+        tester.getTopLeft(find.byKey(ValueKey('profile-$id')));
+    expect(cardAt('u1').dy, cardAt('u2').dy);
+    expect(cardAt('u3').dy, greaterThan(cardAt('u1').dy));
+    expect(cardAt('u3').dx, cardAt('u1').dx);
+    expect(
+        tester.getSize(find.descendant(
+            of: find.byKey(const ValueKey('profile-u1')),
+            matching: find.byType(UserAvatar))),
+        const Size.square(96));
+    expect(tester.takeException(), isNull);
   });
 }

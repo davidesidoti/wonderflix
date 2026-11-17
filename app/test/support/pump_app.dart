@@ -7,6 +7,7 @@ import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/app/theme.dart';
 import 'package:wonderflix/config/app_config.dart';
+import 'package:wonderflix/core/platform/device_kind.dart';
 import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/features/home/hero_carousel.dart';
 import 'package:wonderflix/features/library/server_events_binding.dart';
@@ -32,6 +33,10 @@ List<Override> _baseOverrides(
       // provider, la `FormFactorScope` il parametro `tv`.
       if (!overrides.any((override) => override.origin == androidTvProvider))
         androidTvProvider.overrideWithValue(tv),
+      // Nei test `defaultTargetPlatform` è android: senza questo ogni testo
+      // direbbe "telefono".
+      if (!overrides.any((override) => override.origin == deviceKindProvider))
+        deviceKindProvider.overrideWithValue(tv ? DeviceKind.tv : DeviceKind.pc),
       // La configurazione di prova. Un test può sostituirla negli [overrides]
       // (per esempio senza `supportUrl`): due override dello stesso provider
       // farebbero lanciare il container.
