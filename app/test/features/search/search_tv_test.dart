@@ -45,8 +45,11 @@ void main() {
   });
 
   /// Film: 15 di totale, 7 in risposta; serie: tre, la migliore "L'Istituto".
-  FakeLibraryApi library() => FakeLibraryApi()
-    ..libraryFilters = const LibraryFilters(genres: ['Dramma'])
+  FakeLibraryApi library({
+    List<String> genres = const ['Dramma'],
+    List<JellyfinItem> people = const [],
+  }) => FakeLibraryApi()
+    ..libraryFilters = LibraryFilters(genres: genres)
     ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
         ? pageOf([
             testItem(id: 'm0', name: 'Il mistero della pietra'),
@@ -62,16 +65,16 @@ void main() {
             ),
             testItem(id: 's2', name: 'Mistica', kind: ItemKind.series),
           ]))
-    ..people = [];
+    ..people = [...people];
 
-  Future<void> pumpSearch(WidgetTester tester) async {
+  Future<void> pumpSearch(WidgetTester tester, {FakeLibraryApi? api}) async {
     await pumpAppRouter(
       tester,
       router,
       tv: true,
       surfaceSize: _tvSize,
       overrides: [
-        libraryApiProvider.overrideWithValue(library()),
+        libraryApiProvider.overrideWithValue(api ?? library()),
         requestsAvailableProvider.overrideWithValue(false),
         sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser)),
@@ -245,5 +248,123 @@ void main() {
     await search(tester, 'ist');
     await tester.pump(const Duration(milliseconds: 500));
     expect(tester.takeException(), isNull);
+  });
+
+  group('frecce tra le file', () {
+    FocusNode primary() => FocusManager.instance.primaryFocus!;
+
+    bool inRow(WidgetTester tester, String title) =>
+        tester.getRect(row(title)).contains(primary().rect.center);
+
+    Future<void> press(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    /// Il focus su "Vedi tutti", in fondo alla fila Film.
+    Future<void> focusSeeAll(WidgetTester tester) async {
+      await tester.scrollUntilVisible(
+        find.text('Vedi tutti'),
+        200,
+        scrollable: find
+            .descendant(of: row('Film'), matching: find.byType(Scrollable))
+            .first,
+      );
+      Focus.of(tester.element(find.text('Vedi tutti'))).requestFocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    testWidgets('Giù dalla cornice va alla prima carta della prima fila', (
+      tester,
+    ) async {
+      await pumpSearch(tester);
+      await search(tester, 'ist');
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.select);
+      await tester.pump();
+      await tester.pump();
+      expect(router.state.uri.toString(), '/item/s0');
+    });
+
+    testWidgets('Su dal fondo di una fila lunga va nella fila corta sopra', (
+      tester,
+    ) async {
+      await pumpSearch(tester);
+      await search(tester, 'ist');
+      await focusSeeAll(tester);
+
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      expect(inRow(tester, 'Serie'), isTrue);
+    });
+
+    testWidgets('Giù da una fila lunga raggiunge Persone con una persona', (
+      tester,
+    ) async {
+      await pumpSearch(
+        tester,
+        api: library(
+          people: [
+            testItem(id: 'p0', name: 'Kristen Stewart', kind: ItemKind.person),
+          ],
+        ),
+      );
+      await search(tester, 'ist');
+      await tester.pump();
+      await focusSeeAll(tester);
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(inRow(tester, 'Persone'), isTrue);
+    });
+
+    testWidgets('Destra in fondo alla fila resta lì', (tester) async {
+      await pumpSearch(tester);
+      await search(tester, 'ist');
+      await focusSeeAll(tester);
+      final seeAll = primary();
+
+      await press(tester, LogicalKeyboardKey.arrowRight);
+      expect(primary(), seeAll);
+    });
+
+    testWidgets('OK su "Cancella" porta il focus alla cornice del campo', (
+      tester,
+    ) async {
+      await pumpSearch(tester);
+      await press(tester, LogicalKeyboardKey.arrowDown); // la cornice
+      await press(tester, LogicalKeyboardKey.arrowDown); // 'dune'
+      await press(tester, LogicalKeyboardKey.arrowRight); // "Cancella"
+      expect(focused(tester, find.text('Cancella')), isTrue);
+
+      await press(tester, LogicalKeyboardKey.select);
+      expect(find.text('Ricerche recenti'), findsNothing);
+      expect(
+        tester.getRect(find.byType(TextField)).contains(primary().rect.center),
+        isTrue,
+      );
+    });
+
+    testWidgets('rientrando in una fila scorsa si riparte dalla prima', (
+      tester,
+    ) async {
+      await pumpSearch(
+        tester,
+        api: library(genres: [for (var i = 0; i < 20; i++) 'Genere $i']),
+      );
+      await press(tester, LogicalKeyboardKey.arrowDown); // la cornice
+      await press(tester, LogicalKeyboardKey.arrowDown); // 'dune'
+      await press(tester, LogicalKeyboardKey.arrowDown); // Film
+      for (var i = 0; i < 12; i++) {
+        await press(tester, LogicalKeyboardKey.arrowRight);
+      }
+      expect(focused(tester, find.text('Genere 10')), isTrue);
+
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      expect(focused(tester, find.text('dune')), isTrue);
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(focused(tester, find.text('Film')), isTrue);
+    });
   });
 }

@@ -11,6 +11,7 @@ import '../../ui/form_factor.dart';
 import '../../ui/media_row.dart' show tvRowFocusPadding;
 import '../../ui/smooth_scroll.dart';
 import '../../ui/tv_focusable.dart';
+import '../../ui/tv_lanes.dart';
 import '../collections/collections_logic.dart';
 import '../collections/collections_providers.dart';
 import '../collections/sagas_search_section.dart';
@@ -109,12 +110,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         key: child.key,
         padding: EdgeInsets.symmetric(horizontal: side),
         child: child);
+    // Sulla TV ogni fila è una [TvLane]: Su e Giù passano da una all'altra.
+    Widget lane(Widget child) => form.tv ? TvLane(child: child) : child;
     final starting = state.term.length < SearchController.minLength;
-    return ListView(
+    final list = ListView(
       controller: _scroll,
       padding: EdgeInsets.only(top: form.compact ? 16 : 24, bottom: 32),
       children: [
-        padded(_searchField(context, l)),
+        lane(padded(_searchField(context, l))),
         // Linea oro mentre la ricerca carica; lo spazio c'è sempre, così il
         // campo non salta.
         padded(SizedBox(
@@ -142,7 +145,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ? SearchTvResults(state: state, sagas: sagas, onOpened: _remember)
               : padded(SearchResultsView(
                   state: state, sagas: sagas, onOpened: _remember)),
-        Padding(
+        lane(Padding(
           // Sulla TV la fila ha già [tvRowFocusPadding] ai lati: il titolo
           // resta allineato a quelli sopra.
           padding: EdgeInsets.symmetric(
@@ -151,9 +154,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               library: _libraryMatches(state),
               term: state.term,
               onOpened: _remember),
-        ),
+        )),
       ],
     );
+    return form.tv ? TvLanes(child: list) : list;
   }
 
   void _setTerm(String value) {

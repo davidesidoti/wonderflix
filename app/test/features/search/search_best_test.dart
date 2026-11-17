@@ -320,27 +320,6 @@ void main() {
     expect(find.text("L'Istituto"), findsOneWidget);
   });
 
-  testWidgets('in TV la carta è larga 520', (tester) async {
-    await pumpApp(
-      tester,
-      Scaffold(
-        body: Align(
-          alignment: Alignment.topLeft,
-          child: SearchBestCard(
-            key: const ValueKey('card'),
-            item: istituto,
-            term: 'ist',
-            onOpened: () {},
-            tv: true,
-          ),
-        ),
-      ),
-      surfaceSize: const Size(960, 540),
-      tv: true,
-    );
-    expect(tester.getSize(find.byKey(const ValueKey('card'))).width, 520);
-  });
-
   testWidgets('a 390 px col testo a 1,5 la carta cresce senza traboccare', (
     tester,
   ) async {

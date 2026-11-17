@@ -8,6 +8,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/tv_focusable.dart';
+import '../../ui/tv_lanes.dart';
 import '../catalog/catalog_controller.dart';
 import '../catalog/catalog_navigation.dart';
 import '../home/home_providers.dart';
@@ -149,7 +150,12 @@ class _SearchStartState extends ConsumerState<SearchStart>
               ),
             ActionChip(
               label: Text(l.searchRecentClearAll),
-              onPressed: ref.read(recentSearchesProvider.notifier).clear,
+              onPressed: () {
+                // La fila sparisce: il focus sale alla cornice del campo.
+                FocusManager.instance.primaryFocus
+                    ?.focusInDirection(TraversalDirection.up);
+                ref.read(recentSearchesProvider.notifier).clear();
+              },
             ),
           ]),
         ],
@@ -251,9 +257,9 @@ class _SearchStartState extends ConsumerState<SearchStart>
       );
 }
 
-/// Sulla TV le pastiglie stanno in una fila che scorre col focus. Il focus
-/// che arriva da fuori (Su, Giù) va alla prima: Flutter sceglierebbe la più
-/// vicina al centro del campo, magari "Cancella".
+/// Sulla TV le pastiglie stanno in una fila ([TvLane]) che scorre col focus.
+/// Chi arriva da un'altra fila riparte dalla prima pastiglia, con la fila
+/// tornata all'inizio: Flutter sceglierebbe la più vicina, magari "Cancella".
 class _TvPillRow extends StatefulWidget {
   const _TvPillRow({required this.pills});
 
@@ -264,28 +270,23 @@ class _TvPillRow extends StatefulWidget {
 }
 
 class _TvPillRowState extends State<_TvPillRow> {
-  final _row = FocusNode(canRequestFocus: false, skipTraversal: true);
+  final _scroll = ScrollController();
 
   @override
   void dispose() {
-    _row.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  void _enter(bool focused) {
-    final first = _row.traversalDescendants.firstOrNull;
-    if (!focused || first == null || first.hasPrimaryFocus) return;
-    first.requestFocus();
-    Scrollable.ensureVisible(first.context!);
-  }
-
   @override
-  Widget build(BuildContext context) => Focus(
-        focusNode: _row,
-        onFocusChange: _enter,
+  Widget build(BuildContext context) => TvLane(
+        onEnter: () {
+          if (_scroll.hasClients) _scroll.jumpTo(0);
+        },
         child: SizedBox(
           height: 48,
           child: ListView.separated(
+            controller: _scroll,
             scrollDirection: Axis.horizontal,
             itemCount: widget.pills.length,
             separatorBuilder: (_, _) => const SizedBox(width: 8),

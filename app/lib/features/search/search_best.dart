@@ -76,7 +76,7 @@ String? personRoleLabel(AppLocalizations l, String? type) => switch (type) {
 };
 
 /// "Regia · Il cavaliere oscuro · 10 titoli", senza le parti che mancano.
-String _personFactsLine(AppLocalizations l, PersonFacts facts) => [
+String personFactsLine(AppLocalizations l, PersonFacts facts) => [
   ?personRoleLabel(l, facts.roleType),
   facts.knownFor.name,
   l.searchPersonTitles(facts.titles),
@@ -91,7 +91,6 @@ class SearchBestCard extends ConsumerWidget {
     required this.term,
     this.facts,
     required this.onOpened,
-    this.tv = false,
   });
 
   final JellyfinItem item;
@@ -103,9 +102,6 @@ class SearchBestCard extends ConsumerWidget {
   /// Chiamata prima di ogni apertura (lo schermo salva il termine).
   final VoidCallback onOpened;
 
-  /// La carta larga in testa alla fila della TV: larghezza fissa.
-  final bool tv;
-
   void _open(BuildContext context) {
     onOpened();
     openItem(context, item, heroSource: 'search.best');
@@ -115,7 +111,7 @@ class SearchBestCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final urls = ref.watch(imageUrlsProvider);
-    final compact = FormFactor.of(context).compact || tv;
+    final compact = FormFactor.of(context).compact;
     final person = item.kind == ItemKind.person;
     final label = Text(
       l.searchBestLabel,
@@ -154,7 +150,7 @@ class SearchBestCard extends ConsumerWidget {
                   const SizedBox(height: 8),
                   // Una riga anche mentre i dati arrivano: la carta non salta.
                   Text(
-                    facts == null ? ' ' : _personFactsLine(l, facts),
+                    facts == null ? ' ' : personFactsLine(l, facts),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: _muted.copyWith(fontFeatures: _tabular),
@@ -293,13 +289,10 @@ class SearchBestCard extends ConsumerWidget {
       );
     }
 
-    final card = ClipRRect(
+    return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: content,
     );
-    // shortcut: larghezza fissa 520 nella fila della TV, da legare alla fila
-    // se la sua altezza o le altre carte cambiano.
-    return tv ? SizedBox(width: 520, child: card) : card;
   }
 }
 

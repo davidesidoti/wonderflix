@@ -11,9 +11,10 @@ import '../../core/social/collections_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
-import '../../ui/skeletons.dart';
+import '../../ui/shimmer.dart';
 import '../../ui/states.dart';
 import '../../ui/tv_focusable.dart';
+import '../../ui/tv_lanes.dart';
 import '../../ui/wf_image.dart';
 import '../../ui/wf_switcher.dart';
 import '../catalog/catalog_navigation.dart';
@@ -81,7 +82,7 @@ class SearchTvResults extends ConsumerWidget {
     }
     final results = state.results;
     if (results == null) {
-      return padded(const ValueKey('loading'), const SearchResultsSkeleton());
+      return const _SkeletonRow(key: ValueKey('loading'));
     }
     if (results.isEmpty && sagas.isEmpty) {
       return padded(
@@ -178,6 +179,7 @@ class _Rows extends StatelessWidget {
             item: best,
             term: term,
             height: bestHeight,
+            facts: results.facts?[best.id],
             onOpened: onOpened,
           ),
         for (final (i, item) in others.indexed) card(item, i),
@@ -192,15 +194,17 @@ class _Rows extends StatelessWidget {
             },
           ),
       ];
-      return MediaRow(
-        key: ValueKey('search-tv-${section.name}'),
-        title: title,
-        count: '$total',
-        titleSize: 22,
-        side: _side,
-        height: height,
-        itemCount: cards.length,
-        itemBuilder: (_, i) => cards[i],
+      return TvLane(
+        child: MediaRow(
+          key: ValueKey('search-tv-${section.name}'),
+          title: title,
+          count: '$total',
+          titleSize: 22,
+          side: _side,
+          height: height,
+          itemCount: cards.length,
+          itemBuilder: (_, i) => cards[i],
+        ),
       );
     }
 
@@ -248,24 +252,26 @@ class _Rows extends StatelessWidget {
     }
 
     // Tondo 72, spazio, nome su due righe e titoli (come sul telefono).
-    final peopleHeight = 80 + MediaQuery.textScalerOf(context).scale(56);
+    final peopleHeight = 80 + MediaQuery.textScalerOf(context).scale(68);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final section in order)
           switch (section) {
-            SearchSection.sagas => MediaRow(
-              key: const ValueKey('search-tv-sagas'),
-              title: l.collectionsTab,
-              count: '${sagas.length}',
-              titleSize: 22,
-              side: _side,
-              height: size.rowHeight,
-              itemCount: sagas.length,
-              itemBuilder: (_, i) => CollectionCard(
-                key: ValueKey(sagas[i].id),
-                collection: sagas[i],
-                width: size.width,
+            SearchSection.sagas => TvLane(
+              child: MediaRow(
+                key: const ValueKey('search-tv-sagas'),
+                title: l.collectionsTab,
+                count: '${sagas.length}',
+                titleSize: 22,
+                side: _side,
+                height: size.rowHeight,
+                itemCount: sagas.length,
+                itemBuilder: (_, i) => CollectionCard(
+                  key: ValueKey(sagas[i].id),
+                  collection: sagas[i],
+                  width: size.width,
+                ),
               ),
             ),
             SearchSection.movies => titles(
@@ -308,20 +314,25 @@ class _Rows extends StatelessWidget {
   }
 }
 
-/// Il miglior risultato in testa alla sua fila: 16:9 alto [height], col
-/// fondale (la foto per una persona) e il nome sottolineato. OK apre la scheda.
+/// Il miglior risultato in testa alla sua fila, alto [height] e col nome
+/// sottolineato: un titolo 16:9 col fondale, una persona con la foto tonda e
+/// i suoi dati. OK apre la scheda.
 class _TvBestCard extends ConsumerWidget {
   const _TvBestCard({
     super.key,
     required this.item,
     required this.term,
     required this.height,
+    this.facts,
     required this.onOpened,
   });
 
   final JellyfinItem item;
   final String term;
   final double height;
+
+  /// I dati della persona, quando [item] è una persona.
+  final PersonFacts? facts;
   final VoidCallback onOpened;
 
   @override
@@ -334,7 +345,16 @@ class _TvBestCard extends ConsumerWidget {
       openItem(context, item, heroSource: 'search.best');
     }
 
-    final width = height * 16 / 9;
+    // La persona più larga: foto, nome e dati stanno su una riga.
+    final width = height * (person ? 3 : 16 / 9);
+    final name = highlightedName(
+      item.name,
+      term,
+      WfText.display(person ? 22 : 30),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+    final facts = this.facts;
     return SizedBox(
       width: width,
       child: Column(
@@ -348,37 +368,77 @@ class _TvBestCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(6),
                 child: SizedBox(
                   height: height,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      WfImage(
-                        image: person ? urls.poster(item) : urls.backdrop(item),
-                        fallbackIcon: person ? LucideIcons.user : null,
-                      ),
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [Color(0xD90A0A0A), Colors.transparent],
-                            stops: [0, 0.6],
+                  child: person
+                      ? ColoredBox(
+                          color: WfColors.surface,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                ClipOval(
+                                  child: SizedBox.square(
+                                    dimension: height - 24,
+                                    child: WfImage(
+                                      image: urls.poster(item),
+                                      fallbackIcon: LucideIcons.user,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      name,
+                                      // Una riga anche senza dati: non salta.
+                                      Text(
+                                        facts == null
+                                            ? ' '
+                                            : personFactsLine(l, facts),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: WfColors.creamMuted,
+                                          fontSize: 11.5,
+                                          fontFeatures: [
+                                            FontFeature.tabularFigures(),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        )
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            WfImage(image: urls.backdrop(item)),
+                            const DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Color(0xD90A0A0A),
+                                    Colors.transparent,
+                                  ],
+                                  stops: [0, 0.6],
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: 10,
+                              right: 10,
+                              bottom: 8,
+                              child: name,
+                            ),
+                          ],
                         ),
-                      ),
-                      Positioned(
-                        left: 10,
-                        right: 10,
-                        bottom: 8,
-                        child: highlightedName(
-                          item.name,
-                          term,
-                          WfText.display(person ? 22 : 30),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),
@@ -465,4 +525,34 @@ class _SeeAllCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// La prima lettura: una fila vuota come quelle che arriveranno.
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = rowPosterSize(context);
+    return WfShimmer(
+      child: MediaRow(
+        title: '',
+        titleSize: 22,
+        side: _side,
+        height: size.rowHeight,
+        itemCount: 6,
+        itemBuilder: (_, _) => SizedBox(
+          width: size.width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonBox(height: size.width * 3 / 2),
+              const SizedBox(height: 8),
+              const SkeletonBox(width: 90, height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
