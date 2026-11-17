@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/error_text.dart';
+import '../../app/providers.dart';
 import '../../app/theme.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
 import 'auth_providers.dart';
 import 'quick_connect_flow.dart';
 import 'session_controller.dart';
@@ -78,8 +81,10 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
             Text(
               formatQuickConnectCode(code),
               textAlign: TextAlign.center,
-              style: WfText.display(52, color: WfColors.gold)
-                  .copyWith(letterSpacing: 10),
+              style: WfText.display(68, color: WfColors.gold).copyWith(
+                letterSpacing: 6,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -94,7 +99,15 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
               ],
             ),
             const SizedBox(height: 14),
-            Text(l.quickConnectHelp, style: muted),
+            const Divider(height: 1, color: WfColors.border),
+            const SizedBox(height: 14),
+            _Step(
+                1,
+                l.quickConnectStepOpen(
+                    '${l.menuSettings} › ${l.settingsAccount} › ${l.settingsQuickConnect}')),
+            const SizedBox(height: 10),
+            _Step(2, l.quickConnectStepCode(l.authorizeDeviceSubmit)),
+            _AdminHelp(muted: muted),
           ],
         ),
       QcError(:final error) => Column(
@@ -106,5 +119,76 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
           ],
         ),
     };
+  }
+}
+
+class _Step extends StatelessWidget {
+  const _Step(this.number, this.text);
+
+  final int number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: WfColors.gold),
+            ),
+            child: Text('$number',
+                style: const TextStyle(
+                    color: WfColors.gold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(text,
+                  style: const TextStyle(
+                      color: WfColors.cream, fontSize: 14, height: 1.4)),
+            ),
+          ),
+        ],
+      );
+}
+
+/// Chi non ha un altro dispositivo: fuori dalla TV un link al contatto di
+/// supporto, in TV solo il testo (nessun browser da aprire).
+class _AdminHelp extends ConsumerWidget {
+  const _AdminHelp({required this.muted});
+
+  final TextStyle muted;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    if (FormFactor.of(context).tv) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Text(l.quickConnectAskAdmin, style: muted),
+      );
+    }
+    final supportUrl = ref.watch(appConfigProvider).supportUrl;
+    if (supportUrl == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(l.quickConnectNoDevice, style: muted),
+          TextButton(
+            onPressed: () => unawaited(launchUrl(supportUrl)),
+            child: Text(l.loginContactAdmin),
+          ),
+        ],
+      ),
+    );
   }
 }
