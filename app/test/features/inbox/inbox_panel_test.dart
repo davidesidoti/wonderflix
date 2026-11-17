@@ -113,7 +113,7 @@ void main() {
     expect(find.text('5 min fa'), findsOneWidget);
 
     Opacity removeOpacity() => tester.widget<Opacity>(find
-        .ancestor(of: find.byTooltip('Rimuovi'), matching: find.byType(Opacity))
+        .ancestor(of: find.byTooltip('Togli dalla lista'), matching: find.byType(Opacity))
         .first);
     expect(removeOpacity().opacity, 0);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -126,7 +126,7 @@ void main() {
     // Il plugin, dopo la rimozione, restituisce la cassetta senza la voce
     // (la rilettura dopo l'azione la rimette a posto).
     api.inboxSnapshot = InboxSnapshot.empty;
-    await tester.tap(find.byTooltip('Rimuovi'));
+    await tester.tap(find.byTooltip('Togli dalla lista'));
     await tester.pump();
     expect(api.calls, contains('remove-entry a1'));
     expect(find.text('Stasera manutenzione'), findsNothing);
@@ -140,7 +140,7 @@ void main() {
         tester
             .widget<Opacity>(find
                 .ancestor(
-                    of: find.byTooltip('Rimuovi'),
+                    of: find.byTooltip('Togli dalla lista'),
                     matching: find.byType(Opacity))
                 .first)
             .opacity,
@@ -152,7 +152,7 @@ void main() {
         entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
     await pumpPanel(tester);
     api.nextFailure = SocialFailure.network;
-    await tester.tap(find.byTooltip('Rimuovi'));
+    await tester.tap(find.byTooltip('Togli dalla lista'));
     await tester.pumpAndSettle();
     expect(find.text('Non è stato possibile aggiornare le notifiche'),
         findsOneWidget);
@@ -356,7 +356,7 @@ void main() {
     await pumpPanel(tester);
 
     Opacity removeOpacity() => tester.widget<Opacity>(find
-        .ancestor(of: find.byTooltip('Rimuovi'), matching: find.byType(Opacity))
+        .ancestor(of: find.byTooltip('Togli dalla lista'), matching: find.byType(Opacity))
         .first);
     expect(removeOpacity().opacity, 0);
     for (var i = 0; i < 6 && removeOpacity().opacity == 0; i++) {
@@ -379,8 +379,8 @@ void main() {
         entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
     await pumpPanel(tester);
     // Trasparente finché non ha il mouse o il fuoco, ma il nodo c'è.
-    final node = tester.getSemantics(find.byTooltip('Rimuovi'));
-    expect(node.getSemanticsData().tooltip, 'Rimuovi');
+    final node = tester.getSemantics(find.byTooltip('Togli dalla lista'));
+    expect(node.getSemanticsData().tooltip, 'Togli dalla lista');
     semantics.dispose();
   });
 

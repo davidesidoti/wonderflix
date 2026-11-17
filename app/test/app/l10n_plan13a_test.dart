@@ -9,7 +9,7 @@ void main() {
     expect(it.inboxTitle, 'Notifiche');
     expect(it.inboxClear, 'Svuota');
     expect(it.inboxClearConfirm, 'Conferma');
-    expect(it.inboxRemove, 'Rimuovi');
+    expect(it.inboxRemove, 'Togli dalla lista');
     expect(it.inboxEmpty, 'Nessuna notifica');
     expect(it.inboxUnavailable, 'Notifiche non disponibili');
     expect(it.inboxActionFailed,
@@ -26,7 +26,7 @@ void main() {
     expect(en.inboxTitle, 'Notifications');
     expect(en.inboxClear, 'Clear all');
     expect(en.inboxClearConfirm, 'Confirm');
-    expect(en.inboxRemove, 'Remove');
+    expect(en.inboxRemove, 'Remove from list');
     expect(en.inboxEmpty, 'No notifications');
     expect(en.inboxUnavailable, 'Notifications unavailable');
     expect(en.inboxActionFailed, "Couldn't update notifications");
