@@ -74,6 +74,11 @@ const _titleGap = 28.0;
 String _displayName(AppLocalizations l, StoredProfile profile) =>
     profile.name.isEmpty ? l.profilesUnnamed : profile.name;
 
+/// In TV il titolo resta su una riga (si rimpicciolisce col testo di sistema
+/// grande): due righe non lascerebbero posto alle carte in 540.
+Widget _fitOnTv(bool tv, Widget title) =>
+    tv ? FittedBox(fit: BoxFit.scaleDown, child: title) : title;
+
 /// "Chi guarda?" (spec K §9.4): i profili del PC, "Aggiungi profilo" e
 /// "Gestisci profili". La lingua è quella dell'ultimo profilo usato.
 class ProfilesScreen extends ConsumerStatefulWidget {
@@ -121,7 +126,21 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
     await _session.removeProfile(profile.userId);
   }
 
-  void _setManaging(bool managing) => setState(() => _managing = managing);
+  final _scope = FocusScopeNode(debugLabel: 'profiles');
+
+  @override
+  void dispose() {
+    _scope.dispose();
+    super.dispose();
+  }
+
+  void _setManaging(bool managing) {
+    // Le frecce ricordano da dove si è arrivati: Su da "Fine" tornerebbe
+    // alla carta di prima, che in "Gestisci profili" non prende il focus, e
+    // il tasto andrebbe perso.
+    FocusTraversalGroup.maybeOf(context)?.invalidateScopeData(_scope);
+    setState(() => _managing = managing);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,6 +167,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
       // Il fuoco resta nella schermata: la card che lo aveva si spegne in
       // "Gestisci profili", ed Esc deve arrivare lo stesso.
       child: FocusScope(
+        node: _scope,
         child: Scaffold(
           body: Center(
             child: SingleChildScrollView(
@@ -171,14 +191,21 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
                       ),
                       const SizedBox(height: _gap),
                     ],
+                    // Con le chiavi, quando il logo sparisce il resto non
+                    // si ricrea: il focus resta su "Fine".
                     StaggerItem(
+                      key: const ValueKey('profiles-title'),
                       index: 1,
-                      child: Text(
-                          _managing ? l.profilesManage : l.profilesTitle,
-                          style: WfText.display(sizes.title)),
+                      child: _fitOnTv(
+                          form.tv,
+                          Text(_managing ? l.profilesManage : l.profilesTitle,
+                              maxLines: form.tv ? 1 : null,
+                              style: WfText.display(sizes.title))),
                     ),
-                    const SizedBox(height: _titleGap),
+                    // In TV in gestione anche col testo di sistema a 1,3.
+                    SizedBox(height: form.tv && _managing ? 12 : _titleGap),
                     StaggerItem(
+                      key: const ValueKey('profiles-cards'),
                       index: 2,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -231,6 +258,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
                     if (!book.isEmpty) ...[
                       const SizedBox(height: _gap),
                       StaggerItem(
+                        key: const ValueKey('profiles-manage'),
                         index: 3,
                         child: WfButton.secondary(
                           label: _managing ? l.profilesDone : l.profilesManage,
@@ -364,6 +392,8 @@ class _ProfileCard extends StatelessWidget {
                                 fontSize: 16, fontWeight: FontWeight.w600)),
                         if (profile.expired)
                           Text(l.profilesSignInAgain,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                   color: WfColors.gold, fontSize: 12.5)),
                       ],
@@ -371,32 +401,26 @@ class _ProfileCard extends StatelessWidget {
                   ),
                   if (managing) ...[
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: WfButton.secondary(
-                        key: ValueKey('profile-image-${profile.userId}'),
-                        small: true,
-                        label: l.profilesEdit,
-                        icon: LucideIcons.pencil,
-                        // Un profilo scaduto non ha un token valido.
-                        onPressed: profile.expired
-                            ? null
-                            : () => unawaited(showAvatarDialog(context,
-                                userId: profile.userId,
-                                name: name,
-                                imageTag: profile.imageTag)),
-                      ),
+                    _CardButton(
+                      buttonKey: ValueKey('profile-image-${profile.userId}'),
+                      label: l.profilesEdit,
+                      semanticsLabel: l.profilesEditNamed(name),
+                      icon: LucideIcons.pencil,
+                      // Un profilo scaduto non ha un token valido.
+                      onPressed: profile.expired
+                          ? null
+                          : () => unawaited(showAvatarDialog(context,
+                              userId: profile.userId,
+                              name: name,
+                              imageTag: profile.imageTag)),
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: WfButton.secondary(
-                        key: ValueKey('profile-remove-${profile.userId}'),
-                        small: true,
-                        label: l.profilesRemove,
-                        icon: LucideIcons.trash2,
-                        onPressed: onRemove,
-                      ),
+                    _CardButton(
+                      buttonKey: ValueKey('profile-remove-${profile.userId}'),
+                      label: l.profilesRemove,
+                      semanticsLabel: l.profilesRemoveNamed(name),
+                      icon: LucideIcons.trash2,
+                      onPressed: onRemove,
                     ),
                   ],
                 ],
@@ -405,6 +429,58 @@ class _ProfileCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// "Modifica" o "Rimuovi" sotto il nome, larghi quanto la carta e su una
+/// riga (ellissi con un testo di sistema grande). Lo screen reader sente
+/// anche il nome ([semanticsLabel]): cinque "Rimuovi" uguali non dicono di
+/// chi.
+class _CardButton extends StatelessWidget {
+  const _CardButton({
+    required this.buttonKey,
+    required this.label,
+    required this.semanticsLabel,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final Key buttonKey;
+  final String label;
+  final String semanticsLabel;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button = SizedBox(
+      width: double.infinity,
+      child: WfButton.secondary(
+        key: buttonKey,
+        small: true,
+        dense: true,
+        label: label,
+        icon: icon,
+        onPressed: onPressed,
+      ),
+    );
+    // In TV non si tocca: senza i 48 px del tocco cinque carte con due
+    // pulsanti stanno in 540.
+    if (FormFactor.of(context).tv) {
+      button = Theme(
+        data: Theme.of(context).copyWith(
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        child: button,
+      );
+    }
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      label: semanticsLabel,
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: button,
     );
   }
 }

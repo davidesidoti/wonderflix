@@ -297,6 +297,23 @@ void main() {
     expect(
         tester.getSemantics(find.byKey(const ValueKey('profile-u1'))),
         isSemantics(label: 'Mario', isButton: false, hasTapAction: false));
+    // I pulsanti dicono di quale profilo; Modifica di uno scaduto è spento.
+    expect(find.bySemanticsLabel('Rimuovi Mario'), findsOneWidget);
+    expect(find.bySemanticsLabel('Rimuovi Luigi'), findsOneWidget);
+    expect(
+        tester.getSemantics(find.bySemanticsLabel('Modifica Mario')),
+        isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            hasTapAction: true));
+    expect(
+        tester.getSemantics(find.bySemanticsLabel('Modifica Luigi')),
+        isSemantics(
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hasTapAction: false));
     semantics.dispose();
   });
 
@@ -562,41 +579,85 @@ void main() {
         isTrue);
   });
 
-  testWidgets('TV, Gestisci profili con 5 profili: tutto nello schermo',
-      (tester) async {
-    await pumpProfiles(
-        tester,
-        [
-          for (var i = 1; i <= ProfileBook.maxProfiles; i++)
-            testProfile(userId: 'u$i', name: 'P$i'),
-        ],
-        tv: true,
-        surfaceSize: const Size(960, 540));
-    await tester.tap(find.text('Gestisci profili'));
-    await tester.pump();
-    expect(tester.takeException(), isNull);
-    expect(find.byType(Image), findsNothing);
-    expect(
-        find.text('5 profili su questa TV: rimuovine uno per aggiungerne '
-            'un altro.'),
-        findsOneWidget);
-    expect(tester.getRect(find.text('Fine')).bottom, lessThanOrEqualTo(540));
-    // Col D-pad si passa per Modifica e Rimuovi di ogni carta.
-    Focus.of(tester.element(buttonIcon('profile-image-u1'))).requestFocus();
-    await tester.pump();
-    for (var i = 1; i <= ProfileBook.maxProfiles; i++) {
-      expect(hasFocus(tester, buttonIcon('profile-image-u$i')), isTrue,
-          reason: 'Modifica di P$i');
-      expect(tester.getRect(find.byKey(ValueKey('profile-remove-u$i'))).bottom,
-          lessThanOrEqualTo(540));
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-      await tester.pump();
-      expect(hasFocus(tester, buttonIcon('profile-remove-u$i')), isTrue,
-          reason: 'Rimuovi di P$i');
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-      await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
-      await tester.pump();
-    }
-  });
+  for (final scale in [1.0, 1.3]) {
+    testWidgets(
+        'TV, Gestisci profili con 5 profili (testo ×$scale): tutto nello '
+        'schermo, ogni pulsante col D-pad', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await pumpProfiles(
+          tester,
+          [
+            for (var i = 1; i <= ProfileBook.maxProfiles; i++)
+              testProfile(userId: 'u$i', name: 'P$i', expired: i == 3),
+          ],
+          tv: true,
+          surfaceSize: const Size(960, 540));
+      expect(MediaQuery.textScalerOf(tester.element(find.text('P1'))).scale(10),
+          closeTo(10 * scale, 0.01));
+      Future<void> press(LogicalKeyboardKey key) async {
+        await tester.sendKeyEvent(key);
+        await tester.pump();
+      }
+
+      // Come sul telecomando: dalla prima carta Giù fino a "Gestisci
+      // profili", OK.
+      // La carta: il focus è del suo TvFocusable, sopra l'InkWell.
+      expect(
+          find.ancestor(
+              of: find.text('P1'),
+              matching: find.byWidget(
+                  FocusManager.instance.primaryFocus!.context!.widget)),
+          findsOneWidget);
+      await press(LogicalKeyboardKey.arrowDown);
+      expect(hasFocus(tester, find.text('Gestisci profili')), isTrue);
+      await press(LogicalKeyboardKey.select);
+      expect(find.text('Fine'), findsOneWidget);
+      expect(hasFocus(tester, find.text('Fine')), isTrue);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(Image), findsNothing);
+      expect(
+          find.text('5 profili su questa TV: rimuovine uno per aggiungerne '
+              'un altro.'),
+          findsOneWidget);
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable)).position;
+      expect(position.maxScrollExtent, 0);
+      expect(tester.getRect(find.text('Fine')).bottom, lessThanOrEqualTo(540));
+
+      // Da "Fine" Su arriva a un Rimuovi; a sinistra fino alla prima carta.
+      await press(LogicalKeyboardKey.arrowUp);
+      expect(
+          [
+            for (var i = 1; i <= ProfileBook.maxProfiles; i++)
+              hasFocus(tester, buttonIcon('profile-remove-u$i')),
+          ],
+          contains(true));
+      for (var i = 0; i < ProfileBook.maxProfiles; i++) {
+        await press(LogicalKeyboardKey.arrowLeft);
+      }
+      // Ogni carta: Rimuovi, Su a Modifica (non quella spenta di P3), Giù,
+      // Destra alla carta dopo.
+      for (var i = 1; i <= ProfileBook.maxProfiles; i++) {
+        expect(hasFocus(tester, buttonIcon('profile-remove-u$i')), isTrue,
+            reason: 'Rimuovi di P$i');
+        expect(
+            tester.getRect(find.byKey(ValueKey('profile-remove-u$i'))).bottom,
+            lessThanOrEqualTo(540));
+        if (i != 3) {
+          await press(LogicalKeyboardKey.arrowUp);
+          expect(hasFocus(tester, buttonIcon('profile-image-u$i')), isTrue,
+              reason: 'Modifica di P$i');
+          await press(LogicalKeyboardKey.arrowDown);
+        }
+        if (i < ProfileBook.maxProfiles) {
+          await press(LogicalKeyboardKey.arrowRight);
+        }
+      }
+      // Dall'ultimo Rimuovi Giù torna a "Fine".
+      await press(LogicalKeyboardKey.arrowDown);
+      expect(hasFocus(tester, find.text('Fine')), isTrue);
+    });
+  }
 }

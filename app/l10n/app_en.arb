@@ -760,6 +760,8 @@
   "profilesSwitchLeavesParty": "You'll leave the watch party.",
   "profilesUnnamed": "Profile",
   "profilesEdit": "Edit",
+  "profilesEditNamed": "Edit {name}",
+  "profilesRemoveNamed": "Remove {name}",
   "settingsChangeImage": "Change picture",
   "profileImageTitle": "{name}'s picture",
   "profileImageAvatars": "Avatars",
