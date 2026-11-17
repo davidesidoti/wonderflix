@@ -23,6 +23,18 @@ String inboxTimeLabel(DateTime createdAt, DateTime now, AppLocalizations l) {
   return DateFormat.MMMd(l.localeName).format(local);
 }
 
+enum InboxDay { today, yesterday, thisWeek, earlier }
+
+/// Il gruppo della cassetta: oggi, ieri, questa settimana (fino a
+/// [inboxDaysShown] giorni fa, come le ore relative) o prima. Una voce nel
+/// futuro (orologio del server avanti) è di oggi.
+InboxDay inboxDayOf(DateTime createdAt, DateTime now) {
+  final days = _calendarDays(createdAt.toLocal(), now.toLocal());
+  if (days <= 0) return InboxDay.today;
+  if (days == 1) return InboxDay.yesterday;
+  return days <= inboxDaysShown ? InboxDay.thisWeek : InboxDay.earlier;
+}
+
 /// Giorni di calendario tra le due date (locali), senza l'effetto dell'ora
 /// legale.
 int _calendarDays(DateTime from, DateTime to) =>

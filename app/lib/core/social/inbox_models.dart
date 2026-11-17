@@ -114,8 +114,8 @@ class NewTitleSeries {
   final List<NewTitleEpisode> episodes;
 }
 
-/// Gli episodi come intervalli per stagione (spec G §7.6): `S3 E1–E10`,
-/// `S3 E1–E4, E6`, più stagioni unite da ` · ` (`S2 E10 · S3 E1–E3`).
+/// Gli episodi come intervalli per stagione (spec G §7.6): `S3:E1–E10`,
+/// `S3:E1–E4, E6`, più stagioni unite da ` · ` (`S2:E10 · S3:E1–E3`).
 /// `null` se manca anche un solo numero (chi mostra la riga scrive allora
 /// "N episodi nuovi") o se non ci sono episodi.
 String? formatEpisodeRanges(List<NewTitleEpisode> episodes) {
@@ -129,7 +129,7 @@ String? formatEpisodeRanges(List<NewTitleEpisode> episodes) {
   }
   return [
     for (final MapEntry(key: season, value: numbers) in bySeason.entries)
-      'S$season ${_episodeRuns(numbers.toList())}',
+      'S$season:${_episodeRuns(numbers.toList())}',
   ].join(' · ');
 }
 

@@ -16,6 +16,7 @@ import '../../l10n/gen/app_localizations.dart';
 import '../../ui/panel_header.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
+import '../../ui/bold_spans.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_image.dart';
 import '../library/library_providers.dart';
@@ -48,21 +49,6 @@ const _timeStyle = TextStyle(color: WfColors.creamMuted, fontSize: 12);
 
 /// Lo stesso gruppo, con o senza trattini e maiuscole.
 String _normalizeId(String id) => id.replaceAll('-', '').toLowerCase();
-
-/// "{nome} ti invita a guardare" con la prima occorrenza di [name] in
-/// grassetto e color crema (spec G §7.6); se il nome non c'è, testo semplice.
-TextSpan _inviteFromSpan(String text, String name) {
-  final at = name.isEmpty ? -1 : text.indexOf(name);
-  if (at < 0) return TextSpan(text: text);
-  return TextSpan(children: [
-    TextSpan(text: text.substring(0, at)),
-    TextSpan(
-        text: name,
-        style: const TextStyle(
-            color: WfColors.cream, fontWeight: FontWeight.w600)),
-    TextSpan(text: text.substring(at + name.length)),
-  ]);
-}
 
 /// Contenuto del pannello "Notifiche" (spec G §7.5–7.6): intestazione con
 /// Svuota, voci dalla più recente.
@@ -381,8 +367,8 @@ class _EntryTileState extends ConsumerState<_EntryTile> {
                     titleId: entry.titleId,
                     itemId: entry.itemId,
                     itemType: entry.itemType,
-                    first: _inviteFromSpan(
-                        l.inboxReportPending(entry.fromName), entry.fromName),
+                    first: boldSpans(
+                        l.inboxReportPending(entry.fromName), [entry.fromName]),
                     second: reportTitleLine(l,
                         title: entry.title,
                         itemType: entry.itemType,
@@ -532,9 +518,9 @@ class _RecommendationContent extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text.rich(
-                  _inviteFromSpan(
+                  boldSpans(
                       l.inboxRecommendation(entry.fromName, entry.title),
-                      entry.fromName),
+                      [entry.fromName]),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(color: WfColors.cream)),
@@ -703,7 +689,7 @@ class _InviteContentState extends ConsumerState<_InviteContent> {
       children: [
         // Il nome di chi invita in evidenza (spec G §7.6).
         Text.rich(
-            _inviteFromSpan(l.inboxInviteFrom(entry.fromName), entry.fromName),
+            boldSpans(l.inboxInviteFrom(entry.fromName), [entry.fromName]),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: _mutedStyle),
@@ -769,7 +755,7 @@ class _MatchInviteContentState extends ConsumerState<_MatchInviteContent> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text.rich(
-            _inviteFromSpan(l.matchInviteFrom(entry.fromName), entry.fromName),
+            boldSpans(l.matchInviteFrom(entry.fromName), [entry.fromName]),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: _mutedStyle),

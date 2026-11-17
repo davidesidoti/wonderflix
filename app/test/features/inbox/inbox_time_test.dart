@@ -54,4 +54,18 @@ void main() {
             DateTime(2026, 10, 3, 0, 10), it),
         '20 min fa');
   });
+  test('gruppi per giorno', () {
+    final now = DateTime(2026, 11, 16, 10);
+    expect(inboxDayOf(DateTime(2026, 11, 16, 0, 5).toUtc(), now), InboxDay.today);
+    expect(inboxDayOf(now.add(const Duration(minutes: 3)).toUtc(), now),
+        InboxDay.today,
+        reason: 'orologio del server avanti');
+    expect(inboxDayOf(DateTime(2026, 11, 15, 23, 59).toUtc(), now),
+        InboxDay.yesterday);
+    expect(inboxDayOf(DateTime(2026, 11, 14, 9).toUtc(), now),
+        InboxDay.thisWeek);
+    expect(inboxDayOf(DateTime(2026, 11, 10, 9).toUtc(), now),
+        InboxDay.thisWeek);
+    expect(inboxDayOf(DateTime(2026, 11, 9, 9).toUtc(), now), InboxDay.earlier);
+  });
 }

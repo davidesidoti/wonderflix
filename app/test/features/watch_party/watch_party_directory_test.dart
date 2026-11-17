@@ -331,4 +331,10 @@ void main() {
       unawaited(events.close());
     });
   });
+
+  test("un gruppo dell'elenco per id, con o senza trattini", () {
+    final g = testGroup(id: 'AB-12', participants: ['Davide', 'Luigi']);
+    expect(listedGroup([g], 'ab12')?.participants.length, 2);
+    expect(listedGroup([g], 'zz'), isNull);
+  });
 }

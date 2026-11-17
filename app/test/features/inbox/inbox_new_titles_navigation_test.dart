@@ -83,7 +83,7 @@ void main() {
       (tester) async {
     final container = await pumpPanel(tester);
 
-    await tester.tap(find.text('The Bear · S1 E1'));
+    await tester.tap(find.text('The Bear · S1:E1'));
     await tester.pumpAndSettle();
 
     expect(find.text('scheda s1'), findsOneWidget);

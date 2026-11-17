@@ -98,3 +98,12 @@ class WatchPartyDirectory extends Notifier<List<GroupInfo>> {
 final watchPartyDirectoryProvider =
     NotifierProvider<WatchPartyDirectory, List<GroupInfo>>(
         WatchPartyDirectory.new);
+
+/// Il gruppo di [groups] con quell'id (senza trattini né maiuscole), se c'è.
+GroupInfo? listedGroup(List<GroupInfo> groups, String groupId) {
+  String key(String id) => id.replaceAll('-', '').toLowerCase();
+  for (final group in groups) {
+    if (key(group.id) == key(groupId)) return group;
+  }
+  return null;
+}

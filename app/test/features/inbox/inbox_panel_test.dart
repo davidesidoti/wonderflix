@@ -410,7 +410,7 @@ void main() {
 
     expect(find.text('Novità: 4 film, 4 episodi'), findsOneWidget);
     expect(find.text('Film 1 (2021)'), findsOneWidget);
-    expect(find.text('The Bear · S3 E1–E2'), findsOneWidget);
+    expect(find.text('The Bear · S3:E1–E2'), findsOneWidget);
     expect(find.text('Senza numeri · 2 episodi nuovi'), findsNothing,
         reason: 'sesta riga, nascosta');
     expect(find.text('…e altri 7 titoli'), findsOneWidget);

@@ -171,15 +171,15 @@ void main() {
         ];
     expect(
         formatEpisodeRanges(episodes([for (var e = 1; e <= 10; e++) (3, e)])),
-        'S3 E1–E10');
+        'S3:E1–E10');
     expect(
         formatEpisodeRanges(
             episodes([(3, 6), (3, 1), (3, 2), (3, 3), (3, 4)])),
-        'S3 E1–E4, E6');
+        'S3:E1–E4, E6');
     expect(formatEpisodeRanges(episodes([(3, 1), (2, 10), (3, 3), (3, 2)])),
-        'S2 E10 · S3 E1–E3');
-    expect(formatEpisodeRanges(episodes([(1, 5)])), 'S1 E5');
-    expect(formatEpisodeRanges(episodes([(1, 5), (1, 5)])), 'S1 E5',
+        'S2:E10 · S3:E1–E3');
+    expect(formatEpisodeRanges(episodes([(1, 5)])), 'S1:E5');
+    expect(formatEpisodeRanges(episodes([(1, 5), (1, 5)])), 'S1:E5',
         reason: 'doppioni');
     expect(
         formatEpisodeRanges(const [
