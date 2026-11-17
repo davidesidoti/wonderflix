@@ -102,11 +102,7 @@ class _ReportRow extends ConsumerWidget {
           () => showSubtitlesDialog(
             context,
             itemId: report.itemId,
-            title: reportTitleLine(l,
-                title: report.titleName,
-                itemType: report.itemType,
-                season: report.seasonNumber,
-                episode: report.episodeNumber),
+            title: reportContextLine(l, report),
           ),
         ),
       _ => null,

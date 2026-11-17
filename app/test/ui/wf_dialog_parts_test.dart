@@ -236,6 +236,60 @@ void main() {
     expect(find.text('1 modifiche'), findsOneWidget);
   });
 
+  for (final size in [const Size(1440, 900), const Size(390, 780)]) {
+    testWidgets('il titolo compare una volta sola a $size', (t) async {
+      await pumpApp(
+        t,
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showWfDialog<void>(
+                context,
+                compactTitle: 'Modifica',
+                builder: (_) => const WfDialogHeader(
+                  title: 'Modifica',
+                  subtitle: 'Il titolo del film',
+                ),
+              ),
+              child: const Text('apri'),
+            ),
+          ),
+        ),
+        surfaceSize: size,
+      );
+      await t.tap(find.text('apri'));
+      await t.pumpAndSettle();
+      expect(find.text('Modifica'), findsOneWidget);
+      expect(find.text('Il titolo del film'), findsOneWidget);
+      // Nello stretto è il titolo della barra (Bebas 26), largo quello della testa.
+      expect(
+        t.widget<Text>(find.text('Modifica')).style?.fontSize,
+        size.width < 1024 ? 26 : 32,
+      );
+    });
+  }
+
+  testWidgets('piede occupato: Annulla è spento', (t) async {
+    var cancelled = false;
+    await pumpApp(
+      t,
+      Scaffold(
+        body: WfDialogFooter(
+          cancelLabel: 'Annulla',
+          onCancel: () => cancelled = true,
+          busy: true,
+          primary: WfButton.primary(
+            label: 'Salva',
+            icon: LucideIcons.check,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('Annulla'), warnIfMissed: false);
+    expect(cancelled, isFalse);
+  });
+
   testWidgets('piede senza Annulla', (t) async {
     await pumpApp(
       t,

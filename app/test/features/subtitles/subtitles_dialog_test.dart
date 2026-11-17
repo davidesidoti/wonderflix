@@ -15,6 +15,7 @@ import 'package:wonderflix/features/subtitles/subtitle_file_picker.dart';
 import 'package:wonderflix/features/subtitles/subtitles_controller.dart';
 import 'package:wonderflix/features/subtitles/subtitles_dialog.dart';
 import 'package:wonderflix/ui/dialog_item_poster.dart';
+import 'package:wonderflix/ui/wf_dialog_parts.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -494,6 +495,28 @@ void main() {
     gate.complete();
     await tester.pump(subtitlePollTimeout);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('un caricamento non riuscito lo dice il piede', (tester) async {
+    await open(
+      tester,
+      picked: PickedSubtitleFile(
+        name: 'Dark.srt',
+        length: 1,
+        read: () async => Uint8List.fromList([1]),
+      ),
+    );
+    api.nextFailure = SubtitlesFailure.failed;
+    await tester.tap(find.text('Scegli il file…'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byType(WfDialogFooter),
+        matching: find.text('Caricamento non riuscito'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('una ricerca non riuscita ha Riprova', (tester) async {

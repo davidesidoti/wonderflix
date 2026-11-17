@@ -160,7 +160,7 @@ void main() {
     );
   });
 
-  testWidgets('serie: singolari e conti ignoti', (tester) async {
+  testWidgets('serie: una stagione e un episodio', (tester) async {
     await open(
       tester,
       item: testItem(

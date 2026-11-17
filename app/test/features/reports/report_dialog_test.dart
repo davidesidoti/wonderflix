@@ -466,6 +466,24 @@ void main() {
       expect(tvFieldFocused(tester, note), isFalse);
     });
 
+    testWidgets('TV: il focus parte dal primo tipo', (tester) async {
+      await open(
+        tester,
+        testItem(id: 'm1'),
+        surfaceSize: const Size(960, 540),
+        tv: true,
+      );
+      final first = Focus.of(
+        tester.element(
+          find.descendant(
+            of: find.byType(WfChoiceTile).first,
+            matching: find.byType(AnimatedScale),
+          ),
+        ),
+      );
+      expect(first.hasPrimaryFocus, isTrue);
+    });
+
     testWidgets('TV: Segnala è una finestra, non una pagina', (tester) async {
       await open(
         tester,

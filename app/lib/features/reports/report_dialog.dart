@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/error_text.dart';
-import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/reports/report_models.dart';
 import '../../core/reports/reports_api.dart';
@@ -19,7 +18,6 @@ import '../../ui/wf_buttons.dart';
 import '../../ui/wf_choice_tile.dart';
 import '../../ui/wf_dialog.dart';
 import '../../ui/wf_dialog_parts.dart';
-import '../auth/password_login_form.dart';
 import '../auth/session_controller.dart';
 import '../library/item_labels.dart';
 import 'report_labels.dart';
@@ -234,11 +232,15 @@ class _ReportDialogState extends ConsumerState<_ReportDialog>
   Widget buildFooter(BuildContext context) {
     final l = AppLocalizations.of(context);
     return WfDialogFooter(
-      note: _type == null ? l.reportPickType : null,
+      // Un errore resta visibile anche con il corpo scorso.
+      note: _error ?? (_type == null ? l.reportPickType : null),
+      noteIsError: _error != null,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      busy: _busy,
       primary: WfButton.primary(
         label: _duplicate != null ? l.reportUpdate : l.reportSend,
         icon: LucideIcons.send,
+        iconWidget: _busy ? const WfButtonSpinner() : null,
         onPressed: _busy || _type == null ? null : () => unawaited(_submit()),
       ),
     );
@@ -250,15 +252,17 @@ class _ReportDialogState extends ConsumerState<_ReportDialog>
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       );
 
-  Widget _typeTiles(AppLocalizations l, bool oneColumn) {
+  Widget _typeTiles(AppLocalizations l, bool oneColumn, {bool tv = false}) {
+    const types = ReportType.values;
     Widget tile(ReportType type) => WfChoiceTile(
+          // In TV il focus parte dal primo tipo.
+          autofocus: tv && type == types.first,
           title: reportTypeLabel(l, type),
           description: reportTypeExample(l, type),
           icon: reportTypeIcon(type),
           selected: type == _type,
           onTap: _busy ? null : () => _selectType(type),
         );
-    const types = ReportType.values;
     if (oneColumn) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -296,27 +300,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog>
     final date = DateFormat('d MMMM', l.localeName).format(
       report.createdAt.toLocal(),
     );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: WfColors.gold.withValues(alpha: 0.08),
-        border: Border.all(color: WfColors.gold.withValues(alpha: 0.35)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(LucideIcons.info, size: 16, color: WfColors.gold),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(l.reportAlreadySent(date),
-                  style: const TextStyle(fontSize: 12.5)),
-            ),
-          ],
-        ),
-      ),
-    );
+    return WfDialogNotice(l.reportAlreadySent(date));
   }
 
   @override
@@ -353,7 +337,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog>
           const SizedBox(height: 16),
         ],
         _question(l.reportAskType),
-        _typeTiles(l, form.compact && !form.tv),
+        _typeTiles(l, form.compact && !form.tv, tv: form.tv),
         if (duplicate != null) ...[
           const SizedBox(height: 12),
           _duplicateBox(l, duplicate),
@@ -376,10 +360,6 @@ class _ReportDialogState extends ConsumerState<_ReportDialog>
             ),
           ),
         ),
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          ErrorBanner(_error!),
-        ],
       ],
     );
     // Esc e il clic fuori non chiudono la finestra durante l'invio.

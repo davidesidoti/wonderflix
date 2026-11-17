@@ -121,6 +121,17 @@ class WfButton extends StatelessWidget {
   }
 }
 
+/// La rotella 16 px al posto dell'icona di un pulsante mentre lavora.
+class WfButtonSpinner extends StatelessWidget {
+  const WfButtonSpinner({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.square(
+    dimension: 16,
+    child: CircularProgressIndicator(strokeWidth: 2),
+  );
+}
+
 /// Alone oro e scala di [WfButton] al passaggio e al clic, anche per i
 /// pulsanti disegnati a mano (es. "Riproduci ora" del player).
 class WfButtonFeedback extends StatefulWidget {

@@ -326,8 +326,8 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog>
       note: _error ?? l.imagesConfirm(_kindKey),
       noteIsError: _error != null,
       cancelLabel: material.cancelButtonLabel,
+      busy: _busy,
       onCancel: () {
-        if (_busy) return;
         setState(() {
           _chosen = null;
           _error = null;
@@ -336,12 +336,7 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog>
       primary: WfButton.primary(
         label: l.imagesUseThis(_kindKey),
         icon: LucideIcons.check,
-        iconWidget: _busyKey == chosen.url
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : null,
+        iconWidget: _busyKey == chosen.url ? const WfButtonSpinner() : null,
         onPressed: _busy ? null : () => _use(chosen),
       ),
     );

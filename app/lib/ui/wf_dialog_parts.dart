@@ -8,11 +8,13 @@ import '../app/theme.dart';
 import '../l10n/gen/app_localizations.dart';
 import 'wf_buttons.dart';
 import 'wf_confirm_dialog.dart';
+import 'wf_dialog.dart';
 
 const _muted = TextStyle(color: WfColors.creamMuted, fontSize: 12.5);
 
 /// La testa delle finestre: [leading] (di solito la locandina 36×54) a
-/// sinistra, il titolo in Bebas e sotto [subtitle] su una riga.
+/// sinistra, il titolo in Bebas e sotto [subtitle] su una riga. Nella
+/// pagina intera con la barra del titolo il titolo non si ripete.
 class WfDialogHeader extends StatelessWidget {
   const WfDialogHeader({
     super.key,
@@ -27,6 +29,8 @@ class WfDialogHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Nello stretto il titolo è già nella barra in alto.
+    final showTitle = !wfDialogHasTitleBar(context);
     return Row(
       children: [
         if (leading != null) ...[leading!, const SizedBox(width: 12)],
@@ -35,9 +39,13 @@ class WfDialogHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: WfText.display(32)),
+              if (showTitle)
+                Semantics(
+                  header: true,
+                  child: Text(title, style: WfText.display(32)),
+                ),
               if (subtitle != null) ...[
-                const SizedBox(height: 4),
+                if (showTitle) const SizedBox(height: 4),
                 Text(
                   subtitle!,
                   maxLines: 1,
@@ -49,6 +57,35 @@ class WfDialogHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Un avviso nel corpo: fondo e bordo oro tenui, icona info, testo piccolo.
+class WfDialogNotice extends StatelessWidget {
+  const WfDialogNotice(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: WfColors.gold.withValues(alpha: 0.08),
+        border: Border.all(color: WfColors.gold.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(LucideIcons.info, size: 16, color: WfColors.gold),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5))),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -65,6 +102,7 @@ class WfDialogFooter extends StatelessWidget {
     this.noteIsError = false,
     this.cancelLabel,
     this.onCancel,
+    this.busy = false,
     required this.primary,
   });
 
@@ -74,6 +112,9 @@ class WfDialogFooter extends StatelessWidget {
   final bool noteIsError;
   final String? cancelLabel;
   final VoidCallback? onCancel;
+
+  /// Un lavoro in corso: Annulla è spento finché non finisce.
+  final bool busy;
   final Widget primary;
 
   @override
@@ -88,7 +129,9 @@ class WfDialogFooter extends StatelessWidget {
           WfButton.secondary(
             label: cancelLabel!,
             icon: LucideIcons.x,
-            onPressed: onCancel ?? () => Navigator.of(context).maybePop(),
+            onPressed: busy
+                ? null
+                : (onCancel ?? () => Navigator.of(context).maybePop()),
           ),
         primary,
       ],

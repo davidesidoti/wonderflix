@@ -72,15 +72,18 @@ Future<T?> showWfDialog<T>(
                     ),
                   ),
                   Expanded(
-                    child: footer == null
-                        ? Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Builder(builder: builder),
-                          )
-                        : SingleChildScrollView(
-                            padding: const EdgeInsets.all(16),
-                            child: Builder(builder: builder),
-                          ),
+                    child: _TitleBarScope(
+                      hasTitle: compactTitle != null,
+                      child: footer == null
+                          ? Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Builder(builder: builder),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Builder(builder: builder),
+                            ),
+                    ),
                   ),
                   if (footer != null) Builder(builder: footer),
                 ],
@@ -130,4 +133,20 @@ Future<T?> showWfDialog<T>(
       ),
     ),
   );
+}
+
+
+/// Vero nel corpo di una finestra a pagina intera la cui barra mostra già il
+/// titolo ([showWfDialog] con `compactTitle`): la testa non lo ripete.
+bool wfDialogHasTitleBar(BuildContext context) =>
+    context.dependOnInheritedWidgetOfExactType<_TitleBarScope>()?.hasTitle ??
+    false;
+
+class _TitleBarScope extends InheritedWidget {
+  const _TitleBarScope({required this.hasTitle, required super.child});
+
+  final bool hasTitle;
+
+  @override
+  bool updateShouldNotify(_TitleBarScope old) => hasTitle != old.hasTitle;
 }

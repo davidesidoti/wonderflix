@@ -143,9 +143,11 @@ class _ResolveDialogState extends ConsumerState<_ResolveDialog>
       note: _error,
       noteIsError: _error != null,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      busy: _busy,
       primary: WfButton.primary(
         label: _title,
         icon: fixed ? LucideIcons.check : LucideIcons.x,
+        iconWidget: _busy ? const WfButtonSpinner() : null,
         onPressed: _busy ? null : () => unawaited(_confirm()),
       ),
     );
@@ -224,10 +226,7 @@ class _ResolveDialogState extends ConsumerState<_ResolveDialog>
       children: [
         WfDialogHeader(
           title: _title,
-          subtitle: [
-            report.titleName,
-            reportSubjectLine(l, report, withType: false),
-          ].where((part) => part.isNotEmpty).join(' · '),
+          subtitle: reportContextLine(l, report),
           leading: DialogItemPoster(itemId: report.itemId),
         ),
         const SizedBox(height: 20),

@@ -63,15 +63,42 @@ Future<void> showSubtitlesDialog(
       title: title,
       onTrackAdded: onTrackAdded,
     ),
-    // `maybePop`: mentre lavora il `PopScope` del corpo la tiene aperta.
-    footer: (context) => WfDialogFooter(
+    footer: (_) => _Footer(itemId: itemId),
+  );
+}
+
+/// Chiudi, e a sinistra l'errore dell'ultima azione (scarico, caricamento,
+/// eliminazione). Spento mentre si scarica o si carica.
+class _Footer extends ConsumerWidget {
+  const _Footer({required this.itemId});
+
+  final String itemId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final state = ref.watch(subtitlesControllerProvider(itemId));
+    final error = switch (state.notice) {
+      SubtitlesNotice.downloadFailed => l.subtitlesDownloadFailed,
+      SubtitlesNotice.uploadFailed => l.subtitlesUploadFailed,
+      SubtitlesNotice.fileTooLarge => l.subtitlesFileTooLarge,
+      SubtitlesNotice.noPermission => l.reportNoPermission,
+      SubtitlesNotice.error => describeError(l, state.error ?? const Object()),
+      _ => null,
+    };
+    final busy = state.busyId != null || state.uploading;
+    return WfDialogFooter(
+      note: error,
+      noteIsError: error != null,
+      busy: busy,
+      // `maybePop`: passa dal `PopScope` del corpo.
       primary: WfButton.secondary(
         label: MaterialLocalizations.of(context).closeButtonLabel,
         icon: LucideIcons.x,
-        onPressed: () => Navigator.of(context).maybePop(),
+        onPressed: busy ? null : () => Navigator.of(context).maybePop(),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SubtitlesDialog extends ConsumerStatefulWidget {
@@ -575,16 +602,8 @@ class _NoticeLine extends StatelessWidget {
           ],
         ),
       ),
-      final failure => Padding(
-        padding: padding,
-        child: ErrorBanner(switch (failure) {
-          SubtitlesNotice.downloadFailed => l.subtitlesDownloadFailed,
-          SubtitlesNotice.uploadFailed => l.subtitlesUploadFailed,
-          SubtitlesNotice.fileTooLarge => l.subtitlesFileTooLarge,
-          SubtitlesNotice.noPermission => l.reportNoPermission,
-          _ => describeError(l, state.error ?? const Object()),
-        }),
-      ),
+      // Gli errori delle azioni stanno nel piede.
+      _ => const SizedBox.shrink(),
     };
   }
 }

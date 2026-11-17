@@ -315,22 +315,17 @@ class _IdentifyDialogState extends ConsumerState<_IdentifyDialog>
       // Nello stretto "Indietro" torna ai risultati; altrimenti chiude.
       onCancel: secondPage
           ? () {
-              if (_busy) return;
               setState(() {
                 _chosen = null;
                 _error = null;
               });
             }
           : null,
+      busy: _busy,
       primary: WfButton.primary(
         label: l.identifyApply,
         icon: LucideIcons.check,
-        iconWidget: _busy
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : null,
+        iconWidget: _busy ? const WfButtonSpinner() : null,
         onPressed: _busy || _chosen == null ? null : () => unawaited(_apply()),
       ),
     );

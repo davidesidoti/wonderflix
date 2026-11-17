@@ -1344,7 +1344,7 @@
   "editPickDate": "Scegli dal calendario",
   "editErrorName": "Il titolo non può essere vuoto",
   "editErrorYear": "Scrivi l'anno con quattro cifre",
-  "editErrorDate": "Scrivi la data come gg/mm/aaaa, per esempio 17/12/2008.",
+  "editErrorDate": "Scrivi la data come gg/mm/aaaa, per esempio 17/12/2008",
   "editAddGenre": "Aggiungi",
   "editGenrePendingHint": "Un genere scritto e non ancora aggiunto entra quando salvi.",
   "editChanges": "{n, plural, =1{1 modifica} other{{n} modifiche}}",

@@ -444,9 +444,11 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog>
               ? l.editChanges(changes)
               : null),
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      busy: _busy,
       primary: WfButton.primary(
         label: l.editSave,
         icon: LucideIcons.check,
+        iconWidget: _busy ? const WfButtonSpinner() : null,
         onPressed: _busy || changes == 0 ? null : () => unawaited(_save()),
       ),
     );

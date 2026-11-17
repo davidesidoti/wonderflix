@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/error_text.dart';
-import '../../app/theme.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -116,40 +115,15 @@ class _RefreshDialogState extends ConsumerState<_RefreshDialog>
       note: _error,
       noteIsError: _error != null,
       cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      busy: _busy,
       primary: WfButton.primary(
         label: _replaceAll ? l.refreshReplaceAll : l.refreshMissing,
         icon: LucideIcons.refreshCw,
-        iconWidget: _busy
-            ? const SizedBox.square(
-                dimension: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : null,
+        iconWidget: _busy ? const WfButtonSpinner() : null,
         onPressed: _busy ? null : () => unawaited(_start()),
       ),
     );
   }
-
-  Widget _seriesBox(AppLocalizations l) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: WfColors.gold.withValues(alpha: 0.08),
-      border: Border.all(color: WfColors.gold.withValues(alpha: 0.35)),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(LucideIcons.info, size: 16, color: WfColors.gold),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(_seriesNote(l), style: const TextStyle(fontSize: 12.5)),
-          ),
-        ],
-      ),
-    ),
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -195,7 +169,7 @@ class _RefreshDialogState extends ConsumerState<_RefreshDialog>
           ),
           if (widget.item.kind == ItemKind.series) ...[
             const SizedBox(height: 8),
-            _seriesBox(l),
+            WfDialogNotice(_seriesNote(l)),
           ],
         ],
       ),

@@ -64,6 +64,12 @@ String reportSubjectLine(
   ].where((part) => part.isNotEmpty).join(' · ');
 }
 
+/// "Il titolo · S1:E4 La scatola": il titolo e dove, senza il tipo.
+String reportContextLine(AppLocalizations l, ItemReport r) => [
+  r.titleName,
+  reportSubjectLine(l, r, withType: false),
+].where((part) => part.isNotEmpty).join(' · ');
+
 /// L'icona del riquadro di un tipo di problema.
 IconData reportTypeIcon(ReportType type) => switch (type) {
       ReportType.subtitles => LucideIcons.captions,
