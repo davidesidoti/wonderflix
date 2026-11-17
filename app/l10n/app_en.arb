@@ -138,6 +138,7 @@
   "searchGenresTitle": "Try a genre",
   "searchLatestTitle": "Recently added",
   "searchPeople": "People",
+  "searchPeopleNone": "No people by that name",
   "searchCatalogTerm": "Search: “{term}”",
   "searchBestLabel": "Top result",
   "searchOpenDetails": "Details",

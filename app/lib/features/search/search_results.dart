@@ -19,14 +19,12 @@ import '../catalog/catalog_navigation.dart';
 import '../collections/sagas_search_section.dart';
 import '../requests/requestables_controller.dart';
 import '../requests/requests_providers.dart';
-import 'search_best.dart';
 import 'people_search_screen.dart';
+import 'search_best.dart';
 import 'search_controller.dart';
 import 'search_ranking.dart';
 
-const _tabular = [FontFeature.tabularFigures()];
-
-/// Quanti titoli per sezione sul telefono: due file da due.
+/// Quanti titoli per sezione sotto i 600 px: due file da due.
 const _phoneTitles = 4;
 
 /// I risultati di Cerca su desktop e telefono (spec §8.2, §8.3): miglior
@@ -283,7 +281,7 @@ class _PeopleRow extends StatelessWidget {
 }
 
 /// Una sezione Film o Serie: testa col totale e "Vedi tutti", e una fila
-/// della griglia del catalogo (due file da due sul telefono).
+/// della griglia del catalogo (due file da due sotto i 600 px).
 class _TitlesSection extends StatelessWidget {
   const _TitlesSection({
     required this.title,
@@ -301,7 +299,8 @@ class _TitlesSection extends StatelessWidget {
   final int total;
   final String term;
 
-  /// Le card entrano di nuovo a ogni ricerca completata, non a ogni lettera.
+  /// Le card entrano di nuovo a ogni ricerca completata, non a ogni lettera
+  /// né quando arrivano i dati delle persone.
   final SearchResults results;
   final VoidCallback onOpened;
 
@@ -315,12 +314,13 @@ class _TitlesSection extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final form = FormFactor.of(context);
     final phone = form.compact && !form.tv;
+    final narrow = !form.tv && MediaQuery.sizeOf(context).width < 600;
     final source = kind == ItemKind.series ? 'search.series' : 'search.movies';
     return Padding(
       padding: const EdgeInsets.only(bottom: 32),
       child: LayoutBuilder(builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final count = phone ? _phoneTitles : catalogColumnCount(width);
+        final count = narrow ? _phoneTitles : catalogColumnCount(width);
         final shown = items.take(count).toList();
         final cut = total > shown.length;
         return Column(
@@ -329,14 +329,13 @@ class _TitlesSection extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(title,
-                    style: WfText.display(form.tv ? 22 : (phone ? 26 : 30))),
+                Text(title, style: WfText.display(sectionTitleSize(form))),
                 const SizedBox(width: 10),
                 Text('$total',
                     style: const TextStyle(
                         color: WfColors.creamMuted,
                         fontSize: 12.5,
-                        fontFeatures: _tabular)),
+                        fontFeatures: tabularFigures)),
                 const Spacer(),
                 if (cut && !phone)
                   TextButton(
@@ -347,7 +346,9 @@ class _TitlesSection extends StatelessWidget {
             const SizedBox(height: 12),
             BatchedEntrance(
               itemCount: shown.length,
-              resetKey: results,
+              // La stessa lista nelle due emissioni di una ricerca.
+              resetKey:
+                  kind == ItemKind.series ? results.series : results.movies,
               child: GridView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -382,7 +383,7 @@ class _TitlesSection extends StatelessWidget {
                 ],
               ),
             ),
-            if (phone && total > _phoneTitles)
+            if (phone && cut)
               SizedBox(
                 width: double.infinity,
                 child: TextButton(

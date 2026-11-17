@@ -27,7 +27,7 @@ class SagasSearchSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(AppLocalizations.of(context).collectionsTab,
-              style: WfText.display(form.tv ? 22 : (form.compact ? 26 : 30))),
+              style: WfText.display(sectionTitleSize(form))),
           const SizedBox(height: 12),
           // La griglia del catalogo: le celle sono alte come quelle dei titoli.
           LayoutBuilder(

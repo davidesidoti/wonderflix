@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
@@ -20,6 +21,7 @@ import 'package:wonderflix/features/search/search_controller.dart'
 import 'package:wonderflix/features/search/search_screen.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/ui/poster_card.dart';
+import 'package:wonderflix/ui/staggered_entrance.dart';
 
 import '../../support/collections_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -60,6 +62,49 @@ void main() {
     expect(find.text('Dune'), findsNWidgets(2)); // miglior risultato e card
     expect(find.text('Miglior risultato'), findsOneWidget);
     expect(find.text('Serie'), findsNothing);
+  });
+
+  testWidgets("i dati delle persone non fanno ripartire l'entrata delle carte",
+      (tester) async {
+    final facts = Completer<void>();
+    final api = FakeLibraryApi()
+      ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
+          ? pageOf([
+              for (var i = 0; i < 3; i++) testItem(id: 'm$i', name: 'Dune $i'),
+            ])
+          : pageOf([]))
+      ..people = [
+        testItem(id: 'p1', name: 'Denis Villeneuve', kind: ItemKind.person),
+      ]
+      ..itemsGateFor = ((query) => query.personId != null ? facts : null);
+    await pumpApp(tester, const Scaffold(body: SearchScreen()),
+        motion: MotionLevel.full,
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          requestsAvailableProvider.overrideWithValue(false),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+        ]);
+    await tester.enterText(find.byType(TextField), 'dune');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    double entrance() => tester
+        .widget<EntranceTransition>(find
+            .descendant(
+                of: find.byType(BatchedEntranceItem).first,
+                matching: find.byType(EntranceTransition))
+            .first)
+        .progress
+        .value;
+    expect(entrance(), 1);
+
+    facts.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(entrance(), 1);
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('nessun risultato', (tester) async {
@@ -525,6 +570,24 @@ void main() {
       expect(saved(), ['zzz']);
     });
 
+    testWidgets('Invio su un errore non apre niente dopo Riprova',
+        (tester) async {
+      api.error = Exception('giù');
+      await pumpSearch(tester);
+      await type(tester, 'ist');
+      expect(find.text('Riprova'), findsOneWidget);
+
+      await enter(tester);
+      api.error = null;
+      await tester.tap(find.text('Riprova'));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text("L'Istituto"), findsWidgets);
+      expect(location(), '/search');
+    });
+
     testWidgets('scrivere senza aprire nulla non salva', (tester) async {
       await pumpSearch(tester);
       await type(tester, 'dun');
@@ -675,6 +738,20 @@ void main() {
           tester.getTopLeft(films.at(1)).dy);
       expect(tester.getTopLeft(films.at(2)).dy,
           greaterThan(tester.getTopLeft(films.at(0)).dy));
+      expect(find.text('Vedi tutti i 15 film'), findsOneWidget);
+      expect(find.text('Vedi tutti'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stretto a 900: una fila intera e "Vedi tutti i 15 film" in '
+        'fondo', (tester) async {
+      await pumpResults(tester, libraryForIst(), size: const Size(900, 800));
+      await search(tester, 'ist');
+
+      final films = postersIn('Film');
+      expect(films, findsNWidgets(5)); // (900 - 32) / 196 → 5 colonne
+      expect(tester.getTopLeft(films.at(4)).dy,
+          tester.getTopLeft(films.at(0)).dy);
       expect(find.text('Vedi tutti i 15 film'), findsOneWidget);
       expect(find.text('Vedi tutti'), findsNothing);
       expect(tester.takeException(), isNull);

@@ -44,7 +44,7 @@ class RequestablesSection extends ConsumerWidget {
     }
     final l = AppLocalizations.of(context);
     final form = FormFactor.of(context);
-    final titleSize = form.tv ? 22.0 : (form.compact ? 26.0 : 30.0);
+    final titleSize = sectionTitleSize(form);
     final size = rowPosterSize(context);
     Widget row(Key key, int count, IndexedWidgetBuilder builder) => MediaRow(
           key: key,

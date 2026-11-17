@@ -84,7 +84,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
     // `?view=sagas` senza la funzione delle saghe mostra i titoli (vedi build).
     final sagasAvailable = widget.kind == ItemKind.movie &&
         ref.read(socialAvailabilityProvider).collections;
-    if (widget.view == CatalogView.titles || !sagasAvailable) _showGenre();
+    // Senza `?q` il termine si toglie: il controller (autoDispose) può essere
+    // ancora vivo col termine di Cerca ("Vedi tutti", poi la barra Film).
+    if (widget.view == CatalogView.titles || !sagasAvailable) {
+      _showGenre(searchTerm: widget.search ?? '');
+    }
     _scroll.addListener(() {
       if (_scroll.position.extentAfter < 800) {
         unawaited(
@@ -472,7 +476,7 @@ class CatalogBandTab extends StatelessWidget {
     final text = Text(
       label,
       style: WfText.display(
-        form.tv ? 22 : (form.compact ? 26 : 30),
+        sectionTitleSize(form),
         color:
             selected ? WfColors.cream : WfColors.cream.withValues(alpha: 0.32),
       ).copyWith(height: 1, letterSpacing: 1),

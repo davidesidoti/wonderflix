@@ -59,6 +59,14 @@ void main() {
     expect(state(), ['Città', 'dark']);
   });
 
+  test("l'apostrofo tipografico vale come quello dritto", () {
+    recent()
+      ..add("L'Istituto")
+      ..add('dark')
+      ..add('L’Istituto');
+    expect(state(), ['L’Istituto', 'dark']);
+  });
+
   test('sotto le 2 lettere non si salva', () {
     recent().add(' d ');
     expect(state(), isEmpty);
@@ -77,6 +85,23 @@ void main() {
     other.read(recentSearchesProvider.notifier).add('dark');
     expect(state(), ['dune']);
     expect(prefs.getStringList('search.recent.u2'), ['dark']);
+  });
+
+  test('senza ascoltatori si chiude: il logout non la ricostruisce', () async {
+    final fake = FakeSessionController(
+        SessionSignedIn(const JellyfinUser(id: 'u3', name: 'u3')));
+    final own = ProviderContainer.test(overrides: [
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      sessionControllerProvider.overrideWith(() => fake),
+    ]);
+    final sub = own.listen(recentSearchesProvider, (_, _) {});
+    own.read(recentSearchesProvider.notifier).add('dune');
+    sub.close();
+    await Future<void>.delayed(Duration.zero);
+    expect(own.exists(recentSearchesProvider), isFalse);
+    fake.set(const SessionSignedOut());
+    await Future<void>.delayed(Duration.zero);
+    expect(prefs.getStringList('search.recent.u3'), ['dune']);
   });
 
   test('togli e cancella', () {

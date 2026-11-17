@@ -9,6 +9,7 @@ import 'package:wonderflix/core/platform/tv_provider.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/calendar/calendar_screen.dart';
 import 'package:wonderflix/features/catalog/catalog_screen.dart';
+import 'package:wonderflix/features/search/people_search_screen.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
@@ -326,6 +327,29 @@ void main() {
     final screen = tester.widget<CatalogScreen>(find.byType(CatalogScreen));
     expect(screen.kind, ItemKind.series);
     expect(screen.genre, 'Dramma');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('/people?q=ist apre tutte le persone di "ist"', (tester) async {
+    late GoRouter router;
+    final library = FakeLibraryApi()
+      ..people = [
+        testItem(id: 'p1', name: 'Ist Persona', kind: ItemKind.person),
+      ];
+    await pumpAppRouterOf(tester, (ref) => router = ref.watch(routerProvider),
+        overrides: [
+          ...homeOverrides(library: library),
+          watchPartyDirectoryProvider.overrideWith(FakeWatchPartyDirectory.new),
+          syncPlayApiProvider.overrideWithValue(FakeSyncPlayApi()),
+          watchPartyEventsProvider.overrideWithValue(const Stream.empty()),
+        ]);
+    router.go('/people?q=ist');
+    await tester.pumpAndSettle();
+
+    expect(
+        tester.widget<PeopleSearchScreen>(find.byType(PeopleSearchScreen)).term,
+        'ist');
+    expect(library.peopleCalls.last.$1, 'ist');
     await tester.pumpWidget(const SizedBox());
   });
 }

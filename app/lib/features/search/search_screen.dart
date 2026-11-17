@@ -208,6 +208,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _openBest();
       return;
     }
+    // Un errore (o niente in corso) non aspetta: Riprova poi non aprirebbe.
+    if (!state.loading) return;
     _openWhenReady = term;
     ref.read(searchControllerProvider.notifier).submit();
   }
@@ -223,8 +225,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         controller: _text,
         autofocus: !tv,
         focusNode: _fieldFocus,
-        // Sulla TV chiudere la tastiera con Indietro manda l'azione: niente
-        // Invio lì (lo decide il Task 11).
+        // Sulla TV chiudere la tastiera con Indietro manda l'azione: lì
+        // niente Invio, aprirebbe un titolo senza volerlo.
         textInputAction: tv ? null : TextInputAction.search,
         onChanged: _setTerm,
         onSubmitted: tv ? null : _submit,

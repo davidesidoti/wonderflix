@@ -289,6 +289,17 @@ void main() {
       expect(router.state.uri.toString(), '/item/s0');
     });
 
+    testWidgets('dopo un errore Giù dalla cornice va a Riprova', (
+      tester,
+    ) async {
+      await pumpSearch(tester, api: library()..error = Exception('giù'));
+      await search(tester, 'ist');
+      expect(find.text('Riprova'), findsOneWidget);
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(focused(tester, find.text('Riprova')), isTrue);
+    });
+
     testWidgets('Su dal fondo di una fila lunga va nella fila corta sopra', (
       tester,
     ) async {

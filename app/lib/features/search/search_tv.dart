@@ -71,12 +71,15 @@ class SearchTvResults extends ConsumerWidget {
     );
     final error = state.error;
     if (error != null) {
+      // Una fila: senza, Giù dal campo salterebbe Riprova.
       return padded(
         const ValueKey('error'),
-        ErrorView(
-          error: error,
-          onRetry: () =>
-              ref.read(searchControllerProvider.notifier).setTerm(state.term),
+        TvLane(
+          child: ErrorView(
+            error: error,
+            onRetry: () =>
+                ref.read(searchControllerProvider.notifier).setTerm(state.term),
+          ),
         ),
       );
     }

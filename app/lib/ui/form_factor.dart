@@ -53,6 +53,10 @@ class FormFactor {
   }
 }
 
+/// Misura dei titoli di sezione (catalogo, Cerca): 22 TV, 26 stretto, 30.
+double sectionTitleSize(FormFactor form) =>
+    form.tv ? 22 : (form.compact ? 26 : 30);
+
 /// Segue l'ultimo puntatore e lo pubblica per [FormFactor.of].
 ///
 /// Parte in modo tocco su Android e iOS. Con [touchOverride] il modo tocco è

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
@@ -467,6 +468,36 @@ void main() {
     await tester.pump();
     expect(gridQueries.last.searchTerm, isNull);
     expect(find.text('ist'), findsNothing);
+  });
+
+  testWidgets('da Cerca "Vedi tutti" poi la barra Film: il termine non resta',
+      (tester) async {
+    final router = GoRouter(initialLocation: '/search', routes: [
+      ShellRoute(
+        builder: (_, _, child) => Scaffold(body: child),
+        routes: [
+          GoRoute(path: '/search', builder: (_, _) => const SizedBox()),
+          GoRoute(
+              path: '/movies',
+              builder: (_, state) => CatalogScreen(
+                  kind: ItemKind.movie,
+                  search: state.uri.queryParameters['q'])),
+        ],
+      ),
+    ]);
+    await pumpAppRouter(tester, router, overrides: [
+      libraryApiProvider.overrideWithValue(api),
+      sessionControllerProvider.overrideWith(
+          () => FakeSessionController(const SessionSignedIn(testUser))),
+    ]);
+
+    unawaited(router.push('/movies?q=ist'));
+    await tester.pumpAndSettle();
+    expect(gridQueries.last.searchTerm, 'ist');
+
+    router.go('/movies');
+    await tester.pumpAndSettle();
+    expect(gridQueries.last.searchTerm, isNull);
   });
 
   testWidgets('pagina che non riempie la finestra: carica la successiva',

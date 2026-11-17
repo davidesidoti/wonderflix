@@ -9,12 +9,12 @@ import 'search_controller.dart';
 class RecentSearches extends Notifier<List<String>> {
   static const max = 8;
 
-  String get _key => 'search.recent.${ref.read(currentUserIdProvider)}';
+  late String _key;
 
   @override
   List<String> build() {
-    final userId = ref.watch(currentUserIdProvider);
-    return ref.watch(sharedPreferencesProvider).getStringList('search.recent.$userId') ??
+    _key = 'search.recent.${ref.watch(currentUserIdProvider)}';
+    return ref.watch(sharedPreferencesProvider).getStringList(_key) ??
         const [];
   }
 
@@ -46,4 +46,5 @@ class RecentSearches extends Notifier<List<String>> {
 }
 
 final recentSearchesProvider =
-    NotifierProvider<RecentSearches, List<String>>(RecentSearches.new);
+    NotifierProvider.autoDispose<RecentSearches, List<String>>(
+        RecentSearches.new);

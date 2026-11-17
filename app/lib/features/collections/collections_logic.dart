@@ -24,6 +24,7 @@ const _plainLetters = {
   'ā': 'a', 'ē': 'e', 'ī': 'i', 'ō': 'o', 'ū': 'u', //
   'ø': 'o', 'æ': 'ae', 'œ': 'oe', 'ß': 'ss', //
   'š': 's', 'č': 'c', 'ž': 'z', 'ł': 'l',
+  '’': "'", // apostrofo tipografico (U+2019)
 };
 
 /// Primo e ultimo dei segni combinanti (U+0300–U+036F): gli accenti scritti
@@ -31,8 +32,8 @@ const _plainLetters = {
 const _combiningMarksStart = 0x0300;
 const _combiningMarksEnd = 0x036F;
 
-/// Testo per i confronti della ricerca: minuscolo, senza accenti e senza
-/// spazi ai lati (spec K §8.5).
+/// Testo per i confronti della ricerca: minuscolo, senza accenti, con `’`
+/// come `'` e senza spazi ai lati (spec K §8.5).
 String foldForSearch(String text) {
   final buffer = StringBuffer();
   for (final rune in text.trim().toLowerCase().runes) {

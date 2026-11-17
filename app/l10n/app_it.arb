@@ -155,6 +155,7 @@
   "searchGenresTitle": "Prova con un genere",
   "searchLatestTitle": "Aggiunti di recente",
   "searchPeople": "Persone",
+  "searchPeopleNone": "Nessuna persona con questo nome",
   "searchCatalogTerm": "Cerca: “{term}”",
   "@searchCatalogTerm": {"placeholders": {"term": {"type": "String"}}},
   "searchBestLabel": "Miglior risultato",

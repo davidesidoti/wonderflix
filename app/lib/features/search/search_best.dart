@@ -19,7 +19,8 @@ import '../ratings/rating_widgets.dart';
 import 'search_controller.dart' show PersonFacts;
 import 'search_ranking.dart';
 
-const _tabular = [FontFeature.tabularFigures()];
+/// Cifre a larghezza fissa per i conteggi.
+const tabularFigures = [FontFeature.tabularFigures()];
 const _muted = TextStyle(color: WfColors.creamMuted);
 
 /// [name] col pezzo di [highlightRange] sottolineato in oro.
@@ -153,7 +154,7 @@ class SearchBestCard extends ConsumerWidget {
                     facts == null ? ' ' : personFactsLine(l, facts),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: _muted.copyWith(fontFeatures: _tabular),
+                    style: _muted.copyWith(fontFeatures: tabularFigures),
                   ),
                   const SizedBox(height: 16),
                   WfButton.primary(
@@ -249,7 +250,7 @@ class SearchBestCard extends ConsumerWidget {
                             ),
                         ],
                       ),
-                      style: _muted.copyWith(fontFeatures: _tabular),
+                      style: _muted.copyWith(fontFeatures: tabularFigures),
                     ),
                     if (overview != null) ...[
                       const SizedBox(height: 8),
@@ -352,9 +353,7 @@ class SearchPeopleList extends ConsumerWidget {
                       l.searchPeople,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: WfText.display(
-                        form.tv ? 22 : (form.compact ? 26 : 30),
-                      ),
+                      style: WfText.display(sectionTitleSize(form)),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -362,7 +361,7 @@ class SearchPeopleList extends ConsumerWidget {
                     '$total',
                     style: _muted.copyWith(
                       fontSize: 12.5,
-                      fontFeatures: _tabular,
+                      fontFeatures: tabularFigures,
                     ),
                   ),
                 ],
@@ -465,7 +464,7 @@ class _PersonRow extends ConsumerWidget {
                   l.searchPersonTitles(facts.titles),
                   style: _muted.copyWith(
                     fontSize: 12.5,
-                    fontFeatures: _tabular,
+                    fontFeatures: tabularFigures,
                   ),
                 ),
               ],
@@ -485,12 +484,14 @@ class SearchPersonTile extends ConsumerWidget {
     this.facts,
     required this.term,
     required this.onOpened,
+    this.autofocus = false,
   });
 
   final JellyfinItem person;
   final PersonFacts? facts;
   final String term;
   final VoidCallback onOpened;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -503,6 +504,7 @@ class SearchPersonTile extends ConsumerWidget {
 
     return TvFocusable(
       onActivate: open,
+      autofocus: autofocus,
       child: Semantics(
         button: true,
         child: GestureDetector(
@@ -527,7 +529,7 @@ class SearchPersonTile extends ConsumerWidget {
                     facts == null ? ' ' : l.searchPersonTitles(facts.titles),
                     style: _muted.copyWith(
                       fontSize: 11.5,
-                      fontFeatures: _tabular,
+                      fontFeatures: tabularFigures,
                     ),
                   ),
                 ],

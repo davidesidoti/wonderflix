@@ -170,7 +170,7 @@ class _PeopleSearchScreenState extends ConsumerState<PeopleSearchScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(l.searchPeople,
-                    style: WfText.display(tv ? 22 : (form.compact ? 26 : 30))),
+                    style: WfText.display(sectionTitleSize(form))),
                 const SizedBox(width: 10),
                 if (state.total > 0)
                   Text('${state.total}',
@@ -199,6 +199,8 @@ class _PeopleSearchScreenState extends ConsumerState<PeopleSearchScreen> {
                 person: state.items[i],
                 term: widget.term,
                 onOpened: () {},
+                // Sulla TV la pagina si apre col focus sulla prima persona.
+                autofocus: tv && i == 0,
               ),
               childCount: state.items.length,
             ),
@@ -210,13 +212,18 @@ class _PeopleSearchScreenState extends ConsumerState<PeopleSearchScreen> {
           child: error != null
               ? ErrorView(
                   error: error, onRetry: () => unawaited(_controller.retry()))
-              : SizedBox(
-                  height: 64,
-                  child: state.loading
-                      ? const Align(
-                          alignment: Alignment.topCenter,
-                          child: LinearProgressIndicator(minHeight: 2))
-                      : null),
+              : !state.loading && state.items.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.fromLTRB(side, 0, side, 32),
+                      child: Text(l.searchPeopleNone,
+                          style: const TextStyle(color: WfColors.creamMuted)))
+                  : SizedBox(
+                      height: 64,
+                      child: state.loading
+                          ? const Align(
+                              alignment: Alignment.topCenter,
+                              child: LinearProgressIndicator(minHeight: 2))
+                          : null),
         ),
       ],
     );

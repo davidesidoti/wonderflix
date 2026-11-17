@@ -225,7 +225,7 @@ class _SearchStartState extends ConsumerState<SearchStart>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l.searchLatestTitle,
-              style: WfText.display(form.tv ? 22 : (form.compact ? 26 : 30))),
+              style: WfText.display(sectionTitleSize(form))),
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
             final width = constraints.maxWidth;

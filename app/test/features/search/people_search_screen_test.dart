@@ -11,6 +11,7 @@ import 'package:wonderflix/features/requests/requests_providers.dart';
 import 'package:wonderflix/features/search/people_search_screen.dart';
 import 'package:wonderflix/features/search/search_screen.dart';
 import 'package:wonderflix/features/search/search_best.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -194,6 +195,38 @@ void main() {
     expect(api.peopleCalls, isEmpty);
     expect(find.byType(SearchPersonTile), findsNothing);
     expect(find.text('Persone'), findsOneWidget);
+  });
+
+  testWidgets('TV: il focus parte dalla prima persona', (tester) async {
+    final api = FakeLibraryApi()..people = people(5);
+    await pumpApp(
+        tester,
+        const Scaffold(body: PeopleSearchScreen(term: 'ist')),
+        tv: true,
+        surfaceSize: const Size(960, 540),
+        overrides: overrides(api));
+    await tester.pump();
+    await tester.pump();
+
+    final first = find.descendant(
+        of: find.byKey(const ValueKey('person-p0')),
+        matching: find.byType(TvFocusable));
+    expect(Focus.of(tester.element(find.text('Ist Persona 0'))).hasFocus,
+        isTrue);
+    expect(first, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('nessuna persona: una riga semplice', (tester) async {
+    final api = FakeLibraryApi()..people = [];
+    await pumpApp(
+        tester,
+        const Scaffold(body: PeopleSearchScreen(term: 'zzz')),
+        overrides: overrides(api));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Nessuna persona con questo nome'), findsOneWidget);
+    expect(find.byType(SearchPersonTile), findsNothing);
   });
 
   group('da Cerca', () {

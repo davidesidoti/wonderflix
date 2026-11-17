@@ -10,9 +10,6 @@ const searchArticles = [
 /// Sezioni dei risultati di Cerca, nell'ordine a parità di punteggio.
 enum SearchSection { sagas, movies, series, people }
 
-/// [foldForSearch] con l'apostrofo tipografico (U+2019) come `'`.
-String _fold(String text) => foldForSearch(text).replaceAll('’', "'");
-
 final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
 /// Posizione in [folded] dell'occorrenza di [term] che dà il punteggio
@@ -39,11 +36,11 @@ final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 /// articolo), 1 una parola comincia col termine, 2 lo contiene, 3 lo contiene
 /// solo [originalTitle]; `null` se nessuno dei due.
 int? matchScore(String term, String name, {String? originalTitle}) {
-  final folded = _fold(term);
-  final hit = _bestHit(_fold(name), folded);
+  final folded = foldForSearch(term);
+  final hit = _bestHit(foldForSearch(name), folded);
   if (hit != null) return hit.$2;
   if (folded.isEmpty || originalTitle == null) return null;
-  return _fold(originalTitle).contains(folded) ? 3 : null;
+  return foldForSearch(originalTitle).contains(folded) ? 3 : null;
 }
 
 /// Il miglior risultato per [term] (spec §8.2): un film o una serie con
@@ -53,7 +50,7 @@ JellyfinItem? bestResult(String term,
     {required List<JellyfinItem> movies,
     required List<JellyfinItem> series,
     required List<JellyfinItem> people}) {
-  final folded = _fold(term);
+  final folded = foldForSearch(term);
   if (folded.isEmpty) return null;
   JellyfinItem? best;
   int? bestRank;
@@ -68,7 +65,7 @@ JellyfinItem? bestResult(String term,
   }
   if (best != null && bestRank! < 4) return best;
   for (final person in people) {
-    if (_fold(person.name).startsWith(folded)) return person;
+    if (foldForSearch(person.name).startsWith(folded)) return person;
   }
   return best;
 }
@@ -84,7 +81,7 @@ JellyfinItem? bestResult(String term,
   var offset = 0;
   for (final rune in name.runes) {
     final char = String.fromCharCode(rune);
-    final plain = char.trim().isEmpty ? char : _fold(char);
+    final plain = char.trim().isEmpty ? char : foldForSearch(char);
     for (var k = 0; k < plain.length; k++) {
       starts.add(offset);
       ends.add(offset + char.length);
@@ -92,7 +89,7 @@ JellyfinItem? bestResult(String term,
     folded.write(plain);
     offset += char.length;
   }
-  final foldedTerm = _fold(term);
+  final foldedTerm = foldForSearch(term);
   final hit = _bestHit(folded.toString(), foldedTerm);
   if (hit == null) return null;
   final start = starts[hit.$1];
