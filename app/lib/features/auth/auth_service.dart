@@ -132,9 +132,10 @@ class AuthService {
   /// poi `/Users/Me`. Riuscito: nome e immagine aggiornati, ultimo usato.
   /// 401: il profilo è scaduto. Altri errori: server irraggiungibile.
   ///
-  /// Chi chiama non sovrappone due aperture: "Chi guarda?" blocca i clic
-  /// mentre un profilo si apre, e [restore] parte dietro lo stato occupato
-  /// della schermata del server irraggiungibile.
+  /// Due aperture possono sovrapporsi ("Cambia profilo" dallo splash o
+  /// dall'irraggiungibile, poi un altro profilo): vince l'ultima. Quella
+  /// superata (`_generation`) non tocca né il client né lo storage e dà
+  /// [ChooseProfile] o [NoStoredSession].
   Future<RestoreResult> openProfile(String userId) async {
     final profile = _book.byId(userId);
     if (profile == null) {

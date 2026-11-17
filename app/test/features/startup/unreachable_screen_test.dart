@@ -1,16 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/app/router.dart';
+import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/admin/admin_kit.dart';
 import 'package:wonderflix/features/auth/auth_service.dart';
+import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/startup/unreachable_screen.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/fake_session_controller.dart';
+import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
 
 /// Un profilo che non si è aperto, e un nuovo tentativo che aspetta.
@@ -32,18 +36,29 @@ Future<FakeSessionController> pumpUnreachable(
   bool tv = false,
   Size surfaceSize = const Size(1440, 900),
   MotionLevel motion = MotionLevel.reduced,
+  List<StoredProfile> profiles = const [],
 }) async {
   final fake = FakeSessionController(state);
   await pumpApp(
     tester,
     const UnreachableScreen(),
-    overrides: [sessionControllerProvider.overrideWith(() => fake)],
+    overrides: [
+      sessionControllerProvider.overrideWith(() => fake),
+      profilesOf(profiles),
+    ],
     tv: tv,
     surfaceSize: surfaceSize,
     motion: motion,
   );
   return fake;
 }
+
+/// La rubrica dei profili con [profiles].
+Override profilesOf(List<StoredProfile> profiles) =>
+    profilesProvider.overrideWith(() => FixedProfiles(ProfilesState(
+        book: profiles.fold(const ProfileBook(), (b, p) => b.upsert(p)))));
+
+final _saved = [testProfile(userId: 'u2', name: 'Luigi')];
 
 LampState lamp(WidgetTester tester, String key) =>
     tester.widget<WfLamp>(find.byKey(Key(key))).state;
@@ -246,6 +261,7 @@ void main() {
         reason: UnreachableReason.offline,
       ),
       surfaceSize: const Size(390, 780),
+      profiles: _saved,
     );
     expect(t.getSize(retryButton).width, 358);
     expect(t.getSize(switchButton).width, 358);
@@ -276,8 +292,8 @@ void main() {
     final fake = await pumpUnreachable(
       t,
       const SessionUnreachable(retryUserId: 'u2'),
+      profiles: _saved,
     );
-    // Senza un profilo scelto non c'è; qui sì.
     expect(switchButton, findsOneWidget);
 
     await t.pump(const Duration(seconds: 15));
@@ -290,15 +306,29 @@ void main() {
     expect(fake.restoreCalls, 0);
   });
 
-  testWidgets('senza un profilo scelto niente "Cambia profilo"', (t) async {
-    await pumpUnreachable(t, const SessionUnreachable());
+  testWidgets('senza profili salvati niente "Cambia profilo"', (t) async {
+    await pumpUnreachable(t, const SessionUnreachable(retryUserId: 'u2'));
     expect(switchButton, findsNothing);
+  });
+
+  testWidgets('un solo profilo, riaperto da restore: "Cambia profilo" c\'è', (
+    t,
+  ) async {
+    final fake = await pumpUnreachable(
+      t,
+      const SessionUnreachable(),
+      profiles: _saved,
+    );
+    await t.tap(switchButton);
+    await t.pump();
+    expect(fake.backToProfilesCalls, 1);
   });
 
   testWidgets('"Cambia profilo" torna a "Chi guarda?"', (t) async {
     final fake = await pumpUnreachable(
       t,
       const SessionUnreachable(retryUserId: 'u2'),
+      profiles: _saved,
     );
     await t.tap(switchButton);
     await t.pump();
@@ -306,25 +336,24 @@ void main() {
     expect(fake.openedProfiles, isEmpty);
   });
 
-  testWidgets('"Cambia profilo" non fa niente mentre si riprova', (t) async {
+  testWidgets('"Cambia profilo" funziona anche mentre si riprova', (t) async {
     final fake = _SlowRetry();
     await pumpApp(
       t,
       const UnreachableScreen(),
-      overrides: [sessionControllerProvider.overrideWith(() => fake)],
+      overrides: [
+        sessionControllerProvider.overrideWith(() => fake),
+        profilesOf(_saved),
+      ],
     );
 
     await t.tap(find.text('Riprova ora'));
     await t.pump();
-    await t.tap(switchButton);
-    await t.pump();
-    expect(fake.backToProfilesCalls, 0);
-
-    fake.opening.complete();
-    await t.pump();
-    await t.pump();
+    expect(find.text('Riprovo…'), findsOneWidget);
     await t.tap(switchButton);
     await t.pump();
     expect(fake.backToProfilesCalls, 1);
+    fake.opening.complete();
+    await t.pump();
   });
 }

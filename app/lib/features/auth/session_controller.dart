@@ -101,12 +101,18 @@ class SessionController extends Notifier<SessionState> {
 
   /// Apre un profilo da "Chi guarda?" (spec K §9.4). Un errore imprevisto
   /// vale come server irraggiungibile; "Riprova" riapre questo profilo.
+  /// Come in [restore], un risultato arrivato dopo un cambio di stato (per
+  /// esempio "Cambia profilo" durante un tentativo) si scarta.
   Future<void> openProfile(String userId) async {
+    final before = state;
+    SessionState next;
     try {
-      _apply(_stateFor(await _auth.openProfile(userId), retryUserId: userId));
+      next = _stateFor(await _auth.openProfile(userId), retryUserId: userId);
     } on Object {
-      _apply(SessionUnreachable(retryUserId: userId));
+      next = SessionUnreachable(retryUserId: userId);
     }
+    if (!ref.mounted || !identical(state, before)) return;
+    _apply(next);
   }
 
   /// Lancia [ApiException] o `ProfileLimitException`: la UI mostra il

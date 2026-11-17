@@ -251,6 +251,28 @@ void main() {
       expect(await service.openProfile('u9'), isA<ChooseProfile>());
       verifyNever(() => anyGetMe(api));
     });
+
+    test('un\'apertura superata che finisce con un 503: la scelta, il '
+        'profilo aperto dopo resta, niente salvato', () async {
+      final first = Completer<JellyfinUser>();
+      when(() => anyGetMe(api)).thenAnswer((_) => first.future);
+      final superseded = service.openProfile('u1');
+      await pumpEventQueue();
+      when(() => anyGetMe(api)).thenAnswer(
+          (_) async => const JellyfinUser(id: 'u2', name: 'Luigi'));
+      expect(await service.openProfile('u2'), isA<RestoredSession>());
+      final writes = store.writes;
+
+      first.completeError(const ServerErrorException(503));
+
+      expect(await superseded, isA<ChooseProfile>());
+      expect(service.activeUserId, 'u2');
+      expect(http.token, 'tok-u2');
+      expect(http.deviceId, 'dev-u2');
+      expect(store.writes, writes);
+      expect(store.book.byId('u1')!.accessToken, 'tok-u1');
+      expect(store.book.byId('u1')!.expired, isFalse);
+    });
   });
 
   group('accesso', () {

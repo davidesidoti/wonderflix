@@ -220,6 +220,35 @@ void main() {
       expect(state(), isA<SessionSignedOut>());
     });
 
+    test('Cambia profilo durante un nuovo tentativo: il risultato tardivo non '
+        'riapre il profilo', () async {
+      when(() => auth.openProfile('u2'))
+          .thenAnswer((_) async => const RestoreServerUnreachable());
+      await controller().openProfile('u2');
+      when(() => auth.book).thenReturn(twoProfiles);
+      final opened = Completer<RestoreResult>();
+      when(() => auth.openProfile('u2')).thenAnswer((_) => opened.future);
+
+      final done = controller().openProfile('u2');
+      controller().backToProfiles();
+      opened.complete(
+          const RestoredSession(JellyfinUser(id: 'u2', name: 'Luigi')));
+      await done;
+      expect(state(), isA<SessionChoosingProfile>());
+
+      // Anche un errore tardivo.
+      when(() => auth.openProfile('u2'))
+          .thenAnswer((_) async => const RestoreServerUnreachable());
+      await controller().openProfile('u2');
+      final failing = Completer<RestoreResult>();
+      when(() => auth.openProfile('u2')).thenAnswer((_) => failing.future);
+      final failed = controller().openProfile('u2');
+      controller().backToProfiles();
+      failing.completeError(StateError('boom'));
+      await failed;
+      expect(state(), isA<SessionChoosingProfile>());
+    });
+
     test('restore con il server giù: niente profilo da riprovare', () async {
       when(() => auth.restore())
           .thenAnswer((_) async => const RestoreServerUnreachable());

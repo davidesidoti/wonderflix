@@ -12,6 +12,7 @@ import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../admin/admin_kit.dart';
 import '../auth/auth_service.dart';
+import '../auth/profiles_state.dart';
 import '../auth/session_controller.dart';
 
 class UnreachableScreen extends ConsumerStatefulWidget {
@@ -88,7 +89,8 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
     final reducedMotion = WfMotion.of(context).isReduced;
     final session = ref.watch(sessionControllerProvider);
     final unreachable = session is SessionUnreachable ? session : null;
-    final retryUserId = unreachable?.retryUserId;
+    final hasProfiles =
+        !ref.watch(profilesProvider.select((p) => p.book.isEmpty));
     final reason = unreachable?.reason ?? UnreachableReason.notResponding;
     final offline = reason == UnreachableReason.offline;
     final (title, body) = switch (reason) {
@@ -118,19 +120,15 @@ class _UnreachableScreenState extends ConsumerState<UnreachableScreen> {
         // tentativo. Durante il tentativo `_retry` non fa niente.
         onPressed: _retry,
       ),
-      // Il profilo scelto non si apre: si può tornare a "Chi guarda?",
-      // perché l'errore può essere di quel profilo e "Riprova" non
-      // riuscirebbe mai. Durante un tentativo non fa niente: il profilo
-      // potrebbe aprirsi subito dopo.
-      if (retryUserId != null)
+      // Con dei profili salvati si può tornare a "Chi guarda?", perché
+      // l'errore può essere di quel profilo e "Riprova" non riuscirebbe
+      // mai. Anche durante un tentativo: il suo risultato si scarta.
+      if (hasProfiles)
         WfButton.secondary(
           label: l.profilesSwitch,
           icon: LucideIcons.users,
-          onPressed: () {
-            if (!_busy) {
-              ref.read(sessionControllerProvider.notifier).backToProfiles();
-            }
-          },
+          onPressed:
+              ref.read(sessionControllerProvider.notifier).backToProfiles,
         ),
     ];
 
