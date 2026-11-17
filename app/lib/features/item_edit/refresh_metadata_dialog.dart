@@ -5,12 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/error_text.dart';
+import '../../app/theme.dart';
 import '../../core/jellyfin/api_exception.dart';
+import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/dialog_item_poster.dart';
 import '../../ui/wf_buttons.dart';
+import '../../ui/wf_choice_tile.dart';
 import '../../ui/wf_dialog.dart';
-import '../auth/password_login_form.dart';
+import '../../ui/wf_dialog_parts.dart';
 import '../auth/session_controller.dart';
+import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import 'item_edit_providers.dart';
 
@@ -21,29 +26,36 @@ const _dialogWidth = 440.0;
 /// non dice quando finisce.
 const refreshReloadDelay = Duration(seconds: 10);
 
-/// "Aggiorna metadati" (spec R §7.10): due scelte e la casella delle immagini.
-/// Il bump è un `Timer` sul container dell'app, così scatta anche a finestra
-/// chiusa.
+/// "Aggiorna metadati" (spec §6.6): due riquadri e l'interruttore delle
+/// immagini. Il bump è un `Timer` sul container dell'app, così scatta anche a
+/// finestra chiusa.
 Future<void> showRefreshMetadataDialog(
   BuildContext context, {
-  required String itemId,
-}) => showWfDialog<void>(
-  context,
-  maxWidth: _dialogWidth,
-  semanticLabel: AppLocalizations.of(context).refreshTitle,
-  builder: (_) => _RefreshDialog(itemId: itemId),
-);
+  required JellyfinItem item,
+}) {
+  final l = AppLocalizations.of(context);
+  final host = GlobalKey();
+  return showWfDialog<void>(
+    context,
+    maxWidth: _dialogWidth,
+    semanticLabel: l.refreshTitle,
+    compactTitle: l.refreshTitle,
+    builder: (_) => _RefreshDialog(key: host, item: item),
+    footer: (_) => WfHostFooter(host: host),
+  );
+}
 
 class _RefreshDialog extends ConsumerStatefulWidget {
-  const _RefreshDialog({required this.itemId});
+  const _RefreshDialog({super.key, required this.item});
 
-  final String itemId;
+  final JellyfinItem item;
 
   @override
   ConsumerState<_RefreshDialog> createState() => _RefreshDialogState();
 }
 
-class _RefreshDialogState extends ConsumerState<_RefreshDialog> {
+class _RefreshDialogState extends ConsumerState<_RefreshDialog>
+    with WfFooterHost<_RefreshDialog> {
   bool _replaceAll = false;
   bool _images = false;
   bool _busy = false;
@@ -64,7 +76,7 @@ class _RefreshDialogState extends ConsumerState<_RefreshDialog> {
     });
     try {
       await api.refresh(
-        widget.itemId,
+        widget.item.id,
         replaceAllMetadata: _replaceAll,
         replaceAllImages: _replaceAll && _images,
       );
@@ -88,77 +100,104 @@ class _RefreshDialogState extends ConsumerState<_RefreshDialog> {
     }
   }
 
+  /// "Vale anche per le sue 2 stagioni e 16 episodi", o la frase senza numeri.
+  String _seriesNote(AppLocalizations l) {
+    final seasons = widget.item.childCount;
+    final episodes = widget.item.recursiveItemCount;
+    return seasons == null || episodes == null
+        ? l.refreshSeriesNoteUnknown
+        : l.refreshSeriesNote(seasons, episodes);
+  }
+
+  @override
+  Widget buildFooter(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return WfDialogFooter(
+      note: _error,
+      noteIsError: _error != null,
+      cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      primary: WfButton.primary(
+        label: _replaceAll ? l.refreshReplaceAll : l.refreshMissing,
+        icon: LucideIcons.refreshCw,
+        iconWidget: _busy
+            ? const SizedBox.square(
+                dimension: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : null,
+        onPressed: _busy ? null : () => unawaited(_start()),
+      ),
+    );
+  }
+
+  Widget _seriesBox(AppLocalizations l) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: WfColors.gold.withValues(alpha: 0.08),
+      border: Border.all(color: WfColors.gold.withValues(alpha: 0.35)),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(LucideIcons.info, size: 16, color: WfColors.gold),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(_seriesNote(l), style: const TextStyle(fontSize: 12.5)),
+          ),
+        ],
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    Widget tile(String title, String hint, bool replace) => WfChoiceTile(
+      title: title,
+      description: hint,
+      selected: _replaceAll == replace,
+      onTap: _busy ? null : () => setState(() => _replaceAll = replace),
+    );
     return PopScope(
       canPop: !_busy,
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              l.refreshTitle,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WfDialogHeader(
+            title: l.refreshTitle,
+            subtitle: itemContextLine(l, widget.item),
+            leading: DialogItemPoster(itemId: widget.item.id),
+          ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              l.refreshAsk,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 16),
-            RadioGroup<bool>(
-              groupValue: _replaceAll,
-              onChanged: (value) {
-                if (!_busy) setState(() => _replaceAll = value ?? false);
-              },
-              child: Column(
-                children: [
-                  RadioListTile<bool>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l.refreshMissing),
-                    value: false,
-                  ),
-                  RadioListTile<bool>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(l.refreshReplaceAll),
-                    value: true,
-                  ),
-                ],
-              ),
-            ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text(l.refreshAlsoImages),
-              value: _replaceAll && _images,
-              // Le immagini si sostituiscono solo con "sostituisci tutto".
-              onChanged: _busy || !_replaceAll
-                  ? null
-                  : (value) => setState(() => _images = value ?? false),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              ErrorBanner(_error!),
-            ],
-            const SizedBox(height: 24),
-            Wrap(
-              alignment: WrapAlignment.end,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                TextButton(
-                  onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                  child: Text(
-                    MaterialLocalizations.of(context).cancelButtonLabel,
-                  ),
-                ),
-                WfButton.primary(
-                  label: l.refreshStart,
-                  icon: LucideIcons.refreshCw,
-                  onPressed: _busy ? null : () => unawaited(_start()),
-                ),
-              ],
-            ),
+          ),
+          tile(l.refreshMissing, l.refreshMissingHint, false),
+          const SizedBox(height: 8),
+          tile(l.refreshReplaceAll, l.refreshReplaceAllHint, true),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(l.refreshAlsoImages),
+            subtitle: Text(l.refreshAlsoImagesHint),
+            value: _replaceAll && _images,
+            // Le immagini si sostituiscono solo con "Riscrivi tutto".
+            onChanged: _busy || !_replaceAll
+                ? null
+                : (value) => setState(() => _images = value),
+          ),
+          if (widget.item.kind == ItemKind.series) ...[
+            const SizedBox(height: 8),
+            _seriesBox(l),
           ],
-        ),
+        ],
       ),
     );
   }

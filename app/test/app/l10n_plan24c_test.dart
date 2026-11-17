@@ -48,7 +48,6 @@ const _keys = [
   'refreshMissing',
   'refreshReplaceAll',
   'refreshAlsoImages',
-  'refreshStart',
   'refreshStarted',
   'imagesTitle',
   'imagesPoster',

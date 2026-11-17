@@ -376,8 +376,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Aggiorna metadati…'));
     await tester.pumpAndSettle();
-    expect(find.text('Cerca dati mancanti'), findsOneWidget);
-    await tester.tap(find.text('Aggiorna'));
+    expect(find.text('Cosa aggiorno?'), findsOneWidget);
+    await tester.tap(find.text('Completa i dati').last);
     await tester.pumpAndSettle();
     expect(editApi.calls.last, 'refresh m1 false false');
     // Il Timer del bump va fatto scadere: un Timer pendente fa fallire il test.

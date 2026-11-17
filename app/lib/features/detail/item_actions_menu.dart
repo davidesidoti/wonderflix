@@ -302,7 +302,7 @@ class ItemActionsButton extends ConsumerWidget {
           showIdentifyDialog(context, itemId: item.id, kind: item.kind),
         );
       case ItemAction.refresh:
-        unawaited(showRefreshMetadataDialog(context, itemId: item.id));
+        unawaited(showRefreshMetadataDialog(context, item: item));
       case ItemAction.images:
         unawaited(showImagesDialog(context, itemId: item.id, kind: item.kind));
     }
