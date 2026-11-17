@@ -112,6 +112,7 @@ class AuthService {
   /// più di uno → "Chi guarda?".
   Future<RestoreResult> restore() async {
     _deactivate();
+    final generation = _generation;
     if (_unsaved) {
       // Rileggere lo storage perderebbe i profili che non ha salvato: si
       // tengono quelli in memoria e si riprova a salvarli.
@@ -121,6 +122,11 @@ class AuthService {
     }
     // Lo splash conosce il profilo che si apre prima di `/Users/Me`.
     onProfilesChanged?.call();
+    // Superato mentre leggeva lo storage ("Cambia profilo" dallo splash):
+    // nessun profilo si apre.
+    if (generation != _generation) {
+      return _book.isEmpty ? const NoStoredSession() : const ChooseProfile();
+    }
     return switch (_book.profiles.length) {
       0 => const NoStoredSession(),
       1 => await openProfile(_book.profiles.single.userId),

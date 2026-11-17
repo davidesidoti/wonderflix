@@ -58,6 +58,19 @@ class _RecoveringProfileStore extends MemoryProfileStore {
           : book);
 }
 
+/// In memoria, con la lettura che aspetta [gate].
+class _SlowReadProfileStore extends MemoryProfileStore {
+  _SlowReadProfileStore(super.book);
+
+  final gate = Completer<void>();
+
+  @override
+  Future<ProfileBook> read() async {
+    await gate.future;
+    return super.read();
+  }
+}
+
 void main() {
   late MockAuthApi api;
   late MockAuthApi revokeApi;
@@ -180,6 +193,29 @@ void main() {
       expect(service.activeUserId, isNull);
       expect(http.token, isNull);
       expect(store.book.lastUserId, isNull);
+    });
+
+    test('deactivate mentre legge lo storage: nessun profilo si apre',
+        () async {
+      final slow = _SlowReadProfileStore(bookOf([mario]));
+      service = AuthService(
+        http: http,
+        api: api,
+        store: slow,
+        apiFor: (_) => revokeApi,
+        newDeviceId: () => 'dev-nuovo',
+      );
+
+      final result = service.restore();
+      await pumpEventQueue();
+      service.deactivate();
+      slow.gate.complete();
+
+      expect(await result, isA<ChooseProfile>());
+      verifyNever(() => anyGetMe(api));
+      expect(service.activeUserId, isNull);
+      expect(http.token, isNull);
+      expect(slow.writes, 0);
     });
 
     test('un 401 arrivato dopo deactivate non segna il profilo scaduto',
