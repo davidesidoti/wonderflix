@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart' hide SearchController;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -23,7 +24,10 @@ import '../library/library_providers.dart';
 import '../requests/requestables_controller.dart';
 import '../requests/requestables_section.dart';
 import '../requests/requests_providers.dart';
+import 'recent_searches.dart';
 import 'search_controller.dart';
+import 'search_ranking.dart';
+import 'search_start.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -34,9 +38,14 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _scroll = SmoothScrollController();
+  final _text = TextEditingController();
 
-  /// Il campo sulla TV: prende il focus solo con OK (vedi [_searchField]).
+  /// Sulla TV prende il focus solo con OK (vedi [_searchField]).
   final _fieldFocus = FocusNode(debugLabel: 'search-field');
+
+  /// Invio su un termine che aspetta ancora i risultati: si apre il miglior
+  /// risultato quando arrivano, se il termine è ancora questo.
+  String? _openWhenReady;
 
   /// Sulla TV: OK ha attivato il campo (fino a che perde il focus).
   bool _typing = false;
@@ -52,6 +61,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   void dispose() {
     _fieldFocus.dispose();
+    _text.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -60,7 +70,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final state = ref.watch(searchControllerProvider);
-    final controller = ref.read(searchControllerProvider.notifier);
     // L'elenco delle saghe si legge una volta all'apertura della ricerca, poi
     // è in cache: così la sezione "Saghe" non arriva dopo i risultati.
     final allSagas =
@@ -84,41 +93,140 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             language: Localizations.localeOf(context).languageCode);
       }
     });
+    ref.listen(searchControllerProvider, (_, next) {
+      final want = _openWhenReady;
+      if (want == null) return;
+      if (next.term != want) {
+        _openWhenReady = null;
+      } else if (!next.loading) {
+        // Prima di aprire: ogni termine arriva due volte (senza e con i dati
+        // delle persone).
+        _openWhenReady = null;
+        if (next.results != null) _openBest();
+      }
+    });
+    final form = FormFactor.of(context);
+    final side = form.tv ? 24.0 : (form.compact ? 16.0 : 32.0);
+    Widget padded(Widget child) => Padding(
+        key: child.key,
+        padding: EdgeInsets.symmetric(horizontal: side),
+        child: child);
+    final results = _results(context, l, state, hasSagas: sagas.isNotEmpty);
     return ListView(
       controller: _scroll,
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.only(top: form.compact ? 16 : 24, bottom: 32),
       children: [
-        _searchField(context, l, controller),
+        padded(_searchField(context, l)),
         const SizedBox(height: 24),
-        SagasSearchSection(sagas: sagas),
-        WfSwitcher(
-            child: _results(context, l, state, hasSagas: sagas.isNotEmpty)),
-        RequestablesSection(library: _libraryMatches(state)),
+        padded(SagasSearchSection(sagas: sagas)),
+        // Fuori dal [WfSwitcher]: la pagina d'inizio non resta a sfumare
+        // sotto i risultati.
+        if (state.term.length < SearchController.minLength)
+          SearchStart(onRecent: _searchRecent, side: side)
+        else
+          WfSwitcher(child: padded(results)),
+        padded(RequestablesSection(library: _libraryMatches(state))),
       ],
     );
+  }
+
+  void _setTerm(String value) {
+    ref.read(searchControllerProvider.notifier).setTerm(value);
+    ref.read(requestablesControllerProvider.notifier).setTerm(value,
+        language: Localizations.localeOf(context).languageCode);
+  }
+
+  void _searchRecent(String term) {
+    _text.value = TextEditingValue(
+        text: term, selection: TextSelection.collapsed(offset: term.length));
+    _setTerm(term);
+  }
+
+  void _clear() {
+    _openWhenReady = null;
+    _text.clear();
+    _setTerm('');
+    _fieldFocus.requestFocus();
+  }
+
+  /// Salva nei recenti il termine cercato (aprendo un risultato).
+  void _remember() =>
+      ref.read(recentSearchesProvider.notifier).add(
+          ref.read(searchControllerProvider).term);
+
+  /// Apre il miglior risultato del termine mostrato, se c'è.
+  void _openBest() {
+    final state = ref.read(searchControllerProvider);
+    final results = state.results;
+    if (results == null) return;
+    final best = bestResult(state.term,
+        movies: results.movies,
+        series: results.series,
+        people: results.people);
+    if (best != null) openItem(context, best, heroSource: 'search.best');
+  }
+
+  /// Invio: salva il termine e apre il suo miglior risultato, subito se c'è
+  /// già, sennò quando arriva.
+  void _submit(String value) {
+    final term = value.trim();
+    if (term.length < SearchController.minLength) return;
+    final state = ref.read(searchControllerProvider);
+    _remember(); // `onChanged` ha già dato il termine al controller.
+    if (state.term == term && !state.loading && state.results != null) {
+      _openWhenReady = null;
+      _openBest();
+      return;
+    }
+    _openWhenReady = term;
+    ref.read(searchControllerProvider.notifier).submit();
   }
 
   /// Il campo di ricerca. Sulla TV il focus iniziale aprirebbe subito la
   /// tastiera: il campo non lo prende da solo (né col fuoco di ripiego della
   /// barra), lo raggiunge il telecomando con la cornice e OK lo attiva.
-  Widget _searchField(
-      BuildContext context, AppLocalizations l, SearchController controller) {
+  Widget _searchField(BuildContext context, AppLocalizations l) {
     final tv = FormFactor.of(context).tv;
-    final field = TextField(
-      autofocus: !tv,
-      focusNode: tv ? _fieldFocus : null,
-      onChanged: (value) {
-        controller.setTerm(value);
-        ref.read(requestablesControllerProvider.notifier).setTerm(value,
-            language: Localizations.localeOf(context).languageCode);
-      },
-      style: const TextStyle(fontSize: 18),
-      decoration: InputDecoration(
-        hintText: l.searchHint,
-        prefixIcon: const Icon(LucideIcons.search, color: WfColors.creamMuted),
+    final field = SizedBox(
+      height: 56,
+      child: TextField(
+        controller: _text,
+        autofocus: !tv,
+        focusNode: _fieldFocus,
+        textInputAction: TextInputAction.search,
+        onChanged: _setTerm,
+        onSubmitted: _submit,
+        style: const TextStyle(fontSize: 18),
+        decoration: InputDecoration(
+          hintText: l.searchHint,
+          prefixIcon:
+              const Icon(LucideIcons.search, color: WfColors.creamMuted),
+          suffixIcon: tv || _text.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(LucideIcons.x),
+                  tooltip: l.searchClear,
+                  onPressed: _clear),
+        ),
       ),
     );
-    if (!tv) return field;
+    if (!tv) {
+      // Esc col testo svuota; col campo vuoto passa oltre.
+      return Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: (_, event) {
+          if (event is! KeyDownEvent ||
+              event.logicalKey != LogicalKeyboardKey.escape ||
+              _text.text.isEmpty) {
+            return KeyEventResult.ignored;
+          }
+          _clear();
+          return KeyEventResult.handled;
+        },
+        child: field,
+      );
+    }
     // Il campo non è raggiungibile finché non è attivo: la cornice
     // (`TvFocusable`) è l'unica tappa del telecomando.
     return TvFocusable(
@@ -136,9 +244,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget _results(BuildContext context, AppLocalizations l, SearchState state,
       {required bool hasSagas}) {
     const muted = TextStyle(color: WfColors.creamMuted);
-    if (state.term.length < SearchController.minLength) {
-      return Text(l.searchPrompt, key: const ValueKey('prompt'), style: muted);
-    }
     final error = state.error;
     if (error != null) {
       return ErrorView(

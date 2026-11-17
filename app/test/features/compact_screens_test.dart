@@ -248,11 +248,18 @@ void main() {
   });
 
   testWidgets('ricerca', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'search.recent.${testUser.id}': ['chernobyl', 'il nome della rosa'],
+    });
+    final prefs = await SharedPreferences.getInstance();
     await expectNoOverflow(
       tester,
       const Scaffold(body: SearchScreen()),
       content: find.byType(TextField),
-      overrides: library(libraryApi()),
+      overrides: [
+        ...library(libraryApi()),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
     );
   });
 

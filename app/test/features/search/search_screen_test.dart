@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
@@ -22,6 +26,13 @@ import '../../support/social_fakes.dart';
 import '../../support/test_data.dart';
 
 void main() {
+  late SharedPreferences prefs;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
+
   testWidgets('scrive, attende e mostra i risultati per sezione', (tester) async {
     final api = FakeLibraryApi()
       ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
@@ -33,9 +44,10 @@ void main() {
       requestsAvailableProvider.overrideWithValue(false),
       sessionControllerProvider
           .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
+      sharedPreferencesProvider.overrideWithValue(prefs),
     ]);
 
-    expect(find.text('Scrivi almeno 2 lettere per cercare.'), findsOneWidget);
+    expect(find.text('Titolo, attore o regista'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'dune');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
@@ -52,6 +64,7 @@ void main() {
       requestsAvailableProvider.overrideWithValue(false),
       sessionControllerProvider
           .overrideWith(() => FakeSessionController(const SessionSignedIn(testUser))),
+      sharedPreferencesProvider.overrideWithValue(prefs),
     ]);
     await tester.enterText(find.byType(TextField), 'zzz');
     await tester.pump(const Duration(milliseconds: 350));
@@ -65,6 +78,7 @@ void main() {
         libraryApiProvider.overrideWithValue(library),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
+        sharedPreferencesProvider.overrideWithValue(prefs),
         ...requestsTestOverrides(requests, available: available),
       ];
 
@@ -233,6 +247,7 @@ void main() {
       libraryApiProvider.overrideWithValue(libraryWithDune()),
       sessionControllerProvider.overrideWith(
           () => FakeSessionController(const SessionSignedIn(testUser))),
+      sharedPreferencesProvider.overrideWithValue(prefs),
       requestsApiProvider.overrideWithValue(requests),
       socialAvailabilityProvider.overrideWith(() => availability),
     ]);
@@ -300,6 +315,7 @@ void main() {
         requestsAvailableProvider.overrideWithValue(false),
         sessionControllerProvider.overrideWith(
             () => FakeSessionController(const SessionSignedIn(testUser))),
+        sharedPreferencesProvider.overrideWithValue(prefs),
         socialAvailabilityProvider.overrideWith(() =>
             FakeSocialAvailability(const SocialFeatures(collections: true))),
         collectionsApiProvider.overrideWithValue(collections),
@@ -352,6 +368,151 @@ void main() {
       await tester.pump();
       expect(find.text('Saghe'), findsNothing);
       expect(find.text('Nessun risultato per "zzz"'), findsOneWidget);
+    });
+  });
+
+  group('campo e Invio', () {
+    late FakeLibraryApi api;
+    late GoRouter router;
+
+    setUp(() {
+      api = FakeLibraryApi()
+        ..onItems = ((query, start, limit) => switch (query.searchTerm) {
+              'dun' => query.kinds.contains(ItemKind.movie)
+                  ? pageOf([testItem(id: 'dune', name: 'Dune')])
+                  : pageOf([]),
+              'dark' => query.kinds.contains(ItemKind.series)
+                  ? pageOf([
+                      testItem(id: 'dark', name: 'Dark', kind: ItemKind.series),
+                    ])
+                  : pageOf([]),
+              'ist' => query.kinds.contains(ItemKind.series)
+                  ? pageOf([
+                      testItem(
+                          id: 'ist', name: "L'Istituto", kind: ItemKind.series),
+                    ])
+                  : pageOf([]),
+              _ => pageOf([]),
+            })
+        ..people = [];
+      router = GoRouter(initialLocation: '/search', routes: [
+        GoRoute(
+            path: '/search',
+            builder: (_, _) => const Scaffold(body: SearchScreen())),
+        GoRoute(path: '/item/:id', builder: (_, _) => const SizedBox()),
+      ]);
+    });
+
+    String location() => router.state.uri.toString();
+    List<String>? saved() => prefs.getStringList('search.recent.${testUser.id}');
+
+    Future<void> pumpSearch(WidgetTester tester) async {
+      await pumpAppRouter(tester, router, overrides: [
+        libraryApiProvider.overrideWithValue(api),
+        requestsAvailableProvider.overrideWithValue(false),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedIn(testUser))),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ]);
+      await tester.pump();
+    }
+
+    Future<void> type(WidgetTester tester, String term) async {
+      await tester.enterText(find.byType(TextField), term);
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+    }
+
+    Future<void> enter(WidgetTester tester) async {
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    String fieldText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+    bool fieldFocused(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).focusNode!.hasFocus;
+
+    testWidgets('✕ ed Esc svuotano e il campo resta col focus', (tester) async {
+      await pumpSearch(tester);
+      expect(find.byTooltip('Svuota'), findsNothing);
+
+      await type(tester, 'dun');
+      expect(find.byTooltip('Svuota'), findsOneWidget);
+      await tester.tap(find.byTooltip('Svuota'));
+      await tester.pump();
+      expect(fieldText(tester), '');
+      expect(fieldFocused(tester), isTrue);
+      expect(find.byTooltip('Svuota'), findsNothing);
+      expect(find.text('Dune'), findsNothing);
+
+      await type(tester, 'dun');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(fieldText(tester), '');
+      expect(fieldFocused(tester), isTrue);
+    });
+
+    testWidgets('Invio salva il termine e apre il miglior risultato',
+        (tester) async {
+      await pumpSearch(tester);
+      await type(tester, 'ist');
+      await enter(tester);
+
+      expect(location(), '/item/ist');
+      expect(saved(), ['ist']);
+    });
+
+    testWidgets('Invio prima dei 300 ms apre il miglior risultato del termine '
+        'nuovo', (tester) async {
+      await pumpSearch(tester);
+      await type(tester, 'dun');
+      expect(find.text('Dune'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'dark');
+      await enter(tester);
+
+      expect(location(), '/item/dark');
+      expect(saved(), ['dark']);
+    });
+
+    testWidgets('Invio mentre carica apre il miglior risultato del termine '
+        'nuovo', (tester) async {
+      await pumpSearch(tester);
+      await type(tester, 'dun');
+      final gate = Completer<void>();
+      api.itemsGateFor = (query) => query.searchTerm == 'dark' ? gate : null;
+
+      await type(tester, 'dark');
+      await enter(tester);
+      expect(location(), '/search');
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(location(), '/item/dark');
+    });
+
+    testWidgets('Invio su un termine nuovo senza miglior risultato non apre '
+        'niente', (tester) async {
+      await pumpSearch(tester);
+      await type(tester, 'dun');
+
+      await tester.enterText(find.byType(TextField), 'zzz');
+      await enter(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(location(), '/search');
+      expect(saved(), ['zzz']);
+    });
+
+    testWidgets('scrivere senza aprire nulla non salva', (tester) async {
+      await pumpSearch(tester);
+      await type(tester, 'dun');
+      expect(saved(), isNull);
     });
   });
 }

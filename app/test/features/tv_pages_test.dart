@@ -59,18 +59,23 @@ void main() {
     final requests = FakeRequestsApi()
       ..searchResults['dune'] = [testRequestable(title: 'Dune - Parte due')];
 
-    Future<void> pumpSearch(WidgetTester tester) => pumpApp(
+    Future<void> pumpSearch(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await pumpApp(
           tester,
           const Scaffold(body: SearchScreen()),
           tv: true,
           surfaceSize: _tvSize,
           overrides: [
             libraryApiProvider.overrideWithValue(library),
+            sharedPreferencesProvider.overrideWithValue(prefs),
             sessionControllerProvider.overrideWith(
                 () => FakeSessionController(const SessionSignedIn(testUser))),
             ...requestsTestOverrides(requests),
           ],
         );
+    }
 
     bool fieldFocused(WidgetTester tester) => tester
         .widget<EditableText>(find.byType(EditableText))
