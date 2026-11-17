@@ -25,6 +25,7 @@ import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/settings/settings_screen.dart';
 import 'package:wonderflix/features/update/update_controller.dart';
 import 'package:wonderflix/features/update/update_gate.dart';
+import 'package:wonderflix/ui/media_row.dart';
 import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/tv_focusable.dart';
 
@@ -129,10 +130,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
 
-      expect(
-          find.descendant(
-              of: find.byType(PosterCard), matching: find.byType(TvFocusable)),
+      // "Dune" è il miglior risultato: la fila Film ha solo la sua carta.
+      final films =
+          find.byWidgetPredicate((w) => w is MediaRow && w.title == 'Film');
+      expect(find.descendant(of: films, matching: find.byType(TvFocusable)),
           findsOneWidget);
+      expect(find.byType(PosterCard), findsNothing);
       // Sotto il miglior risultato e la griglia: fuori dalla zona costruita.
       final requestable = find.descendant(
           of: find.byType(RequestablesSection),

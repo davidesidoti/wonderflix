@@ -8,6 +8,7 @@ import '../../app/theme.dart';
 import '../../core/social/collections_models.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/media_row.dart' show tvRowFocusPadding;
 import '../../ui/smooth_scroll.dart';
 import '../../ui/tv_focusable.dart';
 import '../collections/collections_logic.dart';
@@ -21,6 +22,7 @@ import 'search_controller.dart';
 import 'search_ranking.dart';
 import 'search_results.dart';
 import 'search_start.dart';
+import 'search_tv.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -135,12 +137,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               child: SearchStart(onRecent: _searchRecent, side: side)),
         ),
         if (!starting)
-          padded(SearchResultsView(
-              state: state, sagas: sagas, onOpened: _remember)),
-        padded(RequestablesSection(
-            library: _libraryMatches(state),
-            term: state.term,
-            onOpened: _remember)),
+          form.tv
+              // Le file hanno i loro margini (dentro scorrono fino al bordo).
+              ? SearchTvResults(state: state, sagas: sagas, onOpened: _remember)
+              : padded(SearchResultsView(
+                  state: state, sagas: sagas, onOpened: _remember)),
+        Padding(
+          // Sulla TV la fila ha già [tvRowFocusPadding] ai lati: il titolo
+          // resta allineato a quelli sopra.
+          padding: EdgeInsets.symmetric(
+              horizontal: form.tv ? side - tvRowFocusPadding : side),
+          child: RequestablesSection(
+              library: _libraryMatches(state),
+              term: state.term,
+              onOpened: _remember),
+        ),
       ],
     );
   }

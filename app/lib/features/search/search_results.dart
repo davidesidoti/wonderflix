@@ -79,7 +79,7 @@ class SearchResultsView extends ConsumerWidget {
       return const SearchResultsSkeleton(key: ValueKey('loading'));
     }
     if (results.isEmpty && sagas.isEmpty) {
-      return _NoTitles(
+      return SearchNoTitles(
           key: const ValueKey('empty'), term: results.term, results: results);
     }
     return _Sections(
@@ -93,8 +93,8 @@ class SearchResultsView extends ConsumerWidget {
 
 /// "Nessun titolo per …", con "nemmeno su TMDB" quando "Da richiedere" ha
 /// finito senza titoli da mostrare.
-class _NoTitles extends ConsumerWidget {
-  const _NoTitles({super.key, required this.term, required this.results});
+class SearchNoTitles extends ConsumerWidget {
+  const SearchNoTitles({super.key, required this.term, required this.results});
 
   final String term;
   final SearchResults results;

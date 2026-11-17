@@ -63,36 +63,41 @@ class RequestablesSection extends ConsumerWidget {
     final titles = state.titles;
     final Widget body;
     if (state.error != null) {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(l.requestsSectionTitle, style: WfText.display(titleSize)),
-          const SizedBox(height: 4),
-          Text(l.requestsSectionSubtitle,
-              style: const TextStyle(color: WfColors.creamMuted)),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(l.requestsSeerrDown,
-                    style: const TextStyle(color: WfColors.creamMuted)),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton(
-                // Su oro sottile il bordo oro largo 2 si distingue poco: crema.
-                style: ButtonStyle(
-                    side: tvButtonSide(form.tv,
-                        const BorderSide(color: WfColors.gold), tvFocusSideOnGold)),
-                onPressed: () => ref
-                    .read(requestablesControllerProvider.notifier)
-                    .retry(
-                        language: Localizations.localeOf(context).languageCode),
-                child: Text(l.retry),
-              ),
-            ],
-          ),
-        ],
+      // Sulla TV come la fila, che ha [tvRowFocusPadding] ai lati.
+      body = Padding(
+        padding: EdgeInsets.symmetric(
+            horizontal: form.tv ? tvRowFocusPadding : 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l.requestsSectionTitle, style: WfText.display(titleSize)),
+            const SizedBox(height: 4),
+            Text(l.requestsSectionSubtitle,
+                style: const TextStyle(color: WfColors.creamMuted)),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(l.requestsSeerrDown,
+                      style: const TextStyle(color: WfColors.creamMuted)),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton(
+                  // Su oro sottile il bordo oro largo 2 si distingue poco: crema.
+                  style: ButtonStyle(
+                      side: tvButtonSide(form.tv,
+                          const BorderSide(color: WfColors.gold), tvFocusSideOnGold)),
+                  onPressed: () => ref
+                      .read(requestablesControllerProvider.notifier)
+                      .retry(
+                          language: Localizations.localeOf(context).languageCode),
+                  child: Text(l.retry),
+                ),
+              ],
+            ),
+          ],
+        ),
       );
     } else if (titles == null || matches == null || state.loading) {
       // Mentre Seerr cerca il termine nuovo i titoli del vecchio non vanno
