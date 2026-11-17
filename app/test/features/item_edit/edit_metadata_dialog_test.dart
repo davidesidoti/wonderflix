@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -19,6 +20,15 @@ import '../../support/item_edit_fakes.dart';
 import '../../support/pump_app.dart';
 
 void main() {
+  test('date italiane', () {
+    expect(parseItalianDate('17/12/2008'), DateTime(2008, 12, 17));
+    expect(parseItalianDate(' 17/12/2008 '), DateTime(2008, 12, 17));
+    expect(parseItalianDate('31/02/2024'), isNull);
+    expect(parseItalianDate('17/13/2008'), isNull);
+    expect(parseItalianDate('2008-12-17'), isNull);
+    expect(formatItalianDate(DateTime(2008, 12, 7)), '07/12/2008');
+  });
+
   group('applyMetadataEdits', () {
     test('il DTO mandato è quello letto con solo i campi cambiati', () {
       final original = testRawItem();
@@ -194,6 +204,11 @@ void main() {
 
     Finder save() => find.text('Salva');
 
+    bool saveEnabled(WidgetTester tester) =>
+        tester.widget<WfButton>(find.widgetWithText(WfButton, 'Salva'))
+            .onPressed !=
+        null;
+
     int revision(WidgetTester tester) => ProviderScope.containerOf(
       tester.element(find.byType(Scaffold).first),
     ).read(libraryRevisionProvider);
@@ -216,7 +231,7 @@ void main() {
       expect(textOf(tester, 'Frase di lancio'), 'Cosa sai?');
       expect(textOf(tester, 'Trama'), 'Una storia di viaggi nel tempo.');
       expect(textOf(tester, 'Anno'), '2017');
-      expect(textOf(tester, 'Data di uscita'), '2017-12-01');
+      expect(textOf(tester, 'Data di uscita'), '01/12/2017');
       expect(find.text('Drammatico'), findsOneWidget);
       expect(find.text('Fantascienza'), findsOneWidget);
       expect(find.text('TV-MA'), findsOneWidget);
@@ -254,10 +269,10 @@ void main() {
       await tester.tap(find.text('apri'));
       await tester.pump();
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(save(), findsNothing);
+      expect(saveEnabled(tester), isFalse);
       api.gate!.complete();
       await tester.pumpAndSettle();
-      expect(save(), findsOneWidget);
+      expect(textOf(tester, 'Titolo'), 'Dark');
     });
 
     testWidgets('Salva: updateItem, bump, snackbar', (tester) async {
@@ -320,28 +335,145 @@ void main() {
       expect(api.lastUpdate!['LockData'], isTrue);
     });
 
-    testWidgets('titolo vuoto o data impossibile: Salva spento', (
+    testWidgets('data sbagliata: errore sotto il campo, focus lì, nessun '
+        'salvataggio', (tester) async {
+      await open(tester);
+      // Prima di Salva nessun errore.
+      await tester.enterText(field('Data di uscita'), '17/13/2008');
+      await tester.pump();
+      expect(find.text(it.editErrorDate), findsNothing);
+      for (final text in ['17/13/2008', '31/02/2024', '2008-12-17']) {
+        await tester.enterText(field('Data di uscita'), text);
+        await tester.pump();
+        await tester.tap(save());
+        await tester.pumpAndSettle();
+        expect(find.text(it.editErrorDate), findsOneWidget, reason: text);
+        expect(
+          tester.widget<TextField>(field('Data di uscita')).focusNode!.hasFocus,
+          isTrue,
+        );
+        // Prima di riscriverla si toglie il focus, come chi va su Salva.
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pump();
+      }
+      expect(api.calls, isNot(contains('updateItem i1')));
+
+      await tester.enterText(field('Data di uscita'), '29/02/2020');
+      await tester.pump();
+      expect(find.text(it.editErrorDate), findsNothing);
+      await tester.tap(save());
+      await tester.pumpAndSettle();
+      expect(
+        DateTime.parse(api.lastUpdate!['PremiereDate'] as String),
+        DateTime.utc(2020, 2, 29),
+      );
+    });
+
+    testWidgets('titolo vuoto e anno sbagliato: errori, focus sul primo', (
       tester,
     ) async {
       await open(tester);
-      bool enabled() =>
-          tester.widget<WfButton>(find.byType(WfButton)).onPressed != null;
-      expect(enabled(), isTrue);
-
       await tester.enterText(field('Titolo'), '   ');
+      await tester.enterText(field('Anno'), '17');
       await tester.pump();
-      expect(enabled(), isFalse);
+      await tester.tap(save());
+      await tester.pumpAndSettle();
+
+      expect(find.text(it.editErrorName), findsOneWidget);
+      expect(find.text(it.editErrorYear), findsOneWidget);
+      expect(
+        tester.widget<TextField>(field('Titolo')).focusNode!.hasFocus,
+        isTrue,
+      );
+      expect(api.calls, isNot(contains('updateItem i1')));
+    });
+
+    testWidgets('il lucchetto dice lo stato a parole', (tester) async {
+      api.items['i1'] = testRawItem(lockedFields: ['Name']);
+      await open(tester);
+      expect(find.text('Bloccato'), findsOneWidget);
+      expect(find.text('Si aggiorna da solo'), findsNWidgets(3));
+      expect(find.text(it.editLockExplain), findsOneWidget);
+      // Il Titolo originale non è bloccabile: niente etichetta sopra.
+      final original = tester.getTopLeft(field('Titolo originale'));
+      final name = tester.getBottomLeft(field('Titolo'));
+      expect(original.dy - name.dy, lessThan(20));
+
+      await tester.enterText(field('Trama'), 'Altro');
+      await tester.pump();
+      expect(find.text('Bloccato'), findsNWidgets(2));
+      expect(find.text('Si aggiorna da solo'), findsNWidgets(2));
+
+      await tester.tap(find.text('Bloccato').first);
+      await tester.pump();
+      expect(find.text('Bloccato'), findsOneWidget);
+    });
+
+    testWidgets('il piede conta le modifiche e Salva è spento senza', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(saveEnabled(tester), isFalse);
+      expect(find.textContaining(RegExp(r'^\d+ modific')), findsNothing);
+
+      await tester.enterText(field('Titolo'), 'Dark 2');
+      await tester.pump();
+      expect(find.text('1 modifica'), findsOneWidget);
+      await tester.enterText(field('Trama'), 'Altra');
+      await tester.pump();
+      expect(find.text('2 modifiche'), findsOneWidget);
+      expect(saveEnabled(tester), isTrue);
+
+      // Rimesso com'era, il titolo non conta più.
       await tester.enterText(field('Titolo'), 'Dark');
       await tester.pump();
-      expect(enabled(), isTrue);
+      expect(find.text('1 modifica'), findsOneWidget);
+    });
 
-      // 30 febbraio: DateTime.tryParse lo sposterebbe al 1 marzo.
-      await tester.enterText(field('Data di uscita'), '2020-02-30');
+    testWidgets('con modifiche Esc chiede prima di buttarle', (tester) async {
+      await open(tester);
+      await tester.enterText(field('Titolo'), 'Dark 2');
       await tester.pump();
-      expect(enabled(), isFalse);
-      await tester.enterText(field('Data di uscita'), '2020-02-29');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text(it.discardChangesTitle(1)), findsOneWidget);
+    });
+
+    testWidgets('un genere scritto e non aggiunto entra al salvataggio', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.enterText(field('Aggiungi un genere'), 'Western');
       await tester.pump();
-      expect(enabled(), isTrue);
+      expect(find.text(it.editGenrePendingHint), findsOneWidget);
+      expect(find.text('1 modifica'), findsOneWidget);
+      await tester.tap(save());
+      await tester.pumpAndSettle();
+      expect(
+        api.lastUpdate!['Genres'],
+        ['Drammatico', 'Fantascienza', 'Western'],
+      );
+    });
+
+    testWidgets('Aggiungi accanto al campo del genere', (tester) async {
+      await open(tester);
+      await tester.enterText(field('Aggiungi un genere'), 'Noir');
+      await tester.pump();
+      await tester.tap(find.widgetWithText(WfButton, 'Aggiungi'));
+      await tester.pump();
+      expect(find.widgetWithText(InputChip, 'Noir'), findsOneWidget);
+      expect(textOf(tester, 'Aggiungi un genere'), '');
+    });
+
+    testWidgets('caricamento fallito: Riprova rilegge', (tester) async {
+      api.nextFailure = const ServerUnreachableException();
+      await open(tester);
+      expect(find.textContaining('non è raggiungibile'), findsOneWidget);
+      await tester.tap(find.text('Riprova'));
+      await tester.pumpAndSettle();
+      expect(textOf(tester, 'Titolo'), 'Dark');
+      expect(find.textContaining('non è raggiungibile'), findsNothing);
+      expect(find.text('Dark · Serie · 2017'), findsOneWidget);
     });
 
     testWidgets('etichetta dei generi e suggerimento delle cartelle', (
@@ -411,7 +543,8 @@ void main() {
       api.nextFailure = const ServerUnreachableException();
       await open(tester);
       expect(find.textContaining('non è raggiungibile'), findsOneWidget);
-      expect(save(), findsNothing);
+      expect(field('Titolo'), findsNothing);
+      expect(saveEnabled(tester), isFalse);
     });
   });
 }

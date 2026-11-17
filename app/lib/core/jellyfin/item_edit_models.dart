@@ -1,5 +1,5 @@
 /// I campi che Jellyfin sa bloccare uno per uno (`MetadataField`) fra quelli
-/// dell'editor: gli altri si proteggono solo con "Blocca tutti i metadati".
+/// dell'editor: gli altri si proteggono solo con "Blocca tutto il titolo".
 const lockableFields = {'Name', 'Overview', 'Genres', 'OfficialRating'};
 
 /// Una voce del menu delle classificazioni per età. [value] è `null` per

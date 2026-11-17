@@ -11,15 +11,18 @@ import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/item_edit_models.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/dialog_item_poster.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
-import '../auth/password_login_form.dart';
+import '../../ui/wf_dialog_parts.dart';
 import '../auth/session_controller.dart';
+import '../library/item_labels.dart';
 import '../library/library_providers.dart';
 import 'item_edit_providers.dart';
 
 /// Larghezza della finestra.
-const _dialogWidth = 640.0;
+const _dialogWidth = 880.0;
 
 /// Lato della rotella di caricamento.
 const _spinnerSize = 28.0;
@@ -109,21 +112,50 @@ Map<String, dynamic> applyMetadataEdits(
   return out;
 }
 
+/// "17/12/2008" → la data; tutto il resto (anche le date impossibili come il
+/// 31/02) → `null`.
+DateTime? parseItalianDate(String text) {
+  final match = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(text.trim());
+  if (match == null) return null;
+  final [day, month, year] = [
+    for (var i = 1; i <= 3; i++) int.parse(match[i]!),
+  ];
+  final date = DateTime(year, month, day);
+  // DateTime sposta le date impossibili (31 febbraio → 2 marzo): si rifiutano.
+  return date.day == day && date.month == month ? date : null;
+}
+
+/// La data come "07/12/2008".
+String formatItalianDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/'
+    '${d.month.toString().padLeft(2, '0')}/'
+    '${d.year.toString().padLeft(4, '0')}';
+
 /// Modifica i metadati di un titolo (spec R §7.8). Prende l'id e rilegge da
 /// sola, così la apre anche il riquadro delle segnalazioni.
 Future<void> showEditMetadataDialog(
   BuildContext context, {
   required String itemId,
   required ItemKind kind,
-}) => showWfDialog<void>(
-  context,
-  maxWidth: _dialogWidth,
-  semanticLabel: AppLocalizations.of(context).editMetadataTitle,
-  builder: (_) => _EditMetadataDialog(itemId: itemId, kind: kind),
-);
+}) {
+  final l = AppLocalizations.of(context);
+  final host = GlobalKey();
+  return showWfDialog<void>(
+    context,
+    maxWidth: _dialogWidth,
+    semanticLabel: l.editMetadataTitle,
+    compactTitle: l.editMetadataTitle,
+    builder: (_) => _EditMetadataDialog(key: host, itemId: itemId, kind: kind),
+    footer: (_) => WfHostFooter(host: host),
+  );
+}
 
 class _EditMetadataDialog extends ConsumerStatefulWidget {
-  const _EditMetadataDialog({required this.itemId, required this.kind});
+  const _EditMetadataDialog({
+    super.key,
+    required this.itemId,
+    required this.kind,
+  });
 
   final String itemId;
   final ItemKind kind;
@@ -133,7 +165,8 @@ class _EditMetadataDialog extends ConsumerStatefulWidget {
       _EditMetadataDialogState();
 }
 
-class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
+class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog>
+    with WfFooterHost<_EditMetadataDialog> {
   final _name = TextEditingController();
   final _originalTitle = TextEditingController();
   final _sortName = TextEditingController();
@@ -142,8 +175,12 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
   final _year = TextEditingController();
   final _date = TextEditingController();
   final _newGenre = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _yearFocus = FocusNode();
+  final _dateFocus = FocusNode();
 
   Map<String, dynamic>? _original;
+  JellyfinItem? _item;
   List<ParentalRatingOption> _ratings = const [];
   List<String> _genres = [];
   String _rating = '';
@@ -153,6 +190,9 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
   final _manual = <String>{};
   bool _lockAll = false;
   bool _busy = false;
+
+  /// Gli errori dei campi si mostrano solo dopo il primo "Salva".
+  bool _submitted = false;
   String? _error;
   Object? _loadError;
 
@@ -179,6 +219,9 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
     ]) {
       c.dispose();
     }
+    for (final f in [_nameFocus, _yearFocus, _dateFocus]) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -191,6 +234,7 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
       if (!mounted) return;
       setState(() {
         _original = raw;
+        _item = JellyfinItem.fromJson(raw);
         _ratings = ratings;
         _name.text = raw['Name'] as String? ?? '';
         _originalTitle.text = raw['OriginalTitle'] as String? ?? '';
@@ -201,13 +245,18 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
         _date.text = _originalDate(raw);
         _genres = [...?(raw['Genres'] as List?)?.cast<String>()];
         _rating = raw['OfficialRating'] as String? ?? '';
-        _locks = {...?(raw['LockedFields'] as List?)?.cast<String>()};
+        _locks = _originalLocks(raw);
         _lockAll = raw['LockData'] == true;
       });
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _loadError = error);
     }
+  }
+
+  void _retry() {
+    setState(() => _loadError = null);
+    unawaited(_load());
   }
 
   static String _originalTagline(Map<String, dynamic> raw) {
@@ -217,8 +266,15 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
 
   static String _originalDate(Map<String, dynamic> raw) {
     final date = raw['PremiereDate'];
-    return date is String && date.length >= 10 ? date.substring(0, 10) : '';
+    final parsed = date is String && date.length >= 10
+        ? DateTime.tryParse(date.substring(0, 10))
+        : null;
+    return parsed == null ? '' : formatItalianDate(parsed);
   }
+
+  static Set<String> _originalLocks(Map<String, dynamic> raw) => {
+    ...?(raw['LockedFields'] as List?)?.cast<String>(),
+  };
 
   /// Un campo bloccabile cambiato si blocca, salvo che l'utente abbia girato
   /// a mano il suo lucchetto.
@@ -236,38 +292,66 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
     final genre = _newGenre.text.trim();
     if (genre.isEmpty) return;
     _newGenre.clear();
-    if (_genres.contains(genre)) return;
+    if (_genres.contains(genre)) {
+      setState(() {});
+      return;
+    }
     setState(() => _genres = [..._genres, genre]);
     _touched('Genres');
   }
 
-  /// L'anno e la data vuoti o non validi non si salvano (si lasciano com'erano).
-  int? get _yearValue => int.tryParse(_year.text.trim());
-  DateTime? get _dateValue {
-    final text = _date.text.trim();
-    final date = DateTime.tryParse(text);
-    // tryParse sposta le date impossibili (30 febbraio -> 1 marzo): si rifiutano.
-    if (date == null ||
-        text.length < 10 ||
-        text.substring(0, 10) !=
-            '${date.year.toString().padLeft(4, '0')}-'
-                '${date.month.toString().padLeft(2, '0')}-'
-                '${date.day.toString().padLeft(2, '0')}') {
-      return null;
-    }
-    return date;
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: parseItalianDate(_date.text) ?? DateTime.now(),
+      firstDate: DateTime(1850),
+      lastDate: DateTime(2200),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _date.text = formatItalianDate(picked));
   }
 
-  bool get _inputValid =>
-      _name.text.trim().isNotEmpty &&
-      (_year.text.trim().isEmpty || _yearValue != null) &&
-      (_date.text.trim().isEmpty || _dateValue != null);
+  /// L'anno e la data vuoti non si salvano (si lasciano com'erano).
+  int? get _yearValue => _yearValid ? int.tryParse(_year.text.trim()) : null;
+  bool get _yearValid =>
+      _year.text.trim().isEmpty ||
+      RegExp(r'^\d{4}$').hasMatch(_year.text.trim());
+  bool get _dateValid =>
+      _date.text.trim().isEmpty || parseItalianDate(_date.text) != null;
+  bool get _nameValid => _name.text.trim().isNotEmpty;
+
+  /// I campi di testo con il valore letto, per il conteggio.
+  List<(TextEditingController, String)> _texts(Map<String, dynamic> o) => [
+    (_name, o['Name'] as String? ?? ''),
+    (_originalTitle, o['OriginalTitle'] as String? ?? ''),
+    (_sortName, o['ForcedSortName'] as String? ?? ''),
+    if (_hasTagline) (_tagline, _originalTagline(o)),
+    (_overview, o['Overview'] as String? ?? ''),
+    (_year, '${o['ProductionYear'] ?? ''}'),
+    (_date, _originalDate(o)),
+  ];
+
+  /// Le modifiche contate nel piede e da `WfDiscardGuard`.
+  int get _changes {
+    final o = _original;
+    if (o == null) return 0;
+    final genres = (o['Genres'] as List?)?.cast<String>() ?? const [];
+    final locks = _originalLocks(o);
+    return [
+      for (final (controller, before) in _texts(o)) controller.text != before,
+      _newGenre.text.trim().isNotEmpty ||
+          jsonEncode(_genres) != jsonEncode(genres),
+      _rating != (o['OfficialRating'] as String? ?? ''),
+      _lockAll != (o['LockData'] == true),
+      for (final key in _manual) _locks.contains(key) != locks.contains(key),
+    ].where((changed) => changed).length;
+  }
 
   MetadataEdits _edits(Map<String, dynamic> o) {
     String? text(TextEditingController c, String before) =>
         c.text == before ? null : c.text;
     final year = _yearValue;
-    final date = _dateValue;
+    final date = parseItalianDate(_date.text);
     final genres = (o['Genres'] as List?)?.cast<String>() ?? const [];
     return MetadataEdits(
       name: text(_name, o['Name'] as String? ?? ''),
@@ -278,7 +362,9 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
       year: year == o['ProductionYear'] ? null : year,
       premiereDate: _date.text.trim() == _originalDate(o) ? null : date,
       genres: jsonEncode(_genres) == jsonEncode(genres) ? null : _genres,
-      rating: _rating == (o['OfficialRating'] as String? ?? '') ? null : _rating,
+      rating: _rating == (o['OfficialRating'] as String? ?? '')
+          ? null
+          : _rating,
       lockedFields: _locks,
       unlockedFields: _manual.difference(_locks),
       lockAll: _lockAll,
@@ -287,7 +373,20 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
 
   Future<void> _save() async {
     final original = _original;
-    if (_busy || original == null || !_inputValid) return;
+    if (_busy || original == null) return;
+    // Il primo campo sbagliato prende il focus e non si chiama Jellyfin.
+    final wrong = [
+      if (!_nameValid) _nameFocus,
+      if (!_yearValid) _yearFocus,
+      if (!_dateValid) _dateFocus,
+    ];
+    if (wrong.isNotEmpty) {
+      setState(() => _submitted = true);
+      wrong.first.requestFocus();
+      return;
+    }
+    // Un genere scritto e non aggiunto entra ora.
+    _addGenre();
     final api = ref.read(itemEditApiProvider);
     // Letti prima dell'attesa: la finestra può chiudersi nel frattempo.
     final session = ref.read(sessionControllerProvider.notifier);
@@ -318,62 +417,124 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
     }
   }
 
-  Widget _lock(AppLocalizations l, String key) {
-    final locked = _locks.contains(key);
-    return IconButton(
-      tooltip: locked ? l.editUnlockField : l.editLockField,
-      onPressed: _busy ? null : () => _toggleLock(key),
-      icon: Icon(
-        locked ? LucideIcons.lock : LucideIcons.lockOpen,
-        size: 18,
-        color: locked ? WfColors.cream : WfColors.creamMuted,
+  @override
+  Widget buildFooter(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final changes = _changes;
+    final loadError = _loadError;
+    return WfDialogFooter(
+      // Gli errori restano visibili anche con il corpo scorso.
+      note:
+          _error ??
+          (loadError != null
+              ? describeError(l, loadError)
+              : changes > 0
+              ? l.editChanges(changes)
+              : null),
+      cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+      primary: WfButton.primary(
+        label: l.editSave,
+        icon: LucideIcons.check,
+        onPressed: _busy || changes == 0 ? null : () => unawaited(_save()),
       ),
     );
   }
 
-  Widget _row(Widget field, [Widget? lock]) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(child: field),
-      // Allinea il lucchetto a quelli dei campi con l'etichetta.
-      SizedBox(width: 40, child: lock),
-    ],
-  );
+  /// Lo stato del lucchetto a parole, sopra il campo a destra; un tocco lo gira.
+  Widget _lock(AppLocalizations l, String key) {
+    final locked = _locks.contains(key);
+    final color = locked ? WfColors.gold : WfColors.creamMuted;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Tooltip(
+        message: locked ? l.editUnlockField : l.editLockField,
+        child: TextButton.icon(
+          onPressed: _busy ? null : () => _toggleLock(key),
+          style: TextButton.styleFrom(
+            foregroundColor: color,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            textStyle: const TextStyle(fontSize: 12.5),
+          ),
+          icon: Icon(
+            locked ? LucideIcons.lock : LucideIcons.lockOpen,
+            size: 14,
+            color: color,
+          ),
+          label: Text(locked ? l.editLocked : l.editAutoUpdates),
+        ),
+      ),
+    );
+  }
 
   Widget _textField(
     TextEditingController controller,
     String label, {
     String? lockKey,
     int maxLines = 1,
+    FocusNode? focusNode,
+    String? error,
+    String? hint,
+    Widget? suffix,
+    TextInputType? keyboardType,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
-    child: _row(
-      TextField(
-        controller: controller,
-        enabled: !_busy,
-        minLines: maxLines > 1 ? 3 : 1,
-        maxLines: maxLines,
-        decoration: InputDecoration(labelText: label),
-        onChanged: (_) {
-          if (lockKey != null) _touched(lockKey);
-          setState(() {});
-        },
-      ),
-      lockKey == null
-          ? null
-          : _lock(AppLocalizations.of(context), lockKey),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (lockKey != null) _lock(AppLocalizations.of(context), lockKey),
+        TextField(
+          controller: controller,
+          focusNode: focusNode,
+          enabled: !_busy,
+          minLines: maxLines > 1 ? 3 : 1,
+          maxLines: maxLines,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            errorText: _submitted ? error : null,
+            errorMaxLines: 2,
+            suffixIcon: suffix,
+          ),
+          onChanged: (_) {
+            if (lockKey != null) _touched(lockKey);
+            setState(() {});
+          },
+        ),
+      ],
+    ),
+  );
+
+  Widget _group(String title, List<Widget> children) => Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: WfText.display(20)),
+        const SizedBox(height: 8),
+        ...children,
+      ],
     ),
   );
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final original = _original;
+    final item = _item;
     final Widget body;
-    if (original != null) {
+    if (_original != null) {
       body = _form(l);
     } else if (_loadError != null) {
-      body = ErrorBanner(describeError(l, _loadError!));
+      // L'errore è nel piede; qui si rilegge.
+      body = Align(
+        alignment: Alignment.centerLeft,
+        child: WfButton.secondary(
+          label: l.retry,
+          icon: LucideIcons.refreshCw,
+          onPressed: _retry,
+        ),
+      );
     } else {
       body = const Center(
         child: SizedBox.square(
@@ -382,42 +543,22 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
         ),
       );
     }
-    return PopScope(
-      canPop: !_busy,
-      child: SingleChildScrollView(
+    // Esc e il clic fuori non chiudono la finestra durante il salvataggio.
+    return WfDiscardGuard(
+      changes: _changes,
+      child: PopScope(
+        canPop: !_busy,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              l.editMetadataTitle,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            WfDialogHeader(
+              title: l.editMetadataTitle,
+              subtitle: item == null ? null : itemContextLine(l, item),
+              leading: DialogItemPoster(itemId: widget.itemId),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             body,
-            const SizedBox(height: 24),
-            Wrap(
-              alignment: WrapAlignment.end,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                TextButton(
-                  onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                  child: Text(
-                    MaterialLocalizations.of(context).cancelButtonLabel,
-                  ),
-                ),
-                if (original != null)
-                  WfButton.primary(
-                    label: l.editSave,
-                    icon: LucideIcons.check,
-                    onPressed: _busy || !_inputValid
-                        ? null
-                        : () => unawaited(_save()),
-                  ),
-              ],
-            ),
           ],
         ),
       ),
@@ -432,89 +573,138 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
         if (option.value != null && option.name.isNotEmpty) option.name,
     ];
     if (!ratingNames.contains(_rating)) ratingNames.add(_rating);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _textField(_name, l.editFieldName, lockKey: 'Name'),
+    final pendingGenre = _newGenre.text.trim().isNotEmpty;
+    final left = [
+      _group(l.editGroupTitles, [
+        _textField(
+          _name,
+          l.editFieldName,
+          lockKey: 'Name',
+          focusNode: _nameFocus,
+          error: _nameValid ? null : l.editErrorName,
+        ),
         _textField(_originalTitle, l.editFieldOriginalTitle),
         _textField(_sortName, l.editFieldSortName),
-        if (_hasTagline) _textField(_tagline, l.editFieldTagline),
+      ]),
+      _group(l.editGroupOverview, [
         _textField(
           _overview,
           l.editFieldOverview,
           lockKey: 'Overview',
           maxLines: 6,
         ),
+        if (_hasTagline) _textField(_tagline, l.editFieldTagline),
+      ]),
+    ];
+    final right = [
+      _group(l.editGroupDates, [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: _textField(_year, l.editFieldYear)),
+            Expanded(
+              child: _textField(
+                _year,
+                l.editFieldYear,
+                focusNode: _yearFocus,
+                keyboardType: TextInputType.number,
+                error: _yearValid ? null : l.editErrorYear,
+              ),
+            ),
             const SizedBox(width: 12),
-            Expanded(child: _textField(_date, l.editFieldPremiereDate)),
+            Expanded(
+              flex: 2,
+              child: _textField(
+                _date,
+                l.editFieldPremiereDate,
+                focusNode: _dateFocus,
+                hint: l.editDateHint,
+                keyboardType: TextInputType.datetime,
+                error: _dateValid ? null : l.editErrorDate,
+                suffix: IconButton(
+                  tooltip: l.editPickDate,
+                  icon: const Icon(LucideIcons.calendar, size: 18),
+                  onPressed: _busy ? null : () => unawaited(_pickDate()),
+                ),
+              ),
+            ),
           ],
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            l.editFieldGenres,
-            style: const TextStyle(color: WfColors.creamMuted, fontSize: 12),
-          ),
-        ),
-        _row(
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final genre in _genres)
-                InputChip(
-                  label: Text(genre),
-                  deleteIcon: const Icon(LucideIcons.x, size: 14),
-                  onDeleted: _busy
-                      ? null
-                      : () {
-                          setState(() => _genres = [
+      ]),
+      _group(l.editFieldGenres, [
+        _lock(l, 'Genres'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final genre in _genres)
+              InputChip(
+                label: Text(genre),
+                deleteIcon: const Icon(LucideIcons.x, size: 14),
+                onDeleted: _busy
+                    ? null
+                    : () {
+                        setState(
+                          () => _genres = [
                             for (final g in _genres)
                               if (g != genre) g,
-                          ]);
-                          _touched('Genres');
-                        },
-                ),
-            ],
-          ),
-          _lock(l, 'Genres'),
+                          ],
+                        );
+                        _touched('Genres');
+                      },
+              ),
+          ],
         ),
         const SizedBox(height: 8),
-        _row(
-          TextField(
-            controller: _newGenre,
-            enabled: !_busy,
-            decoration: InputDecoration(labelText: l.editFieldAddGenre),
-            onSubmitted: (_) => _addGenre(),
-          ),
-        ),
-        const SizedBox(height: 12),
-        _row(
-          DropdownButtonFormField<String>(
-            initialValue: _rating,
-            dropdownColor: WfColors.surfaceHigh,
-            decoration: InputDecoration(labelText: l.editFieldRating),
-            onChanged: _busy
-                ? null
-                : (value) {
-                    setState(() => _rating = value ?? '');
-                    _touched('OfficialRating');
-                  },
-            items: [
-              for (final name in ratingNames)
-                DropdownMenuItem(
-                  value: name,
-                  child: Text(name.isEmpty ? l.editRatingNone : name),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _newGenre,
+                enabled: !_busy,
+                decoration: InputDecoration(
+                  labelText: l.editFieldAddGenre,
+                  helperText: pendingGenre ? l.editGenrePendingHint : null,
+                  helperMaxLines: 2,
                 ),
-            ],
-          ),
-          _lock(l, 'OfficialRating'),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (_) => _addGenre(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: WfButton.secondary(
+                label: l.editAddGenre,
+                icon: LucideIcons.plus,
+                onPressed: _busy || !pendingGenre ? null : _addGenre,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+      ]),
+      _group(l.editGroupRating, [
+        _lock(l, 'OfficialRating'),
+        DropdownButtonFormField<String>(
+          initialValue: _rating,
+          dropdownColor: WfColors.surfaceHigh,
+          decoration: InputDecoration(labelText: l.editFieldRating),
+          onChanged: _busy
+              ? null
+              : (value) {
+                  setState(() => _rating = value ?? '');
+                  _touched('OfficialRating');
+                },
+          items: [
+            for (final name in ratingNames)
+              DropdownMenuItem(
+                value: name,
+                child: Text(name.isEmpty ? l.editRatingNone : name),
+              ),
+          ],
+        ),
+      ]),
+      _group(l.editGroupLockAll, [
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l.editLockAll),
@@ -527,10 +717,43 @@ class _EditMetadataDialogState extends ConsumerState<_EditMetadataDialog> {
           value: _lockAll,
           onChanged: _busy ? null : (value) => setState(() => _lockAll = value),
         ),
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          ErrorBanner(_error!),
-        ],
+      ]),
+    ];
+    final explain = Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Text(
+        l.editLockExplain,
+        style: const TextStyle(color: WfColors.creamMuted, fontSize: 13),
+      ),
+    );
+    if (FormFactor.of(context).compact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [explain, ...left, ...right],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        explain,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: left,
+              ),
+            ),
+            const SizedBox(width: 24),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: right,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
