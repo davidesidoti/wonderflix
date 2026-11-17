@@ -42,7 +42,12 @@ final class SessionSignedOut extends SessionState {
 }
 
 final class SessionUnreachable extends SessionState {
-  const SessionUnreachable({this.retryUserId});
+  const SessionUnreachable({
+    this.retryUserId,
+    this.reason = UnreachableReason.notResponding,
+  });
+
+  final UnreachableReason reason;
 
   /// Il profilo scelto in "Chi guarda?" che non si è aperto: "Riprova" apre
   /// di nuovo quello. `null`: si riparte da `restore` (che con un solo
@@ -338,8 +343,8 @@ class SessionController extends Notifier<SessionState> {
         NoStoredSession() => const SessionSignedOut(),
         StoredSessionExpired(:final userId) =>
           SessionSignedOut(expired: true, reloginUserId: userId),
-        RestoreServerUnreachable() =>
-          SessionUnreachable(retryUserId: retryUserId),
+        RestoreServerUnreachable(:final reason) =>
+          SessionUnreachable(retryUserId: retryUserId, reason: reason),
         ChooseProfile() => const SessionChoosingProfile(),
       };
 

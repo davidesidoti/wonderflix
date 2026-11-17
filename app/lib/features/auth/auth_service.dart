@@ -36,8 +36,20 @@ final class StoredSessionExpired extends RestoreResult {
   final String userId;
 }
 
+/// Perché il server non si raggiunge (spec §9): nessuna connessione, Jellyfin
+/// che si avvia (503 con la pagina HTML), o un'altra risposta sbagliata.
+enum UnreachableReason { offline, starting, notResponding }
+
+UnreachableReason unreachableReasonOf(ApiException error) => switch (error) {
+      ServerUnreachableException() => UnreachableReason.offline,
+      ServerErrorException(statusCode: 503) => UnreachableReason.starting,
+      _ => UnreachableReason.notResponding,
+    };
+
 final class RestoreServerUnreachable extends RestoreResult {
-  const RestoreServerUnreachable();
+  const RestoreServerUnreachable(
+      [this.reason = UnreachableReason.notResponding]);
+  final UnreachableReason reason;
 }
 
 /// Più profili salvati: si sceglie in "Chi guarda?" (spec K §9.3).
@@ -145,9 +157,9 @@ class AuthService {
       _deactivate();
       await _save(_book.upsert(profile.copyWith(expired: true)));
       return StoredSessionExpired(profile.userId);
-    } on ApiException {
+    } on ApiException catch (error) {
       _deactivate();
-      return const RestoreServerUnreachable();
+      return RestoreServerUnreachable(unreachableReasonOf(error));
     }
   }
 

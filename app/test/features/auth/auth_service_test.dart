@@ -152,6 +152,30 @@ void main() {
       expect(store.book.byId('u1')!.accessToken, 'tok-u1');
     });
 
+    test('il motivo dal tipo di errore', () {
+      expect(unreachableReasonOf(const ServerUnreachableException()),
+          UnreachableReason.offline);
+      expect(unreachableReasonOf(const ServerErrorException(503)),
+          UnreachableReason.starting);
+      expect(unreachableReasonOf(const ServerErrorException(502)),
+          UnreachableReason.notResponding);
+      expect(unreachableReasonOf(const ServerErrorException(504)),
+          UnreachableReason.notResponding);
+      expect(unreachableReasonOf(const ServerErrorException(null)),
+          UnreachableReason.notResponding);
+      expect(unreachableReasonOf(const ForbiddenException()),
+          UnreachableReason.notResponding);
+    });
+
+    test('un 503 aprendo il profilo: il server si sta avviando', () async {
+      store.book = bookOf([mario]);
+      when(() => anyGetMe(api)).thenThrow(const ServerErrorException(503));
+
+      final result = await service.restore();
+      expect((result as RestoreServerUnreachable).reason,
+          UnreachableReason.starting);
+    });
+
     test('due profili: si sceglie, nessuna chiamata', () async {
       store.book = bookOf([mario, luigi]);
       expect(await service.restore(), isA<ChooseProfile>());

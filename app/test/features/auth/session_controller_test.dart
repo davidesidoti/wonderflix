@@ -129,6 +129,13 @@ void main() {
       expect(state(), isA<SessionUnreachable>());
     });
 
+    test('il controller porta il motivo nella sessione', () async {
+      when(() => auth.restore()).thenAnswer((_) async =>
+          const RestoreServerUnreachable(UnreachableReason.offline));
+      await controller().restore();
+      expect((state() as SessionUnreachable).reason, UnreachableReason.offline);
+    });
+
     test('errore inatteso → Unreachable', () async {
       when(() => auth.restore()).thenThrow(StateError('boom'));
       await controller().restore();
