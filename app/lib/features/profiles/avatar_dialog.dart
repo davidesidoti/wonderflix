@@ -16,6 +16,7 @@ import '../../ui/tv_focusable.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
+import '../../ui/wf_dialog_parts.dart';
 import '../auth/password_login_form.dart';
 import '../auth/session_controller.dart';
 import '../social/avatars_provider.dart';
@@ -117,14 +118,18 @@ Future<void> showAvatarDialog(
   required String userId,
   required String name,
   required String? imageTag,
-}) => showWfDialog<void>(
-  context,
-  maxWidth: _dialogWidth,
-  semanticLabel: AppLocalizations.of(context).profileImageTitle(name),
-  fullPageWhenCompact: !FormFactor.of(context).tv,
-  builder: (context) =>
-      AvatarDialog(userId: userId, name: name, imageTag: imageTag),
-);
+}) {
+  final title = AppLocalizations.of(context).profileImageTitle(name);
+  return showWfDialog<void>(
+    context,
+    maxWidth: _dialogWidth,
+    semanticLabel: title,
+    compactTitle: title,
+    fullPageWhenCompact: !FormFactor.of(context).tv,
+    builder: (context) =>
+        AvatarDialog(userId: userId, name: name, imageTag: imageTag),
+  );
+}
 
 /// La finestra dell'immagine del profilo (spec K §10.1, revisione §9.1):
 /// l'immagine attuale con "Togli immagine", le schede Avatar e quella del
@@ -164,15 +169,18 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
   bool _uploading = false;
   String? _error;
 
-  /// In TV non si sceglie un file: solo la galleria, senza schede.
-  late final bool _tv;
+  /// Il dispositivo dà il nome alla scheda del file. In TV non si sceglie un
+  /// file: solo la galleria, senza schede.
+  late final DeviceKind _device;
+
+  bool get _tv => _device == DeviceKind.tv;
 
   AvatarImageTools get _tools => ref.read(avatarImageToolsProvider);
 
   @override
   void initState() {
     super.initState();
-    _tv = ref.read(deviceKindProvider) == DeviceKind.tv;
+    _device = ref.read(deviceKindProvider);
     _tabs = TabController(length: 2, vsync: this)..addListener(_onTabChanged);
   }
 
@@ -294,39 +302,34 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Column(
-              children: [
-                UserAvatar(
-                  userId: widget.userId,
-                  name: widget.name,
-                  size: _currentSize,
-                  imageTag: widget.imageTag,
-                ),
-                if (widget.imageTag != null) ...[
-                  const SizedBox(height: 8),
-                  TextButton(
-                    key: const Key('avatar-remove'),
-                    onPressed: _busy
-                        ? null
-                        : () => unawaited(_save(() async => null)),
-                    child: Text(l.profileImageRemove),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                l.profileImageTitle(widget.name),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: WfText.display(32),
+        WfDialogHeader(
+          title: l.profileImageTitle(widget.name),
+          leading: Flex(
+            // Col titolo nella barra (telefono) "Togli immagine" sta accanto
+            // all'immagine: la testa è più bassa.
+            direction: wfDialogHasTitleBar(context)
+                ? Axis.horizontal
+                : Axis.vertical,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              UserAvatar(
+                userId: widget.userId,
+                name: widget.name,
+                size: _currentSize,
+                imageTag: widget.imageTag,
               ),
-            ),
-          ],
+              if (widget.imageTag != null) ...[
+                const SizedBox(width: 8, height: 8),
+                TextButton(
+                  key: const Key('avatar-remove'),
+                  onPressed: _busy
+                      ? null
+                      : () => unawaited(_save(() async => null)),
+                  child: Text(l.profileImageRemove),
+                ),
+              ],
+            ],
+          ),
         ),
         const SizedBox(height: 12),
         if (!_tv)
@@ -334,11 +337,7 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
             controller: _tabs,
             tabs: [
               Tab(text: l.profileImageAvatars),
-              Tab(
-                text: l.profileImageFromDevice(
-                  ref.read(deviceKindProvider).name,
-                ),
-              ),
+              Tab(text: l.profileImageFromDevice(_device.name)),
             ],
           ),
         SizedBox(
@@ -397,6 +396,9 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
             itemBuilder: (context, i) => Center(
               child: _GalleryTile(
                 key: ValueKey('gallery-$i'),
+                // In TV il focus parte dalla galleria, non da "Togli
+                // immagine" (che non chiede conferma).
+                autofocus: _tv && i == 0,
                 avatar: galleryAvatars[i],
                 label: l.profileImageGalleryItem(i + 1),
                 selected: selected == i,
@@ -431,7 +433,12 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
     final working = _working;
     final area = _area;
     if (working == null) {
-      return Center(
+      // Nello stretto in alto: al centro dei 380 punti finirebbe sotto la
+      // piega di un telefono di traverso.
+      return Align(
+        alignment: FormFactor.of(context).compact
+            ? const Alignment(0, -0.8)
+            : Alignment.center,
         child: WfButton.secondary(
           label: l.profileImageChoose,
           icon: LucideIcons.imagePlus,
@@ -512,8 +519,10 @@ class _GalleryTile extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.autofocus = false,
   });
 
+  final bool autofocus;
   final GalleryAvatar avatar;
   final String label;
   final bool selected;
@@ -531,6 +540,7 @@ class _GalleryTile extends StatelessWidget {
         dimension: _galleryTileExtent,
         // In TV il focus è di TvFocusable.
         child: TvFocusable(
+          autofocus: autofocus,
           onActivate: onTap,
           borderRadius: BorderRadius.circular(_galleryTileExtent / 2),
           child: InkWell(

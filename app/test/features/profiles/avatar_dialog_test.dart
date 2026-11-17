@@ -195,6 +195,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('TV: il focus parte dal primo avatar, OK lo sceglie, Su arriva '
+      'a "Togli immagine"', (tester) async {
+    await openDialog(
+      tester,
+      imageTag: 't1',
+      tv: true,
+      surfaceSize: const Size(960, 540),
+    );
+
+    bool focusedIn(Finder finder) {
+      final focused = FocusManager.instance.primaryFocus?.context;
+      return focused != null &&
+          find
+              .ancestor(
+                of: find.byElementPredicate((e) => e == focused),
+                matching: finder,
+              )
+              .evaluate()
+              .isNotEmpty;
+    }
+
+    expect(focusedIn(find.byKey(const ValueKey('gallery-0'))), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    expect(onPressed(tester, 'Usa questo'), isNotNull);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(focusedIn(find.byKey(const Key('avatar-remove'))), isTrue);
+
+    final dialog = tester.getRect(find.byType(Dialog));
+    expect(dialog.top, greaterThanOrEqualTo(0));
+    expect(dialog.bottom, lessThanOrEqualTo(540));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('telefono: il titolo solo nella barra', (tester) async {
+    await openDialog(tester, surfaceSize: const Size(390, 844));
+
+    expect(find.text('Immagine di Mario'), findsOneWidget);
+    // La barra in alto è alta 56.
+    expect(tester.getTopLeft(find.text('Immagine di Mario')).dy, lessThan(56));
+  });
+
   testWidgets('"Usa questo" solo con un avatar scelto', (tester) async {
     await openDialog(tester);
 
@@ -589,12 +633,12 @@ void main() {
         await openDialog(tester, surfaceSize: size);
         await tester.tap(find.text('Dal PC'));
         await tester.pumpAndSettle();
-        // Nello stretto la pagina scorre: il pulsante può stare sotto.
-        await tester.ensureVisible(find.text("Scegli un'immagine…"));
-        await tester.pumpAndSettle();
         await tester.tap(find.text("Scegli un'immagine…"));
         await tester.pumpAndSettle();
         expect(find.byType(AvatarCropper), findsOneWidget);
+        // Nello stretto la pagina scorre: "Usa questa" può stare sotto.
+        await tester.ensureVisible(find.text('Usa questa'));
+        await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
       },
     );
