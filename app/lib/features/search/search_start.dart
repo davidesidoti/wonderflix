@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
@@ -224,8 +227,22 @@ class _SearchStartState extends ConsumerState<SearchStart>
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l.searchLatestTitle,
-              style: WfText.display(sectionTitleSize(form))),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(l.searchLatestTitle,
+                    overflow: TextOverflow.ellipsis,
+                    style: WfText.display(sectionTitleSize(form))),
+              ),
+              // Il catalogo senza genere è già per data di aggiunta; con push
+              // Indietro torna a Cerca. Il tipo è quello scelto sopra.
+              TextButton(
+                  onPressed: () => unawaited(context
+                      .push(_kind == ItemKind.series ? '/series' : '/movies')),
+                  child: Text(l.searchSeeAll)),
+            ],
+          ),
           const SizedBox(height: 16),
           LayoutBuilder(builder: (context, constraints) {
             final width = constraints.maxWidth;

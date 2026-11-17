@@ -191,4 +191,33 @@ void main() {
     expect(router.routerDelegate.currentConfiguration.uri.toString(),
         '/series?genre=Dramma');
   });
+
+  testWidgets('"Vedi tutti" degli aggiunti apre il catalogo del tipo scelto, '
+      'Indietro torna a Cerca', (tester) async {
+    final router = GoRouter(initialLocation: '/search', routes: [
+      GoRoute(
+          path: '/search',
+          builder: (_, _) => const Scaffold(body: SearchScreen())),
+      GoRoute(path: '/:p', builder: (_, _) => const SizedBox()),
+    ]);
+    await pumpAppRouter(tester, router, overrides: overrides());
+    await tester.pump();
+    String location() => router.state.uri.toString();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Vedi tutti'));
+    await tester.pumpAndSettle();
+    expect(location(), '/movies');
+
+    router.pop();
+    await tester.pumpAndSettle();
+    expect(location(), '/search');
+    expect(find.byType(SearchScreen), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Serie'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.widgetWithText(TextButton, 'Vedi tutti'));
+    await tester.pumpAndSettle();
+    expect(location(), '/series');
+  });
 }
