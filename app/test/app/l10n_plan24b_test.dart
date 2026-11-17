@@ -75,17 +75,20 @@ const _keys = [
   'subtitlesNextPlayback',
   'playerSearchSubtitles',
   'mediaInfoTitle',
-  'mediaInfoVersion',
-  'mediaInfoContainer',
+  'mediaInfoFormat',
   'mediaInfoSize',
   'mediaInfoDuration',
   'mediaInfoBitrate',
   'mediaInfoFile',
   'mediaInfoVideo',
-  'mediaInfoAudio',
-  'mediaInfoSubtitles',
-  'mediaInfoChannels',
+  'mediaInfoAudioCount',
+  'mediaInfoSubtitlesCount',
   'mediaInfoDefault',
+  'mediaInfoExternal',
+  'mediaInfoEmbedded',
+  'mediaInfoCopy',
+  'mediaInfoCopied',
+  'mediaInfoError',
   'mediaInfoUnavailable',
 ];
 
@@ -122,8 +125,7 @@ void main() {
     expect(it.subtitlesDownloads(1), '1 download');
     expect(it.subtitlesDownloads(3), '3 download');
     expect(it.subtitlesWaiting, 'Aspetto che Jellyfin aggiunga la traccia…');
-    expect(it.mediaInfoVersion('4K'), 'Versione: 4K');
-    expect(it.mediaInfoChannels(6), '6 canali');
+    expect(it.mediaInfoAudioCount(2), 'Audio · 2');
 
     expect(en.reportsOpenTitle, 'Open reports');
     expect(en.subtitlesDownloads(1), '1 download');

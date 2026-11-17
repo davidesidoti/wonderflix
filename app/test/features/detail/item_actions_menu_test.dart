@@ -420,7 +420,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Info tecniche…'));
     await tester.pumpAndSettle();
-    expect(find.text('mkv'), findsOneWidget);
+    expect(find.text('MKV'), findsOneWidget);
   });
 
   testWidgets('il bottone su un episodio non fa partire la riproduzione',
