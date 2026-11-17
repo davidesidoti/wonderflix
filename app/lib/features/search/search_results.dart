@@ -20,6 +20,7 @@ import '../collections/sagas_search_section.dart';
 import '../requests/requestables_controller.dart';
 import '../requests/requests_providers.dart';
 import 'search_best.dart';
+import 'people_search_screen.dart';
 import 'search_controller.dart';
 import 'search_ranking.dart';
 
@@ -167,6 +168,10 @@ class _Sections extends StatelessWidget {
             facts: results.facts,
             term: term,
             total: results.peopleTotal,
+            onSeeAll: () {
+              onOpened();
+              openPeopleSearch(context, term);
+            },
             onOpened: onOpened);
 
     final bestCard = best == null
@@ -251,6 +256,19 @@ class _PeopleRow extends StatelessWidget {
         count: '${results.peopleTotal}',
         titleSize: 26,
         side: 0,
+        trailing: results.peopleTotal > results.people.length
+            ? SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    onOpened();
+                    openPeopleSearch(context, term);
+                  },
+                  child: Text(AppLocalizations.of(context)
+                      .searchSeeAllPeopleCount(results.peopleTotal)),
+                ),
+              )
+            : null,
         // Tondo 72, spazio, nome su due righe e titoli.
         height: 80 + MediaQuery.textScalerOf(context).scale(56),
         itemCount: people.length,

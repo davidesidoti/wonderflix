@@ -350,9 +350,13 @@ class SearchPeopleList extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text(
-              l.searchPeople,
-              style: WfText.display(form.tv ? 22 : (form.compact ? 26 : 30)),
+            Flexible(
+              child: Text(
+                l.searchPeople,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: WfText.display(form.tv ? 22 : (form.compact ? 26 : 30)),
+              ),
             ),
             const SizedBox(width: 10),
             Text(

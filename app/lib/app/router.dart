@@ -30,6 +30,7 @@ import '../features/recommendations/recommend_panel.dart';
 import '../features/requests/requests_navigation.dart';
 import '../features/requests/requests_screen.dart';
 import '../features/requests/tmdb_title_screen.dart';
+import '../features/search/people_search_screen.dart';
 import '../features/search/search_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/startup/splash_screen.dart';
@@ -362,6 +363,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 key: ValueKey(state.pathParameters['id']),
                 personId: state.pathParameters['id']!,
                 launch: _heroLaunch(state),
+              ),
+              underBar: true,
+            ),
+          ),
+          GoRoute(
+            path: '/people',
+            pageBuilder: (context, state) => detailPage(
+              context,
+              state,
+              PeopleSearchScreen(
+                key: ValueKey(state.uri.toString()),
+                term: state.uri.queryParameters['q'] ?? '',
               ),
               underBar: true,
             ),
