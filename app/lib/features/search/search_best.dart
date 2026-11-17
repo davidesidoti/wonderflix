@@ -350,20 +350,31 @@ class SearchPeopleList extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Flexible(
-              child: Text(
-                l.searchPeople,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: WfText.display(form.tv ? 22 : (form.compact ? 26 : 30)),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: Text(
+                      l.searchPeople,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: WfText.display(
+                        form.tv ? 22 : (form.compact ? 26 : 30),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '$total',
+                    style: _muted.copyWith(
+                      fontSize: 12.5,
+                      fontFeatures: _tabular,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 10),
-            Text(
-              '$total',
-              style: _muted.copyWith(fontSize: 12.5, fontFeatures: _tabular),
-            ),
-            const Spacer(),
             if (onSeeAll != null && total > maxRows)
               TextButton(
                 onPressed: onSeeAll,

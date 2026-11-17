@@ -135,6 +135,36 @@ void main() {
     },
   );
 
+  testWidgets('a 380 px "Vedi tutte" sta al bordo destro, senza overflow', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 380,
+            child: SearchPeopleList(
+              people: [nolan],
+              facts: null,
+              term: 'nol',
+              total: 459,
+              onSeeAll: () {},
+              onOpened: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getTopRight(find.byType(TextButton)).dx,
+      tester.getTopRight(find.byType(SearchPeopleList)).dx,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('senza onSeeAll niente Vedi tutte; righe alla stessa altezza', (
     tester,
   ) async {

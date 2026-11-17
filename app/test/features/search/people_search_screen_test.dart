@@ -129,6 +129,73 @@ void main() {
     expect(api.peopleCalls.last, ('ist', 0, 100));
   });
 
+  testWidgets('errore alla pagina 2: restano le prime 100, Riprova riparte '
+      'da 100', (tester) async {
+    final api = FakeLibraryApi()..people = people(150);
+    await pumpApp(
+        tester,
+        const Scaffold(body: PeopleSearchScreen(term: 'ist')),
+        overrides: overrides(api));
+    await tester.pump();
+    await tester.pump();
+
+    api.error = Exception('giù');
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -20000));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2)); // finisce l'inerzia
+    expect(find.text('Riprova'), findsOneWidget);
+    expect(find.byType(SearchPersonTile), findsWidgets);
+    expect(api.peopleCalls.last, ('ist', 100, 100));
+
+    api.error = null;
+    final scroll =
+        tester.widget<CustomScrollView>(find.byType(CustomScrollView));
+    scroll.controller!.jumpTo(scroll.controller!.position.maxScrollExtent);
+    await tester.pump();
+    await tester.tap(find.text('Riprova'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Riprova'), findsNothing);
+    expect(api.peopleCalls.last, ('ist', 100, 100));
+    expect(api.peopleCalls.length, 3);
+    // Le prime 100 non sono ripartite da capo.
+    expect(api.peopleCalls.where((c) => c.$2 == 0).length, 1);
+  });
+
+  testWidgets("una pagina vuota chiude l'elenco: niente altre chiamate",
+      (tester) async {
+    final api = FakeLibraryApi()
+      ..people = people(100)
+      ..peopleTotal = 150;
+    await pumpApp(
+        tester,
+        const Scaffold(body: PeopleSearchScreen(term: 'ist')),
+        overrides: overrides(api));
+    await tester.pump();
+    await tester.pump();
+
+    for (var i = 0; i < 3; i++) {
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -20000));
+      await tester.pump();
+      await tester.pump();
+    }
+    expect(api.peopleCalls, [('ist', 0, 100), ('ist', 100, 100)]);
+  });
+
+  testWidgets('senza termine (/people senza q) non chiede le persone',
+      (tester) async {
+    final api = FakeLibraryApi()..people = people(150);
+    await pumpApp(
+        tester,
+        const Scaffold(body: PeopleSearchScreen(term: '')),
+        overrides: overrides(api));
+    await tester.pump();
+    await tester.pump();
+    expect(api.peopleCalls, isEmpty);
+    expect(find.byType(SearchPersonTile), findsNothing);
+    expect(find.text('Persone'), findsOneWidget);
+  });
+
   group('da Cerca', () {
     late GoRouter router;
 

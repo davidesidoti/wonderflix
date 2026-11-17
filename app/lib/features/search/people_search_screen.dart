@@ -17,7 +17,8 @@ import 'search_best.dart';
 /// Apre la pagina con tutte le persone trovate per [term]: con push, così
 /// Indietro torna a Cerca coi risultati.
 void openPeopleSearch(BuildContext context, String term) => unawaited(
-    context.push(Uri(path: '/people', queryParameters: {'q': term}).toString()));
+    context.push(
+        Uri(path: '/people', queryParameters: {'q': term}).toString()));
 
 class PeopleSearchState {
   const PeopleSearchState({
@@ -50,6 +51,9 @@ class PeopleSearchController extends Notifier<PeopleSearchState> {
   PeopleSearchState build() {
     ref.onDispose(() => _cancel?.cancel());
     // Non si cambia stato dentro build: la prima pagina parte subito dopo.
+    // Senza termine (un indirizzo `/people` senza `q`) niente: /Persons
+    // elencherebbe tutti.
+    if (term.trim().isEmpty) return const PeopleSearchState();
     unawaited(Future.microtask(_load));
     return const PeopleSearchState(loading: true);
   }
@@ -69,7 +73,8 @@ class PeopleSearchController extends Notifier<PeopleSearchState> {
     _cancel?.cancel();
     final cancel = _cancel = CancelToken();
     final previous = state.items;
-    state = PeopleSearchState(items: previous, total: state.total, loading: true);
+    state = PeopleSearchState(
+        items: previous, total: state.total, loading: true);
     try {
       final page = await ref.read(libraryApiProvider).searchPeople(
             ref.read(currentUserIdProvider),
@@ -79,8 +84,11 @@ class PeopleSearchController extends Notifier<PeopleSearchState> {
             cancelToken: cancel,
           );
       if (!ref.mounted || generation != _generation) return;
+      final items = [...previous, ...page.items];
       state = PeopleSearchState(
-          items: [...previous, ...page.items], total: page.totalCount);
+          // Una pagina vuota chiude l'elenco, anche se il totale dice di più.
+          items: items,
+          total: page.items.isEmpty ? items.length : page.totalCount);
     } on Object catch (error) {
       if (!ref.mounted || generation != _generation) return;
       state = PeopleSearchState(
@@ -101,7 +109,8 @@ class PeopleSearchScreen extends ConsumerStatefulWidget {
   final String term;
 
   @override
-  ConsumerState<PeopleSearchScreen> createState() => _PeopleSearchScreenState();
+  ConsumerState<PeopleSearchScreen> createState() =>
+      _PeopleSearchScreenState();
 }
 
 class _PeopleSearchScreenState extends ConsumerState<PeopleSearchScreen> {
