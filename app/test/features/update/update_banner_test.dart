@@ -33,9 +33,13 @@ void main() {
     expect(
         find.byWidgetPredicate((w) => w is WfButton && w.label == 'Riavvia ora'),
         findsOneWidget);
-    // Niente controllo sull'overflow: nei test il font è Ahem, largo il doppio
-    // di Inter, e la riga dei pulsanti sborda solo lì.
-    t.takeException();
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('a 360 i pulsanti vanno a capo senza sforare', (t) async {
+    await pumpBanner(t, const Size(360, 800));
+    expect(find.text('Riavvia ora'), findsOneWidget);
+    expect(t.takeException(), isNull);
   });
 
   testWidgets('da 640 in su una riga sola', (t) async {

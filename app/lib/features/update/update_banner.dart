@@ -92,11 +92,18 @@ class _UpdateBannerState extends State<UpdateBanner> {
                     children: [
                       Row(children: title),
                       const SizedBox(height: 8),
-                      Row(children: [
-                        if (notes.isNotEmpty) notesButton,
-                        const Spacer(),
-                        ...actions,
-                      ]),
+                      // Wrap: se i pulsanti non stanno in una riga vanno a capo.
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (notes.isNotEmpty) notesButton,
+                          actions.first,
+                          actions.last,
+                        ],
+                      ),
                     ],
                   );
                 }),
