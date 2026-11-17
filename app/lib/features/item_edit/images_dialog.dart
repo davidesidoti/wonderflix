@@ -50,7 +50,7 @@ String imageCandidateLine(
 ) {
   final language = image.language;
   return [
-    if (image.rating != null)
+    if ((image.rating ?? 0) > 0)
       '★ ${NumberFormat('0.0', locale).format(image.rating)}',
     language == null || language.isEmpty
         ? l.imagesNoText
@@ -148,6 +148,7 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog>
         _images = const [];
         _total = 0;
         _chosen = null;
+        _error = null;
       }
       _loadingGrid = true;
       _gridError = null;
@@ -263,6 +264,8 @@ class _ImagesDialogState extends ConsumerState<_ImagesDialog>
             : 'image/jpeg';
         await api.uploadImage(widget.itemId, type, bytes, mimeType: mimeType);
         changed();
+        // Una candidata ancora segnata sovrascriverebbe il file caricato.
+        if (mounted) setState(() => _chosen = null);
         await _moveNewBackdropFirst(api, userId);
         return true;
       }),

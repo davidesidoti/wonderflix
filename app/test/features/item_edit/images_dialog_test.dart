@@ -378,6 +378,43 @@ void main() {
       ),
       'Senza testo',
     );
+    expect(
+      imageCandidateLine(
+        it,
+        const RemoteImage(
+          url: 'u',
+          provider: 'TheMovieDb',
+          rating: 0,
+          language: 'it',
+        ),
+        'it',
+      ),
+      'Italiano',
+    );
+  });
+
+  testWidgets('un upload riuscito toglie la scelta', (tester) async {
+    await open(tester);
+    await tester.tap(find.text(line(1)));
+    await tester.pump();
+    picked = file('s.jpg', 3);
+
+    await tester.tap(find.text(it.imagesUpload));
+    await tester.pumpAndSettle();
+
+    expect(api.calls.last, 'uploadImage i1 Primary 3 image/jpeg');
+    expect(find.text(it.imagesConfirm('poster')), findsNothing);
+    expect(find.text(it.imagesUseThis('poster')), findsNothing);
+  });
+
+  testWidgets('cambiare scheda toglie l\'errore del piede', (tester) async {
+    await open(tester);
+    api.nextFailure = const ServerUnreachableException();
+    await use(tester);
+    expect(find.textContaining('non è raggiungibile'), findsOneWidget);
+
+    await openBackdropTab(tester);
+    expect(find.textContaining('non è raggiungibile'), findsNothing);
   });
 
   testWidgets("niente cambia prima della conferma; vale l'ultima toccata", (
