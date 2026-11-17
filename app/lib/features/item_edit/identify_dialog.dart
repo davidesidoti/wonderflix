@@ -220,7 +220,13 @@ class _IdentifyDialogState extends ConsumerState<_IdentifyDialog>
           if (_isSeries) 'Tvdb': _tvdb.text,
         },
       );
-      if (mounted) setState(() => _results = results);
+      // La scelta vecchia non è più tra i risultati.
+      if (mounted) {
+        setState(() {
+          _results = results;
+          _chosen = null;
+        });
+      }
     } on Object catch (error) {
       if (mounted) {
         setState(() => _error = _failure(l, session.refreshUser, error));
@@ -482,7 +488,7 @@ class _IdentifyDialogState extends ConsumerState<_IdentifyDialog>
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: _busy
+          onTap: _busy || _searching
               ? null
               : () => setState(() {
                   _chosen = result;

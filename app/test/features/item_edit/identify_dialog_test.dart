@@ -11,6 +11,7 @@ import 'package:wonderflix/features/item_edit/identify_dialog.dart';
 import 'package:wonderflix/features/item_edit/item_edit_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 import 'package:wonderflix/ui/wf_image.dart';
 
 import '../../support/admin_fakes.dart';
@@ -174,6 +175,20 @@ void main() {
     await tester.tap(find.text(it.identifyApply));
     await tester.pumpAndSettle();
     expect(api.calls, isNot(contains('updateItem l3')));
+    expect(api.calls.last, 'applyIdentify l3 true');
+  });
+
+  testWidgets('una nuova ricerca toglie la scelta', (tester) async {
+    await open(tester);
+    await searchAndChoose(tester);
+    await tester.tap(find.text(it.identifySearch));
+    await tester.pumpAndSettle();
+
+    expect(find.text(it.identifyAfter), findsNothing);
+    final apply = tester.widget<WfButton>(
+      find.widgetWithText(WfButton, it.identifyApply),
+    );
+    expect(apply.onPressed, isNull);
   });
 
   testWidgets('il risultato attuale è segnato', (tester) async {
