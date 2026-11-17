@@ -1127,7 +1127,7 @@
   "mediaInfoExternal": "External file",
   "mediaInfoEmbedded": "In the video",
   "mediaInfoCopy": "Copy",
-  "mediaInfoCopied": "File name copied",
+  "mediaInfoCopied": "Copied",
   "mediaInfoError": "I can't read the file info",
   "mediaInfoUnavailable": "Information not available",
   "itemActionEditMetadata": "Edit metadata…",

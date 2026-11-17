@@ -127,6 +127,7 @@ void main() {
     expect(find.text('Sottotitoli · 2'), findsOneWidget);
     expect(find.text('MKV'), findsOneWidget);
     expect(find.text('2,4 GB'), findsOneWidget);
+    expect(find.text('52m'), findsOneWidget);
     expect(find.text('6,2 Mbps'), findsOneWidget);
     expect(
       find.text('HEVC · 4K (3840×2160) · HDR10 · 23,976 fps'),
@@ -187,11 +188,44 @@ void main() {
     );
     expect(scrollable.position.pixels, 0);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(scrollable.position.pixels, 80);
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(scrollable.position.pixels, 0);
+  });
+
+  testWidgets('TV: Su dal piede arriva alle pastiglie e OK cambia versione', (
+    tester,
+  ) async {
+    api.mediaInfoById['e1'] = ItemMediaInfo(
+      versions: [
+        ...testMediaInfo().versions,
+        const MediaVersion(id: 'v2', name: 'Dark 4K', container: 'mp4'),
+      ],
+    );
+    await openDialog(tester, surfaceSize: const Size(960, 540), tv: true);
+    final second = find.text('Dark 4K');
+    bool focused() => Focus.of(tester.element(second)).hasFocus;
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    if (!focused()) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+    }
+    expect(focused(), isTrue);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    expect(find.text('MP4'), findsOneWidget);
+  });
+
+  testWidgets('TV: errore, Su dal piede arriva a Riprova', (tester) async {
+    await openDialog(tester, surfaceSize: const Size(960, 540), tv: true);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pump();
+    expect(Focus.of(tester.element(find.text('Riprova'))).hasFocus, isTrue);
   });
 
   testWidgets('una sola versione: niente pastiglie', (tester) async {
@@ -239,7 +273,12 @@ void main() {
     await tester.pump();
 
     expect(copied, 'Dark.S01E02.mkv');
-    expect(find.text('Nome del file copiato'), findsOneWidget);
+    expect(find.text('Copiato'), findsOneWidget);
+    expect(find.text('Copia'), findsNothing);
+
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Copia'), findsOneWidget);
+    expect(find.text('Copiato'), findsNothing);
   });
 
   testWidgets('errore: frase e Riprova che rilegge', (tester) async {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -48,26 +49,35 @@ const _bytesPerGb = 1000000000;
 const _bytesPerMb = 1000000;
 const _bitsPerMbps = 1000000;
 
-/// Solo "Chiudi". In TV ha il focus e Su/Giù scorrono il corpo, che non ha
-/// altro da mettere a fuoco.
+/// Solo "Chiudi". In TV ha il focus e Su/Giù scorrono il corpo finché c'è
+/// da scorrere; poi i tasti vanno alla navigazione (pastiglie, Riprova).
 class _MediaInfoFooter extends StatelessWidget {
   const _MediaInfoFooter({required this.body, required this.tv});
 
   final GlobalKey body;
   final bool tv;
 
-  void _scroll(double delta) {
+  /// Scorre il corpo di [delta] se c'è ancora strada; `false` se è già in
+  /// fondo (o in cima): il tasto passa alla navigazione normale.
+  bool _scroll(double delta) {
     final context = body.currentContext;
     final position = context == null
         ? null
         : Scrollable.maybeOf(context)?.position;
-    if (position == null) return;
-    position.jumpTo(
-      (position.pixels + delta).clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
+    if (position == null) return false;
+    final target = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target == position.pixels) return false;
+    unawaited(
+      position.animateTo(
+        target,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
       ),
     );
+    return true;
   }
 
   @override
@@ -81,12 +91,19 @@ class _MediaInfoFooter extends StatelessWidget {
       ),
     );
     if (!tv) return footer;
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-            _scroll(_tvScrollStep),
-        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-            _scroll(-_tvScrollStep),
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyUpEvent) return KeyEventResult.ignored;
+        final delta = switch (event.logicalKey) {
+          LogicalKeyboardKey.arrowDown => _tvScrollStep,
+          LogicalKeyboardKey.arrowUp => -_tvScrollStep,
+          _ => null,
+        };
+        return delta != null && _scroll(delta)
+            ? KeyEventResult.handled
+            : KeyEventResult.ignored;
       },
       child: footer,
     );
@@ -413,31 +430,49 @@ class _Tile extends StatelessWidget {
 }
 
 /// Il nome del file con "Copia".
-class _FileNameRow extends StatelessWidget {
+class _FileNameRow extends StatefulWidget {
   const _FileNameRow({required this.fileName});
 
   final String fileName;
 
   @override
+  State<_FileNameRow> createState() => _FileNameRowState();
+}
+
+class _FileNameRowState extends State<_FileNameRow> {
+  Timer? _reset;
+  bool _copied = false;
+
+  @override
+  void dispose() {
+    _reset?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    unawaited(Clipboard.setData(ClipboardData(text: widget.fileName)));
+    setState(() => _copied = true);
+    _reset?.cancel();
+    _reset = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.maybeOf(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Expanded(child: Text(fileName)),
+          Expanded(child: Text(widget.fileName)),
           const SizedBox(width: 12),
+          // Il riscontro sta nel pulsante: uno snackbar finirebbe sotto il velo.
           WfButton.secondary(
-            label: l.mediaInfoCopy,
-            icon: LucideIcons.copy,
+            label: _copied ? l.mediaInfoCopied : l.mediaInfoCopy,
+            icon: _copied ? LucideIcons.check : LucideIcons.copy,
             small: true,
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: fileName));
-              messenger?.showSnackBar(
-                SnackBar(content: Text(l.mediaInfoCopied)),
-              );
-            },
+            onPressed: _copy,
           ),
         ],
       ),
