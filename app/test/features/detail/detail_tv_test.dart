@@ -401,8 +401,8 @@ void main() {
     await pumpDetail(tester, 'm1');
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    expect(find.text('Info tecniche'), findsOneWidget);
-    expect(find.text('Segnala un problema'), findsOneWidget);
+    expect(find.text('Info tecniche…'), findsOneWidget);
+    expect(find.text('Segnala un problema…'), findsOneWidget);
     expect(find.text('Sottotitoli…'), findsNothing);
     expect(find.text('Modifica metadati'), findsNothing);
     expect(find.text('Identifica'), findsNothing);

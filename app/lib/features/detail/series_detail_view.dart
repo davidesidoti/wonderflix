@@ -188,13 +188,17 @@ class _SeriesDetailViewState extends ConsumerState<SeriesDetailView> {
                                         (ratings.canRate ||
                                             ratings.mine != null))
                                       (
-                                        label: l.ratingRateSeason,
+                                        label: l.ratingRateSeasonMenu,
+                                        icon: LucideIcons.star,
                                         onSelected: () => rate(ratings),
                                       ),
                                     (
                                       label: watchUserData(ref, season).played
                                           ? l.detailSeasonMarkUnwatched
                                           : l.detailSeasonMarkWatched,
+                                      icon: watchUserData(ref, season).played
+                                          ? LucideIcons.circle
+                                          : LucideIcons.circleCheck,
                                       onSelected: () => unawaited(
                                         runUserDataAction(
                                           context,
@@ -528,6 +532,7 @@ class EpisodeTile extends ConsumerWidget {
           if (userData.playbackPositionTicks > 0)
             (
               label: l.resumeHide,
+              icon: LucideIcons.history,
               onSelected: () =>
                   unawaited(removeFromResume(context, ref, episode)),
             ),

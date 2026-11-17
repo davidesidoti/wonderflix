@@ -107,7 +107,7 @@ void main() {
   test('testi italiani e plurali', () {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
-    expect(it.itemActionReport, 'Segnala un problema');
+    expect(it.itemActionReport, 'Segnala un problema…');
     expect(it.itemActionSubtitles, 'Sottotitoli…');
     expect(it.reportLevelSeason(2), 'Stagione 2');
     expect(it.reportLevelEpisode(1, 4), 'S1 E4');

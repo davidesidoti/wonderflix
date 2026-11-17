@@ -314,7 +314,7 @@ void main() {
       await tester.pumpAndSettle();
       final entry = find.descendant(
           of: find.byType(PopupMenuItem<Object>),
-          matching: find.text('Vota la stagione'));
+          matching: find.text('Vota la stagione…'));
       expect(entry, findsOneWidget);
       await tester.tap(entry);
       await tester.pumpAndSettle();
@@ -330,7 +330,7 @@ void main() {
       await tester.tap(find.byTooltip('Altre azioni').first);
       await tester.pumpAndSettle();
       expect(find.byType(PopupMenuItem<Object>), findsWidgets);
-      expect(find.text('Vota la stagione'), findsNothing);
+      expect(find.text('Vota la stagione…'), findsNothing);
     });
 
     testWidgets('senza la funzione dei voti: niente riga e niente voce nel ⋯',
@@ -340,7 +340,7 @@ void main() {
       expect(find.text('Vota la stagione'), findsNothing);
       await tester.tap(find.byTooltip('Altre azioni').first);
       await tester.pumpAndSettle();
-      expect(find.text('Vota la stagione'), findsNothing);
+      expect(find.text('Vota la stagione…'), findsNothing);
       expect(api.calls, isNot(contains('ratings se1')));
     });
 

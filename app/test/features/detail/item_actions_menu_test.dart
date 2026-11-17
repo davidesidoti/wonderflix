@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
 import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
@@ -34,9 +35,9 @@ void main() {
                 child: ItemActionsButton(
                   item: testItem(id: 'm1', name: 'Film'),
                   extra: [
-                    (label: 'Voce A', onSelected: () {}),
-                    (label: 'Voce B', onSelected: () {}),
-                    (label: 'Voce C', onSelected: () => picked = true),
+                    (label: 'Voce A', icon: LucideIcons.plus, onSelected: () {}),
+                    (label: 'Voce B', icon: LucideIcons.plus, onSelected: () {}),
+                    (label: 'Voce C', icon: LucideIcons.plus, onSelected: () => picked = true),
                   ],
                 ),
               ),
@@ -75,8 +76,7 @@ void main() {
             canManageSubtitles: true,
             isAdmin: false),
         [
-          [ItemAction.report, ItemAction.mediaInfo],
-          [ItemAction.subtitles]
+          [ItemAction.report, ItemAction.mediaInfo, ItemAction.subtitles]
         ]);
     expect(
         itemActionGroups(
@@ -189,15 +189,116 @@ void main() {
         findsNothing);
   });
 
-  testWidgets('il menu di un film mostra le voci e il separatore',
+  testWidgets('il menu di un film mostra le voci, in un solo gruppo',
       (tester) async {
     await pumpDetail(tester, 'm1');
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    expect(find.text('Segnala un problema'), findsOneWidget);
-    expect(find.text('Info tecniche'), findsOneWidget);
+    expect(find.text('Controlla e segnala'), findsOneWidget);
+    expect(find.text('Segnala un problema…'), findsOneWidget);
+    expect(find.text('Info tecniche…'), findsOneWidget);
     expect(find.text('Sottotitoli…'), findsOneWidget);
-    expect(find.byType(PopupMenuDivider), findsOneWidget);
+    expect(find.byType(PopupMenuDivider), findsNothing);
+  });
+
+  Future<void> pumpButton(WidgetTester tester,
+      {bool tv = false, bool admin = false}) async {
+    if (tv) {
+      tester.view.physicalSize = const Size(960, 540);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: Align(
+          alignment: tv ? Alignment.bottomCenter : Alignment.topCenter,
+          child: ItemActionsButton(
+            tvOnly: tv,
+            item: testItem(id: 'm1', name: 'Dune'),
+            extra: [
+              (
+                label: 'Togli da Continua a guardare',
+                icon: LucideIcons.history,
+                onSelected: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+      tv: tv,
+      surfaceSize: tv ? const Size(960, 540) : const Size(1440, 900),
+      overrides: [
+        sessionControllerProvider.overrideWith(() => FakeSessionController(
+            SessionSignedIn(JellyfinUser(
+                id: 'u1',
+                name: 'Mario',
+                isAdministrator: admin,
+                enableSubtitleManagement: true)))),
+        ...socialTestOverrides(FakeSocialApi(),
+            features: const SocialFeatures(reports: true), session: false),
+      ],
+    );
+    await tester.tap(find.byType(ItemActionsButton));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('menu di un admin: gruppi con nome, icone e puntini',
+      (tester) async {
+    await pumpButton(tester, admin: true);
+    final mine = tester.getTopLeft(find.text('La tua visione')).dy;
+    final check = tester.getTopLeft(find.text('Controlla e segnala')).dy;
+    final admin = tester.getTopLeft(find.text('Admin')).dy;
+    expect(mine < check && check < admin, isTrue);
+    expect(find.text('Togli da Continua a guardare'), findsOneWidget);
+    for (final label in [
+      'Segnala un problema…',
+      'Info tecniche…',
+      'Modifica metadati…',
+      'Identifica…',
+      'Locandina e sfondo…',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.byType(PopupMenuDivider), findsNWidgets(2));
+    expect(
+        find.descendant(
+            of: find.ancestor(
+                of: find.text('Identifica…'),
+                matching: find.byType(PopupMenuItem<Object>)),
+            matching: find.byIcon(LucideIcons.scanSearch)),
+        findsOneWidget);
+  });
+
+  testWidgets('i nomi dei gruppi non si scelgono', (tester) async {
+    await pumpDetail(tester, 'm1');
+    await tester.tap(find.byTooltip('Altre azioni'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Controlla e segnala'));
+    await tester.pumpAndSettle();
+    expect(find.text('Info tecniche…'), findsOneWidget);
+    expect(find.text('Aggiungi dettagli (facoltativo)'), findsNothing);
+  });
+
+  testWidgets('TV: voci di oggi, righe alte 44, menu sopra il ⋯ in fondo',
+      (tester) async {
+    await pumpButton(tester, tv: true, admin: true);
+    expect(find.text('Togli da Continua a guardare'), findsOneWidget);
+    expect(find.text('Segnala un problema…'), findsOneWidget);
+    expect(find.text('Info tecniche…'), findsOneWidget);
+    expect(find.text('Sottotitoli…'), findsNothing);
+    expect(find.text('Admin'), findsNothing);
+    final info = find.ancestor(
+        of: find.text('Info tecniche…'),
+        matching: find.byType(PopupMenuItem<Object>));
+    expect(tester.widget<PopupMenuItem<Object>>(info).height, 44);
+    expect(tester.getBottomLeft(info).dy,
+        lessThanOrEqualTo(tester.getTopLeft(find.byType(ItemActionsButton)).dy));
+    // Il primo elemento selezionabile ha il focus all'apertura.
+    final first = find.ancestor(
+        of: find.text('Togli da Continua a guardare'),
+        matching: find.byType(InkWell));
+    expect(Focus.of(tester.element(first.first)).hasFocus, isTrue);
   });
 
   testWidgets('un admin vede le voci dei metadati e "Modifica metadati" apre '
@@ -210,10 +311,10 @@ void main() {
             id: 'u1', name: 'Mario', isAdministrator: true));
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    expect(find.text('Identifica'), findsOneWidget);
+    expect(find.text('Identifica…'), findsOneWidget);
     expect(find.text('Aggiorna metadati…'), findsOneWidget);
-    expect(find.text('Locandina e sfondo'), findsOneWidget);
-    await tester.tap(find.text('Modifica metadati'));
+    expect(find.text('Locandina e sfondo…'), findsOneWidget);
+    await tester.tap(find.text('Modifica metadati…'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'Titolo'), findsOneWidget);
     expect(editApi.calls, ['rawItem m1', 'parentalRatings m1']);
@@ -228,7 +329,7 @@ void main() {
             id: 'u1', name: 'Mario', isAdministrator: true));
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Identifica'));
+    await tester.tap(find.text('Identifica…'));
     await tester.pumpAndSettle();
     expect(find.text('Cerca'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Nome'), findsOneWidget);
@@ -244,7 +345,7 @@ void main() {
             id: 'u1', name: 'Mario', isAdministrator: true));
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Locandina e sfondo'));
+    await tester.tap(find.text('Locandina e sfondo…'));
     await tester.pumpAndSettle();
     expect(find.text('Carica un file…'), findsOneWidget);
     expect(editApi.calls, ['remoteImages m1 Primary 0 false']);
@@ -275,15 +376,15 @@ void main() {
     await pumpDetail(tester, 'm1');
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    expect(find.text('Modifica metadati'), findsNothing);
-    expect(find.text('Identifica'), findsNothing);
+    expect(find.text('Modifica metadati…'), findsNothing);
+    expect(find.text('Identifica…'), findsNothing);
   });
 
   testWidgets('"Segnala un problema" apre la finestra', (tester) async {
     await pumpDetail(tester, 'm1');
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Segnala un problema'));
+    await tester.tap(find.text('Segnala un problema…'));
     await tester.pumpAndSettle();
     expect(find.text('Aggiungi dettagli (facoltativo)'), findsOneWidget);
   });
@@ -304,7 +405,7 @@ void main() {
     await pumpDetail(tester, 'm1');
     await tester.tap(find.byTooltip('Altre azioni'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Info tecniche'));
+    await tester.tap(find.text('Info tecniche…'));
     await tester.pumpAndSettle();
     expect(find.text('mkv'), findsOneWidget);
   });
@@ -323,7 +424,7 @@ void main() {
     await tester.pumpAndSettle();
     // Il menu si apre; se il tocco arrivasse all'episodio, `playItem` senza
     // router lancerebbe e il test fallirebbe.
-    expect(find.text('Info tecniche'), findsOneWidget);
+    expect(find.text('Info tecniche…'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

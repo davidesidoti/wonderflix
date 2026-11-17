@@ -316,10 +316,10 @@ void main() {
     expect(find.text('Riprendi S1:E4'), findsOneWidget);
     // 45 min − 23:14 = 21m46s → 22 min.
     expect(find.text('rimangono 22 min'), findsOneWidget);
-    expect(find.text('Richiedi stagioni'), findsNothing);
+    expect(find.text('Richiedi stagioni…'), findsNothing);
     await tester.tap(find.byTooltip('Altre azioni').first);
     await tester.pumpAndSettle();
-    expect(find.text('Richiedi stagioni'), findsOneWidget);
+    expect(find.text('Richiedi stagioni…'), findsOneWidget);
   });
 
   testWidgets('cambio stagione', (tester) async {

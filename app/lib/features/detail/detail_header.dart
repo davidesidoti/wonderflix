@@ -158,10 +158,12 @@ class DetailHeader extends ConsumerWidget {
     return hiddenFromNextUp(hidden, episode)
         ? (
             label: l.nextUpShow,
+            icon: LucideIcons.skipForward,
             onSelected: () => unawaited(showInNextUp(context, ref, item.id)),
           )
         : (
             label: l.nextUpHide,
+            icon: LucideIcons.skipForward,
             onSelected: () => unawaited(hideFromNextUp(context, ref, episode)),
           );
   }
@@ -185,6 +187,7 @@ class DetailHeader extends ConsumerWidget {
     }
     return (
       label: l.resumeHide,
+      icon: LucideIcons.history,
       onSelected: () => unawaited(removeFromResume(context, ref, target)),
     );
   }
@@ -376,6 +379,9 @@ class DetailHeader extends ConsumerWidget {
             label: watchUserData(ref, shownSeason).played
                 ? l.detailSeasonMarkUnwatched
                 : l.detailSeasonMarkWatched,
+            icon: watchUserData(ref, shownSeason).played
+                ? LucideIcons.circle
+                : LucideIcons.circleCheck,
             onSelected: () => unawaited(
               runUserDataAction(
                 context,
@@ -528,10 +534,15 @@ class DetailHeader extends ConsumerWidget {
                               ?resume,
                               ?nextUp,
                               if (restart != null)
-                                (label: l.actionRestart, onSelected: restart),
+                                (
+                                  label: l.actionRestart,
+                                  icon: LucideIcons.rotateCcw,
+                                  onSelected: restart,
+                                ),
                               if (requestSeasons != null)
                                 (
-                                  label: l.requestsMoreSeasons,
+                                  label: l.requestsMoreSeasonsMenu,
+                                  icon: LucideIcons.plus,
                                   onSelected: requestSeasons,
                                 ),
                             ]),
@@ -641,7 +652,8 @@ class DetailHeader extends ConsumerWidget {
                               ?nextUp,
                               if (requestSeasons != null)
                                 (
-                                  label: l.requestsMoreSeasons,
+                                  label: l.requestsMoreSeasonsMenu,
+                                  icon: LucideIcons.plus,
                                   onSelected: requestSeasons,
                                 ),
                             ],

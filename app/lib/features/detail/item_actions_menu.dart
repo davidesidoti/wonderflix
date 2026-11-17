@@ -7,6 +7,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/wf_menus.dart';
 import '../admin/admin_providers.dart';
 import '../item_edit/edit_metadata_dialog.dart';
@@ -35,10 +37,9 @@ enum ItemAction {
 const _buttonSize = 44.0;
 const _iconSize = 20.0;
 
-/// Le voci per un [kind] e per i permessi, a gruppi (tutti, sottotitoli,
-/// admin) e senza i gruppi vuoti; fra un gruppo e l'altro il menu mette un
-/// separatore. Il gruppo admin sono gli strumenti dei metadati (spec R
-/// §7.8–7.11).
+/// Le voci per un [kind] e per i permessi, a gruppi ("Controlla e segnala" e
+/// "Admin") e senza i gruppi vuoti. Il gruppo admin sono gli strumenti dei
+/// metadati (spec R §7.8–7.11).
 List<List<ItemAction>> itemActionGroups({
   required ItemKind kind,
   required bool reports,
@@ -53,8 +54,8 @@ List<List<ItemAction>> itemActionGroups({
           (isFile || kind == ItemKind.series || kind == ItemKind.season))
         ItemAction.report,
       if (isFile) ItemAction.mediaInfo,
+      if (canManageSubtitles && isFile) ItemAction.subtitles,
     ],
-    [if (canManageSubtitles && isFile) ItemAction.subtitles],
     [
       if (isAdmin &&
           (isTitle || kind == ItemKind.season || kind == ItemKind.episode)) ...[
@@ -83,7 +84,70 @@ String _label(AppLocalizations l, ItemAction action) => switch (action) {
 
 /// Voce in più del menu "⋯", in cima: un'azione della testata che nel
 /// layout stretto non ha un pulsante suo.
-typedef ExtraItemAction = ({String label, VoidCallback onSelected});
+typedef ExtraItemAction = ({
+  String label,
+  IconData icon,
+  VoidCallback onSelected,
+});
+
+IconData _icon(ItemAction action) => switch (action) {
+  ItemAction.report => LucideIcons.flag,
+  ItemAction.mediaInfo => LucideIcons.info,
+  ItemAction.subtitles => LucideIcons.captions,
+  ItemAction.editMetadata => LucideIcons.pencil,
+  ItemAction.identify => LucideIcons.scanSearch,
+  ItemAction.refresh => LucideIcons.refreshCw,
+  ItemAction.images => LucideIcons.image,
+};
+
+const _groupHeaderHeight = 32.0;
+const _dividerHeight = 16.0;
+const _menuPadding = 16.0;
+
+/// Altezza prevista del menu, per aprirlo sopra il ⋯ se sotto non ci sta:
+/// [groups] gruppi (con quello delle voci in più), [rows] voci in tutto.
+double itemActionsMenuHeight({
+  required int groups,
+  required int rows,
+  required bool tv,
+}) =>
+    _menuPadding +
+    groups * _groupHeaderHeight +
+    (groups - 1) * _dividerHeight +
+    rows * (tv ? 44 : kMinInteractiveDimension);
+
+/// Voce del menu su TV: il bordo di focus avvolge l'intera voce; la prima
+/// voce prende il focus all'apertura.
+class _TvEntry extends PopupMenuEntry<Object> {
+  const _TvEntry({required this.item, required this.first});
+
+  final PopupMenuItem<Object> item;
+  final bool first;
+
+  @override
+  double get height => item.height;
+
+  @override
+  bool represents(Object? value) => item.represents(value);
+
+  @override
+  State<_TvEntry> createState() => _TvEntryState();
+}
+
+class _TvEntryState extends State<_TvEntry> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.first) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) FocusScope.of(context).nextFocus();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => TvFocusBorder(child: widget.item);
+}
 
 /// Il bottone "⋯" di un titolo: film, serie, stagione o episodio. Senza voci
 /// da mostrare non c'è.
@@ -114,10 +178,7 @@ class ItemActionsButton extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     return SizedBox.square(
       dimension: _buttonSize,
-      // Il valore è un'[ItemAction] o una voce di [extra]: scelta a menu
-      // chiuso, così un'azione che apre una pagina non viene chiusa con lui.
-      child: PopupMenuButton<Object>(
-        useRootNavigator: true,
+      child: IconButton(
         tooltip: l.itemActionsMenu,
         padding: EdgeInsets.zero,
         icon: const Icon(
@@ -125,29 +186,96 @@ class ItemActionsButton extends ConsumerWidget {
           size: _iconSize,
           color: WfColors.cream,
         ),
-        popUpAnimationStyle: wfPopUpAnimation(context),
-        onSelected: (value) {
-          switch (value) {
-            case ItemAction action:
-              _run(context, action);
-            case (label: _, :final VoidCallback onSelected):
-              onSelected();
-          }
-        },
-        itemBuilder: (context) => [
-          for (final entry in extra)
-            PopupMenuItem<Object>(value: entry, child: Text(entry.label)),
-          for (final (i, group) in groups.indexed) ...[
-            if (i > 0 || extra.isNotEmpty) const PopupMenuDivider(),
-            for (final action in group)
-              PopupMenuItem<Object>(
-                value: action,
-                child: Text(_label(l, action)),
-              ),
-          ],
-        ],
+        onPressed: () => unawaited(_open(context, l, groups)),
       ),
     );
+  }
+
+  /// Il valore scelto è un'[ItemAction] o una voce di [extra]: l'azione parte
+  /// a menu chiuso, così una finestra che apre non viene chiusa con lui.
+  Future<void> _open(
+    BuildContext context,
+    AppLocalizations l,
+    List<List<ItemAction>> groups,
+  ) async {
+    final tv = FormFactor.of(context).tv;
+    // (nome del gruppo, voci): "La tua visione" prima, poi i gruppi.
+    final sections = <(String, List<(Object, IconData, String)>)>[
+      if (extra.isNotEmpty)
+        (
+          l.itemActionsGroupMine,
+          [for (final e in extra) (e, e.icon, e.label)],
+        ),
+      for (final group in groups)
+        (
+          group.first == ItemAction.editMetadata
+              ? l.itemActionsGroupAdmin
+              : l.itemActionsGroupCheck,
+          [for (final a in group) (a, _icon(a), _label(l, a))],
+        ),
+    ];
+    final rows = sections.fold(0, (n, s) => n + s.$2.length);
+    final height = tv ? 44.0 : kMinInteractiveDimension;
+    var first = true;
+    PopupMenuEntry<Object> entry(Object value, IconData icon, String label) {
+      final item = PopupMenuItem<Object>(
+        value: value,
+        height: height,
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: WfColors.creamMuted),
+            const SizedBox(width: 12),
+            Flexible(child: Text(label)),
+          ],
+        ),
+      );
+      if (!tv) return item;
+      final tvEntry = _TvEntry(item: item, first: first);
+      first = false;
+      return tvEntry;
+    }
+
+    final value = await showMenu<Object>(
+      context: context,
+      useRootNavigator: true,
+      // Più largo del 280 predefinito: sulla TV una voce non va a capo.
+      constraints: const BoxConstraints(minWidth: 112, maxWidth: 360),
+      popUpAnimationStyle: wfPopUpAnimation(context),
+      position: menuPositionBelow(
+        context,
+        estimatedHeight: itemActionsMenuHeight(
+          groups: sections.length,
+          rows: rows,
+          tv: tv,
+        ),
+      ),
+      items: [
+        for (final (i, (name, entries)) in sections.indexed) ...[
+          if (i > 0) const PopupMenuDivider(),
+          PopupMenuItem<Object>(
+            enabled: false,
+            height: _groupHeaderHeight,
+            child: Text(
+              name,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: WfColors.creamMuted,
+              ),
+            ),
+          ),
+          for (final (value, icon, label) in entries)
+            entry(value, icon, label),
+        ],
+      ],
+    );
+    if (!context.mounted) return;
+    switch (value) {
+      case ItemAction action:
+        _run(context, action);
+      case (label: _, icon: _, :final VoidCallback onSelected):
+        onSelected();
+    }
   }
 
   void _run(BuildContext context, ItemAction action) {
