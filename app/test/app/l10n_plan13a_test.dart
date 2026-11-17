@@ -7,11 +7,13 @@ void main() {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.inboxTitle, 'Notifiche');
-    expect(it.inboxClear, 'Svuota');
-    expect(it.inboxClearConfirm, 'Conferma');
+    expect(it.inboxClear, 'Svuota tutto');
+    expect(it.inboxClearConfirm, 'Sì, svuota');
     expect(it.inboxRemove, 'Togli dalla lista');
-    expect(it.inboxEmpty, 'Nessuna notifica');
-    expect(it.inboxUnavailable, 'Notifiche non disponibili');
+    expect(it.inboxEmpty,
+        'Niente di nuovo. Gli inviti e i consigli degli amici arrivano qui.');
+    expect(it.inboxUnavailable,
+        'Non riesco a leggere le notifiche. Controlla la connessione e riprova.');
     expect(it.inboxActionFailed,
         'Non è stato possibile aggiornare le notifiche');
     expect(it.notifInviteTitle('Luigi', 'Dune'),
@@ -29,10 +31,12 @@ void main() {
     expect(it.inboxDaysAgo(3), '3 giorni fa');
     expect(en.inboxTitle, 'Notifications');
     expect(en.inboxClear, 'Clear all');
-    expect(en.inboxClearConfirm, 'Confirm');
+    expect(en.inboxClearConfirm, 'Yes, clear');
     expect(en.inboxRemove, 'Remove from list');
-    expect(en.inboxEmpty, 'No notifications');
-    expect(en.inboxUnavailable, 'Notifications unavailable');
+    expect(en.inboxEmpty,
+        'Nothing new. Invites and tips from friends show up here.');
+    expect(en.inboxUnavailable,
+        "Can't load notifications. Check your connection and try again.");
     expect(en.inboxActionFailed, "Couldn't update notifications");
     expect(en.notifInviteTitle('Luigi', 'Dune'),
         'Luigi invites you to watch Dune');

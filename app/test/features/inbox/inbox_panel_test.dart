@@ -12,6 +12,7 @@ import 'package:wonderflix/core/jellyfin/server_events.dart';
 import 'package:wonderflix/core/social/inbox_models.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/core/syncplay/syncplay_models.dart';
+import 'package:wonderflix/features/admin/admin_providers.dart';
 import 'package:wonderflix/features/inbox/inbox_panel.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_directory.dart';
@@ -49,7 +50,8 @@ void main() {
   Future<void> pumpPanel(WidgetTester tester,
       {List<GroupInfo> parties = const [],
       double width = InboxPanel.width,
-      double textScale = 1}) async {
+      double textScale = 1,
+      bool admin = false}) async {
     await pumpApp(
       tester,
       Builder(
@@ -71,6 +73,7 @@ void main() {
         watchPartyDirectoryProvider
             .overrideWith(() => FakeWatchPartyDirectory(parties)),
         syncPlayApiProvider.overrideWithValue(syncPlay),
+        isAdminProvider.overrideWithValue(admin),
         partyChannelApiProvider
             .overrideWithValue(FakePartyChannelApi()..install()),
       ],
@@ -81,18 +84,24 @@ void main() {
   ProviderContainer containerOf(WidgetTester tester) =>
       ProviderScope.containerOf(tester.element(find.byType(InboxPanel)));
 
-  testWidgets('vuota: "Nessuna notifica", niente Svuota', (tester) async {
+  const emptyText =
+      'Niente di nuovo. Gli inviti e i consigli degli amici arrivano qui.';
+
+  testWidgets('vuota: la frase che invita, niente Svuota tutto',
+      (tester) async {
     await pumpPanel(tester);
     expect(find.text('Notifiche'), findsOneWidget);
-    expect(find.text('Nessuna notifica'), findsOneWidget);
-    expect(find.text('Svuota'), findsNothing);
+    expect(find.text(emptyText), findsOneWidget);
+    expect(find.text('Svuota tutto'), findsNothing);
   });
 
-  testWidgets('caricamento non riuscito: "Notifiche non disponibili" e Riprova',
-      (tester) async {
+  testWidgets('caricamento non riuscito: la frase e Riprova', (tester) async {
     api.nextFailure = SocialFailure.network;
     await pumpPanel(tester);
-    expect(find.text('Notifiche non disponibili'), findsOneWidget);
+    expect(
+        find.text('Non riesco a leggere le notifiche. Controlla la '
+            'connessione e riprova.'),
+        findsOneWidget);
 
     api.inboxSnapshot = InboxSnapshot(
         entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
@@ -204,26 +213,167 @@ void main() {
     expect(api.calls, contains('read 2'));
   });
 
-  testWidgets('Svuota → Conferma per 4 s; Conferma svuota', (tester) async {
+  testWidgets('Svuota tutto → Svuota tutto? per 4 s; chi non è admin: Sì, '
+      'svuota svuota tutto', (tester) async {
     api.inboxSnapshot = InboxSnapshot(
         entries: [testAnnouncement(createdAt: fiveMinutesAgo())], unread: 1);
     await pumpPanel(tester);
 
-    await tester.tap(find.text('Svuota'));
+    await tester.tap(find.text('Svuota tutto'));
     await tester.pump();
-    expect(find.text('Conferma'), findsOneWidget);
+    expect(find.text('Svuota tutto?'), findsOneWidget);
+    expect(find.byKey(const Key('inbox-clear-confirm')), findsOneWidget);
     await tester.pump(InboxPanel.clearConfirmFor);
-    expect(find.text('Svuota'), findsOneWidget);
+    expect(find.text('Svuota tutto'), findsOneWidget);
+    expect(find.text('Sì, svuota'), findsNothing);
 
-    await tester.tap(find.text('Svuota'));
+    await tester.tap(find.text('Svuota tutto'));
     await tester.pump();
     // Il plugin, dopo lo svuotamento, restituisce la cassetta vuota (la
     // rilettura dopo l'azione la rimette a posto).
     api.inboxSnapshot = InboxSnapshot.empty;
-    await tester.tap(find.text('Conferma'));
+    await tester.tap(find.text('Sì, svuota'));
     await tester.pump();
     expect(api.calls, contains('clear-inbox'));
-    expect(find.text('Nessuna notifica'), findsOneWidget);
+    expect(find.text(emptyText), findsOneWidget);
+  });
+
+  testWidgets('gruppi: Oggi, Ieri, Prima', (tester) async {
+    await withClock(Clock.fixed(DateTime(2026, 11, 16, 12)), () async {
+      api.inboxSnapshot = InboxSnapshot(entries: [
+        testAnnouncement(id: 'a3', seq: 3, createdAt: DateTime(2026, 11, 16, 9)),
+        testAnnouncement(id: 'a2', seq: 2, createdAt: DateTime(2026, 11, 15, 9)),
+        testAnnouncement(id: 'a1', seq: 1, createdAt: DateTime(2026, 11, 1, 9)),
+      ], unread: 0);
+      await pumpPanel(tester);
+      expect(find.text('Oggi'), findsOneWidget);
+      expect(find.text('Ieri'), findsOneWidget);
+      expect(find.text('Prima'), findsOneWidget);
+      expect(find.text('Questa settimana'), findsNothing);
+      double y(String text) => tester.getTopLeft(find.text(text)).dy;
+      double entryY(String id) =>
+          tester.getTopLeft(find.byKey(ValueKey('inbox-$id'))).dy;
+      expect(y('Oggi'), lessThan(entryY('a3')));
+      expect(entryY('a3'), lessThan(y('Ieri')));
+      expect(y('Ieri'), lessThan(entryY('a2')));
+      expect(entryY('a2'), lessThan(y('Prima')));
+      expect(y('Prima'), lessThan(entryY('a1')));
+    });
+  });
+
+  testWidgets('chi non è admin non vede Per te · Server, e vede tutto',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testInvite(id: 'i1', seq: 2, createdAt: fiveMinutesAgo()),
+      testRequestPending(id: 'p1', seq: 1, createdAt: fiveMinutesAgo()),
+    ], unread: 2);
+    await pumpPanel(tester);
+    expect(find.text('Per te'), findsNothing);
+    expect(find.text('Server'), findsNothing);
+    expect(find.byKey(const ValueKey('inbox-i1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inbox-p1')), findsOneWidget);
+  });
+
+  /// Admin col pannello aperto: un invito, una richiesta e un riavvio, tutti
+  /// non letti.
+  Future<void> pumpAdmin(WidgetTester tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testInvite(id: 'i1', seq: 3, createdAt: fiveMinutesAgo()),
+      testRequestPending(id: 'p1', seq: 2, createdAt: fiveMinutesAgo()),
+      RestartPendingEntry(
+          id: 'r1', seq: 1, createdAt: fiveMinutesAgo(), read: false),
+    ], unread: 3);
+    await pumpPanel(tester, admin: true);
+    final container = containerOf(tester);
+    container.listen(shellPanelProvider, (_, _) {});
+    container.read(shellPanelProvider.notifier).open(ShellPanel.inbox);
+    await tester.pump();
+    await tester.pump();
+  }
+
+  const serverHint = 'Avvisi per gli admin: download, spazio, riavvii, '
+      'recupero account e richieste in attesa.';
+
+  testWidgets('admin: le voci del server stanno in Server, col numero',
+      (tester) async {
+    await pumpAdmin(tester);
+    final you = find.byKey(const Key('inbox-view-you'));
+    final server = find.byKey(const Key('inbox-view-server'));
+    expect(find.descendant(of: you, matching: find.text('Per te')),
+        findsOneWidget);
+    expect(find.descendant(of: you, matching: find.text('1')), findsOneWidget);
+    expect(find.descendant(of: server, matching: find.text('Server')),
+        findsOneWidget);
+    expect(
+        find.descendant(of: server, matching: find.text('2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inbox-i1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inbox-p1')), findsNothing);
+    expect(find.text(serverHint), findsNothing);
+
+    await tester.tap(server);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('inbox-i1')), findsNothing);
+    expect(find.byKey(const ValueKey('inbox-p1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inbox-r1')), findsOneWidget);
+    expect(find.text(serverHint), findsOneWidget);
+  });
+
+  testWidgets('admin: Svuota tutto in Server toglie solo quelle',
+      (tester) async {
+    await pumpAdmin(tester);
+    await tester.tap(find.byKey(const Key('inbox-view-server')));
+    await tester.pump();
+    await tester.tap(find.text('Svuota tutto'));
+    await tester.pump();
+    expect(find.text('Svuota tutto?'), findsOneWidget);
+    // Il plugin, dopo, ha solo l'invito.
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testInvite(id: 'i1', seq: 3, read: true, createdAt: fiveMinutesAgo()),
+    ], unread: 0);
+    await tester.tap(find.text('Sì, svuota'));
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, containsAll(['remove-entry p1', 'remove-entry r1']));
+    expect(api.calls, isNot(contains('clear-inbox')));
+    expect(find.text('Nessun avviso del server.'), findsOneWidget);
+    expect(find.text('Svuota tutto'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('inbox-view-you')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('inbox-i1')), findsOneWidget);
+  });
+
+  testWidgets('admin: Svuota tutto non riuscito lo dice e torna come sul '
+      'plugin', (tester) async {
+    await pumpAdmin(tester);
+    await tester.tap(find.byKey(const Key('inbox-view-server')));
+    await tester.pump();
+    await tester.tap(find.text('Svuota tutto'));
+    await tester.pump();
+    api.nextFailure = SocialFailure.network;
+    await tester.tap(find.text('Sì, svuota'));
+    await tester.pumpAndSettle();
+    expect(api.calls, isNot(contains('remove-entry r1')));
+    expect(find.text('Non è stato possibile aggiornare le notifiche'),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('inbox-p1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('inbox-r1')), findsOneWidget);
+  });
+
+  testWidgets('admin con Per te vuota: Svuota tutto in Server svuota tutto',
+      (tester) async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testRequestPending(id: 'p1', seq: 1, createdAt: fiveMinutesAgo()),
+    ], unread: 0);
+    await pumpPanel(tester, admin: true);
+    await tester.tap(find.byKey(const Key('inbox-view-server')));
+    await tester.pump();
+    await tester.tap(find.text('Svuota tutto'));
+    await tester.pump();
+    api.inboxSnapshot = InboxSnapshot.empty;
+    await tester.tap(find.text('Sì, svuota'));
+    await tester.pump();
+    expect(api.calls, contains('clear-inbox'));
   });
 
   /// Quante volte il server ha ricevuto "entra nel gruppo".

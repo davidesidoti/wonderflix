@@ -140,6 +140,34 @@ void main() {
     expect(c.read(inboxControllerProvider).snapshot.entries, hasLength(2));
   });
 
+  test('removeAll toglie subito, poi una chiamata per voce; un errore si '
+      'ferma e rilegge', () async {
+    api.inboxSnapshot = InboxSnapshot(entries: [
+      testAnnouncement(id: 'a', seq: 3),
+      testAnnouncement(id: 'b', seq: 2),
+      testAnnouncement(id: 'c', seq: 1),
+    ], unread: 3);
+    final c = container();
+    await pumpEventQueue();
+    final controller = c.read(inboxControllerProvider.notifier);
+    api.calls.clear();
+
+    final removed = controller.removeAll(['a', 'b']);
+    expect(c.read(inboxControllerProvider).snapshot.entries.map((e) => e.id),
+        ['c']);
+    expect(await removed, isNull);
+    await pumpEventQueue();
+    expect(api.calls, ['remove-entry a', 'remove-entry b', 'inbox']);
+
+    api.calls.clear();
+    api.nextFailure = SocialFailure.network;
+    expect(await controller.removeAll(['a', 'b']), SocialFailure.network);
+    await pumpEventQueue();
+    expect(api.calls, ['remove-entry a', 'inbox']);
+    // Il plugin ha ancora tutte e tre le voci: si rilegge.
+    expect(c.read(inboxControllerProvider).snapshot.entries, hasLength(3));
+  });
+
   test('un caricamento non riuscito lo segna; Riprova rilegge', () async {
     api.nextFailure = SocialFailure.network;
     final c = container();

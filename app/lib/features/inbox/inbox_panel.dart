@@ -19,6 +19,7 @@ import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/bold_spans.dart';
 import '../../ui/wf_image.dart';
+import '../admin/admin_providers.dart';
 import '../library/library_providers.dart';
 import '../match/match_actions.dart';
 import '../reports/report_labels.dart';
@@ -30,6 +31,7 @@ import '../watch_party/watch_party_session.dart';
 import 'inbox_account_row.dart';
 import 'inbox_alert_rows.dart';
 import 'inbox_controller.dart';
+import 'inbox_groups.dart';
 import 'inbox_request_rows.dart';
 import 'inbox_row.dart';
 import 'inbox_time.dart';
@@ -104,11 +106,45 @@ class _InboxPanelState extends ConsumerState<InboxPanel> {
     }
   }
 
+  /// Per un admin, la vista "Server" invece di "Per te".
+  bool _server = false;
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final hasEntries = ref.watch(
-        inboxControllerProvider.select((s) => s.snapshot.entries.isNotEmpty));
+    final admin = ref.watch(isAdminProvider);
+    final inbox = ref.watch(inboxControllerProvider);
+    final all = inbox.snapshot.entries;
+    final server = admin && _server;
+    final entries = [
+      for (final entry in all)
+        if (!admin || isServerEntry(entry) == server) entry,
+    ];
+
+    Widget viewChip(bool isServer, String label) {
+      final count = all
+          .where((e) =>
+              isServerEntry(e) == isServer && inbox.highlighted.contains(e.id))
+          .length;
+      return ChoiceChip(
+        key: Key(isServer ? 'inbox-view-server' : 'inbox-view-you'),
+        selected: server == isServer,
+        onSelected: (_) => setState(() => _server = isServer),
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Text('$count',
+                  style: const TextStyle(
+                      fontFeatures: [FontFeature.tabularFigures()])),
+            ],
+          ],
+        ),
+      );
+    }
+
     return Material(
       key: const Key('inbox-panel'),
       color: WfColors.surface,
@@ -118,22 +154,53 @@ class _InboxPanelState extends ConsumerState<InboxPanel> {
         children: [
           PanelHeader(
             title: l.inboxTitle,
-            actions: [if (hasEntries) const _ClearButton()],
+            actions: [
+              if (entries.isNotEmpty)
+                // Con font grandi si stringe (coi puntini) invece di uscire.
+                Flexible(
+                  child: _ClearButton(
+                      // Con l'altra vista vuota si svuota tutto in una
+                      // chiamata.
+                      ids: entries.length == all.length
+                          ? null
+                          : [for (final entry in entries) entry.id]),
+                ),
+            ],
             closeTooltip: l.friendsClose,
             closeFocusNode: _closeFocus,
             onClose: () => ref.read(shellPanelProvider.notifier).close(),
           ),
-          const Expanded(child: _Entries()),
+          if (admin)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  viewChip(false, l.inboxForYou),
+                  viewChip(true, l.inboxServer),
+                ],
+              ),
+            ),
+          if (server)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(l.inboxServerHint, style: _mutedStyle),
+            ),
+          Expanded(child: _Entries(entries: entries, server: server)),
         ],
       ),
     );
   }
 }
 
-/// "Svuota" → "Conferma" per [InboxPanel.clearConfirmFor] (nell'app non ci
-/// sono dialoghi).
+/// "Svuota tutto" → sul posto "Svuota tutto?" e "Sì, svuota" per
+/// [InboxPanel.clearConfirmFor] (nell'app non ci sono dialoghi). Con [ids]
+/// toglie solo quelle voci, senza svuotare tutta la cassetta.
 class _ClearButton extends ConsumerStatefulWidget {
-  const _ClearButton();
+  const _ClearButton({this.ids});
+
+  final List<String>? ids;
 
   @override
   ConsumerState<_ClearButton> createState() => _ClearButtonState();
@@ -160,15 +227,17 @@ class _ClearButtonState extends ConsumerState<_ClearButton> {
   void _clear() {
     _confirm?.cancel();
     setState(() => _confirm = null);
-    unawaited(runInboxAction(
-        context, () => ref.read(inboxControllerProvider.notifier).clear()));
+    final ids = widget.ids;
+    final inbox = ref.read(inboxControllerProvider.notifier);
+    unawaited(runInboxAction(context,
+        () => ids == null ? inbox.clear() : inbox.removeAll(ids)));
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final confirming = _confirm != null;
-    return TextButton(
+    final button = TextButton(
       key: Key(confirming ? 'inbox-clear-confirm' : 'inbox-clear'),
       onPressed: confirming ? _clear : _ask,
       style: TextButton.styleFrom(
@@ -176,13 +245,34 @@ class _ClearButtonState extends ConsumerState<_ClearButton> {
         visualDensity: VisualDensity.compact,
         padding: const EdgeInsets.symmetric(horizontal: 8),
       ),
-      child: Text(confirming ? l.inboxClearConfirm : l.inboxClear),
+      child: Text(confirming ? l.inboxClearConfirm : l.inboxClear,
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+    );
+    if (!confirming) return button;
+    // La domanda sopra il bottone: in fila accanto al titolo non ci sta.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(l.inboxClearAsk,
+              maxLines: 1, overflow: TextOverflow.ellipsis, style: _mutedStyle),
+        ),
+        button,
+      ],
     );
   }
 }
 
 class _Entries extends ConsumerWidget {
-  const _Entries();
+  const _Entries({required this.entries, required this.server});
+
+  /// Le voci della vista, dalla più recente.
+  final List<InboxEntry> entries;
+
+  /// La vista "Server" di un admin.
+  final bool server;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -210,24 +300,45 @@ class _Entries extends ConsumerWidget {
         ),
       );
     }
-    final entries = inbox.snapshot.entries;
     if (entries.isEmpty) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-        child: Text(l.inboxEmpty, style: _mutedStyle),
+        child: Text(server ? l.inboxServerEmpty : l.inboxEmpty,
+            style: _mutedStyle),
       );
     }
     final now = clock.now();
+    // Raggruppate con for annidati: l'ordine dentro il gruppo resta quello
+    // del plugin (List.sort non è stabile).
     return ListView(
       padding: const EdgeInsets.only(bottom: 16),
       children: [
-        for (final entry in entries)
-          _EntryTile(
-            key: ValueKey('inbox-${entry.id}'),
-            entry: entry,
-            highlighted: inbox.highlighted.contains(entry.id),
-            time: inboxTimeLabel(entry.createdAt, now, l),
-          ),
+        for (final day in InboxDay.values)
+          if (entries.any((e) => inboxDayOf(e.createdAt, now) == day)) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Text(
+                switch (day) {
+                  InboxDay.today => l.inboxGroupToday,
+                  InboxDay.yesterday => l.inboxGroupYesterday,
+                  InboxDay.thisWeek => l.inboxGroupThisWeek,
+                  InboxDay.earlier => l.inboxGroupEarlier,
+                },
+                style: const TextStyle(
+                    color: WfColors.creamMuted,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+            for (final entry in entries)
+              if (inboxDayOf(entry.createdAt, now) == day)
+                _EntryTile(
+                  key: ValueKey('inbox-${entry.id}'),
+                  entry: entry,
+                  highlighted: inbox.highlighted.contains(entry.id),
+                  time: inboxTimeLabel(entry.createdAt, now, l),
+                ),
+          ],
       ],
     );
   }

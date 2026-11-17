@@ -188,6 +188,15 @@ class InboxController extends Notifier<InboxState> {
   Future<SocialFailure?> remove(String entryId) => _act(
       state.snapshot.without(entryId), (api) => api.removeInboxEntry(entryId));
 
+  /// Toglie [ids] una alla volta, fermandosi al primo errore; `null` se
+  /// riuscita.
+  Future<SocialFailure?> removeAll(List<String> ids) => _act(
+      ids.fold(state.snapshot, (s, id) => s.without(id)), (api) async {
+    for (final id in ids) {
+      await api.removeInboxEntry(id);
+    }
+  });
+
   /// Svuota la cassetta; `null` se riuscita.
   Future<SocialFailure?> clear() =>
       _act(InboxSnapshot.empty, (api) => api.clearInbox());
