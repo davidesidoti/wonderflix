@@ -10,6 +10,7 @@ import 'package:wonderflix/features/collections/collection_screen.dart';
 import 'package:wonderflix/features/detail/detail_backdrop.dart';
 import 'package:wonderflix/features/detail/detail_providers.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
+import 'package:wonderflix/ui/poster_card.dart';
 import 'package:wonderflix/ui/skeletons.dart';
 
 import '../../support/fake_session_controller.dart';
@@ -40,10 +41,11 @@ void main() {
       ];
   });
 
-  Future<void> pumpCollection(WidgetTester tester) async {
+  Future<void> pumpCollection(WidgetTester tester,
+      {Size surfaceSize = const Size(1440, 1400)}) async {
     await pumpApp(
         tester, const Scaffold(body: CollectionScreen(collectionId: 'c1')),
-        surfaceSize: const Size(1440, 1400),
+        surfaceSize: surfaceSize,
         overrides: [
           libraryApiProvider.overrideWithValue(api),
           sessionControllerProvider.overrideWith(
@@ -89,6 +91,21 @@ void main() {
     await pumpCollection(tester);
     expect(find.text('Riproduci "Matrix"'), findsOneWidget);
     expect(find.text('2 film · 0 visti'), findsOneWidget);
+  });
+
+  testWidgets('saga vuota: dice cosa fare, non 0 film', (tester) async {
+    api.itemsByCollection['c1'] = [];
+    await pumpCollection(tester);
+    expect(find.textContaining('0 film'), findsNothing);
+    expect(
+        find.text('Nessun film di questa saga è sul server. '
+            'Puoi chiederli in Richieste.'),
+        findsOneWidget);
+  });
+
+  testWidgets('stretto: la griglia parte a 16', (tester) async {
+    await pumpCollection(tester, surfaceSize: const Size(390, 780));
+    expect(tester.getTopLeft(find.byType(PosterCard).first).dx, 16);
   });
 
   testWidgets('saga che non c\'è: errore con Riprova', (tester) async {

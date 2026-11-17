@@ -11,6 +11,8 @@ import '../../core/requests/tmdb_images.dart';
 import '../../core/trailers/trailers_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/backdrop_image.dart';
+import '../../ui/expandable_text.dart';
+import '../../ui/form_factor.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/states.dart';
@@ -151,7 +153,8 @@ class _TmdbTitleViewState extends ConsumerState<_TmdbTitleView> {
         ),
         if (showSeasons)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
+            padding: EdgeInsets.symmetric(
+                horizontal: detailCompact(context) ? 16 : 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -197,7 +200,7 @@ class TmdbTitleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    const muted = TextStyle(color: WfColors.creamMuted);
+    final tv = FormFactor.of(context).tv;
     final isSeries = details.mediaType == RequestMediaType.tv;
     final year = details.year;
     final runtime = details.runtimeMinutes;
@@ -209,6 +212,8 @@ class TmdbTitleHeader extends StatelessWidget {
         formatRuntime(Duration(minutes: runtime)),
       if (isSeries && details.seasons.isNotEmpty)
         l.detailSeasons(details.seasons.length),
+      // Da Seerr arrivano già in italiano.
+      ...details.genres.take(2),
     ].join(' · ');
     final itemId = details.jellyfinItemId;
     final watchable = details.status == TitleStatus.available ||
@@ -218,103 +223,93 @@ class TmdbTitleHeader extends StatelessWidget {
     final chosen = state.selected.length;
     final allChosen = chosen == details.requestableSeasons.length;
 
-    return SizedBox(
-      height: detailHeaderHeight,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Sotto le due sfumature, così scorre con loro.
-          BackdropImage(
+    // Lo sfondo scorre con la testata; nello stretto è l'immagine 16:9 sopra
+    // e i testi stanno sotto, come nella scheda.
+    return Stack(
+      children: [
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: detailBackdropHeight(context),
+          child: BackdropImage(
             backdrop: TmdbImages.backdrop(details.backdropPath),
             fallback: TmdbImages.poster(details.posterPath),
           ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [WfColors.bg, Color(0xD90A0A0A), Colors.transparent],
-                stops: [0, 0.4, 0.8],
+        ),
+        DetailHeaderFrame(
+          controller: null,
+          children: [
+            if (!watchable) ...[
+              DetailKicker(l.tmdbNotOnServer),
+              const SizedBox(height: 6),
+            ],
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 80),
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: Text(details.title.toUpperCase(),
+                    maxLines: tv ? 1 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: headerTitleStyle(context)),
               ),
             ),
-          ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [WfColors.bg, Colors.transparent],
-                stops: [0, 0.5],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 32,
-            right: 32,
-            bottom: detailHeaderTextBottom,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(details.title.toUpperCase(),
-                    maxLines: 2, style: WfText.display(56)),
-                const SizedBox(height: 12),
-                Text(meta, style: muted),
-                if (details.genres.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(details.genres.join(' · '), style: muted),
-                ],
-                if (overview != null && overview.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: _overviewMaxWidth),
-                    child: Text(overview,
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(height: 1.45)),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (showRequest)
-                      WfButton.primary(
-                        label: isSeries && !allChosen
-                            ? l.requestsRequestSeasons(chosen)
-                            : l.requestsRequest,
-                        icon: LucideIcons.plus,
-                        onPressed: state.sending || (isSeries && chosen == 0)
-                            ? null
-                            : onRequest,
-                      ),
-                    if (status != null) RequestStatusChip(label: status),
-                    if (itemId != null && watchable)
-                      WfButton.secondary(
-                        label: l.requestsWatch,
-                        icon: LucideIcons.play,
-                        onPressed: () => openItemById(context, itemId),
-                      ),
-                    // Il plugin dà `TrailerUrl` solo per un video YouTube.
-                    if (details.trailerUrl != null)
-                      WfButton.secondary(
-                        label: l.actionTrailer,
-                        icon: LucideIcons.clapperboard,
-                        onPressed: () => unawaited(openTrailerRoute(
-                            context,
-                            trailerRoute(
-                                TmdbTrailer(
-                                    details.mediaType.wire, details.tmdbId),
-                                title: details.title))),
-                      ),
-                  ],
+            const SizedBox(height: 12),
+            Text(meta, style: const TextStyle(color: WfColors.creamMuted)),
+            if (overview != null && overview.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _overviewMaxWidth),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: ExpandableText(overview,
+                      maxLines: 3,
+                      // Sul PC alta al più 6 righe, e scorre, come nella scheda.
+                      expandedMaxLines: detailCompact(context) ? null : 6,
+                      tvFocusable: tv,
+                      style: const TextStyle(height: 1.45)),
                 ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (showRequest)
+                  WfButton.primary(
+                    label: isSeries && !allChosen
+                        ? l.requestsRequestSeasons(chosen)
+                        : l.requestsRequest,
+                    icon: LucideIcons.plus,
+                    onPressed: state.sending || (isSeries && chosen == 0)
+                        ? null
+                        : onRequest,
+                  ),
+                if (status != null) RequestStatusChip(label: status),
+                if (itemId != null && watchable)
+                  WfButton.secondary(
+                    label: l.requestsWatch,
+                    icon: LucideIcons.play,
+                    onPressed: () => openItemById(context, itemId),
+                  ),
+                // Il plugin dà `TrailerUrl` solo per un video YouTube.
+                if (details.trailerUrl != null)
+                  WfButton.secondary(
+                    label: l.actionTrailer,
+                    icon: LucideIcons.clapperboard,
+                    onPressed: () => unawaited(openTrailerRoute(
+                        context,
+                        trailerRoute(
+                            TmdbTrailer(details.mediaType.wire, details.tmdbId),
+                            title: details.title))),
+                  ),
               ],
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

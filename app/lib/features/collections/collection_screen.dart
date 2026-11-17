@@ -157,6 +157,7 @@ class CollectionView extends ConsumerWidget {
         : sagaTarget(items, (item) => watchUserData(ref, item));
     final action =
         target == null ? null : primaryActionFor(target, watchUserData(ref, target));
+    final margin = detailCompact(context) ? 16.0 : 32.0;
     final page = StaggerGroup(
       count: entranceCount,
       child: CustomScrollView(
@@ -172,7 +173,7 @@ class CollectionView extends ConsumerWidget {
           ),
           if (items != null)
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(32, 8, 32, 40),
+              padding: EdgeInsets.fromLTRB(margin, 8, margin, 40),
               sliver: SliverGrid(
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 180,
@@ -272,8 +273,10 @@ class CollectionHeader extends ConsumerWidget {
           StaggerItem(
             index: 1,
             child: Text(
-                '${l.collectionFilmCount(list.length)} · '
-                '${l.collectionWatched(watched)}',
+                list.isEmpty
+                    ? l.collectionEmptyHint
+                    : '${l.collectionFilmCount(list.length)} · '
+                        '${l.collectionWatched(watched)}',
                 style: const TextStyle(color: WfColors.creamMuted)),
           ),
         ],

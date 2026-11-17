@@ -7,6 +7,7 @@ import 'package:wonderflix/app/navigation.dart';
 import 'package:wonderflix/core/requests/requests_api.dart';
 import 'package:wonderflix/core/requests/requests_models.dart';
 import 'package:wonderflix/core/trailers/trailers_api.dart';
+import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/requests/tmdb_title_screen.dart';
 import 'package:wonderflix/ui/backdrop_image.dart';
 import 'package:wonderflix/ui/skeletons.dart';
@@ -45,8 +46,10 @@ void main() {
     await pumpScreen(tester);
 
     expect(find.text('DUNE - PARTE DUE'), findsOneWidget);
-    expect(find.text('2024 · Film · 2h 46m'), findsOneWidget);
-    expect(find.text('Fantascienza · Avventura'), findsOneWidget);
+    expect(find.text('Non ancora su WonderFlix'), findsOneWidget);
+    expect(find.text('2024 · Film · 2h 46m · Fantascienza · Avventura'),
+        findsOneWidget);
+    expect(find.text('Fantascienza · Avventura'), findsNothing);
     expect(find.text('Paul Atreides si unisce ai Fremen.'), findsOneWidget);
     expect(find.text('Trailer'), findsOneWidget);
     expect(find.text('Guarda'), findsNothing);
@@ -57,6 +60,39 @@ void main() {
 
     expect(api.created.single.type, RequestMediaType.movie);
     expect(find.text('Richiesta inviata'), findsOneWidget);
+  });
+
+  testWidgets('stretto: immagine sopra e testi sotto, come la scheda',
+      (tester) async {
+    api.titles[693134] = testDetails();
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: TmdbTitleScreen(
+              type: RequestMediaType.movie, tmdbId: 693134)),
+      overrides: requestsTestOverrides(api),
+      surfaceSize: const Size(390, 780),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(DetailHeaderFrame), findsOneWidget);
+    expect(tester.getTopLeft(find.text('DUNE - PARTE DUE')).dy,
+        greaterThanOrEqualTo(390 * 9 / 16 - 1));
+  });
+
+  testWidgets('in parte nella libreria: niente Non ancora su WonderFlix',
+      (tester) async {
+    api.titles[90228] = testDetails(
+      tmdbId: 90228,
+      type: RequestMediaType.tv,
+      status: TitleStatus.partial,
+      jellyfinItemId: 'abc',
+      seasons: const [SeasonInfo(seasonNumber: 1, episodeCount: 6)],
+    );
+    await pumpScreen(tester, type: RequestMediaType.tv, tmdbId: 90228);
+
+    expect(find.text('Non ancora su WonderFlix'), findsNothing);
   });
 
   testWidgets('tmdbTrailerOpensTheTrailerScreen', (tester) async {
@@ -135,7 +171,8 @@ void main() {
     );
     await pumpScreen(tester, type: RequestMediaType.tv, tmdbId: 90228);
 
-    expect(find.text('2024 · Serie · 2 stagioni'), findsOneWidget);
+    expect(find.text('2024 · Serie · 2 stagioni · Fantascienza · Avventura'),
+        findsOneWidget);
     expect(find.text('Stagioni'), findsOneWidget);
     expect(find.text('Richiedi'), findsOneWidget);
 
