@@ -9,8 +9,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../app/theme.dart';
 import '../../core/jellyfin/api_exception.dart';
 import '../../core/jellyfin/user_image_api.dart';
+import '../../core/platform/device_kind.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_dialog.dart';
@@ -59,8 +61,8 @@ const _galleryRowGap = 4.0;
 /// Lato del riquadro del ritaglio.
 const _cropViewport = 240.0;
 
-/// Lato dell'anteprima nella scheda "Rimuovi".
-const _previewSize = 120.0;
+/// Lato dell'immagine attuale nella testa.
+const _currentSize = 64.0;
 
 /// Un file scelto: la dimensione si legge prima del contenuto.
 class PickedAvatarFile {
@@ -118,15 +120,17 @@ Future<void> showAvatarDialog(
 }) => showWfDialog<void>(
   context,
   maxWidth: _dialogWidth,
-  semanticLabel: AppLocalizations.of(context).profileImageTitle,
+  semanticLabel: AppLocalizations.of(context).profileImageTitle(name),
+  fullPageWhenCompact: !FormFactor.of(context).tv,
   builder: (context) =>
       AvatarDialog(userId: userId, name: name, imageTag: imageTag),
 );
 
-/// La finestra dell'immagine del profilo (spec K §10.1): le schede Avatar,
-/// Dal PC e Rimuovi. Mentre carica i pulsanti sono spenti e la finestra non
-/// si chiude; riuscita, si chiude; con un errore resta aperta con il
-/// messaggio.
+/// La finestra dell'immagine del profilo (spec K §10.1, revisione §9.1):
+/// l'immagine attuale con "Togli immagine", le schede Avatar e quella del
+/// file (in TV solo la galleria). Mentre carica i pulsanti sono spenti e la
+/// finestra non si chiude; riuscita, si chiude; con un errore resta aperta
+/// con il messaggio.
 class AvatarDialog extends ConsumerStatefulWidget {
   const AvatarDialog({
     super.key,
@@ -160,12 +164,16 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
   bool _uploading = false;
   String? _error;
 
+  /// In TV non si sceglie un file: solo la galleria, senza schede.
+  late final bool _tv;
+
   AvatarImageTools get _tools => ref.read(avatarImageToolsProvider);
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this)..addListener(_onTabChanged);
+    _tv = ref.read(deviceKindProvider) == DeviceKind.tv;
+    _tabs = TabController(length: 2, vsync: this)..addListener(_onTabChanged);
   }
 
   @override
@@ -281,24 +289,58 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
     // Nello stretto la finestra è una pagina: scorre tutta, le schede hanno
     // l'altezza piena (il ritaglio non sta nell'altezza di un telefono per
     // il lungo).
-    final compact = FormFactor.of(context).compact;
+    final compact = FormFactor.of(context).compact && !_tv;
     final dialog = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          l.profileImageTitle,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 12),
-        TabBar(
-          controller: _tabs,
-          tabs: [
-            Tab(text: l.profileImageAvatars),
-            Tab(text: l.profileImageFromPc),
-            Tab(text: l.profilesRemove),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                UserAvatar(
+                  userId: widget.userId,
+                  name: widget.name,
+                  size: _currentSize,
+                  imageTag: widget.imageTag,
+                ),
+                if (widget.imageTag != null) ...[
+                  const SizedBox(height: 8),
+                  TextButton(
+                    key: const Key('avatar-remove'),
+                    onPressed: _busy
+                        ? null
+                        : () => unawaited(_save(() async => null)),
+                    child: Text(l.profileImageRemove),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                l.profileImageTitle(widget.name),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: WfText.display(32),
+              ),
+            ),
           ],
         ),
+        const SizedBox(height: 12),
+        if (!_tv)
+          TabBar(
+            controller: _tabs,
+            tabs: [
+              Tab(text: l.profileImageAvatars),
+              Tab(
+                text: l.profileImageFromDevice(
+                  ref.read(deviceKindProvider).name,
+                ),
+              ),
+            ],
+          ),
         SizedBox(
           height: _progressSlotHeight,
           child: Center(child: _busy ? const LinearProgressIndicator() : null),
@@ -310,17 +352,20 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
           compact,
           SizedBox(
             height: _tabHeight,
-            child: TabBarView(
-              controller: _tabs,
-              // Trascinare l'immagine nel ritaglio non deve cambiare scheda.
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _galleryTab(l),
-                // Il ritaglio resta com'è quando si guarda un'altra scheda.
-                _KeepAlive(child: _fileTab(l)),
-                _removeTab(l),
-              ],
-            ),
+            child: _tv
+                ? _galleryTab(l)
+                : TabBarView(
+                    controller: _tabs,
+                    // Trascinare l'immagine nel ritaglio non deve cambiare
+                    // scheda.
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _galleryTab(l),
+                      // Il ritaglio resta com'è quando si guarda un'altra
+                      // scheda.
+                      _KeepAlive(child: _fileTab(l)),
+                    ],
+                  ),
           ),
         ),
       ],
@@ -434,29 +479,6 @@ class _AvatarDialogState extends ConsumerState<AvatarDialog>
       ],
     );
   }
-
-  Widget _removeTab(AppLocalizations l) => Column(
-    children: [
-      const SizedBox(height: 24),
-      UserAvatar(
-        userId: widget.userId,
-        name: widget.name,
-        size: _previewSize,
-        imageTag: widget.imageTag,
-      ),
-      const Spacer(),
-      Align(
-        alignment: Alignment.centerRight,
-        child: WfButton.secondary(
-          label: l.profileImageRemove,
-          icon: LucideIcons.trash2,
-          onPressed: _busy || widget.imageTag == null
-              ? null
-              : () => unawaited(_save(() async => null)),
-        ),
-      ),
-    ],
-  );
 }
 
 /// Tiene viva una scheda quando non si vede.
@@ -498,29 +520,38 @@ class _GalleryTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    container: true,
-    button: true,
-    selected: selected,
-    label: label,
-    child: SizedBox.square(
-      dimension: _galleryTileExtent,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        focusColor: WfColors.gold.withValues(alpha: 0.18),
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: selected ? WfColors.gold : Colors.transparent,
-              width: _selectedBorder,
+  Widget build(BuildContext context) {
+    final tv = FormFactor.of(context).tv;
+    return Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      label: label,
+      child: SizedBox.square(
+        dimension: _galleryTileExtent,
+        // In TV il focus è di TvFocusable.
+        child: TvFocusable(
+          onActivate: onTap,
+          borderRadius: BorderRadius.circular(_galleryTileExtent / 2),
+          child: InkWell(
+            onTap: onTap,
+            canRequestFocus: !tv,
+            customBorder: const CircleBorder(),
+            focusColor: tv ? null : WfColors.gold.withValues(alpha: 0.18),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected ? WfColors.gold : Colors.transparent,
+                  width: _selectedBorder,
+                ),
+              ),
+              padding: const EdgeInsets.all(_selectedGap),
+              child: GalleryAvatarView(avatar: avatar, size: _galleryTileSize),
             ),
           ),
-          padding: const EdgeInsets.all(_selectedGap),
-          child: GalleryAvatarView(avatar: avatar, size: _galleryTileSize),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

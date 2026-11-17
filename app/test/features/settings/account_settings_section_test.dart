@@ -71,7 +71,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('settings-change-image')));
     await tester.pumpAndSettle();
-    expect(find.text('Immagine del profilo'), findsOneWidget);
+    expect(find.text('Immagine di Mario'), findsOneWidget);
   });
 
   testWidgets('avatar annunciato come Cambia immagine',

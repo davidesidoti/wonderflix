@@ -7,13 +7,15 @@ void main() {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
     expect(it.settingsChangeImage, 'Cambia immagine');
-    expect(it.profileImageTitle, 'Immagine del profilo');
+    expect(it.profileImageTitle('Mario'), 'Immagine di Mario');
     expect(it.profileImageAvatars, 'Avatar');
-    expect(it.profileImageFromPc, 'Dal PC');
+    expect(it.profileImageFromDevice('pc'), 'Dal PC');
+    expect(it.profileImageFromDevice('phone'), 'Dal telefono');
+    expect(it.profileImageFromDevice('browser'), 'Carica immagine');
     expect(it.profileImageUseAvatar, 'Usa questo');
     expect(it.profileImageChoose, 'Scegli un\'immagine…');
     expect(it.profileImageUseFile, 'Usa questa');
-    expect(it.profileImageRemove, 'Rimuovi immagine');
+    expect(it.profileImageRemove, 'Togli immagine');
     expect(it.profileImageTooLarge, 'Immagine troppo grande');
     expect(it.profileImageInvalid, 'Immagine non valida');
     expect(it.profileImageForbidden,
@@ -23,16 +25,17 @@ void main() {
     expect(it.profileImageZoom, 'Ingrandimento');
     expect(it.profileImageGalleryItem(4), 'Avatar 4');
     expect(en.profileImageGalleryItem(4), 'Avatar 4');
-    expect(en.profileImageTitle, 'Profile picture');
+    expect(en.profileImageTitle('Mario'), "Mario's picture");
+    expect(en.profileImageFromDevice('phone'), 'From phone');
     expect(en.settingsChangeImage, 'Change picture');
 
     // Ogni testo del piano c'è in tutte e due le lingue.
     for (final l in [it, en]) {
       expect([
         l.settingsChangeImage,
-        l.profileImageTitle,
+        l.profileImageTitle('Mario'),
         l.profileImageAvatars,
-        l.profileImageFromPc,
+        l.profileImageFromDevice('pc'),
         l.profileImageUseAvatar,
         l.profileImageChoose,
         l.profileImageUseFile,

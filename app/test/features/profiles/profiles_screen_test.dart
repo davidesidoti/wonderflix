@@ -373,7 +373,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('profile-image-u1')));
     await tester.pumpAndSettle();
-    expect(find.text('Immagine del profilo'), findsOneWidget);
+    expect(find.text('Immagine di Mario'), findsOneWidget);
   });
 
   testWidgets('TV: doppio Indietro per uscire, il primo avvisa',

@@ -84,7 +84,7 @@ void main() {
         lessThan(tester.getTopLeft(find.byKey(_section('app'))).dy));
     await tester.tap(find.byKey(const Key('settings-change-image')));
     await tester.pumpAndSettle();
-    expect(find.text('Immagine del profilo'), findsOneWidget);
+    expect(find.text('Immagine di Mario'), findsOneWidget);
     await tester.tapAt(const Offset(5, 5));
     await tester.pumpAndSettle();
     // Nel largo la versione sta in fondo alla colonna.

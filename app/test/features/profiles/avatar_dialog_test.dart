@@ -8,12 +8,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/core/platform/device_kind.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/profiles/avatar_cropper.dart';
 import 'package:wonderflix/features/profiles/avatar_dialog.dart';
 import 'package:wonderflix/features/profiles/avatar_gallery.dart';
 import 'package:wonderflix/features/profiles/avatar_image.dart';
 import 'package:wonderflix/features/social/avatars_provider.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/avatar_fakes.dart';
@@ -96,11 +98,13 @@ void main() {
     Widget? below,
     List<Override> overrides = const [],
     Size surfaceSize = const Size(1440, 900),
+    bool tv = false,
   }) async {
     await pumpApp(
       tester,
       opener(imageTag: imageTag, below: below),
       surfaceSize: surfaceSize,
+      tv: tv,
       overrides: [...dialogOverrides(), ...overrides],
     );
     await tester.tap(find.text('apri'));
@@ -117,15 +121,83 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('tre schede; "Usa questo" solo con un avatar scelto', (
-    tester,
-  ) async {
-    await openDialog(tester);
+  testWidgets('il titolo nomina il profilo; due schede; "Togli immagine" '
+      'sotto l\'immagine', (tester) async {
+    await openDialog(tester, imageTag: 'tag1');
 
-    expect(find.text('Immagine del profilo'), findsOneWidget);
+    expect(find.text('Immagine di Mario'), findsOneWidget);
     expect(find.text('Avatar'), findsOneWidget);
     expect(find.text('Dal PC'), findsOneWidget);
-    expect(find.text('Rimuovi'), findsOneWidget);
+    expect(find.text('Rimuovi'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('avatar-remove'))).dy,
+      greaterThan(tester.getBottomLeft(find.byType(UserAvatar).first).dy),
+    );
+  });
+
+  testWidgets('senza immagine "Togli immagine" non c\'è', (tester) async {
+    await openDialog(tester);
+
+    expect(find.byKey(const Key('avatar-remove')), findsNothing);
+    expect(find.text('Togli immagine'), findsNothing);
+  });
+
+  testWidgets('"Togli immagine" toglie l\'immagine', (tester) async {
+    await openDialog(tester, imageTag: 't1');
+
+    await tester.tap(find.byKey(const Key('avatar-remove')));
+    await tester.pumpAndSettle();
+
+    expect(session.profileImageCalls.single, ('u1', null));
+  });
+
+  testWidgets('"Togli immagine" è spento durante un caricamento', (
+    tester,
+  ) async {
+    await openDialog(tester, imageTag: 't1');
+    final gate = Completer<void>();
+    session.profileImageGate = gate;
+
+    await chooseGalleryAvatar(tester);
+
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('avatar-remove')))
+          .onPressed,
+      isNull,
+    );
+    gate.complete();
+    await tester.pumpAndSettle();
+  });
+
+  for (final (kind, label) in const [
+    (DeviceKind.phone, 'Dal telefono'),
+    (DeviceKind.browser, 'Carica immagine'),
+  ]) {
+    testWidgets('${kind.name}: la scheda del file è "$label"', (tester) async {
+      await openDialog(
+        tester,
+        overrides: [deviceKindProvider.overrideWithValue(kind)],
+      );
+
+      expect(find.text(label), findsOneWidget);
+      expect(find.text('Dal PC'), findsNothing);
+    });
+  }
+
+  testWidgets('TV: solo la galleria, in una finestra', (tester) async {
+    await openDialog(tester, tv: true, surfaceSize: const Size(960, 540));
+
+    expect(find.byType(TabBar), findsNothing);
+    expect(find.text('Dal PC'), findsNothing);
+    expect(find.byKey(const ValueKey('gallery-0')), findsOneWidget);
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('"Usa questo" solo con un avatar scelto', (tester) async {
+    await openDialog(tester);
+
     expect(onPressed(tester, 'Usa questo'), isNull);
 
     await tester.tap(find.byKey(const ValueKey('gallery-3')));
@@ -145,7 +217,7 @@ void main() {
     expect(userId, 'u1');
     expect(upload!.contentType, 'image/png');
     expect(upload.bytes, [7]);
-    expect(find.text('Immagine del profilo'), findsNothing);
+    expect(find.text('Immagine di Mario'), findsNothing);
   });
 
   testWidgets('senza permesso: il messaggio, e la finestra resta', (
@@ -161,7 +233,7 @@ void main() {
       find.text('Non hai il permesso di cambiare l\'immagine'),
       findsOneWidget,
     );
-    expect(find.text('Immagine del profilo'), findsOneWidget);
+    expect(find.text('Immagine di Mario'), findsOneWidget);
   });
 
   testWidgets('un altro errore: "Caricamento non riuscito"', (tester) async {
@@ -183,7 +255,7 @@ void main() {
     await chooseGalleryAvatar(tester);
     await tester.pumpAndSettle();
 
-    expect(find.text('Immagine del profilo'), findsNothing);
+    expect(find.text('Immagine di Mario'), findsNothing);
   });
 
   testWidgets('cambiando scheda il messaggio d\'errore sparisce', (
@@ -264,7 +336,7 @@ void main() {
 
     gate.complete();
     await tester.pumpAndSettle();
-    expect(find.text('Immagine del profilo'), findsNothing);
+    expect(find.text('Immagine di Mario'), findsNothing);
   });
 
   testWidgets('durante il caricamento Esc e il clic fuori non la chiudono', (
@@ -279,11 +351,11 @@ void main() {
     await tester.pump();
     await tester.tapAt(const Offset(5, 5));
     await tester.pump();
-    expect(find.text('Immagine del profilo'), findsOneWidget);
+    expect(find.text('Immagine di Mario'), findsOneWidget);
 
     gate.complete();
     await tester.pumpAndSettle();
-    expect(find.text('Immagine del profilo'), findsNothing);
+    expect(find.text('Immagine di Mario'), findsNothing);
     expect(find.text('apri'), findsOneWidget);
   });
 
@@ -305,7 +377,7 @@ void main() {
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
-    expect(find.text('Immagine del profilo'), findsNothing);
+    expect(find.text('Immagine di Mario'), findsNothing);
 
     // La preparazione finisce a finestra chiusa: niente da fare.
     gate.complete();
@@ -347,7 +419,7 @@ void main() {
     gate.complete();
     await tester.pumpAndSettle();
 
-    expect(find.text('Immagine del profilo'), findsNothing);
+    expect(find.text('Immagine di Mario'), findsNothing);
     expect(find.text('apri'), findsOneWidget);
   });
 
@@ -454,25 +526,6 @@ void main() {
     expect(find.text('Usa questa'), findsOneWidget);
   });
 
-  testWidgets('Rimuovi: spento senza immagine', (tester) async {
-    await openDialog(tester);
-    await tester.tap(find.text('Rimuovi'));
-    await tester.pumpAndSettle();
-
-    expect(onPressed(tester, 'Rimuovi immagine'), isNull);
-  });
-
-  testWidgets('Rimuovi: con un\'immagine la toglie', (tester) async {
-    await openDialog(tester, imageTag: 't1');
-    await tester.tap(find.text('Rimuovi'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Rimuovi immagine'));
-    await tester.pumpAndSettle();
-
-    expect(session.profileImageCalls.single, ('u1', null));
-  });
-
   testWidgets('dopo il caricamento la cache degli avatar ha l\'immagine nuova, '
       'e gli avatar sullo schermo la mostrano', (tester) async {
     final api = FakeAvatarsApi();
@@ -535,6 +588,9 @@ void main() {
         );
         await openDialog(tester, surfaceSize: size);
         await tester.tap(find.text('Dal PC'));
+        await tester.pumpAndSettle();
+        // Nello stretto la pagina scorre: il pulsante può stare sotto.
+        await tester.ensureVisible(find.text("Scegli un'immagine…"));
         await tester.pumpAndSettle();
         await tester.tap(find.text("Scegli un'immagine…"));
         await tester.pumpAndSettle();
