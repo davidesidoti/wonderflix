@@ -99,22 +99,34 @@ class _InboxRowState extends State<InboxRow> {
                           below,
                         ],
                         const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.meta,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: WfColors.creamMuted,
-                                  fontSize: 12,
-                                  fontFeatures: [FontFeature.tabularFigures()],
+                        LayoutBuilder(
+                          builder: (context, constraints) => Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.meta,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: WfColors.creamMuted,
+                                    fontSize: 12,
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures()
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (action != null) Flexible(child: action),
-                          ],
+                              if (action != null)
+                                // Al massimo metà riga: l'ora resta leggibile
+                                // anche col testo grande. Fuori dal Tab: la
+                                // riga, che ha già il fuoco, fa lo stesso.
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                      maxWidth: constraints.maxWidth / 2),
+                                  child: ExcludeFocus(child: action),
+                                ),
+                            ],
+                          ),
                         ),
                       ],
                     ),

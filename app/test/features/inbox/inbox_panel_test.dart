@@ -49,8 +49,7 @@ void main() {
   Future<void> pumpPanel(WidgetTester tester,
       {List<GroupInfo> parties = const [],
       double width = InboxPanel.width,
-      double textScale = 1,
-      bool touch = false}) async {
+      double textScale = 1}) async {
     await pumpApp(
       tester,
       Builder(
@@ -75,7 +74,6 @@ void main() {
         partyChannelApiProvider
             .overrideWithValue(FakePartyChannelApi()..install()),
       ],
-      touch: touch,
     );
     await tester.pump();
   }
@@ -587,6 +585,34 @@ void main() {
     expect(find.byType(SenderAvatar), findsOneWidget);
     expect(find.byKey(const Key('sender-poster')), findsOneWidget);
     expect(find.text('Unisciti'), findsOneWidget);
+
+    // L'azione sta sul bordo destro della riga dell'ora e l'ora prende
+    // tutto lo spazio fino all'azione, non metà riga. (Col font dei test,
+    // un em per lettera, la misura del testo non direbbe niente.)
+    final meta = find.text('5 min fa · 2 nel party');
+    final join = find.byKey(const Key('inbox-join-i1'));
+    final metaRow =
+        find.ancestor(of: meta, matching: find.byType(Row)).first;
+    expect(tester.getTopRight(join).dx,
+        moreOrLessEquals(tester.getTopRight(metaRow).dx, epsilon: 2));
+    expect(tester.getTopRight(meta).dx,
+        moreOrLessEquals(tester.getTopLeft(join).dx, epsilon: 2));
+  });
+
+  testWidgets('invito: Unisciti non è un passo in più per Tab, ma si preme',
+      (tester) async {
+    final container = await pumpInvite(tester);
+    final join = find.byKey(const Key('inbox-join-i1'));
+    expect(
+        find.ancestor(of: join, matching: find.byType(ExcludeFocus)),
+        findsOneWidget);
+    await tester.tap(join);
+    await tester.pumpAndSettle();
+    expect(syncPlay.calls, contains('join g1'));
+    expect(container.read(shellPanelProvider), ShellPanel.none);
+
+    await container.read(watchPartySessionProvider.notifier).leave();
+    await tester.pump();
   });
 
   testWidgets('invito a un party finito: la riga non apre niente',
@@ -639,5 +665,15 @@ void main() {
     expect(find.byType(SenderAvatar), findsOneWidget);
     expect(find.byType(SystemAvatar), findsOneWidget);
     expect(find.text('Apri'), findsNWidgets(2));
+
+    // Un'azione corta resta sul bordo destro, non a metà riga.
+    final open = find
+        .ancestor(of: find.text('Apri').first, matching: find.byType(TextButton))
+        .first;
+    final metaRow = find
+        .ancestor(of: find.text('5 min fa').first, matching: find.byType(Row))
+        .first;
+    expect(tester.getTopRight(open).dx,
+        moreOrLessEquals(tester.getTopRight(metaRow).dx, epsilon: 2));
   });
 }
