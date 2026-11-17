@@ -235,6 +235,7 @@ TitleDetails testDetails({
   bool requested = false,
   String? trailerUrl,
   List<SeasonInfo> seasons = const [],
+  List<String> genres = const ['Fantascienza', 'Avventura'],
 }) =>
     TitleDetails(
       mediaType: type,
@@ -242,7 +243,7 @@ TitleDetails testDetails({
       title: title,
       year: 2024,
       overview: 'Paul Atreides si unisce ai Fremen.',
-      genres: const ['Fantascienza', 'Avventura'],
+      genres: genres,
       runtimeMinutes: type == RequestMediaType.movie ? 166 : null,
       posterPath: '/p$tmdbId.jpg',
       backdropPath: '/b$tmdbId.jpg',

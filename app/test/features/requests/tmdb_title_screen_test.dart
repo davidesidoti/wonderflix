@@ -11,6 +11,7 @@ import 'package:wonderflix/features/detail/detail_header.dart';
 import 'package:wonderflix/features/requests/tmdb_title_screen.dart';
 import 'package:wonderflix/ui/backdrop_image.dart';
 import 'package:wonderflix/ui/skeletons.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 import 'package:wonderflix/ui/smooth_scroll.dart';
 
 import '../../support/pump_app.dart';
@@ -77,8 +78,45 @@ void main() {
     await tester.pump();
 
     expect(find.byType(DetailHeaderFrame), findsOneWidget);
+    final backdrop = tester.getRect(find.byType(BackdropImage));
+    expect(backdrop.width / backdrop.height, closeTo(16 / 9, 0.01));
     expect(tester.getTopLeft(find.text('DUNE - PARTE DUE')).dy,
-        greaterThanOrEqualTo(390 * 9 / 16 - 1));
+        greaterThanOrEqualTo(backdrop.bottom - 1));
+  });
+
+  testWidgets('serie: i generi di TMDB in inglese sono tradotti',
+      (tester) async {
+    api.titles[90228] = testDetails(
+      tmdbId: 90228,
+      type: RequestMediaType.tv,
+      genres: const ['Action & Adventure', 'Drama'],
+    );
+    await pumpScreen(tester, type: RequestMediaType.tv, tmdbId: 90228);
+
+    expect(find.text('2024 · Serie · Azione e avventura · Dramma'),
+        findsOneWidget);
+  });
+
+  testWidgets('TV: la trama è testo semplice, senza Altro né tappa di focus',
+      (tester) async {
+    api.titles[693134] = testDetails();
+    await pumpApp(
+      tester,
+      const Scaffold(
+          body: TmdbTitleScreen(
+              type: RequestMediaType.movie, tmdbId: 693134)),
+      overrides: requestsTestOverrides(api),
+      surfaceSize: const Size(960, 540),
+      tv: true,
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final overview = find.text('Paul Atreides si unisce ai Fremen.');
+    expect(tester.widget<Text>(overview).maxLines, 2);
+    expect(find.text('Altro'), findsNothing);
+    expect(find.ancestor(of: overview, matching: find.byType(TvFocusable)),
+        findsNothing);
   });
 
   testWidgets('in parte nella libreria: niente Non ancora su WonderFlix',

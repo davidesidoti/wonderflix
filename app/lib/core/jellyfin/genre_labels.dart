@@ -25,6 +25,13 @@ const _labels = {
   'Medical': 'Medico',
   'Food': 'Cucina',
   'televisione film': 'Film TV',
+  // Generi TV di TMDB, che Seerr dà in inglese anche con language=it.
+  'Action & Adventure': 'Azione e avventura',
+  'Sci-Fi & Fantasy': 'Fantascienza e fantasy',
+  'War & Politics': 'Guerra e politica',
+  'Kids': 'Bambini',
+  'Talk': 'Talk show',
+  'News': 'Notizie',
 };
 
 /// Etichetta italiana di un genere del server; quelli senza voce restano uguali.

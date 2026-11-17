@@ -39,5 +39,7 @@ void main() {
     expect(displayGenres(['Drama', 'Comedy', 'War'], max: 3),
         ['Dramma', 'Commedia', 'Guerra']);
     expect(displayGenres(const []), isEmpty);
+    expect(displayGenres(['Action & Adventure', 'Sci-Fi & Fantasy', 'Kids']),
+        ['Azione e avventura', 'Fantascienza e fantasy']);
   });
 }

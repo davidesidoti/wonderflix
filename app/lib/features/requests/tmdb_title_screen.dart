@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/navigation.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/genre_labels.dart';
 import '../../core/requests/requests_models.dart';
 import '../../core/requests/tmdb_images.dart';
 import '../../core/trailers/trailers_api.dart';
@@ -212,8 +213,7 @@ class TmdbTitleHeader extends StatelessWidget {
         formatRuntime(Duration(minutes: runtime)),
       if (isSeries && details.seasons.isNotEmpty)
         l.detailSeasons(details.seasons.length),
-      // Da Seerr arrivano già in italiano.
-      ...details.genres.take(2),
+      ...displayGenres(details.genres),
     ].join(' · ');
     final itemId = details.jellyfinItemId;
     final watchable = details.status == TitleStatus.available ||
@@ -260,15 +260,20 @@ class TmdbTitleHeader extends StatelessWidget {
               const SizedBox(height: 12),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: _overviewMaxWidth),
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: ExpandableText(overview,
-                      maxLines: 3,
-                      // Sul PC alta al più 6 righe, e scorre, come nella scheda.
-                      expandedMaxLines: detailCompact(context) ? null : 6,
-                      tvFocusable: tv,
-                      style: const TextStyle(height: 1.45)),
-                ),
+                // In TV niente "Altro" né tappa di focus: due righe, come la scheda.
+                child: tv
+                    ? Text(overview,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(height: 1.45))
+                    : Material(
+                        type: MaterialType.transparency,
+                        child: ExpandableText(overview,
+                            maxLines: 3,
+                            // Sul PC alta al più 6 righe, e scorre, come nella scheda.
+                            expandedMaxLines: detailCompact(context) ? null : 6,
+                            style: const TextStyle(height: 1.45)),
+                      ),
               ),
             ],
             const SizedBox(height: 20),
