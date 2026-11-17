@@ -6,7 +6,6 @@ void main() {
   test('stringhe del Piano 17c', () {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
-    expect(it.profilesEditImage, 'Modifica immagine');
     expect(it.settingsChangeImage, 'Cambia immagine');
     expect(it.profileImageTitle, 'Immagine del profilo');
     expect(it.profileImageAvatars, 'Avatar');
@@ -30,7 +29,6 @@ void main() {
     // Ogni testo del piano c'è in tutte e due le lingue.
     for (final l in [it, en]) {
       expect([
-        l.profilesEditImage,
         l.settingsChangeImage,
         l.profileImageTitle,
         l.profileImageAvatars,

@@ -12,7 +12,9 @@ import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/profiles/profiles_screen.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
+import 'package:wonderflix/ui/tv_focusable.dart';
 import 'package:wonderflix/ui/user_avatar.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/avatar_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -184,7 +186,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('profile-remove-u2')));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Rimuovi'));
+    await tester.tap(find.descendant(
+        of: find.byType(Dialog), matching: find.text('Rimuovi')));
     await tester.pumpAndSettle();
     expect(session.removedProfiles, ['u2']);
   });
@@ -262,7 +265,6 @@ void main() {
 
     await tester.tap(find.text('Gestisci profili'));
     await tester.pump();
-    expect(find.byTooltip('Rimuovi Profilo'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('profile-remove-u2')));
     await tester.pumpAndSettle();
     expect(find.text('Rimuovere Profilo da questo PC?'), findsOneWidget);
@@ -295,9 +297,6 @@ void main() {
     expect(
         tester.getSemantics(find.byKey(const ValueKey('profile-u1'))),
         isSemantics(label: 'Mario', isButton: false, hasTapAction: false));
-    // Il pulsante Rimuovi dice di quale profilo.
-    expect(find.byTooltip('Rimuovi Mario'), findsOneWidget);
-    expect(find.byTooltip('Rimuovi Luigi'), findsOneWidget);
     semantics.dispose();
   });
 
@@ -369,7 +368,7 @@ void main() {
     await tester.pump();
 
     final expired = tester
-        .widget<IconButton>(find.byKey(const ValueKey('profile-image-u2')));
+        .widget<WfButton>(find.byKey(const ValueKey('profile-image-u2')));
     expect(expired.onPressed, isNull);
 
     await tester.tap(find.byKey(const ValueKey('profile-image-u1')));
@@ -485,5 +484,119 @@ void main() {
             matching: find.byType(UserAvatar))),
         const Size.square(96));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Gestisci profili: titolo, Modifica e Rimuovi scritti',
+      (tester) async {
+    await pumpProfiles(tester,
+        [mario, testProfile(userId: 'u2', name: 'Luigi', expired: true)]);
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+    expect(find.text('Chi guarda?'), findsNothing);
+    // Il titolo; il pulsante dice "Fine".
+    expect(find.text('Gestisci profili'), findsOneWidget);
+    expect(find.widgetWithText(WfButton, 'Modifica'), findsNWidgets(2));
+    expect(find.widgetWithText(WfButton, 'Rimuovi'), findsNWidgets(2));
+    expect(
+        tester
+            .widget<WfButton>(find.byKey(const ValueKey('profile-image-u2')))
+            .onPressed,
+        isNull);
+    expect(find.byType(IconButton), findsNothing);
+    // Gli avatar si spengono come quelli scaduti, e i pulsanti sono larghi
+    // quanto la carta.
+    final avatarOpacity = tester.widget<Opacity>(find
+        .ancestor(
+            of: find.descendant(
+                of: find.byKey(const ValueKey('profile-u1')),
+                matching: find.byType(UserAvatar)),
+            matching: find.byType(Opacity))
+        .first);
+    expect(avatarOpacity.opacity, lessThan(1));
+    expect(tester.getSize(find.byKey(const ValueKey('profile-image-u1'))).width,
+        tester.getSize(find.byKey(const ValueKey('profile-remove-u1'))).width);
+  });
+
+  /// L'icona dentro il pulsante [key]: il suo `Focus` è quello del pulsante.
+  Finder buttonIcon(String key) => find.descendant(
+      of: find.byKey(ValueKey(key)), matching: find.byType(Icon));
+
+  testWidgets('TV: la carta col focus ha il bordo della TV', (tester) async {
+    await pumpProfiles(tester, [mario, luigi],
+        tv: true, surfaceSize: const Size(960, 540));
+    expect(
+        find.ancestor(of: find.text('Mario'), matching: find.byType(TvFocusable)),
+        findsOneWidget);
+    expect(
+        find.ancestor(
+            of: find.text('Aggiungi profilo'),
+            matching: find.byType(TvFocusable)),
+        findsOneWidget);
+    final ink = tester.widget<InkWell>(
+        find.ancestor(of: find.text('Mario'), matching: find.byType(InkWell)));
+    expect(ink.canRequestFocus, isFalse);
+    expect(ink.focusColor, isNull);
+    // Il focus parte da Mario, e OK lo apre.
+    await tester.sendKeyEvent(LogicalKeyboardKey.select);
+    await tester.pump();
+    expect(session.openedProfiles, ['u1']);
+  });
+
+  testWidgets(
+      'TV, Gestisci profili: il D-pad passa da Modifica a Rimuovi e alla '
+      'carta dopo', (tester) async {
+    await pumpProfiles(tester, [mario, luigi],
+        tv: true, surfaceSize: const Size(960, 540));
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+    Focus.of(tester.element(buttonIcon('profile-image-u1'))).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(hasFocus(tester, buttonIcon('profile-remove-u1')), isTrue);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(
+        hasFocus(tester, buttonIcon('profile-remove-u2')) ||
+            hasFocus(tester, buttonIcon('profile-image-u2')),
+        isTrue);
+  });
+
+  testWidgets('TV, Gestisci profili con 5 profili: tutto nello schermo',
+      (tester) async {
+    await pumpProfiles(
+        tester,
+        [
+          for (var i = 1; i <= ProfileBook.maxProfiles; i++)
+            testProfile(userId: 'u$i', name: 'P$i'),
+        ],
+        tv: true,
+        surfaceSize: const Size(960, 540));
+    await tester.tap(find.text('Gestisci profili'));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(Image), findsNothing);
+    expect(
+        find.text('5 profili su questa TV: rimuovine uno per aggiungerne '
+            'un altro.'),
+        findsOneWidget);
+    expect(tester.getRect(find.text('Fine')).bottom, lessThanOrEqualTo(540));
+    // Col D-pad si passa per Modifica e Rimuovi di ogni carta.
+    Focus.of(tester.element(buttonIcon('profile-image-u1'))).requestFocus();
+    await tester.pump();
+    for (var i = 1; i <= ProfileBook.maxProfiles; i++) {
+      expect(hasFocus(tester, buttonIcon('profile-image-u$i')), isTrue,
+          reason: 'Modifica di P$i');
+      expect(tester.getRect(find.byKey(ValueKey('profile-remove-u$i'))).bottom,
+          lessThanOrEqualTo(540));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(hasFocus(tester, buttonIcon('profile-remove-u$i')), isTrue,
+          reason: 'Rimuovi di P$i');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+    }
   });
 }

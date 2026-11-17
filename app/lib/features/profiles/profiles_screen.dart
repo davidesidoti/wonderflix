@@ -12,6 +12,7 @@ import '../../core/storage/profile_store.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/tv_focusable.dart';
 import '../../ui/user_avatar.dart';
 import '../../ui/wf_buttons.dart';
 import '../../ui/wf_confirm_dialog.dart';
@@ -158,17 +159,22 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    StaggerItem(
-                      index: 0,
-                      // Con l'altezza fissa niente scatto quando l'immagine
-                      // arriva.
-                      child: Image.asset('assets/brand/logo.png',
-                          width: sizes.logo, height: sizes.logo),
-                    ),
-                    const SizedBox(height: _gap),
+                    // In TV 5 carte con due pulsanti non starebbero in 540
+                    // col logo.
+                    if (!(form.tv && _managing)) ...[
+                      StaggerItem(
+                        index: 0,
+                        // Con l'altezza fissa niente scatto quando l'immagine
+                        // arriva.
+                        child: Image.asset('assets/brand/logo.png',
+                            width: sizes.logo, height: sizes.logo),
+                      ),
+                      const SizedBox(height: _gap),
+                    ],
                     StaggerItem(
                       index: 1,
-                      child: Text(l.profilesTitle,
+                      child: Text(
+                          _managing ? l.profilesManage : l.profilesTitle,
                           style: WfText.display(sizes.title)),
                     ),
                     const SizedBox(height: _titleGap),
@@ -283,6 +289,7 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final name = _displayName(l, profile);
+    final tv = FormFactor.of(context).tv;
     return Semantics(
       container: true,
       // In "Gestisci profili" la card non si apre.
@@ -291,104 +298,109 @@ class _ProfileCard extends StatelessWidget {
       hint: profile.expired ? l.profilesSignInAgain : null,
       child: SizedBox(
         width: sizes.card,
-        child: InkWell(
-          onTap: onOpen,
+        // In TV il focus è di TvFocusable; in "Gestisci profili" (`onOpen`
+        // null) la carta non lo prende, i pulsanti sì.
+        child: TvFocusable(
           autofocus: autofocus,
+          onActivate: onOpen,
           borderRadius: BorderRadius.circular(12),
-          focusColor: WfColors.gold.withValues(alpha: 0.18),
-          hoverColor: WfColors.gold.withValues(alpha: 0.08),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Il nome lo dice già la card.
-                    ExcludeSemantics(
-                      child: Opacity(
-                        opacity: profile.expired ? _expiredOpacity : 1,
-                        child: UserAvatar(
-                          userId: profile.userId,
-                          name: profile.name,
-                          size: sizes.avatar,
-                          imageTag: profile.imageTag,
-                        ),
-                      ),
-                    ),
-                    if (opening) ...[
-                      Container(
-                        key: ValueKey('profile-opening-${profile.userId}'),
-                        width: sizes.avatar,
-                        height: sizes.avatar,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: WfColors.bg.withValues(alpha: _openingScrimAlpha),
-                        ),
-                      ),
-                      const SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 3, color: WfColors.cream),
-                      ),
-                    ],
-                    if (managing)
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        child: IconButton(
-                          key: ValueKey('profile-image-${profile.userId}'),
-                          tooltip: l.profilesEditImage,
-                          style: IconButton.styleFrom(
-                              backgroundColor: WfColors.surfaceHigh),
-                          // Un profilo scaduto non ha un token valido.
-                          onPressed: profile.expired
-                              ? null
-                              : () => unawaited(showAvatarDialog(context,
-                                  userId: profile.userId,
-                                  name: name,
-                                  imageTag: profile.imageTag)),
-                          icon: const Icon(LucideIcons.pencil,
-                              color: WfColors.cream),
-                        ),
-                      ),
-                    if (managing)
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: IconButton(
-                          key: ValueKey('profile-remove-${profile.userId}'),
-                          tooltip: l.profilesRemoveNamed(name),
-                          style: IconButton.styleFrom(
-                              backgroundColor: WfColors.surfaceHigh),
-                          onPressed: onRemove,
-                          icon: const Icon(LucideIcons.trash2,
-                              color: WfColors.cream),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ExcludeSemantics(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+          child: InkWell(
+            onTap: onOpen,
+            canRequestFocus: !tv,
+            autofocus: !tv && autofocus,
+            borderRadius: BorderRadius.circular(12),
+            focusColor: tv ? null : WfColors.gold.withValues(alpha: 0.18),
+            hoverColor: WfColors.gold.withValues(alpha: 0.08),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
                     children: [
-                      Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
-                      if (profile.expired)
-                        Text(l.profilesSignInAgain,
-                            style: const TextStyle(
-                                color: WfColors.gold, fontSize: 12.5)),
+                      // Il nome lo dice già la card.
+                      ExcludeSemantics(
+                        child: Opacity(
+                          opacity:
+                              profile.expired || managing ? _expiredOpacity : 1,
+                          child: UserAvatar(
+                            userId: profile.userId,
+                            name: profile.name,
+                            size: sizes.avatar,
+                            imageTag: profile.imageTag,
+                          ),
+                        ),
+                      ),
+                      if (opening) ...[
+                        Container(
+                          key: ValueKey('profile-opening-${profile.userId}'),
+                          width: sizes.avatar,
+                          height: sizes.avatar,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: WfColors.bg.withValues(alpha: _openingScrimAlpha),
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 3, color: WfColors.cream),
+                        ),
+                      ],
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 12),
+                  ExcludeSemantics(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
+                        if (profile.expired)
+                          Text(l.profilesSignInAgain,
+                              style: const TextStyle(
+                                  color: WfColors.gold, fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                  if (managing) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: WfButton.secondary(
+                        key: ValueKey('profile-image-${profile.userId}'),
+                        small: true,
+                        label: l.profilesEdit,
+                        icon: LucideIcons.pencil,
+                        // Un profilo scaduto non ha un token valido.
+                        onPressed: profile.expired
+                            ? null
+                            : () => unawaited(showAvatarDialog(context,
+                                userId: profile.userId,
+                                name: name,
+                                imageTag: profile.imageTag)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: WfButton.secondary(
+                        key: ValueKey('profile-remove-${profile.userId}'),
+                        small: true,
+                        label: l.profilesRemove,
+                        icon: LucideIcons.trash2,
+                        onPressed: onRemove,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
@@ -408,38 +420,44 @@ class _AddProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = AppLocalizations.of(context).profilesAdd;
+    final tv = FormFactor.of(context).tv;
     return Semantics(
       container: true,
       button: true,
       label: label,
       child: SizedBox(
         width: sizes.card,
-        child: InkWell(
-          onTap: onTap,
+        child: TvFocusable(
+          onActivate: onTap,
           borderRadius: BorderRadius.circular(12),
-          focusColor: WfColors.gold.withValues(alpha: 0.18),
-          hoverColor: WfColors.gold.withValues(alpha: 0.08),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: ExcludeSemantics(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: sizes.avatar,
-                    height: sizes.avatar,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: WfColors.border, width: 2),
+          child: InkWell(
+            onTap: onTap,
+            canRequestFocus: !tv,
+            borderRadius: BorderRadius.circular(12),
+            focusColor: tv ? null : WfColors.gold.withValues(alpha: 0.18),
+            hoverColor: WfColors.gold.withValues(alpha: 0.08),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: ExcludeSemantics(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: sizes.avatar,
+                      height: sizes.avatar,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: WfColors.border, width: 2),
+                      ),
+                      child: const Icon(LucideIcons.plus,
+                          size: 40, color: WfColors.creamMuted),
                     ),
-                    child: const Icon(LucideIcons.plus,
-                        size: 40, color: WfColors.creamMuted),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(label,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: WfColors.creamMuted)),
-                ],
+                    const SizedBox(height: 12),
+                    Text(label,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: WfColors.creamMuted)),
+                  ],
+                ),
               ),
             ),
           ),
