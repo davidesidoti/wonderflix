@@ -169,7 +169,7 @@ class SubtitlesController extends Notifier<SubtitlesState> {
 
   /// La ricerca dell'apertura rimandata, finita l'operazione in corso.
   void _runPendingSearch() {
-    if (!_searchPending || _busy || !ref.mounted) return;
+    if (!ref.mounted || !_searchPending || _busy) return;
     _searchPending = false;
     unawaited(search());
   }

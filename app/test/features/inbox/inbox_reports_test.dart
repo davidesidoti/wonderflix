@@ -129,7 +129,7 @@ void main() {
     final container = await pumpPanel(tester, [_pending()]);
 
     expect(find.text('Luigi ha segnalato un problema'), findsOneWidget);
-    expect(find.text('Dark · S2 E3 · Sottotitoli'), findsOneWidget);
+    expect(find.text('Dark · S2:E3 · Sottotitoli'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('inbox-report-p1')));
     await tester.pumpAndSettle();
