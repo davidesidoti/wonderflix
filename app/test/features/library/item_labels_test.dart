@@ -4,6 +4,8 @@ import 'package:wonderflix/core/jellyfin/item_models.dart';
 import 'package:wonderflix/features/library/item_labels.dart';
 import 'package:wonderflix/l10n/gen/app_localizations.dart';
 
+import '../../support/library_fakes.dart';
+
 void main() {
   test('formatRuntime', () {
     expect(formatRuntime(const Duration(hours: 2, minutes: 46)), '2h 46m');
@@ -40,5 +42,36 @@ void main() {
     expect(cardTitle(movie), 'Dune');
     expect(cardSubtitle(movie), '2024');
     expect(episodeCode(movie), isNull);
+  });
+
+  test('riga del titolo', () {
+    final l = lookupAppLocalizations(const Locale('it'));
+    expect(
+      itemContextLine(
+        l,
+        testItem(
+          kind: ItemKind.episode,
+          name: 'La scatola',
+          seriesName: "L'Istituto",
+          seasonIndex: 1,
+          index: 4,
+        ),
+      ),
+      "L'Istituto · S1:E4 La scatola",
+    );
+    expect(
+      itemContextLine(
+        l,
+        testItem(kind: ItemKind.season, name: 'Stagione 1', seriesName: "L'Istituto"),
+      ),
+      "L'Istituto · Stagione 1",
+    );
+    expect(itemContextLine(l, testItem(name: 'The Wrestler', year: 2008)),
+        'The Wrestler · Film · 2008');
+    expect(
+      itemContextLine(l, testItem(kind: ItemKind.series, name: "L'Istituto", year: 2025)),
+      "L'Istituto · Serie · 2025",
+    );
+    expect(itemContextLine(l, testItem(name: 'Senza anno', year: null)), 'Senza anno · Film');
   });
 }

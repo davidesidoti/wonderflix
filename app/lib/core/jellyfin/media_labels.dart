@@ -91,3 +91,16 @@ String? channelsLabel(int? channels) => switch (channels) {
   8 => '7.1',
   _ => null,
 };
+
+/// Nome della lingua, o il codice in maiuscolo se non lo conosciamo ("SWE").
+String languageName(String? code, String localeName) =>
+    trackLanguageName(code, localeName) ?? (code ?? '').toUpperCase();
+
+/// "4K", "1080p", "720p" dalla larghezza del video; `null` sotto.
+String? resolutionLabel(int? width) => switch (width) {
+  null => null,
+  >= 3800 => '4K',
+  >= 1900 => '1080p',
+  >= 1260 => '720p',
+  _ => null,
+};

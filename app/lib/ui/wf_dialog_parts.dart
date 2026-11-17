@@ -54,18 +54,20 @@ class WfDialogHeader extends StatelessWidget {
 
 /// Il piede delle finestre: un filo sopra, a sinistra [note] (un
 /// suggerimento o un conteggio), a destra Annulla e il [primary]. Le azioni
-/// vanno a capo se non ci stanno.
+/// vanno a capo se non ci stanno. Senza [cancelLabel] niente Annulla; senza
+/// [onCancel] Annulla fa `maybePop`, così valgono `WfDiscardGuard` e i
+/// `PopScope` della finestra.
 class WfDialogFooter extends StatelessWidget {
   const WfDialogFooter({
     super.key,
     this.note,
-    required this.cancelLabel,
-    required this.onCancel,
+    this.cancelLabel,
+    this.onCancel,
     required this.primary,
   });
 
   final String? note;
-  final String cancelLabel;
+  final String? cancelLabel;
   final VoidCallback? onCancel;
   final Widget primary;
 
@@ -77,11 +79,12 @@ class WfDialogFooter extends StatelessWidget {
       spacing: 12,
       runSpacing: 8,
       children: [
-        WfButton.secondary(
-          label: cancelLabel,
-          icon: LucideIcons.x,
-          onPressed: onCancel,
-        ),
+        if (cancelLabel != null)
+          WfButton.secondary(
+            label: cancelLabel!,
+            icon: LucideIcons.x,
+            onPressed: onCancel ?? () => Navigator.of(context).maybePop(),
+          ),
         primary,
       ],
     );
@@ -141,6 +144,57 @@ class WfDiscardGuard extends StatelessWidget {
         if (discard && context.mounted) Navigator.of(context).pop(result);
       },
       child: child,
+    );
+  }
+}
+
+/// Lo stato del corpo di una finestra che disegna anche il piede (fisso,
+/// fuori dal corpo): ogni `setState` ridisegna [WfHostFooter]. Uno stato che
+/// cambia per `ref.watch` fa `footerTick.value++` in un `ref.listen`.
+mixin WfFooterHost<W extends StatefulWidget> on State<W> {
+  final footerTick = ValueNotifier<int>(0);
+
+  Widget buildFooter(BuildContext context);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    footerTick.value++;
+  }
+
+  @override
+  void dispose() {
+    footerTick.dispose();
+    super.dispose();
+  }
+}
+
+/// Il piede disegnato da [WfFooterHost] di [host]:
+/// `showWfDialog(..., builder: (_) => _Body(key: key),
+/// footer: (_) => WfHostFooter(host: key))`.
+class WfHostFooter extends StatefulWidget {
+  const WfHostFooter({super.key, required this.host});
+
+  final GlobalKey host;
+
+  @override
+  State<WfHostFooter> createState() => _WfHostFooterState();
+}
+
+class _WfHostFooterState extends State<WfHostFooter> {
+  @override
+  Widget build(BuildContext context) {
+    final host = widget.host.currentState;
+    if (host is! WfFooterHost) {
+      // Il corpo non è ancora montato: riprova al frame dopo.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return const SizedBox.shrink();
+    }
+    return ListenableBuilder(
+      listenable: host.footerTick,
+      builder: (context, _) => host.buildFooter(context),
     );
   }
 }

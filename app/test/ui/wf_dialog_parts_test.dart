@@ -126,4 +126,79 @@ void main() {
     expect(find.text('corpo'), findsNothing);
     expect(find.text('Butta'), findsNothing);
   });
+
+  for (final size in [const Size(1440, 900), const Size(390, 780)]) {
+    testWidgets('il piede segue lo stato del corpo a $size', (t) async {
+      final key = GlobalKey();
+      await pumpApp(
+        t,
+        Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showWfDialog<void>(
+                context,
+                builder: (_) => _Counter(key: key),
+                footer: (_) => WfHostFooter(host: key),
+              ),
+              child: const Text('apri'),
+            ),
+          ),
+        ),
+        surfaceSize: size,
+      );
+      await t.tap(find.text('apri'));
+      await t.pumpAndSettle();
+      expect(find.text('0 modifiche'), findsOneWidget);
+      await t.tap(find.text('aggiungi'));
+      await t.pump();
+      expect(find.text('1 modifiche'), findsOneWidget);
+      // Annulla del piede chiude con maybePop.
+      await t.tap(find.text('Annulla'));
+      await t.pumpAndSettle();
+      expect(find.text('aggiungi'), findsNothing);
+    });
+  }
+
+  testWidgets('piede senza Annulla', (t) async {
+    await pumpApp(
+      t,
+      Scaffold(
+        body: WfDialogFooter(
+          primary: WfButton.secondary(
+            label: 'Chiudi',
+            icon: LucideIcons.x,
+            onPressed: () {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Chiudi'), findsOneWidget);
+    expect(find.text('Annulla'), findsNothing);
+  });
+}
+
+class _Counter extends StatefulWidget {
+  const _Counter({super.key});
+
+  @override
+  State<_Counter> createState() => _CounterState();
+}
+
+class _CounterState extends State<_Counter> with WfFooterHost<_Counter> {
+  int n = 0;
+
+  @override
+  Widget build(BuildContext context) =>
+      TextButton(onPressed: () => setState(() => n++), child: const Text('aggiungi'));
+
+  @override
+  Widget buildFooter(BuildContext context) => WfDialogFooter(
+        note: '$n modifiche',
+        cancelLabel: 'Annulla',
+        primary: WfButton.primary(
+          label: 'Salva',
+          icon: LucideIcons.check,
+          onPressed: () {},
+        ),
+      );
 }

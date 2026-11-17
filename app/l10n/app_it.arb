@@ -2019,5 +2019,7 @@
   "@discardChangesTitle": {"placeholders": {"count": {"type": "int"}}},
   "discardChangesBody": "Quello che hai cambiato non è ancora salvato.",
   "discardChangesConfirm": "Butta",
-  "discardChangesKeep": "Continua a modificare"
+  "discardChangesKeep": "Continua a modificare",
+  "dialogKindMovie": "Film",
+  "dialogKindSeries": "Serie"
 }

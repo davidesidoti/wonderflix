@@ -36,4 +36,16 @@ void main() {
     expect(channelsLabel(3), isNull);
     expect(channelsLabel(null), isNull);
   });
+
+  test('languageName e resolutionLabel', () {
+    expect(languageName('ita', 'it'), 'Italiano');
+    expect(languageName('eng', 'it'), 'Inglese');
+    expect(languageName('swe', 'it'), 'SWE');
+    expect(languageName(null, 'it'), '');
+    expect(resolutionLabel(3840), '4K');
+    expect(resolutionLabel(1920), '1080p');
+    expect(resolutionLabel(1280), '720p');
+    expect(resolutionLabel(720), isNull);
+    expect(resolutionLabel(null), isNull);
+  });
 }

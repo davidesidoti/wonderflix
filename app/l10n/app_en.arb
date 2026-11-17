@@ -1817,5 +1817,7 @@
   "@discardChangesTitle": {"placeholders": {"count": {"type": "int"}}},
   "discardChangesBody": "What you changed isn't saved yet.",
   "discardChangesConfirm": "Discard",
-  "discardChangesKeep": "Keep editing"
+  "discardChangesKeep": "Keep editing",
+  "dialogKindMovie": "Movie",
+  "dialogKindSeries": "Series"
 }

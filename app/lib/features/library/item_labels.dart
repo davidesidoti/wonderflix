@@ -52,3 +52,20 @@ String? cardSubtitle(JellyfinItem item) {
   }
   return item.productionYear?.toString();
 }
+
+/// Sottotitolo delle finestre su un titolo: "L'Istituto · S1:E4 La scatola",
+/// "L'Istituto · Stagione 1", "The Wrestler · Film · 2008". Parti vuote saltate.
+String itemContextLine(AppLocalizations l, JellyfinItem item) {
+  final year = item.productionYear?.toString();
+  final parts = switch (item.kind) {
+    ItemKind.episode => [
+      item.seriesName,
+      [episodeCode(item), item.name].whereType<String>().join(' '),
+    ],
+    ItemKind.season => [item.seriesName, item.name],
+    ItemKind.movie => [item.name, l.dialogKindMovie, year],
+    ItemKind.series => [item.name, l.dialogKindSeries, year],
+    _ => [item.name],
+  };
+  return parts.whereType<String>().where((p) => p.isNotEmpty).join(' · ');
+}
