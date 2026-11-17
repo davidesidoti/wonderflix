@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/theme.dart';
@@ -149,17 +150,30 @@ class WfDiscardGuard extends StatelessWidget {
 }
 
 /// Lo stato del corpo di una finestra che disegna anche il piede (fisso,
-/// fuori dal corpo): ogni `setState` ridisegna [WfHostFooter]. Uno stato che
-/// cambia per `ref.watch` fa `footerTick.value++` in un `ref.listen`.
+/// fuori dal corpo). Il piede segue `setState`; per gli altri cambi
+/// (`didUpdateWidget`, `ref.listen`) chiama [notifyFooter].
 mixin WfFooterHost<W extends StatefulWidget> on State<W> {
   final footerTick = ValueNotifier<int>(0);
 
   Widget buildFooter(BuildContext context);
 
+  /// Ridisegna il piede. Chiamato durante un build aspetta il frame dopo,
+  /// per non sporcare il piede mentre si disegna il corpo.
+  void notifyFooter() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) footerTick.value++;
+      });
+    } else {
+      footerTick.value++;
+    }
+  }
+
   @override
   void setState(VoidCallback fn) {
     super.setState(fn);
-    footerTick.value++;
+    notifyFooter();
   }
 
   @override
@@ -182,14 +196,21 @@ class WfHostFooter extends StatefulWidget {
 }
 
 class _WfHostFooterState extends State<WfHostFooter> {
+  bool _retried = false;
+
   @override
   Widget build(BuildContext context) {
     final host = widget.host.currentState;
     if (host is! WfFooterHost) {
-      // Il corpo non è ancora montato: riprova al frame dopo.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
-      });
+      // Il corpo può montarsi dopo il piede: un solo nuovo giro.
+      if (!_retried) {
+        _retried = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() {});
+        });
+      } else {
+        assert(false, 'WfHostFooter: host non è uno stato WfFooterHost');
+      }
       return const SizedBox.shrink();
     }
     return ListenableBuilder(

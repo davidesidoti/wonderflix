@@ -34,6 +34,8 @@ void main() {
         isSelected: true,
         hasSelectedState: true,
         isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
         hasTapAction: true,
         hasFocusAction: true,
         isFocusable: true,

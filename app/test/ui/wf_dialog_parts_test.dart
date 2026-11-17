@@ -159,6 +159,37 @@ void main() {
     });
   }
 
+  testWidgets("con modifiche, l'Annulla del piede chiede prima di chiudere", (
+    t,
+  ) async {
+    final key = GlobalKey();
+    await pumpApp(
+      t,
+      Scaffold(
+        body: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showWfDialog<void>(
+              context,
+              builder: (_) => _Counter(key: key, guarded: true),
+              footer: (_) => WfHostFooter(host: key),
+            ),
+            child: const Text('apri'),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('apri'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('aggiungi'));
+    await t.pump();
+    await t.tap(find.text('Annulla'));
+    await t.pumpAndSettle();
+    expect(find.text('Buttare la modifica?'), findsOneWidget);
+    await t.tap(find.text('Continua a modificare'));
+    await t.pumpAndSettle();
+    expect(find.text('1 modifiche'), findsOneWidget);
+  });
+
   testWidgets('piede senza Annulla', (t) async {
     await pumpApp(
       t,
@@ -178,7 +209,9 @@ void main() {
 }
 
 class _Counter extends StatefulWidget {
-  const _Counter({super.key});
+  const _Counter({super.key, this.guarded = false});
+
+  final bool guarded;
 
   @override
   State<_Counter> createState() => _CounterState();
@@ -188,8 +221,13 @@ class _CounterState extends State<_Counter> with WfFooterHost<_Counter> {
   int n = 0;
 
   @override
-  Widget build(BuildContext context) =>
-      TextButton(onPressed: () => setState(() => n++), child: const Text('aggiungi'));
+  Widget build(BuildContext context) {
+    final button = TextButton(
+      onPressed: () => setState(() => n++),
+      child: const Text('aggiungi'),
+    );
+    return widget.guarded ? WfDiscardGuard(changes: n, child: button) : button;
+  }
 
   @override
   Widget buildFooter(BuildContext context) => WfDialogFooter(

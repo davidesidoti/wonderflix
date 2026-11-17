@@ -90,6 +90,7 @@ class WfChoiceTile extends StatelessWidget {
     return Semantics(
       selected: selected,
       button: true,
+      enabled: onTap != null,
       child: tv
           ? TvFocusable(
               onActivate: onTap,

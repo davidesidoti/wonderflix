@@ -42,6 +42,7 @@ void main() {
     expect(languageName('eng', 'it'), 'Inglese');
     expect(languageName('swe', 'it'), 'SWE');
     expect(languageName(null, 'it'), '');
+    expect(languageName(' swe ', 'it'), 'SWE');
     expect(resolutionLabel(3840), '4K');
     expect(resolutionLabel(1920), '1080p');
     expect(resolutionLabel(1280), '720p');
