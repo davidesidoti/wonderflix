@@ -188,53 +188,41 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          PanelHeader(
-            title: l.recommendPanelTitle,
-            closeTooltip: l.friendsClose,
-            closeFocusNode: _closeFocus,
-            onClose: () => ref.read(shellPanelProvider.notifier).close(),
-            subtitle: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: SizedBox(
-                    width: RecommendPanel.posterWidth,
-                    height: RecommendPanel.posterHeight,
-                    child: WfImage(
-                        image: ref.watch(imageUrlsProvider).primaryOf(subject.itemId)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(subject.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: WfColors.cream, fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-          ),
+          // Testa, ricerca e griglia scorrono insieme: in altezze corte
+          // (telefono in orizzontale) resta fermo solo il piede.
           Expanded(
-            child: targets.when(
-              loading: () => const PanelRowsSkeleton(),
-              error: (error, _) => Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l.recommendTargetsError, style: _mutedStyle),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () =>
-                          ref.invalidate(recommendTargetsProvider(subject.itemId)),
-                      style: TextButton.styleFrom(foregroundColor: WfColors.gold),
-                      child: Text(l.retry),
+            child: CustomScrollView(
+              key: const ValueKey('recommend-scroll'),
+              slivers: [
+                SliverToBoxAdapter(child: _header(l, subject)),
+                ...targets.when(
+                  loading: () => const [
+                    SliverToBoxAdapter(child: PanelRowsSkeleton())
+                  ],
+                  error: (error, _) => [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(l.recommendTargetsError, style: _mutedStyle),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: () => ref.invalidate(
+                                  recommendTargetsProvider(subject.itemId)),
+                              style: TextButton.styleFrom(
+                                  foregroundColor: WfColors.gold),
+                              child: Text(l.retry),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
+                  data: (list) => _targets(l, sortTargets(list)),
                 ),
-              ),
-              data: (list) => _targets(l, sortTargets(list)),
+              ],
             ),
           ),
           Padding(
@@ -296,13 +284,45 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
     );
   }
 
-  Widget _targets(AppLocalizations l, List<RecommendationTarget> targets) {
+  Widget _header(AppLocalizations l, RecommendSubject subject) => PanelHeader(
+            title: l.recommendPanelTitle,
+            closeTooltip: l.friendsClose,
+            closeFocusNode: _closeFocus,
+            onClose: () => ref.read(shellPanelProvider.notifier).close(),
+            subtitle: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    width: RecommendPanel.posterWidth,
+                    height: RecommendPanel.posterHeight,
+                    child: WfImage(
+                        image: ref.watch(imageUrlsProvider).primaryOf(subject.itemId)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(subject.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: WfColors.cream, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          );
+
+  List<Widget> _targets(AppLocalizations l, List<RecommendationTarget> targets) {
     final full = _selected.length >= recommendMaxRecipients;
     if (targets.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-        child: Text(l.recommendNoFriends, style: _mutedStyle),
-      );
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+            child: Text(l.recommendNoFriends, style: _mutedStyle),
+          ),
+        ),
+      ];
     }
     final query = _search.text.trim().toLowerCase();
     final shown = query.isEmpty
@@ -312,48 +332,59 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
               if (t.name.toLowerCase().contains(query)) t
           ];
     final scaler = MediaQuery.textScalerOf(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TvTextFieldFrame(
-                  focusNode: _searchFocus,
-                  child: TextField(
-                    controller: _search,
-                    focusNode: _searchFocus,
-                    onChanged: (_) => setState(() {}),
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: l.recommendSearchHint,
-                      isDense: true,
-                      prefixIcon: const Icon(LucideIcons.search, size: 18),
-                    ),
-                  ),
-                ),
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+          child: TvTextFieldFrame(
+            focusNode: _searchFocus,
+            child: TextField(
+              controller: _search,
+              focusNode: _searchFocus,
+              onChanged: (_) => setState(() {}),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: l.recommendSearchHint,
+                isDense: true,
+                prefixIcon: const Icon(LucideIcons.search, size: 18),
               ),
-              const SizedBox(width: 8),
-              TextButton(
-                key: const ValueKey('recommend-pick-online'),
-                onPressed: () => _pickOnline(shown),
-                style: TextButton.styleFrom(foregroundColor: WfColors.gold),
-                child: Text(l.recommendPickOnline),
-              ),
-            ],
+            ),
           ),
         ),
-        if (full)
-          Padding(
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 20, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              key: const ValueKey('recommend-pick-online'),
+              onPressed: () => _pickOnline(shown),
+              style: TextButton.styleFrom(foregroundColor: WfColors.gold),
+              child: Text(l.recommendPickOnline),
+            ),
+          ),
+        ),
+      ),
+      if (full)
+        SliverToBoxAdapter(
+          child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Text(l.recommendMaxReached(recommendMaxRecipients),
                 style: _mutedStyle),
           ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+        ),
+      if (shown.isEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Text(l.recommendNoMatch, style: _mutedStyle),
+          ),
+        )
+      else
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+          sliver: SliverGrid.builder(
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 88,
               // Avatar e margini fissi, nome e stato crescono col testo.
@@ -364,8 +395,7 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
                 focusNode: i == 0 && shown[i].canSee ? _firstTarget : null),
           ),
         ),
-      ],
-    );
+    ];
   }
 
   /// Accende gli online che possono vederlo, fino al limite.

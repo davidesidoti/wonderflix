@@ -28,18 +28,27 @@ void main() {
   Future<void> pump(WidgetTester tester,
       {bool tv = false,
       bool touch = false,
-      Size size = const Size(1440, 900)}) async {
+      Size size = const Size(1440, 900),
+      double width = 360,
+      double textScale = 1}) async {
     await pumpApp(
       tester,
       tv: tv,
       touch: touch,
       surfaceSize: size,
-      const Scaffold(
+      Scaffold(
         body: Align(
           alignment: Alignment.centerRight,
           child: SizedBox(
-            width: 360,
-            child: RecommendPanel(subject: RecommendSubject(itemId: 'm1', name: 'Dune')),
+            width: width,
+            child: Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: TextScaler.linear(textScale)),
+                child: const RecommendPanel(
+                    subject: RecommendSubject(itemId: 'm1', name: 'Dune')),
+              ),
+            ),
           ),
         ),
       ),
@@ -55,7 +64,8 @@ void main() {
   Finder message() => find.widgetWithText(TextField, 'Messaggio, se vuoi');
   Finder search() => find.widgetWithText(TextField, 'Cerca tra gli amici');
   Finder grid() => find.descendant(
-      of: find.byType(GridView), matching: find.byType(Scrollable));
+      of: find.byKey(const ValueKey('recommend-scroll')),
+      matching: find.byType(Scrollable)).first;
 
   // `WfButton.primary` è un `FilledButton.icon`, una sottoclasse: si cerca
   // il pulsante del piede, qualunque cosa dica.
@@ -159,6 +169,39 @@ void main() {
     expect(target('u3'), findsNothing);
     expect(target('u4'), findsNothing);
   });
+
+  testWidgets('ricerca senza risultati: una riga che lo dice', (tester) async {
+    await pump(tester);
+    await tester.enterText(search(), 'zzz');
+    await tester.pump();
+    expect(find.text('Nessun amico con questo nome'), findsOneWidget);
+    expect(target('u1'), findsNothing);
+  });
+
+  testWidgets('Scegli gli online con la ricerca: solo i mostrati', (tester) async {
+    await pump(tester);
+    await tester.enterText(search(), 'gar');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('recommend-pick-online')));
+    await tester.pump();
+    expect(check('u2'), findsOneWidget);
+    expect(find.text('Invia a 1 amico'), findsOneWidget);
+  });
+
+  testWidgets('380 di larghezza e testo a 1,5: niente overflow', (tester) async {
+    await pump(tester, size: const Size(1440, 900), width: 380, textScale: 1.5);
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('recommend-pick-online')), findsOneWidget);
+  });
+
+  for (final size in const [Size(800, 360), Size(390, 640)]) {
+    testWidgets('altezza corta $size: niente overflow, il piede resta', (tester) async {
+      await pump(tester, size: size);
+      expect(tester.takeException(), isNull);
+      expect(sendButton(), findsOneWidget);
+      expect(tester.getBottomRight(sendButton()).dy, lessThanOrEqualTo(size.height));
+    });
+  }
 
   testWidgets('caselle alte almeno 44 a 390×780, niente overflow', (tester) async {
     await pump(tester, size: const Size(390, 780));

@@ -928,6 +928,7 @@
   "recommendSendTo": "{count, plural, =0{Send} =1{Send to 1 friend} other{Send to {count} friends}}",
   "@recommendSendTo": {"placeholders": {"count": {"type": "int"}}},
   "recommendPickOne": "Pick at least one friend",
+  "recommendNoMatch": "No friends by that name",
   "recommendSent": "{count, plural, =1{Recommendation sent} other{Recommendation sent to {count} friends}}",
   "@recommendSent": {"placeholders": {"count": {"type": "int"}}},
   "recommendNotSent": "Recommendation not sent",
