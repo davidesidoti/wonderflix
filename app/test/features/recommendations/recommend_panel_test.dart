@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/core/social/social_api.dart';
 import 'package:wonderflix/features/recommendations/recommend_panel.dart';
 import 'package:wonderflix/features/social/social_providers.dart';
@@ -17,9 +18,10 @@ void main() {
   setUp(() {
     api = FakeSocialApi()..install(features: const {});
     api.recommendationTargetsById['m1'] = [
-      testTarget('u3', 'Peach'),
-      testTarget('u2', 'Luigi', online: true),
-      testTarget('u4', 'Toad', canSee: false),
+      testTarget('u1', 'sara', online: true),
+      testTarget('u2', 'Garg', online: true),
+      testTarget('u3', 'marta', canSee: false),
+      testTarget('u4', 'Peach'),
     ];
   });
 
@@ -49,11 +51,16 @@ void main() {
   }
 
   Finder target(String userId) => find.byKey(ValueKey('recommend-target-$userId'));
+  Finder check(String userId) => find.byKey(ValueKey('recommend-check-$userId'));
+  Finder message() => find.widgetWithText(TextField, 'Messaggio, se vuoi');
+  Finder search() => find.widgetWithText(TextField, 'Cerca tra gli amici');
+  Finder grid() => find.descendant(
+      of: find.byType(GridView), matching: find.byType(Scrollable));
 
   // `WfButton.primary` è un `FilledButton.icon`, una sottoclasse: si cerca
-  // il pulsante che contiene il testo.
+  // il pulsante del piede, qualunque cosa dica.
   Finder sendButton() => find.ancestor(
-      of: find.text('Invia'),
+      of: find.byIcon(LucideIcons.send),
       matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
 
   testWidgets('amici online prima, poi per nome; chi non può vederlo è spento',
@@ -61,25 +68,102 @@ void main() {
     await pump(tester);
     expect(api.calls, contains('targets m1'));
     expect(find.text('Dune'), findsOneWidget);
-    final luigi = tester.getTopLeft(target('u2')).dy;
-    final peach = tester.getTopLeft(target('u3')).dy;
-    final toad = tester.getTopLeft(target('u4')).dy;
-    expect(luigi < peach && peach < toad, isTrue);
+    expect(find.text('Consiglia'), findsOneWidget);
+    // Griglia: in ordine da sinistra, sulla stessa riga.
+    final xs = [
+      for (final id in ['u2', 'u1', 'u4', 'u3']) tester.getTopLeft(target(id)).dx
+    ];
+    expect(xs, orderedEquals([...xs]..sort()));
     expect(find.text('Non può vederlo'), findsOneWidget);
-    await tester.tap(target('u4'));
+    await tester.tap(target('u3'), warnIfMissed: false);
     await tester.pump();
     expect(tester.widget<ButtonStyleButton>(sendButton()).onPressed, isNull);
+  });
+
+  testWidgets('griglia: toccare accende, il pulsante conta', (tester) async {
+    await pump(tester);
+    expect(find.text('Invia'), findsOneWidget);
+    expect(find.text('Scegli almeno un amico'), findsOneWidget);
+    await tester.tap(target('u1'));
+    await tester.pump();
+    expect(check('u1'), findsOneWidget);
+    expect(find.text('Invia a 1 amico'), findsOneWidget);
+    expect(find.text('Scegli almeno un amico'), findsNothing);
+    expect(find.text('Non può vederlo'), findsOneWidget);
+    await tester.tap(target('u3'), warnIfMissed: false);
+    await tester.pump();
+    expect(check('u3'), findsNothing);
+    // Toccato di nuovo si spegne.
+    await tester.tap(target('u1'));
+    await tester.pump();
+    expect(check('u1'), findsNothing);
+    expect(find.text('Invia'), findsOneWidget);
+  });
+
+  testWidgets('Scegli gli online: al massimo 30, poi il limite', (tester) async {
+    api.recommendationTargetsById['m1'] = [
+      for (var i = 0; i < 35; i++)
+        testTarget('u$i', 'Amico ${i.toString().padLeft(2, '0')}', online: true),
+      testTarget('off', 'Zeta'),
+    ];
+    await pump(tester);
+    expect(find.text('Al massimo 30 amici alla volta'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('recommend-pick-online')));
+    await tester.pump();
+    expect(find.text('Invia a 30 amici'), findsOneWidget);
+    expect(find.text('Al massimo 30 amici alla volta'), findsOneWidget);
+    for (var i = 30; i < 35; i++) {
+      await tester.scrollUntilVisible(target('u$i'), 100, scrollable: grid());
+      // La casella è spenta: il tocco non la raggiunge, ed è quello che si prova.
+      await tester.tap(target('u$i'), warnIfMissed: false);
+      await tester.pump();
+      expect(check('u$i'), findsNothing);
+    }
+    expect(find.text('Invia a 30 amici'), findsOneWidget);
+    // Uno in meno: il limite sparisce.
+    await tester.scrollUntilVisible(target('u0'), -100, scrollable: grid());
+    await tester.ensureVisible(target('u0'));
+    await tester.pump();
+    await tester.tap(target('u0'));
+    await tester.pump();
+    expect(find.text('Invia a 29 amici'), findsOneWidget);
+    expect(find.text('Al massimo 30 amici alla volta'), findsNothing);
   });
 
   testWidgets('il messaggio non supera 200 caratteri (punti di codice)',
       (tester) async {
     await pump(tester);
-    String current() =>
-        tester.widget<TextField>(find.byType(TextField)).controller!.text;
-    await tester.enterText(find.byType(TextField), 'a' * 201);
+    String current() => tester.widget<TextField>(message()).controller!.text;
+    await tester.enterText(message(), 'a' * 201);
     expect(current(), 'a' * 200);
-    await tester.enterText(find.byType(TextField), '\u{1F1EE}\u{1F1F9}' * 101);
+    await tester.enterText(message(), '\u{1F1EE}\u{1F1F9}' * 101);
     expect(current().runes.length, lessThanOrEqualTo(recommendMessageMax));
+  });
+
+  testWidgets('il contatore compare solo vicino al limite', (tester) async {
+    await pump(tester);
+    await tester.enterText(message(), 'a' * 179);
+    await tester.pump();
+    expect(find.text('179/200'), findsNothing);
+    await tester.enterText(message(), 'a' * 181);
+    await tester.pump();
+    expect(find.text('181/200'), findsOneWidget);
+  });
+
+  testWidgets('la ricerca filtra la griglia', (tester) async {
+    await pump(tester);
+    await tester.enterText(search(), 'gar');
+    await tester.pump();
+    expect(target('u2'), findsOneWidget);
+    expect(target('u1'), findsNothing);
+    expect(target('u3'), findsNothing);
+    expect(target('u4'), findsNothing);
+  });
+
+  testWidgets('caselle alte almeno 44 a 390×780, niente overflow', (tester) async {
+    await pump(tester, size: const Size(390, 780));
+    expect(tester.getSize(target('u1')).height, greaterThanOrEqualTo(44));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('nessun amico: lo dice', (tester) async {
@@ -91,13 +175,14 @@ void main() {
   testWidgets('invio con messaggio: il pannello si chiude e lo dice', (tester) async {
     await pump(tester);
     await tester.tap(target('u2'));
-    await tester.tap(target('u3'));
-    await tester.enterText(find.byType(TextField), '  da vedere  ');
+    await tester.tap(target('u1'));
+    await tester.enterText(message(), '  da vedere  ');
     await tester.pump();
+    expect(find.text('Invia a 2 amici'), findsOneWidget);
     await tester.tap(sendButton());
     await tester.pump();
     await tester.pump();
-    expect(api.calls.last, 'recommend m1 u2,u3 da vedere');
+    expect(api.calls.last, 'recommend m1 u2,u1 da vedere');
     expect(find.text('Consiglio inviato a 2 amici'), findsOneWidget);
   });
 
@@ -150,29 +235,7 @@ void main() {
     expect(target('u2'), findsOneWidget);
   });
 
-  testWidgets('al massimo 30 amici alla volta', (tester) async {
-    api.recommendationTargetsById['m1'] = [
-      for (var i = 0; i < 31; i++) testTarget('u$i', 'Amico ${i.toString().padLeft(2, '0')}'),
-    ];
-    await pump(tester);
-    for (var i = 0; i < 30; i++) {
-      await tester.ensureVisible(target('u$i'));
-      await tester.tap(target('u$i'));
-      await tester.pump();
-    }
-    await tester.ensureVisible(target('u30'));
-    // La riga è spenta: il tocco non la raggiunge, ed è quello che si prova.
-    await tester.tap(target('u30'), warnIfMissed: false);
-    await tester.pump();
-    final checkbox = tester.widget<CheckboxListTile>(target('u30'));
-    expect(checkbox.value, isFalse);
-    // L'avviso è in cima all'elenco, scorso via dalle selezioni.
-    await tester.drag(find.byType(ListView), const Offset(0, 5000));
-    await tester.pump();
-    expect(find.text('Al massimo 30 amici alla volta'), findsOneWidget);
-  });
-
-  testWidgets('in TV il fuoco parte dal primo amico, non dal messaggio',
+  testWidgets('in TV il fuoco parte dal primo amico, non dalla ricerca',
       (tester) async {
     await pump(tester, tv: true, size: const Size(960, 540));
     await tester.pump();
@@ -183,29 +246,28 @@ void main() {
             of: target('u2'),
             matching: find.byElementPredicate((e) => e == focus!.context)),
         findsOneWidget,
-        reason: 'Luigi è il primo amico (online)');
+        reason: 'Garg è il primo amico (online)');
   });
 
-  testWidgets('TV: Giù passa sopra il messaggio senza aprire la tastiera',
+  testWidgets('TV: Giù dalla griglia passa le cornici e arriva a Invia',
       (tester) async {
     await pump(tester, tv: true, size: const Size(960, 540));
     await tester.pump();
-    final message = find.byType(TextField);
-    expect(tvFieldFocused(tester, message), isFalse);
-    // Peach è l'ultimo amico raggiungibile (Toad non può vederlo); con
-    // qualcuno scelto "Invia" è acceso.
-    await tester.tap(target('u3'));
+    // Con qualcuno scelto "Invia" è acceso.
+    await tester.tap(target('u1'));
     await tester.pump();
-    Focus.of(tester.element(find.text('Peach'))).requestFocus();
+    Focus.of(tester.element(find.text('sara'))).requestFocus();
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
-    expect(tvFrameNode(tester, message).hasPrimaryFocus, isTrue);
-    expect(tvFieldFocused(tester, message), isFalse);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.pump();
-    expect(focusOnButton(), isTrue);
-    expect(tvFieldFocused(tester, message), isFalse);
+    var reached = false;
+    for (var i = 0; i < 6 && !reached; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(tvFieldFocused(tester, message()), isFalse);
+      expect(tvFieldFocused(tester, search()), isFalse);
+      reached = focusOnButton();
+    }
+    expect(reached, isTrue);
+    expect(find.text('Invia a 1 amico'), findsOneWidget);
   });
 
   bool focusInside(WidgetTester tester, Finder of) {
