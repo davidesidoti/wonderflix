@@ -78,12 +78,18 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
           children: [
             Text(l.quickConnectYourCode),
             const SizedBox(height: 6),
-            Text(
-              formatQuickConnectCode(code),
-              textAlign: TextAlign.center,
-              style: WfText.display(68, color: WfColors.gold).copyWith(
-                letterSpacing: 6,
-                fontFeatures: const [FontFeature.tabularFigures()],
+            // Su un telefono stretto, o col testo ingrandito, il codice si
+            // rimpicciolisce invece di andare a capo.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                formatQuickConnectCode(code),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: WfText.display(68, color: WfColors.gold).copyWith(
+                  letterSpacing: 6,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -169,26 +175,23 @@ class _AdminHelp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    if (FormFactor.of(context).tv) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 14),
-        child: Text(l.quickConnectAskAdmin, style: muted),
-      );
-    }
     final supportUrl = ref.watch(appConfigProvider).supportUrl;
     if (supportUrl == null) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: Wrap(
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Text(l.quickConnectNoDevice, style: muted),
-          TextButton(
-            onPressed: () => unawaited(launchUrl(supportUrl)),
-            child: Text(l.loginContactAdmin),
-          ),
-        ],
-      ),
+      child: FormFactor.of(context).tv
+          ? Text(l.quickConnectAskAdmin, style: muted, textAlign: TextAlign.center)
+          : Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(l.quickConnectNoDevice, style: muted),
+                TextButton(
+                  onPressed: () => unawaited(launchUrl(supportUrl)),
+                  child: Text(l.loginContactAdmin),
+                ),
+              ],
+            ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wonderflix/app/providers.dart';
 import 'package:wonderflix/config/app_config.dart';
@@ -100,24 +101,57 @@ void main() {
     expect(find.widgetWithText(TextButton, "Scrivi all'admin"), findsOneWidget);
   });
 
-  testWidgets("senza supportUrl niente riga dell'admin", (tester) async {
+  for (final tv in [false, true]) {
+    testWidgets("senza supportUrl niente riga dell'admin (tv: $tv)",
+        (tester) async {
+      final runner = FakeRunner();
+      await pumpApp(tester, const QuickConnectPanel(), tv: tv, overrides: [
+        quickConnectRunnerProvider.overrideWithValue(runner),
+        sessionControllerProvider.overrideWith(
+            () => FakeSessionController(const SessionSignedOut())),
+        appConfigProvider.overrideWithValue(AppConfig(
+          serverUrl: Uri.parse('https://media.example.com'),
+          githubRepo: 'owner/repo',
+          discordAppId: '1',
+          supportUrl: null,
+        )),
+      ]);
+      runner.current.add(const QcWaiting('482913'));
+      await tester.pump();
+
+      expect(
+          find.text('Non hai un altro dispositivo collegato?'), findsNothing);
+      expect(find.text("Scrivi all'admin"), findsNothing);
+      expect(find.text("Chiedi all'admin di autorizzarti"), findsNothing);
+    });
+  }
+
+  testWidgets('telefono a 293 px con testo 1.5: il codice resta su una riga',
+      (tester) async {
     final runner = FakeRunner();
-    await pumpApp(tester, const QuickConnectPanel(), overrides: [
-      quickConnectRunnerProvider.overrideWithValue(runner),
-      sessionControllerProvider
-          .overrideWith(() => FakeSessionController(const SessionSignedOut())),
-      appConfigProvider.overrideWithValue(AppConfig(
-        serverUrl: Uri.parse('https://media.example.com'),
-        githubRepo: 'owner/repo',
-        discordAppId: '1',
-        supportUrl: null,
-      )),
-    ]);
+    await pumpApp(
+        tester,
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: const QuickConnectPanel(),
+          ),
+        ),
+        // Alta: nell'app il pannello sta in una pagina che scorre.
+        surfaceSize: const Size(293, 4000),
+        overrides: [
+          quickConnectRunnerProvider.overrideWithValue(runner),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedOut())),
+        ]);
     runner.current.add(const QcWaiting('482913'));
     await tester.pump();
 
-    expect(find.text('Non hai un altro dispositivo collegato?'), findsNothing);
-    expect(find.text("Scrivi all'admin"), findsNothing);
+    final paragraph = tester.renderObject<RenderParagraph>(find.text('482 913'));
+    // Una riga è alta 68 * 1.5 (altezza di riga 1); due righe il doppio.
+    expect(paragraph.size.height, lessThan(68 * 1.5 * 1.5));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets("TV: chiedere all'admin è un testo, non un link", (tester) async {
