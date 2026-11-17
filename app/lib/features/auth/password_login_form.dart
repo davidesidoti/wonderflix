@@ -204,10 +204,18 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
                     child: Text(l.loginForgotPassword),
                   ),
                 if (supportUrl != null)
-                  TextButton(
-                    onPressed: () => unawaited(launchUrl(supportUrl)),
-                    child: Text(l.loginContactAdmin),
-                  ),
+                  // In TV non c'è un browser da aprire: solo il testo.
+                  if (tv)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(l.loginAskAdmin,
+                          style: const TextStyle(color: WfColors.creamMuted)),
+                    )
+                  else
+                    TextButton(
+                      onPressed: () => unawaited(launchUrl(supportUrl)),
+                      child: Text(l.loginContactAdmin),
+                    ),
               ],
             ),
           ],

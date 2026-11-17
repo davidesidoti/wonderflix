@@ -637,4 +637,17 @@ void main() {
     expect(find.byKey(const Key('recovery-code')), findsNothing);
     expect(session.loginAttempts, isEmpty);
   });
+
+  testWidgets("TV: nel modulo e nel recupero \"Chiedi all'admin\" è un testo",
+      (tester) async {
+    await pumpLogin(tester, tv: true);
+
+    expect(find.text("Scrivi all'admin"), findsNothing);
+    expect(find.text("Chiedi all'admin"), findsOneWidget);
+
+    await openRecovery(tester);
+    expect(find.text("Scrivi all'admin"), findsNothing);
+    expect(find.text("Chiedi all'admin"), findsOneWidget);
+    expect(find.widgetWithText(TextButton, "Chiedi all'admin"), findsNothing);
+  });
 }

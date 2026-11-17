@@ -419,10 +419,13 @@ class _RecoveryPanelState extends ConsumerState<RecoveryPanel> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               if (!_unavailable) Text(l.recoveryNoContact, style: _mutedStyle),
-              TextButton(
-                onPressed: () => unawaited(launchUrl(supportUrl)),
-                child: Text(l.loginContactAdmin),
-              ),
+              if (tv)
+                Text(l.loginAskAdmin, style: _mutedStyle)
+              else
+                TextButton(
+                  onPressed: () => unawaited(launchUrl(supportUrl)),
+                  child: Text(l.loginContactAdmin),
+                ),
             ],
           ),
         ],
