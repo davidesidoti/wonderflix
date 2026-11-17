@@ -78,7 +78,13 @@ void main() {
     // Tab porta il fuoco sul primo pulsante della carta.
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
-    expect(FocusManager.instance.primaryFocus?.context, isNotNull);
+    final focused = FocusManager.instance.primaryFocus?.context;
+    var inside = false;
+    focused?.visitAncestorElements((element) {
+      inside = element.widget.key == const Key('card');
+      return !inside;
+    });
+    expect(inside, isTrue, reason: 'il fuoco è dentro la carta');
     await tester.pump(const Duration(seconds: 20));
     expect(timedOut, 0);
   });
@@ -102,5 +108,44 @@ void main() {
     expect(find.byWidgetPredicate(isPrimary), findsOneWidget);
     await tester.tap(find.text('Unisciti'));
     expect(joined, 1);
+  });
+
+  testWidgets('la carta che sfuma non chiude quella appena arrivata',
+      (tester) async {
+    final shown = ValueNotifier(1);
+    addTearDown(shown.dispose);
+    final timedOutIds = <int>[];
+    await pumpApp(
+      tester,
+      Scaffold(
+        body: ValueListenableBuilder<int>(
+          valueListenable: shown,
+          builder: (context, id, _) => InviteCardSlot(
+            id: id,
+            card: InviteCardFrame(
+              leading: const SizedBox.square(dimension: 40),
+              sentence: TextSpan(text: 'invito $id'),
+              primaryLabel: 'Unisciti',
+              primaryIcon: LucideIcons.play,
+              onPrimary: () {},
+              secondaryLabel: 'Più tardi',
+              secondaryIcon: LucideIcons.clock,
+              onSecondary: () {},
+              newest: true,
+              onTimeout: () => timedOutIds.add(id),
+            ),
+          ),
+        ),
+      ),
+      motion: MotionLevel.full,
+    );
+    await tester.pump(const Duration(milliseconds: 9800));
+    shown.value = 2;
+    await tester.pump();
+    // Oltre i 10 s della prima, durante e dopo la dissolvenza.
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(WfMotion.medium);
+    expect(timedOutIds, isEmpty);
+    expect(find.text('invito 2'), findsOneWidget);
   });
 }

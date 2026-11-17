@@ -43,7 +43,9 @@ class MatchInvites extends Notifier<MatchInviteEvent?> {
   }
 
   void dismiss() {
-    if (ref.mounted) state = null;
+    if (!ref.mounted) return;
+    state = null;
+    ref.read(newestInviteProvider.notifier).clear(InviteKind.match);
   }
 
   void _show(MatchInviteEvent event) {
@@ -89,7 +91,7 @@ class MatchInviteCard extends ConsumerWidget {
               secondaryLabel: l.inviteLater,
               secondaryIcon: LucideIcons.clock,
               onSecondary: invites.dismiss,
-              newest: ref.watch(newestInviteProvider) == InviteKind.match,
+              newest: isNewestInvite(ref, InviteKind.match),
               onTimeout: invites.dismiss,
             ),
     );

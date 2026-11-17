@@ -50,11 +50,15 @@ class FriendRequestNotices extends Notifier<FriendRequestEvent?> {
   void dismiss() {
     _panel?.close();
     _panel = null;
-    if (ref.mounted) state = null;
+    if (!ref.mounted) return;
+    state = null;
+    ref.read(newestInviteProvider.notifier).clear(InviteKind.friend);
   }
 
   void _show(FriendRequestEvent event) {
     if (ref.read(playerActiveProvider)) return;
+    // Il pannello Amici aperto mostra già la richiesta.
+    if (ref.read(shellPanelProvider) == ShellPanel.friends) return;
     state = event;
     ref.read(newestInviteProvider.notifier).set(InviteKind.friend);
     // Il pannello Amici mostra la richiesta: la carta (che con il movimento

@@ -45,8 +45,9 @@ class WatchPartyInvite {
 }
 
 /// Invito a un watch party appena nato (spec B §5.8): l'ultimo gruppo nuovo
-/// comparso nell'elenco; la carta si chiude da sola. I gruppi della prima lettura dopo
-/// il login non sono inviti, né quelli in cui siamo stati. Niente inviti
+/// comparso nell'elenco; la carta si chiude da sola. I gruppi della prima
+/// lettura dopo il login non sono inviti, né quelli in cui siamo stati.
+/// Niente inviti
 /// dentro un gruppo (o entrando), con il player aperto o senza il permesso
 /// di entrare.
 class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
@@ -90,7 +91,9 @@ class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
   }
 
   void dismiss() {
-    if (ref.mounted) state = null;
+    if (!ref.mounted) return;
+    state = null;
+    ref.read(newestInviteProvider.notifier).clear(InviteKind.party);
   }
 
   void _onGroups(List<GroupInfo> groups) {
@@ -159,7 +162,9 @@ class WatchPartyInviteCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final invite = ref.watch(watchPartyInvitesProvider);
     return InviteCardSlot(
-      id: invite?.group.id,
+      // Con chi invita: un altro amico nello stesso party è una carta nuova
+      // (e i 10 s ripartono).
+      id: invite == null ? null : (invite.group.id, invite.invitedBy),
       card: invite == null ? null : _card(context, ref, invite),
     );
   }
@@ -212,7 +217,7 @@ class WatchPartyInviteCard extends ConsumerWidget {
       secondaryLabel: l.inviteLater,
       secondaryIcon: LucideIcons.clock,
       onSecondary: invites.dismiss,
-      newest: ref.watch(newestInviteProvider) == InviteKind.party,
+      newest: isNewestInvite(ref, InviteKind.party),
       onTimeout: invites.dismiss,
     );
   }

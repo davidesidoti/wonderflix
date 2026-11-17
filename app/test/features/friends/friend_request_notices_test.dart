@@ -56,6 +56,20 @@ void main() {
       c.read(shellPanelProvider.notifier).open(ShellPanel.friends);
       async.flushMicrotasks();
       expect(c.read(friendRequestNoticesProvider), isNull);
+      expect(c.read(newestInviteProvider), isNull,
+          reason: 'la carta andata non è più la più nuova');
+    });
+  });
+
+  test('con il pannello Amici già aperto la carta non compare', () {
+    fakeAsync((async) {
+      final c = container();
+      c.listen(shellPanelProvider, (_, _) {});
+      c.read(shellPanelProvider.notifier).open(ShellPanel.friends);
+      async.flushMicrotasks();
+      events.add(friendRequestReceived('u2', 'Luigi'));
+      async.flushMicrotasks();
+      expect(c.read(friendRequestNoticesProvider), isNull);
     });
   });
 

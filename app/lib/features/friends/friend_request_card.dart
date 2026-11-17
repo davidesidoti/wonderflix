@@ -51,7 +51,7 @@ class FriendRequestCard extends ConsumerWidget {
       secondaryLabel: l.friendsDecline,
       secondaryIcon: LucideIcons.userX,
       onSecondary: () => answer(() => friends.decline(request.fromUserId)),
-      newest: ref.watch(newestInviteProvider) == InviteKind.friend,
+      newest: isNewestInvite(ref, InviteKind.friend),
       onTimeout: notices.dismiss,
     );
   }

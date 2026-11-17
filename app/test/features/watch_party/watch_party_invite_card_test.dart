@@ -125,6 +125,29 @@ void main() {
     expect(card, findsNothing);
   });
 
+  testWidgets('un altro amico nello stesso party: carta nuova, 10 s da capo',
+      (tester) async {
+    invites = FakeWatchPartyInvites();
+    await pumpCard(tester, motion: MotionLevel.full, extra: [
+      socialApiProvider.overrideWithValue(FakeSocialApi()),
+      socialAvailabilityProvider.overrideWith(() => FakeSocialAvailability(
+          const SocialFeatures(friends: true, parties: true, inbox: true))),
+      watchPartyDirectoryProvider
+          .overrideWith(() => FakeWatchPartyDirectory()),
+    ]);
+    invites.show(dune, invitedBy: 'Luigi');
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 9));
+    invites.show(dune, invitedBy: 'Peach');
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 9));
+    expect(invites.dismissed, 0);
+    expect(find.text('Peach ti invita a guardare Dune', findRichText: true),
+        findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(invites.dismissed, 1);
+  });
+
   testWidgets(
       'invito di un amico: frase unica, locandina dalla cassetta, 2 nel party',
       (tester) async {

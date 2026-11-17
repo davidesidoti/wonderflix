@@ -18,6 +18,19 @@ class NewestInvite extends Notifier<InviteKind?> {
   InviteKind? build() => null;
 
   void set(InviteKind kind) => state = kind;
+
+  /// La carta di [kind] se n'è andata: se era la più nuova, nessuna lo è
+  /// più e le altre rimaste tornano col pulsante oro.
+  void clear(InviteKind kind) {
+    if (state == kind) state = null;
+  }
+}
+
+/// La carta di [kind] è la più nuova, o nessuna lo è (quella di prima se n'è
+/// andata).
+bool isNewestInvite(WidgetRef ref, InviteKind kind) {
+  final newest = ref.watch(newestInviteProvider);
+  return newest == null || newest == kind;
 }
 
 final newestInviteProvider =
@@ -42,13 +55,18 @@ class InviteCardSlot extends StatelessWidget {
       transitionBuilder: (child, animation) => IgnorePointer(
         // L'invito che se ne va non accetta più "Unisciti".
         ignoring: child.key != current.key,
-        child: FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween(begin: const Offset(0.3, 0), end: Offset.zero)
-                .animate(CurvedAnimation(
-                    parent: animation, curve: WfMotion.emphasized)),
-            child: child,
+        // E il suo conto alla rovescia si ferma: a fine corsa chiuderebbe
+        // l'invito appena arrivato.
+        child: TickerMode(
+          enabled: child.key == current.key,
+          child: FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween(begin: const Offset(0.3, 0), end: Offset.zero)
+                  .animate(CurvedAnimation(
+                      parent: animation, curve: WfMotion.emphasized)),
+              child: child,
+            ),
           ),
         ),
       ),

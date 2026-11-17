@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wonderflix/core/jellyfin/server_events.dart';
+import 'package:wonderflix/features/friends/friend_request_card.dart';
 import 'package:wonderflix/features/match/match_invites.dart';
 import 'package:wonderflix/features/match/match_providers.dart';
 import 'package:wonderflix/features/match/match_room_controller.dart';
@@ -16,6 +17,7 @@ import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
 import 'package:wonderflix/features/watch_party/watch_party_invites.dart';
 import 'package:wonderflix/features/watch_party/watch_party_providers.dart';
 import 'package:wonderflix/features/watch_party/watch_party_session.dart';
+import 'package:wonderflix/ui/wf_buttons.dart';
 
 import '../../support/match_fakes.dart';
 import '../../support/pump_app.dart';
@@ -144,5 +146,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(match.calls, ['join r2']);
     expect(find.text('pagina r2'), findsOneWidget);
+  });
+
+  testWidgets('chiusa la più nuova, quella rimasta torna col pulsante oro',
+      (tester) async {
+    await pumpApp(
+      tester,
+      const Scaffold(
+        body: Column(children: [
+          WatchPartyInviteCard(),
+          MatchInviteCard(),
+          FriendRequestCard(),
+        ]),
+      ),
+      overrides: overrides(),
+    );
+    WfButton button(String label) =>
+        tester.widget<WfButton>(find.widgetWithText(WfButton, label));
+
+    events.add(friendRequestReceived('u3', 'Peach'));
+    await tester.pumpAndSettle();
+    events.add(partyInviteReceived('g1', 'Toad · Alien', 'Toad'));
+    await tester.pumpAndSettle();
+    expect(button('Unisciti').primary, isTrue);
+    expect(button('Accetta').primary, isFalse);
+
+    await tester.tap(find.text('Più tardi'));
+    await tester.pumpAndSettle();
+    expect(find.text('Unisciti'), findsNothing);
+    expect(button('Accetta').primary, isTrue);
   });
 }
