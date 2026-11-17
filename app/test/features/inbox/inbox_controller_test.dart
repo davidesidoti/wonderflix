@@ -168,6 +168,43 @@ void main() {
     expect(c.read(inboxControllerProvider).snapshot.entries, hasLength(3));
   });
 
+  test('removeAll: una rilettura a metà (InboxChanged dopo ogni voce) non '
+      'rimette le voci ancora da togliere', () async {
+    final slow = _ReloadingApi();
+    api = slow;
+    slow.inboxSnapshot = InboxSnapshot(entries: [
+      testAnnouncement(id: 'a', seq: 3),
+      testAnnouncement(id: 'p1', seq: 2),
+      testAnnouncement(id: 'r1', seq: 1),
+    ], unread: 3);
+    final c = container();
+    await pumpEventQueue();
+    final controller = c.read(inboxControllerProvider.notifier);
+    final seen = <List<String>>[];
+    c.listen(inboxControllerProvider,
+        (_, next) => seen.add([for (final e in next.snapshot.entries) e.id]));
+    slow.onRemove = (id) async {
+      // Il plugin ha tolto p1, non ancora r1, e manda InboxChanged.
+      if (id == 'p1') {
+        slow.inboxSnapshot = InboxSnapshot(entries: [
+          testAnnouncement(id: 'a', seq: 3),
+          testAnnouncement(id: 'r1', seq: 1),
+        ], unread: 2);
+        await controller.reload();
+      } else {
+        slow.inboxSnapshot = InboxSnapshot(
+            entries: [testAnnouncement(id: 'a', seq: 3)], unread: 1);
+      }
+    };
+
+    expect(await controller.removeAll(['p1', 'r1']), isNull);
+    await pumpEventQueue();
+    expect(seen, isNotEmpty);
+    expect(seen.where((ids) => ids.contains('r1')), isEmpty);
+    expect(c.read(inboxControllerProvider).snapshot.entries.map((e) => e.id),
+        ['a']);
+  });
+
   test('un caricamento non riuscito lo segna; Riprova rilegge', () async {
     api.nextFailure = SocialFailure.network;
     final c = container();
@@ -368,4 +405,16 @@ void main() {
       expect(api.calls, ['inbox', 'read 3']);
     });
   });
+}
+
+/// Un plugin che, mentre toglie una voce, fa quello che dice [onRemove]
+/// (es. una rilettura per l'InboxChanged).
+class _ReloadingApi extends FakeSocialApi {
+  Future<void> Function(String id)? onRemove;
+
+  @override
+  Future<void> removeInboxEntry(String id) async {
+    await super.removeInboxEntry(id);
+    await onRemove?.call(id);
+  }
 }

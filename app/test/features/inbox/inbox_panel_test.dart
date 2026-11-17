@@ -352,7 +352,9 @@ void main() {
     await tester.pump();
     api.nextFailure = SocialFailure.network;
     await tester.tap(find.text('Sì, svuota'));
-    await tester.pumpAndSettle();
+    await tester.pump(); // azione e rilettura
+    await tester.pump(); // snackbar
+    await tester.pump(const Duration(milliseconds: 750)); // entrata
     expect(api.calls, isNot(contains('remove-entry r1')));
     expect(find.text('Non è stato possibile aggiornare le notifiche'),
         findsOneWidget);
@@ -360,8 +362,8 @@ void main() {
     expect(find.byKey(const ValueKey('inbox-r1')), findsOneWidget);
   });
 
-  testWidgets('admin con Per te vuota: Svuota tutto in Server svuota tutto',
-      (tester) async {
+  testWidgets('admin con Per te vuota: Svuota tutto toglie solo le voci '
+      'viste, mai tutta la cassetta', (tester) async {
     api.inboxSnapshot = InboxSnapshot(entries: [
       testRequestPending(id: 'p1', seq: 1, createdAt: fiveMinutesAgo()),
     ], unread: 0);
@@ -373,7 +375,8 @@ void main() {
     api.inboxSnapshot = InboxSnapshot.empty;
     await tester.tap(find.text('Sì, svuota'));
     await tester.pump();
-    expect(api.calls, contains('clear-inbox'));
+    expect(api.calls, contains('remove-entry p1'));
+    expect(api.calls, isNot(contains('clear-inbox')));
   });
 
   /// Quante volte il server ha ricevuto "entra nel gruppo".

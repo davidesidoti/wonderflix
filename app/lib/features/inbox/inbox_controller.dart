@@ -79,6 +79,10 @@ class InboxController extends Notifier<InboxState> {
   /// annuncia niente (le voci perse a WebSocket giù non suonano).
   int _quietLoads = 0;
 
+  /// Voci che un [removeAll] sta ancora togliendo: le riletture a metà
+  /// (il plugin avvisa dopo ogni voce tolta) non le rimettono.
+  final _removing = <String>{};
+
   final _arrivals = StreamController<InboxEntry>.broadcast();
 
   /// Le voci nuove arrivate con un `InboxChanged`, per le notifiche di
@@ -144,8 +148,11 @@ class InboxController extends Notifier<InboxState> {
         }
       }
       if (!latest) return;
-      state = _seenIfOpen(
-          state.copyWith(snapshot: snapshot, loaded: true, failed: false));
+      state = _seenIfOpen(state.copyWith(
+          snapshot: _removing.fold<InboxSnapshot>(
+              snapshot, (s, id) => s.without(id)),
+          loaded: true,
+          failed: false));
     } on Object catch (error) {
       _log.info('notifiche non caricate: '
           '${error is SocialException ? error.failure.name : error.runtimeType}');
@@ -190,12 +197,15 @@ class InboxController extends Notifier<InboxState> {
 
   /// Toglie [ids] una alla volta, fermandosi al primo errore; `null` se
   /// riuscita.
-  Future<SocialFailure?> removeAll(List<String> ids) => _act(
-      ids.fold(state.snapshot, (s, id) => s.without(id)), (api) async {
-    for (final id in ids) {
-      await api.removeInboxEntry(id);
-    }
-  });
+  Future<SocialFailure?> removeAll(List<String> ids) {
+    _removing.addAll(ids);
+    return _act(ids.fold(state.snapshot, (s, id) => s.without(id)),
+        (api) async {
+      for (final id in ids) {
+        await api.removeInboxEntry(id);
+      }
+    }, pending: ids);
+  }
 
   /// Svuota la cassetta; `null` se riuscita.
   Future<SocialFailure?> clear() =>
@@ -232,7 +242,8 @@ class InboxController extends Notifier<InboxState> {
   /// avvisa (`InboxChanged`) solo se qualcosa è cambiato, quindi le sue
   /// novità non tornerebbero. `null` se riuscita.
   Future<SocialFailure?> _act(
-      InboxSnapshot optimistic, Future<void> Function(SocialApi api) action) async {
+      InboxSnapshot optimistic, Future<void> Function(SocialApi api) action,
+      {List<String> pending = const []}) async {
     // Una lettura partita prima non deve rimettere la voce tolta.
     _loads++;
     state = state.copyWith(snapshot: optimistic);
@@ -245,6 +256,8 @@ class InboxController extends Notifier<InboxState> {
       _log.info('azione sulle notifiche non riuscita: ${error.runtimeType}');
       failure = SocialFailure.network;
     }
+    // L'ultima rilettura mostra il plugin com'è, anche dopo un errore.
+    _removing.removeAll(pending);
     if (ref.mounted) unawaited(reload());
     return failure;
   }

@@ -159,11 +159,11 @@ class _InboxPanelState extends ConsumerState<InboxPanel> {
                 // Con font grandi si stringe (coi puntini) invece di uscire.
                 Flexible(
                   child: _ClearButton(
-                      // Con l'altra vista vuota si svuota tutto in una
-                      // chiamata.
-                      ids: entries.length == all.length
-                          ? null
-                          : [for (final entry in entries) entry.id]),
+                      // Un admin toglie solo le voci che vede: una voce
+                      // dell'altra vista arrivata da poco resta.
+                      ids: admin
+                          ? [for (final entry in entries) entry.id]
+                          : null),
                 ),
             ],
             closeTooltip: l.friendsClose,
