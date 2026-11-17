@@ -8,6 +8,7 @@ import 'package:wonderflix/core/jellyfin/item_query.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/library/library_providers.dart';
 import 'package:wonderflix/features/search/search_controller.dart';
+import 'package:wonderflix/features/search/search_ranking.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/library_fakes.dart';
@@ -139,8 +140,10 @@ void main() {
               q.sort == CatalogSort.rating &&
               q.kinds.containsAll({ItemKind.movie, ItemKind.series})),
           isTrue);
-      expect(r.people.map((p) => p.id).take(2), ['p2', 'p1']);
-      expect(r.people.map((p) => p.id).skip(2), ['p3', 'p4', 'p5', 'p6', 'p7']);
+      expect(r.people.map((p) => p.id),
+          ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7']);
+      expect(r.peopleRanked.map((p) => p.id),
+          ['p2', 'p1', 'p3', 'p4', 'p5', 'p6', 'p7']);
       expect(r.facts!['p2']!.titles, 10);
       expect(r.facts!['p2']!.knownFor.id, 'b');
       expect(r.facts!['p2']!.roleType, 'Director');
@@ -234,6 +237,62 @@ void main() {
       expect(searches.every((q) => q.includeSearchFields && q.includeOverview),
           isTrue);
       expect(api.peopleCalls.single.$3, 12);
+    });
+  });
+
+  test('il miglior risultato non cambia quando arrivano i dati delle persone', () {
+    fakeAsync((async) {
+      final gate = Completer<void>();
+      api
+        ..people = [
+          testItem(id: 'p1', name: 'Ista Uno', kind: ItemKind.person),
+          testItem(id: 'p2', name: 'Ista Due', kind: ItemKind.person),
+        ]
+        ..itemsGateFor = ((query) => query.personId != null ? gate : null)
+        ..onItems = ((query, start, limit) => switch (query.personId) {
+              null => pageOf([]),
+              'p1' => pageOf([testItem(id: 'a')], 1),
+              _ => pageOf([testItem(id: 'b')], 9),
+            });
+      final container = makeContainer();
+      container.read(searchControllerProvider.notifier).setTerm('ista');
+      async.elapse(const Duration(milliseconds: 350));
+      async.flushMicrotasks();
+
+      JellyfinItem? best() {
+        final r = container.read(searchControllerProvider).results!;
+        return bestResult('ista',
+            movies: r.movies, series: r.series, people: r.people);
+      }
+
+      expect(container.read(searchControllerProvider).results!.facts, isNull);
+      final before = best();
+      gate.complete();
+      async.flushMicrotasks();
+      final r = container.read(searchControllerProvider).results!;
+      expect(r.facts, isNotNull);
+      expect(best()!.id, before!.id);
+      expect(r.peopleRanked.map((p) => p.id), ['p2', 'p1']);
+    });
+  });
+
+  test('submit mentre la ricerca è partita: nessuna richiesta in più', () {
+    fakeAsync((async) {
+      final gate = Completer<void>();
+      api.itemsGateFor = ((query) => query.searchTerm != null ? gate : null);
+      final container = makeContainer();
+      final controller = container.read(searchControllerProvider.notifier);
+      controller.setTerm('dune');
+      async.elapse(const Duration(milliseconds: 350));
+      async.flushMicrotasks();
+      expect(container.read(searchControllerProvider).loading, isTrue);
+      final count = api.itemQueries.length;
+      final peopleCount = api.peopleCalls.length;
+
+      controller.submit();
+      async.elapse(const Duration(seconds: 1));
+      expect(api.itemQueries.length, count);
+      expect(api.peopleCalls.length, peopleCount);
     });
   });
 }

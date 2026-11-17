@@ -18,11 +18,17 @@ class SearchResults {
     required this.seriesTotal,
     required this.peopleTotal,
     this.facts,
-  });
+    List<JellyfinItem>? peopleRanked,
+  }) : _peopleRanked = peopleRanked;
 
   final List<JellyfinItem> movies;
   final List<JellyfinItem> series;
+  /// Nell'ordine del server, uguale prima e dopo [facts]: `bestResult` lo usa.
   final List<JellyfinItem> people;
+  final List<JellyfinItem>? _peopleRanked;
+
+  /// Da mostrare: le prime persone per numero di titoli, poi le altre.
+  List<JellyfinItem> get peopleRanked => _peopleRanked ?? people;
   final int movieTotal;
   final int seriesTotal;
   final int peopleTotal;
@@ -83,7 +89,9 @@ class SearchController extends Notifier<SearchState> {
     _debounce = Timer(debounce, () => unawaited(_search(term)));
   }
 
-  /// Invio: cerca subito il termine che aspetta ancora i 300 ms.
+  /// Invio: cerca subito il termine che aspetta ancora i 300 ms. Con una
+  /// richiesta già partita non fa niente: chi apre il miglior risultato
+  /// aspetta `state.term == term && !state.loading && state.results != null`.
   void submit() {
     if (!(_debounce?.isActive ?? false)) return;
     _debounce!.cancel();
@@ -173,7 +181,8 @@ class SearchController extends Notifier<SearchState> {
         results: SearchResults(
           movies: results.movies,
           series: results.series,
-          people: [
+          people: results.people,
+          peopleRanked: [
             for (final i in order) first[i],
             ...results.people.skip(peopleWithFacts),
           ],
