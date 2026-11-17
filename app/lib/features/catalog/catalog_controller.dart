@@ -55,12 +55,15 @@ class CatalogController extends Notifier<CatalogState> {
   }
 
   /// Mostra [genre] (null: tutto), con l'ordine di partenza del genere; tiene
-  /// decennio, stato, visti e ricerca. Con [searchTerm] cerca quello.
+  /// decennio, stato, visti e ricerca. Con [searchTerm] cerca quello (vuoto:
+  /// nessuna ricerca).
   Future<void> showGenre(String? genre, {String? searchTerm}) {
     _genre = genre;
     return _load(
         state.query.copyWith(
-          searchTerm: searchTerm ?? state.query.searchTerm,
+          searchTerm: searchTerm == null
+              ? state.query.searchTerm
+              : (searchTerm.isEmpty ? null : searchTerm),
           genres: genre == null ? const {} : genreServerNames(genre).toSet(),
           sort: catalogDefaultSort(genre),
           reversed: false,

@@ -95,11 +95,11 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
 
   /// Il controller non carica da solo: dopo il primo build gli dico di partire
   /// (anche tornando dalle saghe o cambiando genere).
-  void _showGenre() => unawaited(Future.microtask(() {
+  void _showGenre({String? searchTerm}) => unawaited(Future.microtask(() {
         if (!mounted) return;
         unawaited(ref
             .read(catalogControllerProvider(widget.kind).notifier)
-            .showGenre(_genre, searchTerm: widget.search));
+            .showGenre(_genre, searchTerm: searchTerm ?? widget.search));
       }));
 
   @override
@@ -110,7 +110,12 @@ class _CatalogScreenState extends ConsumerState<CatalogScreen>
         (oldWidget.view != widget.view ||
             oldWidget.genre != widget.genre ||
             oldWidget.search != widget.search)) {
-      _showGenre();
+      // La scheda Film da `?q=ist` (stessa pagina, senza `q`): il catalogo
+      // torna intero. Cambiando genere la ricerca invece resta.
+      final searchGone = oldWidget.search != null &&
+          widget.search == null &&
+          oldWidget.genre == widget.genre;
+      _showGenre(searchTerm: searchGone ? '' : null);
     }
   }
 

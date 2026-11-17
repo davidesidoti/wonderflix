@@ -236,6 +236,9 @@ void main() {
       await key(tester, LogicalKeyboardKey.select);
       expect(pill, findsNothing);
       expect(api.itemQueries.last.searchTerm, isNull);
+      // Il focus non si perde: torna agli attrezzi sopra.
+      expect(find.ancestor(of: focused(), matching: find.byType(CatalogTools)),
+          findsOneWidget);
     });
 
     testWidgets('genere sotto la soglia: il focus va su Tutti',
@@ -433,6 +436,37 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(gridQueries.last.genres, isEmpty);
+  });
+
+  testWidgets('da ?q=ist a senza q (scheda Film) la ricerca si toglie',
+      (tester) async {
+    final search = ValueNotifier<String?>('ist');
+    addTearDown(search.dispose);
+    await pumpApp(
+        tester,
+        ValueListenableBuilder<String?>(
+            valueListenable: search,
+            builder: (_, s, _) => Scaffold(
+                body: CatalogScreen(
+                    key: const ValueKey('movies'),
+                    kind: ItemKind.movie,
+                    search: s))),
+        surfaceSize: const Size(390, 780),
+        overrides: [
+          libraryApiProvider.overrideWithValue(api),
+          sessionControllerProvider.overrideWith(
+              () => FakeSessionController(const SessionSignedIn(testUser))),
+        ]);
+    await tester.pump();
+    await tester.pump();
+    expect(gridQueries.last.searchTerm, 'ist');
+    expect(find.byType(TextField), findsOneWidget);
+
+    search.value = null;
+    await tester.pump();
+    await tester.pump();
+    expect(gridQueries.last.searchTerm, isNull);
+    expect(find.text('ist'), findsNothing);
   });
 
   testWidgets('pagina che non riempie la finestra: carica la successiva',
