@@ -21,7 +21,11 @@ final _log = Logger('match');
 @immutable
 class MatchRoomView {
   const MatchRoomView(
-      {required this.roomId, this.state, this.gone = false, this.sent = 0});
+      {required this.roomId,
+      this.state,
+      this.gone = false,
+      this.sent = 0,
+      this.invited = const {}});
 
   final String roomId;
 
@@ -36,6 +40,10 @@ class MatchRoomView {
   /// carta passa subito, senza aspettare il plugin.
   final int sent;
 
+  /// Amici invitati da questo client: il pulsante della pagina dice
+  /// "Invitato", anche per l'invito partito dal pannello Amici.
+  final Set<String> invited;
+
   bool get closed => gone || state?.phase == MatchPhase.closed;
 
   /// A che punto della pila è [userId]: il più avanti tra il voto in volo e
@@ -49,12 +57,14 @@ class MatchRoomView {
     return voted > sent ? voted : sent;
   }
 
-  MatchRoomView copyWith({MatchState? state, bool? gone, int? sent}) =>
+  MatchRoomView copyWith(
+          {MatchState? state, bool? gone, int? sent, Set<String>? invited}) =>
       MatchRoomView(
         roomId: roomId,
         state: state ?? this.state,
         gone: gone ?? this.gone,
         sent: sent ?? this.sent,
+        invited: invited ?? this.invited,
       );
 }
 
@@ -216,6 +226,11 @@ class MatchRoomController extends Notifier<MatchRoomView?> {
     if (current == null || current.closed) return MatchFailure.closed;
     try {
       await _api.invite(current.roomId, userIds);
+      // La sala può essere cambiata durante l'attesa.
+      final now = state;
+      if (now != null && now.roomId == current.roomId) {
+        state = now.copyWith(invited: {...now.invited, ...userIds});
+      }
       return null;
     } on MatchException catch (error) {
       return error.failure;

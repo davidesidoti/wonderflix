@@ -60,8 +60,6 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
   late final MatchRoomController _controller;
   late TonightFilters _filters;
 
-  /// Amici invitati da questa pagina: il pulsante dice "Invitato".
-  final _invited = <String>{};
   bool _starting = false;
   bool _closing = false;
 
@@ -164,9 +162,7 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final failure = await _controller.invite([userId]);
     if (!mounted) return;
-    if (failure == null) {
-      setState(() => _invited.add(userId));
-    } else {
+    if (failure != null) {
       messenger?.showSnackBar(
           SnackBar(content: Text(matchFailureText(l, failure))));
     }
@@ -473,7 +469,11 @@ class _MatchScreenState extends ConsumerState<MatchScreen> {
         // Solo chi ha aperto può invitare (il plugin risponde NotCreator).
         if (creator) ...[
           const SizedBox(height: 26),
-          _InviteFriends(state: state, invited: _invited, onInvite: _invite),
+          _InviteFriends(
+              state: state,
+              invited: ref.watch(
+                  matchRoomProvider.select((v) => v?.invited ?? const {})),
+              onInvite: _invite),
         ],
       ],
     );

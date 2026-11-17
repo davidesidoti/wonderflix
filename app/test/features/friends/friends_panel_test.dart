@@ -402,6 +402,10 @@ void main() {
         online: true,
         party: FriendParty(groupId: 'g1', title: 'Il Signore degli Anelli'),
       ),
+    ], incoming: [
+      PersonEntry(
+          userId: 'u4',
+          name: 'Massimiliano Massimiliano Massimiliano Massimilia'),
     ]);
     await pumpApp(
       t,
@@ -428,6 +432,8 @@ void main() {
     expect(t.getTopRight(find.byTooltip('Altre azioni')).dx,
         lessThanOrEqualTo(380));
     expect(t.getTopRight(find.text('Unisciti')).dx, lessThanOrEqualTo(380));
+    expect(t.getTopRight(find.text('Accetta')).dx, lessThanOrEqualTo(380));
+    expect(t.getTopRight(find.text('Rifiuta')).dx, lessThanOrEqualTo(380));
   });
 
   group('party', () {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,8 +59,9 @@ const _mutedStyle = TextStyle(color: WfColors.creamMuted, fontSize: 13);
 const _sectionStyle = TextStyle(
     color: WfColors.creamMuted, fontSize: 12, fontWeight: FontWeight.w600);
 
-/// Contenuto del pannello Amici (spec F §8.3): ricerca, "Ho un codice" (con
-/// la funzione `parties` del plugin), richieste, amici.
+/// Contenuto del pannello Amici (spec §7.2): testa con gli online, ricerca,
+/// le sezioni (Da rispondere, Online, Offline, Richieste inviate chiusa) e
+/// il piede con "Ho un codice" (funzione `parties`) e "Apri un Match".
 class FriendsPanel extends ConsumerStatefulWidget {
   const FriendsPanel({super.key});
 
@@ -523,8 +525,7 @@ class _RequestActions extends ConsumerWidget {
     final friends = ref.read(friendsControllerProvider.notifier);
     void run(Future<SocialFailure?> Function() action) =>
         unawaited(runFriendAction(context, action));
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return _ActionsWrap(
       children: incoming
           ? [
               _ActionButton(
@@ -681,8 +682,7 @@ class _FriendRowState extends ConsumerState<_FriendRow> {
                   ? null
                   : l.friendsOffline,
       trailing: showJoin || showWatch
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
+          ? _ActionsWrap(
               children: [
                 if (showJoin)
                   _ActionButton(
@@ -733,63 +733,87 @@ class _PersonRow extends StatelessWidget {
     final status = online;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      child: Row(
-        children: [
-          Semantics(
-            label: status == null
-                ? null
-                : (status ? l.friendsOnline : l.friendsOffline),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                UserAvatar.lookup(
-                    userId: userId, name: name, size: 32, muted: true),
-                if (status == true)
-                  Positioned(
-                    right: -1,
-                    bottom: -1,
-                    child: Container(
-                      key: const Key('online-dot'),
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        color: WfColors.online,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: WfColors.surface, width: 1.5),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            Semantics(
+              label: status == null
+                  ? null
+                  : (status ? l.friendsOnline : l.friendsOffline),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  UserAvatar.lookup(
+                      userId: userId, name: name, size: 32, muted: true),
+                  if (status == true)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        key: const Key('online-dot'),
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: WfColors.online,
+                          shape: BoxShape.circle,
+                          border:
+                              Border.all(color: WfColors.surface, width: 1.5),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: status == false
-                            ? WfColors.creamMuted
-                            : WfColors.cream)),
-                if (subtitle != null)
-                  Text(subtitle!,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: WfColors.creamMuted, fontSize: 12)),
-              ],
+                      style: TextStyle(
+                          color: status == false
+                              ? WfColors.creamMuted
+                              : WfColors.cream)),
+                  if (subtitle != null)
+                    Text(subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: WfColors.creamMuted, fontSize: 12)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          trailing,
-        ],
+            const SizedBox(width: 8),
+            // Al nome resta sempre un po' di posto: con il testo grande le
+            // azioni vanno su due righe ([_ActionsWrap]) invece di uscire.
+            ConstrainedBox(
+              // 32 + 12 + 8: avatar e spazi; 64 per il nome.
+              constraints: BoxConstraints(
+                  maxWidth: math.max(0, constraints.maxWidth - 116)),
+              child: trailing,
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+/// Due azioni affiancate che, se non ci stanno, vanno una sotto l'altra.
+class _ActionsWrap extends StatelessWidget {
+  const _ActionsWrap({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: children,
+      );
 }
 
 class _ActionButton extends StatelessWidget {
