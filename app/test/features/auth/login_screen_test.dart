@@ -3,16 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
 import 'package:wonderflix/core/jellyfin/api_exception.dart';
 import 'package:wonderflix/core/storage/profile_store.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
 import 'package:wonderflix/features/auth/login_screen.dart';
+import 'package:wonderflix/features/auth/password_login_form.dart';
 import 'package:wonderflix/features/auth/profiles_state.dart';
 import 'package:wonderflix/features/auth/quick_connect_flow.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/ui/staggered_entrance.dart';
 import 'package:wonderflix/ui/tv_focusable.dart';
+import 'package:wonderflix/ui/tv_text_field_frame.dart';
+import 'package:wonderflix/ui/user_avatar.dart';
 
 import '../../support/fake_session_controller.dart';
 import '../../support/profile_fakes.dart';
@@ -33,6 +37,9 @@ class _RecordingRunner implements QuickConnectRunner {
   }
 }
 
+const expiredNotice = 'La sessione è scaduta, capita dopo un po\' di tempo. '
+    'Accedi di nuovo per rientrare.';
+
 void main() {
   Future<FakeSessionController> pumpLogin(
     WidgetTester tester, {
@@ -45,9 +52,15 @@ void main() {
   }) async {
     final fake = FakeSessionController(initial, loginError: loginError);
     final book = profiles.fold(const ProfileBook(), (b, p) => b.upsert(p));
-    await pumpApp(tester, const LoginScreen(), motion: motion, tv: tv, overrides: [
+    await pumpApp(tester, const LoginScreen(),
+        motion: motion,
+        tv: tv,
+        surfaceSize: tv ? const Size(960, 540) : const Size(1440, 900),
+        overrides: [
       sessionControllerProvider.overrideWith(() => fake),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
+      // Il codice non arriva mai: la scheda resta ferma.
+      quickConnectRunnerProvider.overrideWithValue(_RecordingRunner(() => 0)),
       profilesProvider
           .overrideWith(() => FixedProfiles(ProfilesState(book: book))),
     ]);
@@ -86,7 +99,174 @@ void main() {
 
   testWidgets('sessione scaduta: mostra l\'avviso', (tester) async {
     await pumpLogin(tester, initial: const SessionSignedOut(expired: true));
-    expect(find.text('Sessione scaduta, accedi di nuovo.'), findsOneWidget);
+    expect(find.text(expiredNotice), findsOneWidget);
+  });
+
+  testWidgets('primo accesso: "Accedi a WonderFlix", etichette, autofill',
+      (tester) async {
+    await pumpLogin(tester);
+    expect(find.text('Accedi a WonderFlix'), findsOneWidget);
+    expect(find.byType(UserAvatar), findsNothing);
+    expect(find.text('Nome utente'), findsOneWidget);
+    expect(find.text('Password'), findsOneWidget);
+    expect(find.byKey(const Key('login-not-you')), findsNothing);
+    final user = tester.widget<TextField>(find.byKey(const Key('login-username')));
+    final pass = tester.widget<TextField>(find.byKey(const Key('login-password')));
+    expect(user.decoration!.hintText, isNull);
+    expect(pass.decoration!.hintText, isNull);
+    expect(user.autofillHints, [AutofillHints.username]);
+    expect(pass.autofillHints, [AutofillHints.password]);
+    expect(
+        find.ancestor(
+            of: find.byKey(const Key('login-username')),
+            matching: find.byType(AutofillGroup)),
+        findsOneWidget);
+    expect(
+        find.ancestor(
+            of: find.byKey(const Key('login-password')),
+            matching: find.byType(AutofillGroup)),
+        findsOneWidget);
+  });
+
+  testWidgets('l\'occhio mostra e nasconde la password', (tester) async {
+    await pumpLogin(tester);
+    bool obscured() => tester
+        .widget<TextField>(find.byKey(const Key('login-password')))
+        .obscureText;
+    final eye = find.byKey(const Key('login-password-eye'));
+    expect(obscured(), isTrue);
+    expect(find.byTooltip('Mostra la password'), findsOneWidget);
+    expect(find.byIcon(LucideIcons.eye), findsOneWidget);
+    await tester.tap(eye);
+    await tester.pump();
+    expect(obscured(), isFalse);
+    expect(find.byTooltip('Nascondi la password'), findsOneWidget);
+    expect(find.byIcon(LucideIcons.eyeOff), findsOneWidget);
+    await tester.tap(eye);
+    await tester.pump();
+    expect(obscured(), isTrue);
+  });
+
+  Future<void> pumpRelogin(WidgetTester tester,
+          {String name = 'Luigi', bool tv = false, bool quickConnect = false}) =>
+      pumpLogin(tester,
+          initial: const SessionSignedOut(expired: true, reloginUserId: 'u2'),
+          profiles: [
+            testProfile(userId: 'u1'),
+            testProfile(userId: 'u2', name: name, expired: true),
+          ],
+          tv: tv,
+          quickConnect: quickConnect);
+
+  testWidgets('sessione scaduta: Ciao, avatar, avviso neutro', (tester) async {
+    await pumpRelogin(tester);
+    expect(find.text('Ciao, Luigi'), findsOneWidget);
+    expect(find.text('Accedi a WonderFlix'), findsNothing);
+    expect(find.byType(UserAvatar), findsOneWidget);
+    expect(find.text(expiredNotice), findsOneWidget);
+    expect(find.byType(ErrorBanner), findsNothing);
+    expect(find.byIcon(LucideIcons.clock), findsOneWidget);
+    expect(find.byKey(const Key('login-not-you')), findsOneWidget);
+  });
+
+  testWidgets('"Non sei tu?" svuota il nome e torna al titolo generico',
+      (tester) async {
+    await pumpRelogin(tester);
+    await tester.tap(find.byKey(const Key('login-not-you')));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Accedi a WonderFlix'), findsOneWidget);
+    expect(find.text('Ciao, Luigi'), findsNothing);
+    expect(find.byType(UserAvatar), findsNothing);
+    expect(find.text(expiredNotice), findsNothing);
+    expect(find.byKey(const Key('login-not-you')), findsNothing);
+    final username =
+        tester.widget<TextField>(find.byKey(const Key('login-username')));
+    expect(username.controller!.text, isEmpty);
+    expect(hasFocus(tester, 'login-username'), isTrue);
+  });
+
+  testWidgets('nome lunghissimo nel Ciao: una riga, nessun overflow',
+      (tester) async {
+    await pumpRelogin(tester, name: 'L' * 60);
+    expect(tester.takeException(), isNull);
+    final hello = tester.widget<Text>(find.textContaining('Ciao, LLL'));
+    expect(hello.maxLines, 1);
+    expect(hello.overflow, TextOverflow.ellipsis);
+    expect(tester.getSize(find.byKey(const Key('login-panel'))).width, 380);
+  });
+
+  testWidgets('desktop con Quick Connect: niente altezza fissa',
+      (tester) async {
+    await pumpLogin(tester, quickConnect: true);
+    expect(find.byType(TabBarView), findsNothing);
+    expect(find.byType(IndexedStack), findsOneWidget);
+    // Il nome scritto resta passando da una scheda all'altra.
+    await tester.enterText(find.byKey(const Key('login-username')), 'mario');
+    await tester.tap(find.widgetWithText(Tab, 'Quick Connect'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.widgetWithText(Tab, 'Password'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('login-username')))
+            .controller!
+            .text,
+        'mario');
+  });
+
+  testWidgets('TV, Ciao: Giù attraversa i campi fino ad Accedi senza tastiera',
+      (tester) async {
+    await pumpRelogin(tester, tv: true, quickConnect: true);
+    await tester.tap(find.widgetWithText(Tab, 'Password'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Ciao, Luigi'), findsOneWidget);
+    expect(find.byKey(const Key('login-password-eye')), findsNothing);
+    expect(find.byType(TvTextFieldFrame), findsNWidgets(2));
+
+    FocusNode frame(String key) => Focus.of(tester.element(find.descendant(
+        of: find.ancestor(
+            of: find.byKey(Key(key)), matching: find.byType(TvFocusable)),
+        matching: find.byType(AnimatedScale))));
+    bool inField() =>
+        FocusManager.instance.primaryFocus?.context
+            ?.findAncestorWidgetOfExactType<EditableText>() !=
+        null;
+    bool onWidget(Key key) {
+      final ctx = FocusManager.instance.primaryFocus?.context;
+      if (ctx == null) return false;
+      var found = false;
+      ctx.visitAncestorElements((e) {
+        found = e.widget.key == key;
+        return !found;
+      });
+      return found || ctx.widget.key == key;
+    }
+
+    Future<void> press(LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      await tester.pump();
+      expect(inField(), isFalse);
+      expect(hasFocus(tester, 'login-username'), isFalse);
+      expect(hasFocus(tester, 'login-password'), isFalse);
+    }
+
+    Focus.of(tester.element(find.text('Non sei tu?'))).requestFocus();
+    await tester.pump();
+    expect(onWidget(const Key('login-not-you')), isTrue);
+    await press(LogicalKeyboardKey.arrowDown);
+    expect(frame('login-username').hasPrimaryFocus, isTrue);
+    await press(LogicalKeyboardKey.arrowDown);
+    expect(frame('login-password').hasPrimaryFocus, isTrue);
+    await press(LogicalKeyboardKey.arrowDown);
+    expect(onWidget(const Key('login-submit')), isTrue);
+    await press(LogicalKeyboardKey.arrowUp);
+    expect(frame('login-password').hasPrimaryFocus, isTrue);
+    await press(LogicalKeyboardKey.arrowUp);
+    expect(frame('login-username').hasPrimaryFocus, isTrue);
   });
 
   testWidgets('scheda Quick Connect solo se attivo sul server', (tester) async {
@@ -107,6 +287,7 @@ void main() {
     await pumpApp(tester, const LoginScreen(), overrides: [
       sessionControllerProvider.overrideWith(() => fake),
       quickConnectEnabledProvider.overrideWith((ref) => completer.future),
+      quickConnectRunnerProvider.overrideWithValue(_RecordingRunner(() => 0)),
     ]);
     await tester.pump();
 
@@ -180,7 +361,7 @@ void main() {
           testProfile(userId: 'u1'),
           testProfile(userId: 'u2', name: 'Luigi', expired: true),
         ]);
-    expect(find.text('Sessione scaduta, accedi di nuovo.'), findsOneWidget);
+    expect(find.text(expiredNotice), findsOneWidget);
     final username = tester.widget<TextField>(
         find.byKey(const Key('login-username')));
     expect(username.controller!.text, 'Luigi');

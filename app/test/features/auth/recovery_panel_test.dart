@@ -10,6 +10,7 @@ import 'package:wonderflix/core/social/account_api.dart';
 import 'package:wonderflix/features/auth/auth_providers.dart';
 import 'package:wonderflix/features/auth/login_screen.dart';
 import 'package:wonderflix/features/auth/profiles_state.dart';
+import 'package:wonderflix/features/auth/quick_connect_flow.dart';
 import 'package:wonderflix/features/auth/session_controller.dart';
 
 import '../../support/account_fakes.dart';
@@ -18,6 +19,15 @@ import '../../support/field_focus.dart';
 import '../../support/profile_fakes.dart';
 import '../../support/pump_app.dart';
 import '../../support/tv_field_frame.dart';
+
+/// Quick Connect che non arriva mai al codice (la scheda è montata anche
+/// quando non si vede).
+class _IdleRunner implements QuickConnectRunner {
+  const _IdleRunner();
+
+  @override
+  Stream<QcState> run() => const Stream.empty();
+}
 
 void main() {
   late FakeAccountApi api;
@@ -45,6 +55,7 @@ void main() {
     await pumpApp(tester, const LoginScreen(), tv: tv, overrides: [
       sessionControllerProvider.overrideWith(() => session),
       quickConnectEnabledProvider.overrideWith((ref) async => quickConnect),
+      quickConnectRunnerProvider.overrideWithValue(const _IdleRunner()),
       profilesProvider
           .overrideWith(() => FixedProfiles(const ProfilesState())),
       ...accountTestOverrides(api),

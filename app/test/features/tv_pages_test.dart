@@ -295,6 +295,9 @@ void main() {
         await tester.pump();
         tabs(tester).index = 0;
         await tester.pump(const Duration(seconds: 1));
+        // Con titolo ed etichette il link sta sotto il bordo dei 540.
+        await tester.ensureVisible(find.text('Password dimenticata?'));
+        await tester.pump();
         await tester.tap(find.text('Password dimenticata?'));
         await tester.pump(const Duration(seconds: 1));
         expect(find.byType(TabBar), findsNothing, reason: 'recupero aperto');

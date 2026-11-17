@@ -62,7 +62,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(location(), '/login');
     expect(session.prepareLoginCalls, 3);
-    expect(find.text('Sessione scaduta, accedi di nuovo.'), findsOneWidget);
+    expect(
+        find.text('La sessione è scaduta, capita dopo un po\' di tempo. '
+            'Accedi di nuovo per rientrare.'),
+        findsOneWidget);
     expect(
         tester
             .widget<TextField>(find.byKey(const Key('login-username')))

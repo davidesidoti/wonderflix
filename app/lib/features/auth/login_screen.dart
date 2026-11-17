@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/theme.dart';
 import '../../app/tv_back.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/user_avatar.dart';
 import 'auth_providers.dart';
 import 'password_login_form.dart';
 import 'profiles_state.dart';
@@ -40,6 +42,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Tornando dal recupero si riparte dalla password (da lì si era aperto),
   /// anche sulla TV.
   bool _backToPassword = false;
+
+  /// "Non sei tu?" premuto: niente "Ciao" né avviso, il nome si riscrive.
+  bool _notYou = false;
 
   /// Attorno al pannello: per rimettere il focus su una scheda.
   final _panelFocus = FocusNode(canRequestFocus: false, skipTraversal: true);
@@ -88,7 +93,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final signedOut = session is SessionSignedOut ? session : null;
     final expired = signedOut?.expired ?? false;
     final reloginId = signedOut?.reloginUserId;
-    final reloginName = reloginId == null ? null : book.byId(reloginId)?.name;
+    final relogin = reloginId == null ? null : book.byId(reloginId);
+    final reloginName = relogin?.name;
+    // "Ciao, {nome}" (spec §9.2): solo con un nome salvato da salutare.
+    final hello = expired && !_notYou ? _nonEmpty(reloginName) : null;
     // "Annulla" torna a "Chi guarda?": solo se c'è un altro profilo da
     // scegliere.
     final canCancel = ((signedOut?.adding ?? false) && !book.isEmpty) ||
@@ -96,12 +104,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Un profilo migrato senza nome (il primo `/Users/Me` non è riuscito):
     // il nome si scrive, e il fuoco resta lì. Tornando dal recupero, il
     // nome scritto lì.
+    // "Non sei tu?" lo ricrea vuoto (e fuori dalla TV il fuoco va al nome).
     final form = PasswordLoginForm(
-      initialUsername: _nonEmpty(_typedUsername) ?? _nonEmpty(reloginName),
+      key: ValueKey(_notYou),
+      initialUsername: _nonEmpty(_typedUsername) ??
+          (_notYou ? null : _nonEmpty(reloginName)),
       onForgotPassword: (username) => setState(() {
         _recovering = true;
         _typedUsername = username;
       }),
+      onNotYou: hello == null
+          ? null
+          : () => setState(() {
+                _notYou = true;
+                _typedUsername = null;
+              }),
     );
 
     // Nello stretto il logo sta sopra il pannello, che prende tutta la
@@ -165,9 +182,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             },
                           )
                         else ...[
-                          if (expired) ...[
-                            ErrorBanner(l.sessionExpired),
-                            const SizedBox(height: 12),
+                          if (hello != null)
+                            Row(
+                              children: [
+                                UserAvatar(
+                                    userId: reloginId!,
+                                    name: hello,
+                                    imageTag: relogin?.imageTag,
+                                    size: 52),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Text(l.loginWelcomeBack(hello),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: WfText.display(34)),
+                                ),
+                              ],
+                            )
+                          else
+                            Text(l.loginTitle, style: WfText.display(34)),
+                          const SizedBox(height: 18),
+                          if (expired && !_notYou) ...[
+                            _ExpiredNotice(l.sessionExpired),
+                            const SizedBox(height: 18),
                           ],
                           if (quickConnectAsync.isLoading)
                             const Padding(
@@ -206,32 +243,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     _tabs = DefaultTabController.of(context);
                                     return const SizedBox(height: 16);
                                   }),
-                                  if (compact)
-                                    // Senza altezza fissa: una scheda alla
-                                    // volta, entrambe vive (il nome scritto
-                                    // resta).
-                                    Builder(builder: (context) {
-                                      final tabs =
-                                          DefaultTabController.of(context);
-                                      return ListenableBuilder(
-                                        listenable: tabs,
-                                        builder: (context, _) => IndexedStack(
-                                          index: tabs.index,
-                                          children: [
-                                            form,
-                                            const QuickConnectPanel(),
-                                          ],
-                                        ),
-                                      );
-                                    })
-                                  else
-                                    SizedBox(
-                                      height: 300,
-                                      child: TabBarView(children: [
-                                        form,
-                                        const QuickConnectPanel(),
-                                      ]),
-                                    ),
+                                  // Senza altezza fissa: una scheda alla
+                                  // volta, entrambe vive (il nome scritto
+                                  // resta).
+                                  Builder(builder: (context) {
+                                    final tabs =
+                                        DefaultTabController.of(context);
+                                    return ListenableBuilder(
+                                      listenable: tabs,
+                                      builder: (context, _) => IndexedStack(
+                                        index: tabs.index,
+                                        children: [
+                                          form,
+                                          const QuickConnectPanel(),
+                                        ],
+                                      ),
+                                    );
+                                  }),
                                 ],
                               ),
                             )
@@ -283,6 +311,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return true;
       },
       child: page,
+    );
+  }
+}
+
+/// La sessione scaduta: un avviso neutro, non un errore (spec §9.2).
+class _ExpiredNotice extends StatelessWidget {
+  const _ExpiredNotice(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: WfColors.surfaceHigh,
+        border: Border.all(color: WfColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: Icon(LucideIcons.clock, size: 16, color: WfColors.cream),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style: const TextStyle(
+                    color: WfColors.creamMuted, fontSize: 13, height: 1.45)),
+          ),
+        ],
+      ),
     );
   }
 }
