@@ -7,15 +7,19 @@ import '../../app/theme.dart';
 import '../../core/jellyfin/item_models.dart';
 import '../../core/jellyfin/item_query.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/expandable_text.dart';
 import '../../ui/form_factor.dart';
+import '../../ui/media_row.dart';
 import '../../ui/poster_card.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/smooth_scroll.dart';
 import '../../ui/staggered_entrance.dart';
 import '../../ui/states.dart';
+import '../../ui/wf_buttons.dart';
 import '../../ui/wf_image.dart';
 import '../detail/detail_providers.dart';
 import '../library/library_providers.dart';
+import '../requests/requests_navigation.dart';
 
 /// Film e serie del server in cui compare la persona, dal più recente.
 final filmographyProvider =
@@ -80,16 +84,22 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
     // Nello stretto la foto sta sopra il nome, più piccola (non in TV).
     final form = FormFactor.of(context);
     final compact = form.compact && !form.tv;
+    final tv = form.tv;
+    final side = compact ? 16.0 : 32.0;
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(name.toUpperCase(), style: WfText.display(compact ? 28 : 48)),
         if (bio != null) ...[
           const SizedBox(height: 12),
-          Text(bio,
-              maxLines: 10,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(height: 1.5)),
+          // L'InkWell di "Altro" vuole un Material sopra.
+          Material(
+            type: MaterialType.transparency,
+            child: ExpandableText(bio,
+                maxLines: 4,
+                tvFocusable: tv,
+                style: const TextStyle(height: 1.5)),
+          ),
         ],
       ],
     );
@@ -97,7 +107,7 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
       controller: _scroll,
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(32, 32, 32, 0),
+          padding: EdgeInsets.fromLTRB(side, 32, side, 0),
           sliver: SliverToBoxAdapter(
             child: Flex(
               direction: compact ? Axis.vertical : Axis.horizontal,
@@ -127,19 +137,15 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
               child: PosterGridSkeleton(count: 6, shrinkWrap: true),
             ),
           )
-        else ...[
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
-            sliver: SliverToBoxAdapter(
-              child: Text(l.personOnServer, style: WfText.display(28)),
-            ),
-          ),
+        else
           ...films.when(
-            loading: () => const [
-              SliverToBoxAdapter(
+            loading: () => [
+              _title(l, side),
+              const SliverToBoxAdapter(
                   child: PosterGridSkeleton(count: 6, shrinkWrap: true)),
             ],
             error: (error, _) => [
+              _title(l, side),
               SliverToBoxAdapter(
                 child: ErrorView(
                     error: error,
@@ -147,36 +153,81 @@ class _PersonScreenState extends ConsumerState<PersonScreen> {
                         ref.invalidate(filmographyProvider(widget.personId))),
               ),
             ],
-            data: (items) => [
-              BatchedEntrance(
-                itemCount: items.length,
-                child: SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 180,
-                      mainAxisSpacing: 24,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: 0.55,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) => BatchedEntranceItem(
-                        index: i,
-                        child: PosterCard(
-                          item: items[i],
-                          heroSource: 'person.$i',
+            data: (items) => items.isEmpty
+                ? [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(side, 32, side, 32),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(l.personNoTitles,
+                                style:
+                                    const TextStyle(color: WfColors.creamMuted)),
+                            const SizedBox(height: 16),
+                            WfButton.secondary(
+                              label: l.personSearchRequests,
+                              icon: LucideIcons.search,
+                              onPressed: () => openRequests(context),
+                            ),
+                          ],
                         ),
                       ),
-                      childCount: items.length,
                     ),
-                  ),
-                ),
-              ),
-            ],
+                  ]
+                : tv
+                    ? [
+                        SliverToBoxAdapter(
+                          child: MediaRow(
+                            title: l.personOnServer,
+                            height: rowPosterSize(context).rowHeight,
+                            itemCount: items.length,
+                            itemBuilder: (context, i) => PosterCard(
+                              item: items[i],
+                              width: rowPosterSize(context).width,
+                              heroSource: 'person.$i',
+                            ),
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                      ]
+                    : [
+                        _title(l, side),
+                        BatchedEntrance(
+                          itemCount: items.length,
+                          child: SliverPadding(
+                            padding: EdgeInsets.fromLTRB(side, 0, side, 32),
+                            sliver: SliverGrid(
+                              gridDelegate:
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 180,
+                                mainAxisSpacing: 24,
+                                crossAxisSpacing: 16,
+                                childAspectRatio: 0.55,
+                              ),
+                              delegate: SliverChildBuilderDelegate(
+                                (context, i) => BatchedEntranceItem(
+                                  index: i,
+                                  child: PosterCard(
+                                    item: items[i],
+                                    heroSource: 'person.$i',
+                                  ),
+                                ),
+                                childCount: items.length,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
           ),
-        ],
       ],
     );
   }
+
+  Widget _title(AppLocalizations l, double side) => SliverPadding(
+        padding: EdgeInsets.fromLTRB(side, 32, side, 16),
+        sliver: SliverToBoxAdapter(
+          child: Text(l.personOnServer, style: WfText.display(28)),
+        ),
+      );
 }

@@ -142,6 +142,8 @@
   "myListEmptySeries": "Nessuna serie nella lista.",
   "catalogClearFilters": "Azzera filtri",
   "personOnServer": "Su WonderFlix",
+  "personNoTitles": "Nessun suo titolo è sul server.",
+  "personSearchRequests": "Cerca in Richieste",
   "searchHint": "Cerca film, serie o persone",
   "searchPrompt": "Scrivi almeno 2 lettere per cercare.",
   "searchNoResults": "Nessun risultato per \"{term}\"",

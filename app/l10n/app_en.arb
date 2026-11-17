@@ -125,6 +125,8 @@
   "myListEmptySeries": "No series in your list.",
   "catalogClearFilters": "Clear filters",
   "personOnServer": "On WonderFlix",
+  "personNoTitles": "None of their titles are on the server.",
+  "personSearchRequests": "Search in Requests",
   "searchHint": "Search movies, shows or people",
   "searchPrompt": "Type at least 2 letters to search.",
   "searchNoResults": "No results for \"{term}\"",
