@@ -51,7 +51,8 @@ class QuickConnectFlow implements QuickConnectRunner {
   final Duration _pollInterval;
 
   /// Chi smette di ascoltare ("Annulla", il recupero password, la schermata
-  /// che si chiude; non l'altra scheda, che resta montata) ferma tutto: niente più controlli, codici nuovi o accessi.
+  /// che si chiude; non l'altra scheda, che resta montata) ferma tutto:
+  /// niente più controlli, codici nuovi o accessi.
   /// Userebbero le credenziali del profilo aperto dopo, e un loro 401 lo
   /// segnerebbe scaduto.
   @override

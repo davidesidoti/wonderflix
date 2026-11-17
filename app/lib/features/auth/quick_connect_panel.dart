@@ -46,7 +46,9 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
         if (!mounted) return;
         setState(() => _state = state);
         if (state is QcApproved) {
-          ref.read(sessionControllerProvider.notifier).quickConnectApproved(state.user);
+          ref
+              .read(sessionControllerProvider.notifier)
+              .quickConnectApproved(state.user);
         }
       },
       onError: (Object e) {
@@ -64,10 +66,13 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    const muted = TextStyle(color: WfColors.creamMuted, fontSize: 12.5, height: 1.45);
+    const muted =
+        TextStyle(color: WfColors.creamMuted, fontSize: 12.5, height: 1.45);
     const spinner = Center(
       child: SizedBox(
-          width: 28, height: 28, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.5)),
     );
 
     return switch (_state) {
@@ -109,8 +114,8 @@ class _QuickConnectPanelState extends ConsumerState<QuickConnectPanel> {
             const SizedBox(height: 14),
             _Step(
                 1,
-                l.quickConnectStepOpen(
-                    '${l.menuSettings} › ${l.settingsAccount} › ${l.settingsQuickConnect}')),
+                l.quickConnectStepOpen('${l.menuSettings} › '
+                    '${l.settingsAccount} › ${l.settingsQuickConnect}')),
             const SizedBox(height: 10),
             _Step(2, l.quickConnectStepCode(l.authorizeDeviceSubmit)),
             _AdminHelp(muted: muted),
@@ -180,7 +185,8 @@ class _AdminHelp extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: FormFactor.of(context).tv
-          ? Text(l.quickConnectAskAdmin, style: muted, textAlign: TextAlign.center)
+          ? Text(l.quickConnectAskAdmin,
+              style: muted, textAlign: TextAlign.center)
           : Wrap(
               alignment: WrapAlignment.center,
               crossAxisAlignment: WrapCrossAlignment.center,

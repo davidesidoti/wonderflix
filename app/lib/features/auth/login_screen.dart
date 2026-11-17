@@ -47,6 +47,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// "Non sei tu?" premuto: niente "Ciao" né avviso, il nome si riscrive.
   bool _notYou = false;
 
+  /// In TV il focus è già andato alla scheda aperta.
+  bool _tabFocused = false;
+
   /// Attorno al pannello: per rimettere il focus su una scheda.
   final _panelFocus = FocusNode(canRequestFocus: false, skipTraversal: true);
 
@@ -143,8 +146,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     // Nello stretto il logo sta sopra il pannello, che prende tutta la
-    // larghezza: affiancati servirebbero 716 punti.
+    // larghezza: affiancati servirebbero 716 punti. In TV (960×540) stanno
+    // affiancati, col logo piccolo: sopra il pannello il codice di Quick
+    // Connect uscirebbe sotto i 540.
+    final tv = FormFactor.of(context).tv;
     final compact = FormFactor.of(context).compact;
+    final stacked = compact && !tv;
+    final gap = tv ? 12.0 : 18.0;
     // Lo rimette la scheda qui sotto, se c'è.
     _tabs = null;
 
@@ -156,9 +164,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: StaggerGroup(
             count: 2,
             child: Flex(
-              direction: compact ? Axis.vertical : Axis.horizontal,
+              direction: stacked ? Axis.vertical : Axis.horizontal,
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: compact
+              crossAxisAlignment: stacked
                   ? CrossAxisAlignment.stretch
                   : CrossAxisAlignment.center,
               children: [
@@ -178,128 +186,138 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     canRequestFocus: false,
                     skipTraversal: true,
                     child: Container(
-                    key: const Key('login-panel'),
-                    width: compact ? null : 380,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: WfColors.surface,
-                      border: Border.all(color: WfColors.border),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_recovering)
-                          RecoveryPanel(
-                            initialUsername: _typedUsername,
-                            onBack: (username) {
-                              setState(() {
-                                _recovering = false;
-                                _backToPassword = true;
-                                _typedUsername = username;
-                              });
-                              if (FormFactor.of(context).tv) _focusTab(0);
-                            },
-                          )
-                        else ...[
-                          if (hello != null)
-                            Row(
-                              children: [
-                                UserAvatar(
-                                    userId: reloginId!,
-                                    name: hello,
-                                    imageTag: relogin?.imageTag,
-                                    size: 52),
-                                const SizedBox(width: 14),
-                                Expanded(
-                                  child: Text(l.loginWelcomeBack(hello),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: WfText.display(34)),
-                                ),
-                              ],
+                      key: const Key('login-panel'),
+                      // In TV più largo e più fitto: con "Ciao" e l'avviso
+                      // il codice e i passi di Quick Connect stanno nei 540.
+                      width: stacked ? null : (tv ? 520 : 380),
+                      padding: EdgeInsets.all(tv ? 16 : 24),
+                      decoration: BoxDecoration(
+                        color: WfColors.surface,
+                        border: Border.all(color: WfColors.border),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_recovering)
+                            RecoveryPanel(
+                              initialUsername: _typedUsername,
+                              onBack: (username) {
+                                setState(() {
+                                  _recovering = false;
+                                  _backToPassword = true;
+                                  _typedUsername = username;
+                                });
+                                if (FormFactor.of(context).tv) _focusTab(0);
+                              },
                             )
-                          else
-                            Text(l.loginTitle, style: WfText.display(34)),
-                          const SizedBox(height: 18),
-                          if (expired && !_notYou) ...[
-                            _ExpiredNotice(l.sessionExpired),
-                            const SizedBox(height: 18),
-                          ],
-                          if (quickConnectAsync.isLoading)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 32),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2.5),
-                                ),
-                              ),
-                            )
-                          else if (quickConnectAsync.value ?? false)
-                            DefaultTabController(
-                              length: 2,
-                              // La scheda iniziale; tornando dal recupero la
-                              // password, da cui si era aperto.
-                              initialIndex:
-                                  _backToPassword ? 0 : _firstTab(context),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                          else ...[
+                            if (hello != null)
+                              Row(
                                 children: [
-                                  TabBar(
-                                    isScrollable: true,
-                                    tabAlignment: TabAlignment.start,
-                                    tabs: [
-                                      Tab(text: l.loginTabPassword),
-                                      Tab(text: l.loginTabQuickConnect),
-                                    ],
+                                  UserAvatar(
+                                      userId: reloginId!,
+                                      name: hello,
+                                      imageTag: relogin?.imageTag,
+                                      size: 52),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(l.loginWelcomeBack(hello),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: WfText.display(34)),
                                   ),
-                                  // Lo spazio sotto le schede, e intanto il
-                                  // loro controller per Indietro.
-                                  Builder(builder: (context) {
-                                    _tabs = DefaultTabController.of(context);
-                                    return const SizedBox(height: 16);
-                                  }),
-                                  // Senza altezza fissa: una scheda alla
-                                  // volta, entrambe vive (il nome scritto
-                                  // resta).
-                                  Builder(builder: (context) {
-                                    final tabs =
-                                        DefaultTabController.of(context);
-                                    return ListenableBuilder(
-                                      listenable: tabs,
-                                      builder: (context, _) => IndexedStack(
-                                        index: tabs.index,
-                                        children: [
-                                          form,
-                                          const QuickConnectPanel(),
-                                        ],
-                                      ),
-                                    );
-                                  }),
                                 ],
+                              )
+                            else
+                              Text(l.loginTitle, style: WfText.display(34)),
+                            SizedBox(height: gap),
+                            if (expired && !_notYou) ...[
+                              _ExpiredNotice(l.sessionExpired),
+                              SizedBox(height: gap),
+                            ],
+                            if (quickConnectAsync.isLoading)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 32),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2.5),
+                                  ),
+                                ),
+                              )
+                            else if (quickConnectAsync.value ?? false)
+                              DefaultTabController(
+                                length: 2,
+                                // La scheda iniziale; tornando dal recupero la
+                                // password, da cui si era aperto.
+                                initialIndex:
+                                    _backToPassword ? 0 : _firstTab(context),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    TabBar(
+                                      isScrollable: true,
+                                      tabAlignment: TabAlignment.start,
+                                      tabs: [
+                                        Tab(text: l.loginTabPassword),
+                                        Tab(text: l.loginTabQuickConnect),
+                                      ],
+                                    ),
+                                    // Lo spazio sotto le schede, e intanto il
+                                    // loro controller per Indietro. In TV,
+                                    // la prima volta, il focus alla scheda
+                                    // aperta.
+                                    Builder(builder: (context) {
+                                      final tabs = _tabs =
+                                          DefaultTabController.of(context);
+                                      if (tv && !_tabFocused) {
+                                        _tabFocused = true;
+                                        _focusTab(tabs.index);
+                                      }
+                                      return const SizedBox(height: 16);
+                                    }),
+                                    // Senza altezza fissa: una scheda alla
+                                    // volta, entrambe vive (il nome scritto
+                                    // resta).
+                                    Builder(builder: (context) {
+                                      final tabs =
+                                          DefaultTabController.of(context);
+                                      return ListenableBuilder(
+                                        listenable: tabs,
+                                        builder: (context, _) => IndexedStack(
+                                          index: tabs.index,
+                                          children: [
+                                            form,
+                                            const QuickConnectPanel(),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              )
+                            else
+                              form,
+                            if (canCancel) ...[
+                              const SizedBox(height: 8),
+                              TextButton(
+                                key: const Key('login-cancel'),
+                                onPressed: ref
+                                    .read(sessionControllerProvider.notifier)
+                                    .cancelLogin,
+                                child: Text(l.profilesCancel),
                               ),
-                            )
-                          else
-                            form,
-                          if (canCancel) ...[
-                            const SizedBox(height: 8),
-                            TextButton(
-                              key: const Key('login-cancel'),
-                              onPressed: ref
-                                  .read(sessionControllerProvider.notifier)
-                                  .cancelLogin,
-                              child: Text(l.profilesCancel),
-                            ),
+                            ],
                           ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
                   ),
                 ),
               ],

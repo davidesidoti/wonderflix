@@ -7,8 +7,11 @@ import 'tv_provider.dart';
 /// Nei messaggi ICU va il `name` (`select`).
 enum DeviceKind { pc, browser, phone, tv }
 
-DeviceKind deviceKindFor(
-        {required bool tv, required bool web, required TargetPlatform platform}) =>
+DeviceKind deviceKindFor({
+  required bool tv,
+  required bool web,
+  required TargetPlatform platform,
+}) =>
     tv
         ? DeviceKind.tv
         : web

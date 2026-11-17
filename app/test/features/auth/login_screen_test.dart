@@ -37,6 +37,12 @@ class _RecordingRunner implements QuickConnectRunner {
   }
 }
 
+/// Quick Connect fermo sul codice 123456.
+class _WaitingRunner implements QuickConnectRunner {
+  @override
+  Stream<QcState> run() => Stream.value(const QcWaiting('123456'));
+}
+
 const expiredNotice = 'La sessione è scaduta, capita dopo un po\' di tempo. '
     'Accedi di nuovo per rientrare.';
 
@@ -296,6 +302,52 @@ void main() {
     expect(frame('login-username').hasPrimaryFocus, isTrue);
     expect(inField(), isFalse);
   });
+
+  for (final expired in [true, false]) {
+    testWidgets(
+        'TV, Quick Connect (${expired ? 'scaduto, con Ciao' : 'primo accesso'}'
+        '): focus sulla scheda, codice e passi nei 540', (tester) async {
+      await pumpApp(tester, const LoginScreen(),
+          tv: true,
+          surfaceSize: const Size(960, 540),
+          overrides: [
+            sessionControllerProvider.overrideWith(() => FakeSessionController(
+                expired
+                    ? const SessionSignedOut(expired: true, reloginUserId: 'u2')
+                    : const SessionSignedOut())),
+            quickConnectEnabledProvider.overrideWith((ref) async => true),
+            quickConnectRunnerProvider.overrideWithValue(_WaitingRunner()),
+            profilesProvider.overrideWith(() => FixedProfiles(ProfilesState(
+                book: expired
+                    ? const ProfileBook()
+                        .upsert(testProfile(userId: 'u1'))
+                        .upsert(testProfile(
+                            userId: 'u2', name: 'Luigi', expired: true))
+                    : const ProfileBook()))),
+          ]);
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      if (expired) {
+        expect(find.text('Ciao, Luigi'), findsOneWidget);
+        expect(find.text(expiredNotice), findsOneWidget);
+      }
+      expect(
+          Focus.of(tester.element(find.widgetWithText(Tab, 'Quick Connect')))
+              .hasPrimaryFocus,
+          isTrue);
+      expect(tester.getRect(find.text('123 456')).bottom,
+          lessThanOrEqualTo(540));
+      final step2 =
+          find.ancestor(of: find.text('2'), matching: find.byType(Row));
+      expect(tester.getRect(step2.first).bottom, lessThanOrEqualTo(540));
+      // Logo e pannello affiancati.
+      expect(tester.getRect(find.byType(Image)).right,
+          lessThan(tester.getRect(find.byKey(const Key('login-panel'))).left));
+    });
+  }
 
   testWidgets('scheda Quick Connect solo se attivo sul server', (tester) async {
     await pumpLogin(tester);

@@ -55,8 +55,10 @@ void main() {
   test('i testi nominano il dispositivo', () {
     final it = lookupAppLocalizations(const Locale('it'));
     final en = lookupAppLocalizations(const Locale('en'));
-    expect(it.profilesRemoveTitle('Luigi', 'pc'), 'Rimuovere Luigi da questo PC?');
-    expect(it.profilesRemoveTitle('Luigi', 'tv'), 'Rimuovere Luigi da questa TV?');
+    expect(it.profilesRemoveTitle('Luigi', 'pc'),
+        'Rimuovere Luigi da questo PC?');
+    expect(it.profilesRemoveTitle('Luigi', 'tv'),
+        'Rimuovere Luigi da questa TV?');
     expect(it.profilesRemoveTitle('Luigi', 'browser'),
         'Rimuovere Luigi da questo browser?');
     expect(it.profilesRemoveTitle('Luigi', 'phone'),
@@ -67,7 +69,8 @@ void main() {
         '5 profili su questa TV: rimuovine uno per aggiungerne un altro.');
     expect(en.profilesRemoveTitle('Luigi', 'phone'),
         'Remove Luigi from this phone?');
-    expect(en.profilesCount(1, 5, 'browser'), '1 of 5 profiles on this browser');
+    expect(en.profilesCount(1, 5, 'browser'),
+        '1 of 5 profiles on this browser');
     expect(en.profilesFull(5, 'tv'),
         '5 profiles on this TV: remove one to add another.');
   });
