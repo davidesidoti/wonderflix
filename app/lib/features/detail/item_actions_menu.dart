@@ -15,6 +15,7 @@ import '../item_edit/edit_metadata_dialog.dart';
 import '../item_edit/identify_dialog.dart';
 import '../item_edit/images_dialog.dart';
 import '../item_edit/refresh_metadata_dialog.dart';
+import '../library/item_labels.dart';
 import '../reports/report_dialog.dart';
 import '../reports/reports_providers.dart';
 import '../social/social_providers.dart';
@@ -291,7 +292,11 @@ class ItemActionsButton extends ConsumerWidget {
         showMediaInfoDialog(context, item);
       case ItemAction.subtitles:
         unawaited(
-          showSubtitlesDialog(context, itemId: item.id, title: item.name),
+          showSubtitlesDialog(
+            context,
+            itemId: item.id,
+            title: itemContextLine(AppLocalizations.of(context), item),
+          ),
         );
       case ItemAction.editMetadata:
         unawaited(

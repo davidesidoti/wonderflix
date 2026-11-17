@@ -830,7 +830,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cerca sottotitoli'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Carica file…'));
+    await tester.tap(find.text('Scegli il file…'));
     await tester.pump();
     await tester.pump();
 

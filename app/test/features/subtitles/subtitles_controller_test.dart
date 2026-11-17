@@ -34,6 +34,17 @@ class _RecordingSubtitlesApi extends FakeSubtitlesApi {
   }
 }
 
+/// Con [gate] la lettura delle preferenze aspetta.
+class _GatedUserConfigApi extends FakeUserConfigApi {
+  Completer<void>? gate;
+
+  @override
+  Future<Map<String, dynamic>> configuration() async {
+    await gate?.future;
+    return super.configuration();
+  }
+}
+
 SubtitleTrack _external(int index) => SubtitleTrack(
   index: index,
   language: 'ita',
@@ -48,14 +59,14 @@ void main() {
   late _RecordingSubtitlesApi api;
   late FakeLibraryApi library;
   late FakeSessionController session;
-  late FakeUserConfigApi config;
+  late _GatedUserConfigApi config;
   late ProviderContainer container;
   late ProviderSubscription<SubtitlesState> subscription;
 
   setUp(() {
     api = _RecordingSubtitlesApi();
     library = FakeLibraryApi()..mediaInfoById['e1'] = _info([1]);
-    config = FakeUserConfigApi();
+    config = _GatedUserConfigApi();
   });
 
   /// Un container con la sessione di [user] e il controller di `e1` attivo.
@@ -271,7 +282,9 @@ void main() {
       () {
         fakeAsync((async) {
           mount();
-          controller().setLanguage('eng');
+          // Cambiare lingua cerca: il caricamento aspetta che finisca.
+          unawaited(controller().setLanguage('eng'));
+          async.flushMicrotasks();
           bool? result;
           unawaited(
             controller()
@@ -284,7 +297,7 @@ void main() {
           );
           async.flushMicrotasks();
 
-          expect(api.calls, ['upload e1 eng srt']);
+          expect(api.calls, ['search e1 eng -', 'upload e1 eng srt']);
           final sent = api.lastUpload!;
           expect(sent.bytes, hasLength(maxSubtitleFileBytes));
           expect(sent.isForced, isTrue);
@@ -431,5 +444,69 @@ void main() {
       expect(state().notice, SubtitlesNotice.noPermission);
       expect(session.refreshUserCalls, 1);
     });
+  });
+
+  group('searchOnOpen', () {
+    test('aspetta la preferenza e cerca una volta nella sua lingua', () async {
+      config.config['SubtitleLanguagePreference'] = 'eng';
+      final gate = config.gate = Completer<void>();
+      mount();
+
+      final opening = controller().searchOnOpen();
+      await Future<void>.delayed(Duration.zero);
+      expect(api.calls, isEmpty, reason: 'aspetta la preferenza');
+      gate.complete();
+      await opening;
+
+      expect(api.calls, ['search e1 eng -']);
+      expect(state().language, 'eng');
+    });
+
+    test('senza preferenza entro 2 s cerca nella lingua di riserva', () {
+      fakeAsync((async) {
+        config.config['SubtitleLanguagePreference'] = 'eng';
+        config.gate = Completer<void>();
+        mount();
+
+        unawaited(controller().searchOnOpen());
+        async.elapse(const Duration(milliseconds: 1999));
+        expect(api.calls, isEmpty);
+        async.elapse(const Duration(milliseconds: 1));
+
+        expect(api.calls, ['search e1 ita -']);
+      });
+    });
+
+    test('una preferenza che non si legge vale nessuna preferenza', () async {
+      config.loadError = Exception('giù');
+      mount();
+
+      await controller().searchOnOpen();
+
+      expect(api.calls, ['search e1 ita -']);
+    });
+
+    test("una lingua scelta durante l'attesa vale, con una sola ricerca", () async {
+      config.config['SubtitleLanguagePreference'] = 'eng';
+      final gate = config.gate = Completer<void>();
+      mount();
+
+      final opening = controller().searchOnOpen();
+      await controller().setLanguage('fre');
+      gate.complete();
+      await opening;
+
+      expect(api.calls, ['search e1 fre -']);
+      expect(state().language, 'fre');
+    });
+  });
+
+  test('setLanguage rilancia la ricerca nella lingua nuova', () async {
+    mount();
+    await controller().search();
+
+    await controller().setLanguage('eng');
+
+    expect(api.calls, ['search e1 ita -', 'search e1 eng -']);
   });
 }

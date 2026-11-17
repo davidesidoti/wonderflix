@@ -23,6 +23,9 @@ const subtitlePollInterval = Duration(seconds: 2);
 /// Dopo questo tempo si smette di aspettare la traccia nuova.
 const subtitlePollTimeout = Duration(seconds: 20);
 
+/// Quanto la ricerca dell'apertura aspetta la preferenza di lingua.
+const languagePreferenceWait = Duration(seconds: 2);
+
 /// Lingua della ricerca quando l'utente non ne ha una fra quelle del menu.
 const _fallbackLanguage = 'ita';
 
@@ -125,10 +128,30 @@ class SubtitlesController extends Notifier<SubtitlesState> {
   bool get _busy =>
       state.searching || state.busyId != null || state.uploading || _deleting;
 
-  void setLanguage(String code) {
+  /// La ricerca dell'apertura: aspetta la preferenza di lingua (al massimo
+  /// [languagePreferenceWait]; un errore vale "nessuna preferenza") e cerca
+  /// una volta. Una lingua scelta nell'attesa ha già cercato.
+  Future<void> searchOnOpen() async {
+    final ref = this.ref;
+    LanguagePreferences? preferences;
+    try {
+      preferences = await ref
+          .read(languagePreferencesProvider.future)
+          .timeout(languagePreferenceWait);
+    } on Object {
+      preferences = null;
+    }
+    if (!ref.mounted || _languageChosen) return;
+    state = state.copyWith(language: _initialLanguage(preferences));
+    await search();
+  }
+
+  /// Cambia lingua e cerca di nuovo.
+  Future<void> setLanguage(String code) {
     _languageChosen = true;
     // I risultati sono di un'altra lingua.
     state = state.copyWith(language: code, results: null);
+    return search();
   }
 
   Future<void> search() async {

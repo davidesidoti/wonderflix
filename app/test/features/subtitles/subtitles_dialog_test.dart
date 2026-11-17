@@ -13,6 +13,7 @@ import 'package:wonderflix/features/settings/language_preferences.dart';
 import 'package:wonderflix/features/subtitles/subtitle_file_picker.dart';
 import 'package:wonderflix/features/subtitles/subtitles_controller.dart';
 import 'package:wonderflix/features/subtitles/subtitles_dialog.dart';
+import 'package:wonderflix/ui/dialog_item_poster.dart';
 
 import '../../support/admin_fakes.dart';
 import '../../support/fake_session_controller.dart';
@@ -29,6 +30,19 @@ class _RecordingSubtitlesApi extends FakeSubtitlesApi {
   Future<void> upload(String itemId, SubtitleUpload upload) {
     lastUpload = upload;
     return super.upload(itemId, upload);
+  }
+}
+
+/// La lettura delle preferenze arriva dopo [delay].
+class _SlowUserConfigApi extends FakeUserConfigApi {
+  _SlowUserConfigApi(this.delay);
+
+  final Duration delay;
+
+  @override
+  Future<Map<String, dynamic>> configuration() async {
+    await Future<void>.delayed(delay);
+    return super.configuration();
   }
 }
 
@@ -54,11 +68,15 @@ void main() {
     added = 0;
   });
 
+  /// Con [settle] falso pompa solo due frame: una ricerca ferma su un
+  /// cancello lascia la rotella, che non si assesta mai.
   Future<void> open(
     WidgetTester tester, {
     JellyfinUser user = testUser,
     PickedSubtitleFile? picked,
     Size surfaceSize = const Size(1440, 900),
+    FakeUserConfigApi? config,
+    bool settle = true,
   }) async {
     await pumpApp(
       tester,
@@ -81,7 +99,7 @@ void main() {
       overrides: [
         ...reportTestOverrides(subtitles: api),
         libraryApiProvider.overrideWithValue(library),
-        userConfigApiProvider.overrideWithValue(FakeUserConfigApi()),
+        userConfigApiProvider.overrideWithValue(config ?? FakeUserConfigApi()),
         sessionControllerProvider.overrideWith(
           () => FakeSessionController(SessionSignedIn(user)),
         ),
@@ -89,12 +107,12 @@ void main() {
       ],
     );
     await tester.tap(find.text('apri'));
-    await tester.pumpAndSettle();
-  }
-
-  Future<void> search(WidgetTester tester) async {
-    await tester.tap(find.text('Cerca'));
-    await tester.pumpAndSettle();
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+      await tester.pump();
+    }
   }
 
   Finder row(String id) => find.byKey(ValueKey('subtitle-$id'));
@@ -122,9 +140,6 @@ void main() {
       testSubtitle(id: 'c', name: 'Beta', providerName: '', format: ''),
     ]);
     await open(tester);
-    expect(find.text('Zeta'), findsNothing, reason: 'prima di cercare');
-
-    await search(tester);
 
     expect(
       tester.getTopLeft(find.text('Alfa')).dy,
@@ -133,14 +148,14 @@ void main() {
     expect(
       find.descendant(
         of: row('b'),
-        matching: find.text('OpenSubtitles · srt · 1200 download'),
+        matching: find.text('OpenSubtitles · SRT · 1200 download'),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
         of: row('a'),
-        matching: find.text('Podnapisi · ass · ★ 7.5 · 3 download'),
+        matching: find.text('Podnapisi · ASS · ★ 7,5 · 3 download'),
       ),
       findsOneWidget,
     );
@@ -192,11 +207,44 @@ void main() {
 
   testWidgets('lista vuota: nessun sottotitolo trovato', (tester) async {
     await open(tester);
-    expect(find.text('Nessun sottotitolo trovato'), findsNothing);
-
-    await search(tester);
 
     expect(find.text('Nessun sottotitolo trovato'), findsOneWidget);
+  });
+
+  testWidgets('la ricerca parte all\'apertura e riparte se cambi lingua', (
+    tester,
+  ) async {
+    await open(tester);
+    expect(api.calls, ['search e1 ita -']);
+    // "Cerca" è il titolo della sezione, non un bottone.
+    expect(
+      find.ancestor(
+        of: find.text('Cerca'),
+        matching: find.bySubtype<ButtonStyleButton>(),
+      ),
+      findsNothing,
+    );
+
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('English').last);
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['search e1 ita -', 'search e1 eng -']);
+  });
+
+  testWidgets('la preferenza che arriva dopo vale per la prima ricerca', (
+    tester,
+  ) async {
+    final config = _SlowUserConfigApi(const Duration(milliseconds: 300))
+      ..config['SubtitleLanguagePreference'] = 'eng';
+    await open(tester, config: config, settle: false);
+    expect(api.calls, isEmpty, reason: 'aspetta la preferenza');
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+
+    expect(api.calls, ['search e1 eng -']);
   });
 
   testWidgets('Elimina solo per l\'admin e solo sulle esterne', (tester) async {
@@ -210,18 +258,19 @@ void main() {
       ),
     );
     expect(find.text('Tracce presenti'), findsOneWidget);
-    expect(find.textContaining('esterno'), findsOneWidget);
-    expect(find.textContaining('nel file'), findsOneWidget);
-    expect(find.text('Elimina'), findsNothing);
+    expect(find.text('SRT · file esterno'), findsOneWidget);
+    expect(find.text('ASS · dentro il video'), findsOneWidget);
+    expect(find.text('Elimina…'), findsNothing);
+    expect(find.text('Non si può eliminare'), findsNothing);
   });
 
   testWidgets('l\'admin elimina solo una traccia esterna', (tester) async {
     await open(tester, user: testAdmin);
-    expect(find.text('Elimina'), findsOneWidget);
+    expect(find.text('Elimina…'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('track-3')),
-        matching: find.text('Elimina'),
+        matching: find.text('Elimina…'),
       ),
       findsOneWidget,
     );
@@ -230,8 +279,56 @@ void main() {
   testWidgets('l\'admin non elimina una traccia nel file', (tester) async {
     library.mediaInfoById['e1'] = testMediaInfo(subtitles: [_embeddedTrack]);
     await open(tester, user: testAdmin);
-    expect(find.textContaining('nel file'), findsOneWidget);
-    expect(find.text('Elimina'), findsNothing);
+    expect(find.text('ASS · dentro il video'), findsOneWidget);
+    expect(find.text('Elimina…'), findsNothing);
+    expect(find.text('Non si può eliminare'), findsOneWidget);
+  });
+
+  testWidgets('le tracce si leggono e la conferma nomina la traccia', (
+    tester,
+  ) async {
+    library.mediaInfoById['e1'] = testMediaInfo(
+      subtitles: const [
+        SubtitleTrack(
+          index: 3,
+          language: 'ita',
+          codec: 'subrip',
+          isExternal: true,
+        ),
+        SubtitleTrack(index: 2, language: 'eng', codec: 'pgssub'),
+      ],
+    );
+    await open(tester, user: testAdmin);
+    final external = find.byKey(const ValueKey('track-3'));
+    final embedded = find.byKey(const ValueKey('track-2'));
+
+    expect(
+      find.descendant(of: external, matching: find.text('Italiano')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: external, matching: find.text('SRT · file esterno')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: embedded,
+        matching: find.text('PGS · dentro il video'),
+      ),
+      findsOneWidget,
+    );
+    final cannot = find.descendant(
+      of: embedded,
+      matching: find.text('Non si può eliminare'),
+    );
+    expect(tester.widget<Text>(cannot).style?.color, WfColors.creamMuted);
+
+    await tester.tap(find.text('Elimina…'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Eliminare i sottotitoli Italiano (SRT, file esterno)?'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('nessuna traccia: Nessuna traccia', (tester) async {
@@ -244,27 +341,58 @@ void main() {
     await open(tester, user: testAdmin);
     final readsBefore = library.mediaInfoCalls.length;
 
-    await tester.tap(find.text('Elimina'));
+    await tester.tap(find.text('Elimina…'));
     await tester.pumpAndSettle();
-    expect(find.text('Eliminare il sottotitolo?'), findsOneWidget);
+    expect(
+      find.text('Eliminare i sottotitoli Italiano (SRT, file esterno)?'),
+      findsOneWidget,
+    );
 
     // Annulla: niente.
     await tester.tap(find.text('Annulla'));
     await tester.pumpAndSettle();
-    expect(api.calls, isEmpty);
+    expect(api.calls, ['search e1 ita -']);
 
+    await tester.tap(find.text('Elimina…'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Elimina'));
     await tester.pumpAndSettle();
-    // La finestra di conferma sta sopra: il suo "Elimina" è l'ultimo.
-    await tester.tap(find.text('Elimina').last);
-    await tester.pumpAndSettle();
 
-    expect(api.calls, ['delete e1 3']);
+    expect(api.calls, ['search e1 ita -', 'delete e1 3']);
     expect(
       library.mediaInfoCalls.length,
       greaterThan(readsBefore),
       reason: 'le tracce si rileggono',
     );
+  });
+
+  testWidgets('Forzati e Per non udenti stanno nel riquadro del caricamento', (
+    tester,
+  ) async {
+    await open(tester);
+    final panel = find.byKey(const ValueKey('subtitles-upload'));
+
+    for (final text in [
+      'Carica un file',
+      'Hai già un .srt o un .ass? Lo aggiungo in Italiano.',
+      'Forzati',
+      'Solo cartelli e battute in altre lingue',
+      'Per non udenti',
+      'Con rumori e nomi di chi parla',
+      'Scegli il file…',
+    ]) {
+      expect(
+        find.descendant(of: panel, matching: find.text(text)),
+        findsOneWidget,
+        reason: text,
+      );
+    }
+  });
+
+  testWidgets('la testa ha la locandina e la riga del titolo', (tester) async {
+    await open(tester);
+    expect(find.byType(DialogItemPoster), findsOneWidget);
+    expect(find.text('Dark'), findsOneWidget);
   });
 
   testWidgets('il caricamento manda il file e chiama onTrackAdded', (
@@ -282,10 +410,10 @@ void main() {
 
     await tester.tap(find.text('Forzati'));
     await tester.pump();
-    await tester.tap(find.text('Carica file…'));
+    await tester.tap(find.text('Scegli il file…'));
     await tester.pump();
     await tester.pump();
-    expect(api.calls, ['upload e1 ita srt']);
+    expect(api.calls, ['search e1 ita -', 'upload e1 ita srt']);
     expect(api.lastUpload!.isForced, isTrue);
     expect(api.lastUpload!.isHearingImpaired, isFalse);
     expect(api.lastUpload!.bytes, hasLength(4));
@@ -310,11 +438,10 @@ void main() {
 
   testWidgets('la rotella compare durante la ricerca', (tester) async {
     final gate = api.gate = Completer<void>();
-    await open(tester);
+    await open(tester, settle: false);
     const progress = ValueKey('subtitles-progress');
 
-    await tester.tap(find.text('Cerca'));
-    await tester.pump();
+    expect(api.calls, ['search e1 ita -']);
     expect(find.byKey(progress), findsOneWidget);
 
     gate.complete();
@@ -322,8 +449,23 @@ void main() {
     expect(find.byKey(progress), findsNothing);
   });
 
-  testWidgets('la rotella compare durante il caricamento', (tester) async {
+  testWidgets('mentre cerca la finestra non si chiude', (tester) async {
     final gate = api.gate = Completer<void>();
+    await open(tester, settle: false);
+
+    await tester.tap(find.text('Chiudi'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Tracce presenti'), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Chiudi'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tracce presenti'), findsNothing);
+  });
+
+  testWidgets('la rotella compare durante il caricamento', (tester) async {
     await open(
       tester,
       picked: PickedSubtitleFile(
@@ -332,9 +474,10 @@ void main() {
         read: () async => Uint8List.fromList([1]),
       ),
     );
+    final gate = api.gate = Completer<void>();
     const progress = ValueKey('subtitles-progress');
 
-    await tester.tap(find.text('Carica file…'));
+    await tester.tap(find.text('Scegli il file…'));
     await tester.pump();
     await tester.pump();
     expect(find.byKey(progress), findsOneWidget);
@@ -387,7 +530,6 @@ void main() {
           testSubtitle(id: 'b', name: 'Beta', providerName: 'Podnapisi'),
         ]);
         await open(tester, user: testAdmin, surfaceSize: size);
-        await search(tester);
         expect(row('a'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },

@@ -410,7 +410,26 @@ void main() {
     await tester.tap(find.text('Sottotitoli…'));
     await tester.pumpAndSettle();
     expect(find.text('Tracce presenti'), findsOneWidget);
-    expect(find.text('Dune'), findsWidgets);
+    expect(find.textContaining('Dune · Film'), findsOneWidget);
+  });
+
+  testWidgets('dal menu la testa ha serie ed episodio', (tester) async {
+    api
+      ..itemsById['e4'] = testItem(
+          id: 'e4',
+          name: 'La scatola',
+          kind: ItemKind.episode,
+          seriesId: 's1',
+          seriesName: "L'Istituto",
+          seasonIndex: 1,
+          index: 4)
+      ..mediaInfoById['e4'] = testMediaInfo();
+    await pumpDetail(tester, 'e4');
+    await tester.tap(find.byTooltip('Altre azioni').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sottotitoli…'));
+    await tester.pumpAndSettle();
+    expect(find.text("L'Istituto · S1:E4 La scatola"), findsOneWidget);
   });
 
   testWidgets('"Info tecniche" apre la finestra', (tester) async {

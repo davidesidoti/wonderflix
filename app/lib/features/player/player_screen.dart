@@ -1346,7 +1346,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await showSubtitlesDialog(
       context,
       itemId: widget.args.itemId,
-      title: view.item?.name ?? '',
+      title: view.item == null
+          ? ''
+          : itemContextLine(AppLocalizations.of(context), view.item!),
       onTrackAdded: () => refresh = controller.refreshSubtitleStreams(),
     );
     // Sotto la finestra l'avviso scadrebbe prima che si veda: compare solo

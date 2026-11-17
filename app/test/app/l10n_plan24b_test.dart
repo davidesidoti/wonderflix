@@ -69,7 +69,7 @@ const _keys = [
   'subtitlesExternal',
   'subtitlesEmbedded',
   'subtitlesDelete',
-  'subtitlesDeleteTitle',
+  'subtitlesDeleteTrackTitle',
   'subtitlesDeleteMessage',
   'subtitlesFileTypes',
   'subtitlesNextPlayback',
