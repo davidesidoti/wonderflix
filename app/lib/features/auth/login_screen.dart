@@ -7,6 +7,7 @@ import '../../app/tv_back.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/staggered_entrance.dart';
+import '../../ui/tv_text_field_frame.dart';
 import '../../ui/user_avatar.dart';
 import 'auth_providers.dart';
 import 'password_login_form.dart';
@@ -70,6 +71,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
+  /// Dopo la prossima costruzione il focus va alla cornice del nome utente
+  /// (la prima del pannello), non al campo: aprirebbe la tastiera.
+  void _focusUsernameFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _panelFocus.traversalDescendants
+          .where((n) =>
+              n.context?.findAncestorWidgetOfExactType<TvTextFieldFrame>() !=
+                  null &&
+              n.context?.findAncestorWidgetOfExactType<EditableText>() == null)
+          .firstOrNull
+          ?.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
     _panelFocus.dispose();
@@ -115,10 +131,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }),
       onNotYou: hello == null
           ? null
-          : () => setState(() {
+          : () {
+              setState(() {
                 _notYou = true;
                 _typedUsername = null;
-              }),
+              });
+              // Il link sparisce col fuoco: in TV va alla cornice del nome
+              // (fuori dalla TV ci pensa l'autofocus del campo).
+              if (FormFactor.of(context).tv) _focusUsernameFrame();
+            },
     );
 
     // Nello stretto il logo sta sopra il pannello, che prende tutta la

@@ -167,14 +167,27 @@ void main() {
     expect(find.byType(ErrorBanner), findsNothing);
     expect(find.byIcon(LucideIcons.clock), findsOneWidget);
     expect(find.byKey(const Key('login-not-you')), findsOneWidget);
+    // La riga col link è alta come quella della password.
+    double gap(String label, String field) =>
+        tester.getTopLeft(find.byKey(Key(field))).dy -
+        tester.getTopLeft(find.text(label)).dy;
+    expect(gap('Nome utente', 'login-username'),
+        moreOrLessEquals(gap('Password', 'login-password'), epsilon: 0.5));
   });
 
   testWidgets('"Non sei tu?" svuota il nome e torna al titolo generico',
       (tester) async {
     await pumpRelogin(tester);
+    await tester.enterText(find.byKey(const Key('login-password')), 'segreta');
+    await tester.tap(find.byKey(const Key('login-password-eye')));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('login-not-you')));
     await tester.pump();
     await tester.pump();
+    final password =
+        tester.widget<TextField>(find.byKey(const Key('login-password')));
+    expect(password.controller!.text, isEmpty);
+    expect(password.obscureText, isTrue);
     expect(find.text('Accedi a WonderFlix'), findsOneWidget);
     expect(find.text('Ciao, Luigi'), findsNothing);
     expect(find.byType(UserAvatar), findsNothing);
@@ -254,8 +267,14 @@ void main() {
       expect(hasFocus(tester, 'login-password'), isFalse);
     }
 
-    Focus.of(tester.element(find.text('Non sei tu?'))).requestFocus();
+    // Dalla scheda Password Giù va al nome (il link a destra è fuori dalla
+    // colonna della scheda); Su dal nome arriva al link.
+    Focus.of(tester.element(find.widgetWithText(Tab, 'Password')))
+        .requestFocus();
     await tester.pump();
+    await press(LogicalKeyboardKey.arrowDown);
+    expect(frame('login-username').hasPrimaryFocus, isTrue);
+    await press(LogicalKeyboardKey.arrowUp);
     expect(onWidget(const Key('login-not-you')), isTrue);
     await press(LogicalKeyboardKey.arrowDown);
     expect(frame('login-username').hasPrimaryFocus, isTrue);
@@ -267,6 +286,15 @@ void main() {
     expect(frame('login-password').hasPrimaryFocus, isTrue);
     await press(LogicalKeyboardKey.arrowUp);
     expect(frame('login-username').hasPrimaryFocus, isTrue);
+    await press(LogicalKeyboardKey.arrowUp);
+    expect(onWidget(const Key('login-not-you')), isTrue);
+
+    // OK sul link: il link sparisce, il focus va alla cornice del nome.
+    await press(LogicalKeyboardKey.select);
+    await tester.pump();
+    expect(find.byKey(const Key('login-not-you')), findsNothing);
+    expect(frame('login-username').hasPrimaryFocus, isTrue);
+    expect(inField(), isFalse);
   });
 
   testWidgets('scheda Quick Connect solo se attivo sul server', (tester) async {

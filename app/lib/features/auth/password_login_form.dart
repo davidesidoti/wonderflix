@@ -14,8 +14,12 @@ import '../../ui/tv_text_field_frame.dart';
 import 'session_controller.dart';
 
 class PasswordLoginForm extends ConsumerStatefulWidget {
-  const PasswordLoginForm(
-      {super.key, this.initialUsername, this.onForgotPassword, this.onNotYou});
+  const PasswordLoginForm({
+    super.key,
+    this.initialUsername,
+    this.onForgotPassword,
+    this.onNotYou,
+  });
 
   /// Il nome già scritto ("Accedi di nuovo", spec K §9.3): il fuoco va alla
   /// password.
@@ -78,113 +82,136 @@ class _PasswordLoginFormState extends ConsumerState<PasswordLoginForm> {
     // aprirebbe subito la tastiera.
     final tv = FormFactor.of(context).tv;
     const labelStyle = TextStyle(
-        color: WfColors.creamMuted, fontSize: 12.5, fontWeight: FontWeight.w600);
+      color: WfColors.creamMuted,
+      fontSize: 12.5,
+      fontWeight: FontWeight.w600,
+    );
     Widget label(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 7),
-        child: Text(text, style: labelStyle));
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Text(text, style: labelStyle),
+    );
     return AutofillGroup(
       child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (_error != null) ...[
-          ErrorBanner(_error!),
-          const SizedBox(height: 12),
-        ],
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(child: label(l.loginUsername)),
-            if (widget.onNotYou case final onNotYou?)
-              TextButton(
-                key: const Key('login-not-you'),
-                onPressed: onNotYou,
-                style: TextButton.styleFrom(
-                    textStyle: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600)),
-                child: Text(l.loginNotYou),
-              ),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_error != null) ...[
+            ErrorBanner(_error!),
+            const SizedBox(height: 12),
           ],
-        ),
-        TvTextFieldFrame(
-          focusNode: _usernameFocus,
-          child: TextField(
-            key: const Key('login-username'),
-            controller: _username,
-            focusNode: _usernameFocus,
-            autofocus: !tv && widget.initialUsername == null,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.username],
-            // Sulla TV "Avanti" della tastiera apre subito la password.
-            onSubmitted:
-                tv ? (_) => _passwordFrame.currentState?.startTyping() : null,
-          ),
-        ),
-        const SizedBox(height: 12),
-        label(l.loginPassword),
-        TvTextFieldFrame(
-          key: _passwordFrame,
-          focusNode: _passwordFocus,
-          child: TextField(
-            key: const Key('login-password'),
-            controller: _password,
-            focusNode: _passwordFocus,
-            autofocus: !tv && widget.initialUsername != null,
-            obscureText: _obscured,
-            autofillHints: const [AutofillHints.password],
-            onSubmitted: (_) => unawaited(_submit()),
-            // In TV niente occhio: il campo è in cornice.
-            decoration: InputDecoration(
-              suffixIcon: tv
-                  ? null
-                  : IconButton(
-                      key: const Key('login-password-eye'),
-                      tooltip: _obscured
-                          ? l.loginShowPassword
-                          : l.loginHidePassword,
-                      icon: Icon(
-                          _obscured ? LucideIcons.eye : LucideIcons.eyeOff,
-                          size: 18),
-                      onPressed: () => setState(() => _obscured = !_obscured),
-                    ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          key: const Key('login-submit'),
-          onPressed: _busy ? null : _submit,
-          child: _busy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: WfColors.bg),
-                )
-              : Text(l.loginSubmit),
-        ),
-        if (widget.onForgotPassword != null || supportUrl != null) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              if (widget.onForgotPassword case final onForgot?)
-                TextButton(
-                  key: const Key('login-forgot'),
-                  // Spento durante un accesso: il recupero smonterebbe il
-                  // modulo e un errore o l'ingresso andrebbero persi.
-                  onPressed: _busy ? null : () => onForgot(_username.text),
-                  child: Text(l.loginForgotPassword),
-                ),
-              if (supportUrl != null)
-                TextButton(
-                  onPressed: () => unawaited(launchUrl(supportUrl)),
-                  child: Text(l.loginContactAdmin),
+              Expanded(child: label(l.loginUsername)),
+              if (widget.onNotYou case final onNotYou?)
+                // Fuori dalla TV alto quanto l'etichetta: le due righe
+                // restano uguali. In TV la misura piena, per il focus.
+                Padding(
+                  padding: EdgeInsets.only(bottom: tv ? 0 : 7),
+                  child: TextButton(
+                    key: const Key('login-not-you'),
+                    onPressed: onNotYou,
+                    style: TextButton.styleFrom(
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      tapTargetSize: tv
+                          ? null
+                          : MaterialTapTargetSize.shrinkWrap,
+                      minimumSize: tv ? null : Size.zero,
+                      padding: tv
+                          ? null
+                          : const EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                    child: Text(l.loginNotYou),
+                  ),
                 ),
             ],
           ),
+          TvTextFieldFrame(
+            focusNode: _usernameFocus,
+            child: TextField(
+              key: const Key('login-username'),
+              controller: _username,
+              focusNode: _usernameFocus,
+              autofocus: !tv && widget.initialUsername == null,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.username],
+              // Sulla TV "Avanti" della tastiera apre subito la password.
+              onSubmitted: tv
+                  ? (_) => _passwordFrame.currentState?.startTyping()
+                  : null,
+            ),
+          ),
+          const SizedBox(height: 12),
+          label(l.loginPassword),
+          TvTextFieldFrame(
+            key: _passwordFrame,
+            focusNode: _passwordFocus,
+            child: TextField(
+              key: const Key('login-password'),
+              controller: _password,
+              focusNode: _passwordFocus,
+              autofocus: !tv && widget.initialUsername != null,
+              obscureText: _obscured,
+              autofillHints: const [AutofillHints.password],
+              onSubmitted: (_) => unawaited(_submit()),
+              // In TV niente occhio: il campo è in cornice.
+              decoration: InputDecoration(
+                suffixIcon: tv
+                    ? null
+                    : IconButton(
+                        key: const Key('login-password-eye'),
+                        tooltip: _obscured
+                            ? l.loginShowPassword
+                            : l.loginHidePassword,
+                        icon: Icon(
+                          _obscured ? LucideIcons.eye : LucideIcons.eyeOff,
+                          size: 18,
+                        ),
+                        onPressed: () => setState(() => _obscured = !_obscured),
+                      ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            key: const Key('login-submit'),
+            onPressed: _busy ? null : _submit,
+            child: _busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: WfColors.bg,
+                    ),
+                  )
+                : Text(l.loginSubmit),
+          ),
+          if (widget.onForgotPassword != null || supportUrl != null) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (widget.onForgotPassword case final onForgot?)
+                  TextButton(
+                    key: const Key('login-forgot'),
+                    // Spento durante un accesso: il recupero smonterebbe il
+                    // modulo e un errore o l'ingresso andrebbero persi.
+                    onPressed: _busy ? null : () => onForgot(_username.text),
+                    child: Text(l.loginForgotPassword),
+                  ),
+                if (supportUrl != null)
+                  TextButton(
+                    onPressed: () => unawaited(launchUrl(supportUrl)),
+                    child: Text(l.loginContactAdmin),
+                  ),
+              ],
+            ),
+          ],
         ],
-      ],
       ),
     );
   }
