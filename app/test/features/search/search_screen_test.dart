@@ -467,8 +467,10 @@ void main() {
     String location() => router.state.uri.toString();
     List<String>? saved() => prefs.getStringList('search.recent.${testUser.id}');
 
-    Future<void> pumpSearch(WidgetTester tester) async {
-      await pumpAppRouter(tester, router, overrides: [
+    Future<void> pumpSearch(WidgetTester tester,
+        {Size size = const Size(1440, 900), bool tv = false}) async {
+      await pumpAppRouter(tester, router,
+          surfaceSize: size, tv: tv, overrides: [
         libraryApiProvider.overrideWithValue(api),
         requestsAvailableProvider.overrideWithValue(false),
         sessionControllerProvider.overrideWith(
@@ -514,6 +516,38 @@ void main() {
       await tester.pump();
       expect(fieldText(tester), '');
       expect(fieldFocused(tester), isTrue);
+    });
+
+    testWidgets('"Esc svuota" col testo sul PC, non a campo vuoto',
+        (tester) async {
+      await pumpSearch(tester);
+      expect(find.text('svuota'), findsNothing);
+
+      await type(tester, 'dun');
+      expect(find.text('Esc'), findsOneWidget);
+      expect(find.text('svuota'), findsOneWidget);
+      // Prima della ✕.
+      expect(tester.getTopLeft(find.text('svuota')).dx,
+          lessThan(tester.getTopLeft(find.byTooltip('Svuota')).dx));
+    });
+
+    testWidgets('"Esc svuota" non c\'è sul telefono', (tester) async {
+      await pumpSearch(tester, size: const Size(390, 844));
+      await type(tester, 'dun');
+      expect(find.byTooltip('Svuota'), findsOneWidget);
+      expect(find.text('svuota'), findsNothing);
+    });
+
+    testWidgets('"Esc svuota" non c\'è in TV', (tester) async {
+      await pumpSearch(tester, size: const Size(960, 540), tv: true);
+      tester.widget<TextField>(find.byType(TextField)).controller!.text = 'dun';
+      ProviderScope.containerOf(tester.element(find.byType(SearchScreen)))
+          .read(searchControllerProvider.notifier)
+          .setTerm('dun');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      expect(find.text('dun'), findsOneWidget);
+      expect(find.text('svuota'), findsNothing);
     });
 
     testWidgets('Invio salva il termine e apre il miglior risultato',

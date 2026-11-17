@@ -156,6 +156,8 @@
   "personSearchRequests": "Search in Requests",
   "searchHint": "Title, actor or director",
   "searchClear": "Clear",
+  "searchEscKey": "Esc",
+  "searchEscClears": "clears",
   "searchRecentTitle": "Recent searches",
   "searchRecentDeviceOnly": "Only on this device",
   "searchRecentClearAll": "Clear",

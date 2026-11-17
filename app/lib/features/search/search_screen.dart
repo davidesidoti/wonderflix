@@ -15,6 +15,7 @@ import '../../ui/tv_lanes.dart';
 import '../collections/collections_logic.dart';
 import '../collections/collections_providers.dart';
 import '../collections/sagas_search_section.dart';
+import '../player/player_keys.dart' show KeyCap;
 import '../requests/requestables_controller.dart';
 import '../requests/requestables_section.dart';
 import '../requests/requests_providers.dart';
@@ -237,10 +238,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               const Icon(LucideIcons.search, color: WfColors.creamMuted),
           suffixIcon: tv || _text.text.isEmpty
               ? null
-              : IconButton(
-                  icon: const Icon(LucideIcons.x),
-                  tooltip: l.searchClear,
-                  onPressed: _clear),
+              : Row(mainAxisSize: MainAxisSize.min, children: [
+                  // Il suggerimento solo dove c'è una tastiera fisica.
+                  if (!FormFactor.of(context).compact) ...[
+                    KeyCap(l.searchEscKey),
+                    const SizedBox(width: 6),
+                    Text(l.searchEscClears,
+                        style: const TextStyle(
+                            fontSize: 12, color: WfColors.creamMuted)),
+                    const SizedBox(width: 4),
+                  ],
+                  IconButton(
+                      icon: const Icon(LucideIcons.x),
+                      tooltip: l.searchClear,
+                      onPressed: _clear),
+                ]),
         ),
       ),
     );

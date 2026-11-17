@@ -175,6 +175,8 @@
   "personSearchRequests": "Cerca in Richieste",
   "searchHint": "Titolo, attore o regista",
   "searchClear": "Svuota",
+  "searchEscKey": "Esc",
+  "searchEscClears": "svuota",
   "searchRecentTitle": "Ricerche recenti",
   "searchRecentDeviceOnly": "Solo su questo dispositivo",
   "searchRecentClearAll": "Cancella",
