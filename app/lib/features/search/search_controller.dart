@@ -19,8 +19,12 @@ class SearchResults {
     required this.peopleTotal,
     this.facts,
     List<JellyfinItem>? peopleRanked,
+    this.term = '',
   }) : _peopleRanked = peopleRanked;
 
+  /// Il termine di questi risultati: mentre si affina [SearchState.term] è
+  /// già quello nuovo, i risultati sono ancora del vecchio.
+  final String term;
   final List<JellyfinItem> movies;
   final List<JellyfinItem> series;
   /// Nell'ordine del server, uguale prima e dopo [facts]: `bestResult` lo usa.
@@ -125,6 +129,7 @@ class SearchController extends Notifier<SearchState> {
       ]);
       if (!ref.mounted || cancel.isCancelled) return;
       final results = SearchResults(
+        term: term,
         movies: pages[0].items,
         series: pages[1].items,
         people: pages[2].items,
@@ -179,6 +184,7 @@ class SearchController extends Notifier<SearchState> {
       state = SearchState(
         term: term,
         results: SearchResults(
+          term: term,
           movies: results.movies,
           series: results.series,
           people: results.people,

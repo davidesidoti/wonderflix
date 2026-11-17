@@ -74,8 +74,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'zzz');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pump();
-    expect(find.text(
-        "Nessun titolo per “zzz”. Controlla l'ortografia o prova col titolo originale."), findsOneWidget);
+    expect(
+        find.text("Nessun titolo per “zzz”. Controlla l'ortografia o prova "
+            'col titolo originale.'),
+        findsOneWidget);
   });
 
   List<Override> overrides(FakeLibraryApi library, FakeRequestsApi requests,
@@ -363,8 +365,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
       expect(find.text('Alien - Collezione'), findsOneWidget);
-      expect(find.text(
-          "Nessun titolo per “alien”. Controlla l'ortografia o prova col titolo originale."), findsNothing);
+      expect(
+          find.text("Nessun titolo per “alien”. Controlla l'ortografia o "
+              'prova col titolo originale.'),
+          findsNothing);
     });
 
     testWidgets('niente saghe che corrispondono: nessuna sezione',
@@ -376,7 +380,8 @@ void main() {
       expect(find.text('Saghe'), findsNothing);
       expect(
           find.text(
-              "Nessun titolo per “zzz”. Controlla l'ortografia o prova col titolo originale."),
+              "Nessun titolo per “zzz”. Controlla l'ortografia o prova "
+              'col titolo originale.'),
           findsOneWidget);
     });
   });
@@ -614,7 +619,8 @@ void main() {
     testWidgets('il titolo trovato per il titolo originale va in fondo e lo '
         'dice', (tester) async {
       final library = FakeLibraryApi()
-        ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
+        ..onItems = ((query, start, limit) =>
+            query.kinds.contains(ItemKind.movie)
             ? pageOf([
                 testItem(
                     id: 'm0',
@@ -627,8 +633,9 @@ void main() {
       await pumpResults(tester, library);
       await search(tester, 'ist');
 
+      final maleficent = find.text('Maleficent - Signora del male');
       expect(tester.getTopLeft(find.text('Il mistero della pietra').last).dx,
-          lessThan(tester.getTopLeft(find.text('Maleficent - Signora del male')).dx));
+          lessThan(tester.getTopLeft(maleficent).dx));
       expect(find.text('Titolo originale: Maleficent: Mistress of Evil'),
           findsOneWidget);
     });
@@ -636,9 +643,11 @@ void main() {
     testWidgets('griglia: sette colonne a 1280, nessun overflow',
         (tester) async {
       final library = FakeLibraryApi()
-        ..onItems = ((query, start, limit) => query.kinds.contains(ItemKind.movie)
+        ..onItems = ((query, start, limit) =>
+            query.kinds.contains(ItemKind.movie)
             ? pageOf([
-                for (var i = 0; i < 10; i++) testItem(id: 'm$i', name: 'Dune $i'),
+                for (var i = 0; i < 10; i++)
+                  testItem(id: 'm$i', name: 'Dune $i'),
               ])
             : pageOf([]))
         ..people = [];
@@ -689,6 +698,41 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsNothing);
     });
 
+    testWidgets('mentre affina, i risultati vecchi restano ordinati per il '
+        'loro termine', (tester) async {
+      // Per "dune" la serie (0) sta sopra il film (1); per "dunx" nessuno
+      // dei due corrisponderebbe e il film andrebbe sopra.
+      final library = FakeLibraryApi()
+        ..onItems = ((query, start, limit) => query.searchTerm != 'dune'
+            ? pageOf([])
+            : query.kinds.contains(ItemKind.movie)
+                ? pageOf([testItem(id: 'm0', name: 'Sabbia e dune')])
+                : pageOf([
+                    testItem(
+                        id: 's0',
+                        name: 'Dune: Prophecy',
+                        kind: ItemKind.series),
+                  ]))
+        ..people = [];
+      await pumpResults(tester, library);
+      await search(tester, 'dune');
+      expect(find.text('Miglior risultato'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'dunx');
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Miglior risultato'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Serie')).dy,
+          lessThan(tester.getTopLeft(find.text('Film')).dy));
+      const empty = "Nessun titolo per “dunx”. Controlla l'ortografia o "
+          'prova col titolo originale.';
+      expect(find.text(empty), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+      expect(find.text(empty), findsOneWidget);
+    });
+
     testWidgets('TV: mentre affina il focus non va sui risultati vecchi',
         (tester) async {
       await pumpAppRouter(tester, router,
@@ -728,7 +772,7 @@ void main() {
       await pumpResults(tester, FakeLibraryApi(), requests: requests);
       await search(tester, 'odissea');
 
-      const sentence = 'Nessun titolo per “odissea”. Controlla l\'ortografia '
+      const sentence = "Nessun titolo per “odissea”. Controlla l'ortografia "
           'o prova col titolo originale.';
       expect(find.text(sentence), findsOneWidget);
       expect(find.text('Da richiedere'), findsOneWidget);

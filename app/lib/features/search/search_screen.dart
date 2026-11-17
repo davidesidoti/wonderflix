@@ -67,9 +67,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     // è in cache: così la sezione "Saghe" non arriva dopo i risultati.
     final allSagas =
         ref.watch(collectionsProvider).value ?? const <CollectionSummary>[];
+    // Mentre si affina, le saghe del termine dei risultati mostrati: la
+    // pagina non cambia finché non arrivano quelli nuovi.
+    final sagaTerm = (state.loading ? state.results?.term : null) ?? state.term;
     final sagas = state.term.length < SearchController.minLength
         ? const <CollectionSummary>[]
-        : matchCollections(allSagas, state.term,
+        : matchCollections(allSagas, sagaTerm,
             max: SagasSearchSection.maxResults);
     // La lista costruisce la sezione "Da richiedere" solo quando è vicina allo
     // schermo: se esce, il controller (autoDispose) resterebbe senza
@@ -182,7 +185,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (term.length < SearchController.minLength) return;
     final state = ref.read(searchControllerProvider);
     _remember(); // `onChanged` ha già dato il termine al controller.
-    if (state.term == term && !state.loading && state.results != null) {
+    if (state.results?.term == term && !state.loading) {
       _openWhenReady = null;
       _openBest();
       return;

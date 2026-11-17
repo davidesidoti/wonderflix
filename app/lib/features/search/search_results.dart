@@ -79,11 +79,11 @@ class SearchResultsView extends ConsumerWidget {
     }
     if (results.isEmpty && sagas.isEmpty) {
       return _NoTitles(
-          key: const ValueKey('empty'), term: state.term, results: results);
+          key: const ValueKey('empty'), term: results.term, results: results);
     }
     return _Sections(
         key: const ValueKey('data'),
-        term: state.term,
+        term: results.term,
         results: results,
         sagas: sagas,
         onOpened: onOpened);
@@ -302,8 +302,8 @@ class _TitlesSection extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 32),
       child: LayoutBuilder(builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final shown =
-            items.take(phone ? _phoneTitles : catalogColumnCount(width)).toList();
+        final count = phone ? _phoneTitles : catalogColumnCount(width);
+        final shown = items.take(count).toList();
         final cut = total > shown.length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,8 +337,8 @@ class _TitlesSection extends StatelessWidget {
                   maxCrossAxisExtent: 180,
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 24,
-                  mainAxisExtent:
-                      catalogCellExtent(width, MediaQuery.textScalerOf(context)),
+                  mainAxisExtent: catalogCellExtent(
+                      width, MediaQuery.textScalerOf(context)),
                 ),
                 children: [
                   for (final (i, item) in shown.indexed)
