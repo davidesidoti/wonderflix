@@ -11,8 +11,8 @@ import '../../core/social/recommendation_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
 import '../../ui/form_factor.dart';
-import '../../ui/rune_limit.dart';
 import '../../ui/panel_header.dart';
+import '../../ui/rune_limit.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
 import '../../ui/tv_focusable.dart';
@@ -285,32 +285,37 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
   }
 
   Widget _header(AppLocalizations l, RecommendSubject subject) => PanelHeader(
-            title: l.recommendPanelTitle,
-            closeTooltip: l.friendsClose,
-            closeFocusNode: _closeFocus,
-            onClose: () => ref.read(shellPanelProvider.notifier).close(),
-            subtitle: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: SizedBox(
-                    width: RecommendPanel.posterWidth,
-                    height: RecommendPanel.posterHeight,
-                    child: WfImage(
-                        image: ref.watch(imageUrlsProvider).primaryOf(subject.itemId)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(subject.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: WfColors.cream, fontWeight: FontWeight.w600)),
-                ),
-              ],
+    title: l.recommendPanelTitle,
+    closeTooltip: l.friendsClose,
+    closeFocusNode: _closeFocus,
+    onClose: () => ref.read(shellPanelProvider.notifier).close(),
+    subtitle: Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: RecommendPanel.posterWidth,
+            height: RecommendPanel.posterHeight,
+            child: WfImage(
+              image: ref.watch(imageUrlsProvider).primaryOf(subject.itemId),
             ),
-          );
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            subject.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: WfColors.cream,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
   List<Widget> _targets(AppLocalizations l, List<RecommendationTarget> targets) {
     final full = _selected.length >= recommendMaxRecipients;
@@ -388,7 +393,8 @@ class _RecommendPanelState extends ConsumerState<RecommendPanel> {
             gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
               maxCrossAxisExtent: 88,
               // Avatar e margini fissi, nome e stato crescono col testo.
-              mainAxisExtent: 70 + scaler.scale(13) * 1.3 + scaler.scale(11.5) * 1.3,
+              mainAxisExtent:
+                  70 + scaler.scale(13) * 1.3 + scaler.scale(11.5) * 1.3,
             ),
             itemCount: shown.length,
             itemBuilder: (context, i) => _cell(l, shown[i], full,

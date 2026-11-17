@@ -81,9 +81,16 @@ void main() {
     await pumpApp(t, row(highlighted: true));
     expect(find.byKey(const Key('inbox-unread')), findsOneWidget);
     final fill = WfColors.surfaceHigh.withValues(alpha: 0.5);
-    final boxes = t.widgetList<ColoredBox>(
-        find.ancestor(of: find.text('Ciao'), matching: find.byType(ColoredBox)));
-    expect(boxes.any((b) => b.color == fill), isTrue);
+    final boxes = t.widgetList<DecoratedBox>(find.ancestor(
+        of: find.text('Ciao'), matching: find.byType(DecoratedBox)));
+    // Il fondo ha gli stessi angoli da 8 dell'inchiostro del tocco.
+    expect(
+        boxes.map((b) => b.decoration).whereType<BoxDecoration>().any((d) =>
+            d.color == fill && d.borderRadius == BorderRadius.circular(8)),
+        isTrue);
+    final ink = t.widget<InkWell>(find.ancestor(
+        of: find.text('Ciao'), matching: find.byType(InkWell)).first);
+    expect(ink.borderRadius, BorderRadius.circular(8));
   });
 
   testWidgets('nome lungo, testo a 1,5, larga 380: niente overflow', (t) async {

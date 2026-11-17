@@ -394,7 +394,7 @@
   "inboxGroupEarlier": "Earlier",
   "inboxForYou": "For you",
   "inboxServer": "Server",
-  "inboxServerHint": "Admin alerts: downloads, space, restarts, account recovery and pending requests.",
+  "inboxServerHint": "Admin alerts: downloads, space, restarts, account recovery, pending requests and reports.",
   "inboxRemove": "Remove from list",
   "inboxOpen": "Open",
   "inboxEmpty": "Nothing new. Invites and tips from friends show up here.",

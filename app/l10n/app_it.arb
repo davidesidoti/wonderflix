@@ -444,7 +444,7 @@
   "inboxGroupEarlier": "Prima",
   "inboxForYou": "Per te",
   "inboxServer": "Server",
-  "inboxServerHint": "Avvisi per gli admin: download, spazio, riavvii, recupero account e richieste in attesa.",
+  "inboxServerHint": "Avvisi per gli admin: download, spazio, riavvii, recupero account, richieste in attesa e segnalazioni.",
   "inboxRemove": "Togli dalla lista",
   "inboxOpen": "Apri",
   "inboxEmpty": "Niente di nuovo. Gli inviti e i consigli degli amici arrivano qui.",

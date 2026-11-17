@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../app/shell_panels.dart';
 import '../../app/theme.dart';
+import '../../core/jellyfin/json_fields.dart';
 import '../../core/social/social_api.dart';
 import '../../core/social/social_models.dart';
 import '../../l10n/gen/app_localizations.dart';
@@ -743,8 +744,12 @@ class _PersonRow extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  UserAvatar.lookup(
-                      userId: userId, name: name, size: 32, muted: true),
+                  // Offline più spento, come nella bozza (social.html).
+                  Opacity(
+                    opacity: status == false ? 0.6 : 1,
+                    child: UserAvatar.lookup(
+                        userId: userId, name: name, size: 32, muted: true),
+                  ),
                   if (status == true)
                     Positioned(
                       right: -1,
@@ -776,7 +781,8 @@ class _PersonRow extends StatelessWidget {
                       style: TextStyle(
                           color: status == false
                               ? WfColors.creamMuted
-                              : WfColors.cream)),
+                              : WfColors.cream,
+                          fontWeight: FontWeight.w600)),
                   if (subtitle != null)
                     Text(subtitle!,
                         maxLines: 1,
@@ -874,8 +880,7 @@ class _Note extends StatelessWidget {
 
 /// Lo stesso gruppo, con o senza trattini e maiuscole.
 bool _sameGroup(String a, String? b) =>
-    b != null &&
-    a.replaceAll('-', '').toLowerCase() == b.replaceAll('-', '').toLowerCase();
+    b != null && jellyfinIdKey(a) == jellyfinIdKey(b);
 
 /// Pannello Amici sopra la shell e la barra (spec F §8.3), nel contenitore
 /// comune dei pannelli laterali. Con il fuoco nel campo "Ho un codice" il

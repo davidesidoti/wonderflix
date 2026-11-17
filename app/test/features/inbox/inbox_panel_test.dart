@@ -292,7 +292,7 @@ void main() {
   }
 
   const serverHint = 'Avvisi per gli admin: download, spazio, riavvii, '
-      'recupero account e richieste in attesa.';
+      'recupero account, richieste in attesa e segnalazioni.';
 
   testWidgets('admin: le voci del server stanno in Server, col numero',
       (tester) async {
@@ -463,10 +463,10 @@ void main() {
     for (final rich in texts) {
       rich.text.visitChildren((span) {
         if (span is! TextSpan) return true;
-        if (span.text == 'Luigi' && span.style?.fontWeight == FontWeight.w600) {
+        if (span.text == 'Luigi' && span.style?.fontWeight == FontWeight.w700) {
           boldName = true;
         }
-        if (span.text == 'Dune' && span.style?.fontWeight == FontWeight.w600) {
+        if (span.text == 'Dune' && span.style?.fontWeight == FontWeight.w700) {
           boldTitle = true;
         }
         if (span.text == ' ti invita a guardare ' && span.style == null) {

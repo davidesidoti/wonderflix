@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../../core/jellyfin/json_fields.dart';
 import '../../core/jellyfin/server_events.dart';
 import '../../core/syncplay/syncplay_models.dart';
 import '../auth/session_controller.dart';
@@ -101,9 +102,9 @@ final watchPartyDirectoryProvider =
 
 /// Il gruppo di [groups] con quell'id (senza trattini né maiuscole), se c'è.
 GroupInfo? listedGroup(List<GroupInfo> groups, String groupId) {
-  String key(String id) => id.replaceAll('-', '').toLowerCase();
+  final key = jellyfinIdKey(groupId);
   for (final group in groups) {
-    if (key(group.id) == key(groupId)) return group;
+    if (jellyfinIdKey(group.id) == key) return group;
   }
   return null;
 }

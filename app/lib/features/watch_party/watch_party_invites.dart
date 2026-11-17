@@ -47,9 +47,8 @@ class WatchPartyInvite {
 /// Invito a un watch party appena nato (spec B §5.8): l'ultimo gruppo nuovo
 /// comparso nell'elenco; la carta si chiude da sola. I gruppi della prima
 /// lettura dopo il login non sono inviti, né quelli in cui siamo stati.
-/// Niente inviti
-/// dentro un gruppo (o entrando), con il player aperto o senza il permesso
-/// di entrare.
+/// Niente inviti dentro un gruppo (o entrando), con il player aperto o senza
+/// il permesso di entrare.
 class WatchPartyInvites extends Notifier<WatchPartyInvite?> {
   /// Gruppi dell'ultima lettura; `null` prima della prima.
   Set<String>? _known;

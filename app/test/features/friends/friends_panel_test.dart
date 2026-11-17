@@ -85,6 +85,30 @@ void main() {
     expect(find.textContaining('Richieste inviate'), findsNothing);
   });
 
+  testWidgets('righe come la bozza: nome in 600, avatar offline a 0,6',
+      (tester) async {
+    api.snapshot = FriendsSnapshot(friends: [
+      testFriend('u2', 'Luigi', online: true),
+      testFriend('u5', 'Zelda'),
+    ]);
+    await pumpPanel(tester);
+
+    for (final name in ['Luigi', 'Zelda']) {
+      expect(tester.widget<Text>(find.text(name)).style?.fontWeight,
+          FontWeight.w600);
+    }
+    double avatarOpacity(String userId) => tester
+        .widget<Opacity>(find
+            .ancestor(
+                of: find.byWidgetPredicate(
+                    (w) => w is UserAvatar && w.userId == userId),
+                matching: find.byType(Opacity))
+            .first)
+        .opacity;
+    expect(avatarOpacity('u2'), 1);
+    expect(avatarOpacity('u5'), 0.6);
+  });
+
   testWidgets('un amico con un\'immagine la mostra, cercato per id; il '
       'pallino resta', (tester) async {
     final urls = <String>[];

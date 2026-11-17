@@ -1,13 +1,18 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:wonderflix/app/motion.dart';
+import 'package:wonderflix/core/jellyfin/auth_models.dart';
+import 'package:wonderflix/features/auth/session_controller.dart';
 import 'package:wonderflix/features/watch_party/invite_card_frame.dart';
 import 'package:wonderflix/ui/wf_buttons.dart';
 
+import '../../support/fake_session_controller.dart';
 import '../../support/pump_app.dart';
+import '../../support/test_data.dart';
 
 void main() {
   late int timedOut;
@@ -147,5 +152,16 @@ void main() {
     await tester.pump(WfMotion.medium);
     expect(timedOutIds, isEmpty);
     expect(find.text('invito 2'), findsOneWidget);
+  });
+
+  test('col cambio di profilo nessuna carta è più la più nuova', () {
+    final session = FakeSessionController(const SessionSignedIn(testUser));
+    final c = ProviderContainer.test(
+        overrides: [sessionControllerProvider.overrideWith(() => session)]);
+    c.listen(newestInviteProvider, (_, _) {});
+    c.read(newestInviteProvider.notifier).set(InviteKind.party);
+    expect(c.read(newestInviteProvider), InviteKind.party);
+    session.quickConnectApproved(const JellyfinUser(id: 'u2', name: 'Luigi'));
+    expect(c.read(newestInviteProvider), isNull);
   });
 }

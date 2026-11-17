@@ -5,6 +5,7 @@ import '../../app/motion.dart';
 import '../../app/theme.dart';
 import '../../ui/form_factor.dart';
 import '../../ui/wf_buttons.dart';
+import '../auth/session_controller.dart';
 
 /// Quanto resta una carta d'invito prima di chiudersi da sola.
 const inviteCardShowFor = Duration(seconds: 10);
@@ -15,7 +16,12 @@ enum InviteKind { party, match, friend }
 /// La carta mostrata per ultima: solo lei ha il pulsante oro.
 class NewestInvite extends Notifier<InviteKind?> {
   @override
-  InviteKind? build() => null;
+  InviteKind? build() {
+    // Come i notifier delle carte: col cambio di profilo si riparte da capo.
+    ref.watch(sessionControllerProvider
+        .select((s) => s is SessionSignedIn ? s.user.id : null));
+    return null;
+  }
 
   void set(InviteKind kind) => state = kind;
 
@@ -203,8 +209,6 @@ class _InviteCardFrameState extends State<InviteCardFrame>
                               widget.sentence,
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w500),
                             ),
                             if (detail != null)
                               Padding(

@@ -13,11 +13,11 @@ import '../../core/reports/report_models.dart';
 import '../../core/social/inbox_models.dart';
 import '../../core/social/social_api.dart';
 import '../../l10n/gen/app_localizations.dart';
+import '../../ui/bold_spans.dart';
 import '../../ui/panel_header.dart';
 import '../../ui/sender_avatar.dart';
 import '../../ui/shell_side_panel.dart';
 import '../../ui/skeletons.dart';
-import '../../ui/bold_spans.dart';
 import '../../ui/wf_image.dart';
 import '../admin/admin_providers.dart';
 import '../library/library_providers.dart';
@@ -315,8 +315,9 @@ class _Entries extends ConsumerWidget {
       children: [
         for (final day in InboxDay.values)
           if (entries.any((e) => inboxDayOf(e.createdAt, now) == day)) ...[
+            // Come i titoli di sezione del pannello Amici.
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
               child: Text(
                 switch (day) {
                   InboxDay.today => l.inboxGroupToday,
@@ -326,7 +327,7 @@ class _Entries extends ConsumerWidget {
                 },
                 style: const TextStyle(
                     color: WfColors.creamMuted,
-                    fontSize: 12.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600),
               ),
             ),

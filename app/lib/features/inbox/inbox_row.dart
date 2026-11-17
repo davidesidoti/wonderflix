@@ -48,15 +48,19 @@ class _InboxRowState extends State<InboxRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: ColoredBox(
-        color: widget.highlighted
-            ? WfColors.surfaceHigh.withValues(alpha: 0.5)
-            : Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: widget.highlighted
+              ? WfColors.surfaceHigh.withValues(alpha: 0.5)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
         // Il fondo sta sotto il Material, così l'inchiostro del tocco si vede.
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             key: widget.openKey,
+            borderRadius: BorderRadius.circular(8),
             onTap: widget.onOpen,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
@@ -142,7 +146,7 @@ class _InboxRowState extends State<InboxRow> {
                         tooltip: l.inboxRemove,
                         visualDensity: VisualDensity.compact,
                         icon: const Icon(LucideIcons.x,
-                            size: 16, color: WfColors.creamMuted),
+                            size: 16, color: WfColors.cream),
                         onPressed: widget.onRemove,
                       ),
                     ),

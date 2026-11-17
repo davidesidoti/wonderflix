@@ -2,32 +2,44 @@ import 'package:flutter/painting.dart';
 
 import '../app/theme.dart';
 
-/// [text] con la prima occorrenza di ogni stringa di [bold] in grassetto e
-/// color crema; una stringa vuota o che non c'è si ignora.
+/// [text] con un'occorrenza di ogni stringa di [bold] in grassetto e color
+/// crema: la prima che non si sovrappone a una già evidenziata (a parità di
+/// posizione vince la più lunga). Una stringa ripetuta prende l'occorrenza
+/// dopo; una vuota o che non c'è si ignora.
 TextSpan boldSpans(String text, List<String> bold) {
-  final found = <(int, String)>[];
-  for (final word in bold) {
-    final at = word.isEmpty ? -1 : text.indexOf(word);
-    if (at >= 0) found.add((at, word));
-  }
-  if (found.isEmpty) return TextSpan(text: text);
-  found.sort((a, b) => a.$1.compareTo(b.$1));
+  final words = [...bold]..removeWhere((w) => w.isEmpty);
   final children = <TextSpan>[];
   var from = 0;
-  for (final (at, word) in found) {
-    if (at < from) continue; // sovrapposta a una già evidenziata
-    if (at > from) children.add(TextSpan(text: text.substring(from, at)));
+  while (words.isNotEmpty) {
+    String? next;
+    var nextAt = -1;
+    for (final word in words) {
+      final at = text.indexOf(word, from);
+      if (at < 0) continue;
+      if (next == null ||
+          at < nextAt ||
+          (at == nextAt && word.length > next.length)) {
+        next = word;
+        nextAt = at;
+      }
+    }
+    if (next == null) break;
+    words.remove(next);
+    if (nextAt > from) {
+      children.add(TextSpan(text: text.substring(from, nextAt)));
+    }
     children.add(
       TextSpan(
-        text: word,
+        text: next,
         style: const TextStyle(
           color: WfColors.cream,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
-    from = at + word.length;
+    from = nextAt + next.length;
   }
+  if (children.isEmpty) return TextSpan(text: text);
   if (from < text.length) children.add(TextSpan(text: text.substring(from)));
   return TextSpan(children: children);
 }
