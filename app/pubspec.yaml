@@ -45,6 +45,15 @@ dependencies:
   web: ^1.1.1
   window_manager: ^0.5.2
 
+# Copia di media_kit_video 2.0.1 (senza example/) con una sola modifica, in
+# windows/angle_surface_manager.cc e .h: la texture del video viene copiata da
+# ANGLESurfaceManager::Draw, sul dispositivo che l'ha disegnata, e non più da
+# Read (fotogrammi neri e scatti con un gioco in primo piano). Le righe
+# cambiate sono segnate "WonderFlix:".
+dependency_overrides:
+  media_kit_video:
+    path: third_party/media_kit_video
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

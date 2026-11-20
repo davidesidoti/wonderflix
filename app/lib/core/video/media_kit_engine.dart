@@ -207,7 +207,23 @@ class MediaKitEngine implements VideoEngine {
       _native.setProperty('sub-scale', scale.toStringAsFixed(2));
 
   @override
-  Future<void> dispose() => _player.dispose();
+  Future<void> dispose() async {
+    // Per le segnalazioni di video a scatti: quanti fotogrammi ha perso mpv.
+    try {
+      final counters = [
+        for (final name in const [
+          'frame-drop-count',
+          'decoder-frame-drop-count',
+          'vo-delayed-frame-count',
+        ])
+          '$name=${await _native.getProperty(name)}',
+      ];
+      _log.info('fine riproduzione: ${counters.join(', ')}');
+    } on Object catch (error) {
+      _log.info('contatori di mpv non letti: $error');
+    }
+    await _player.dispose();
+  }
 
   @override
   Duration get position => _player.state.position;
