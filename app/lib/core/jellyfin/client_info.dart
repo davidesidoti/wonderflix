@@ -21,10 +21,14 @@ class ClientInfo {
       );
 }
 
+// dart:io e i browser rifiutano un header con caratteri non ASCII (la
+// richiesta non parte): si codificano, Jellyfin decodifica i valori.
 String _clean(String value) => value
     .replaceAll(RegExp(r'[",\r\n]'), ' ')
     .replaceAll(RegExp(r'\s+'), ' ')
-    .trim();
+    .trim()
+    .replaceAllMapped(
+        RegExp(r'[^\x20-\x7E]+'), (m) => Uri.encodeComponent(m[0]!));
 
 /// Header `Authorization` nel formato `MediaBrowser ...` atteso da Jellyfin.
 String buildAuthorizationHeader(ClientInfo info, {String? token}) {

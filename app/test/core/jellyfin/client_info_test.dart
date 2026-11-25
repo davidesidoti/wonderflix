@@ -34,6 +34,22 @@ void main() {
     expect(buildAuthorizationHeader(dirty), contains('Device="Mario PC casa"'));
   });
 
+  test('codifica i caratteri non ASCII del nome dispositivo', () {
+    // dart:io rifiuta un header con caratteri fuori da 0x20-0x7E e la
+    // richiesta non parte ("2° FireTVStick di davide"); Jellyfin decodifica.
+    const fancy = ClientInfo(
+      client: 'WonderFlix',
+      device: '2° FireTVStick di Nicolò’s 🎬',
+      deviceId: 'dev-1',
+      version: '1.0.0',
+    );
+    final header = buildAuthorizationHeader(fancy);
+    expect(header.codeUnits.every((c) => c >= 0x20 && c <= 0x7E), isTrue);
+    final device = RegExp(r'Device="([^"]*)"').firstMatch(header)![1]!;
+    expect(device, startsWith('2%C2%B0 FireTVStick di '));
+    expect(Uri.decodeComponent(device), '2° FireTVStick di Nicolò’s 🎬');
+  });
+
   test('copyWith cambia solo il DeviceId', () {
     final copy = info.copyWith(deviceId: 'dev-2');
     expect(copy.deviceId, 'dev-2');
